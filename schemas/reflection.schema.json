@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.platform/schemas/reflection.schema.json",
+  "title": "ReflectionContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "code",
+    "agent_id",
+    "task_id",
+    "tenant_id",
+    "version",
+    "created_at",
+    "task_review",
+    "quality_score",
+    "confidence_threshold",
+    "escalation",
+    "status"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "agent_id": { "type": "string", "minLength": 1 },
+    "task_id": { "type": "string", "minLength": 1 },
+    "tenant_id": { "type": "string", "format": "uuid" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "task_review": {
+      "type": "object",
+      "required": ["summary", "actual_outcome"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "expected_outcome": { "type": "string" },
+        "actual_outcome": { "type": "string", "minLength": 1 },
+        "evaluation_criteria": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "quality_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+    "confidence_threshold": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+    "escalation": {
+      "type": "object",
+      "required": ["triggered"],
+      "properties": {
+        "triggered": { "type": "boolean" },
+        "reason": { "type": "string" },
+        "escalated_to": { "type": "string" },
+        "escalated_at": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "triggered": { "const": true } },
+            "required": ["triggered"]
+          },
+          "then": {
+            "required": ["escalated_to", "reason"]
+          }
+        }
+      ]
+    },
+    "failure_analysis": {
+      "type": "object",
+      "required": ["root_cause", "category"],
+      "properties": {
+        "root_cause": { "type": "string", "minLength": 1 },
+        "category": {
+          "type": "string",
+          "enum": [
+            "tool_error",
+            "model_hallucination",
+            "policy_violation",
+            "data_quality",
+            "timeout",
+            "guardrail_block",
+            "unknown"
+          ]
+        },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] }
+      }
+    },
+    "improvement_plan": {
+      "type": "object",
+      "properties": {
+        "recommended_action": { "type": "string" },
+        "owner": { "type": "string" },
+        "target_date": { "type": "string", "format": "date" }
+      }
+    },
+    "learning": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["insight", "applicability_scope"],
+        "properties": {
+          "insight": { "type": "string", "minLength": 1 },
+          "applicability_scope": {
+            "type": "string",
+            "enum": ["agent_specific", "tenant_wide", "global"]
+          },
+          "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+        }
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "enum": ["human", "system", "customer"] },
+        "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "comments": { "type": "string" }
+      }
+    },
+    "knowledge_update": {
+      "type": "object",
+      "required": ["knowledge_id", "update_type"],
+      "properties": {
+        "knowledge_id": { "type": "string", "minLength": 1 },
+        "update_type": { "type": "string", "enum": ["create", "revise", "deprecate"] },
+        "proposed_content_ref": { "type": "string" }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "evaluated", "completed", "escalated", "rejected", "archived"]
+    },
+    "metadata": { "type": "object" }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "event_name is 'CreateSPK', an imperative command in PascalCase, not a past-tense snake_case fact (violates Constitution §6.4/§14.2 / VAL-097)",
+    "trace_id is missing entirely (violates RULE-034 / VAL-098)",
+    "correlation_id is an empty string, not a valid UUID (violates RULE-034 / VAL-098)",
+    "schema_version is '2', not a valid semver string (violates schema pattern / VAL-099)",
+    "retry.max_attempts is 5 (greater than 0) but dead_letter.enabled is false, so exhausted retries would be silently dropped (violates RULE-039/040 / VAL-101)",
+    "priority is 0, outside the 1-10 range (violates schema minimum:1 / VAL-103)",
+    "publisher is the free-text string 'some script', not a registered Agent/Service code (violates Registry Contract cross-check / VAL-107)"
+  ],
+  "event_id": "8e9f0a1b-2c3d-44e5-9f6a-7b8c9d0e1f2a",
+  "event_name": "CreateSPK",
+  "schema_version": "2",
+  "publisher": "some script",
+  "subscriber": ["sales_pipeline_workflow"],
+  "payload_schema": "schemas/events/spk-created-payload.schema.json",
+  "payload": {
+    "spk_id": "spk.4c2b1a00",
+    "quotation_id": "quotation.9d8c7b60"
+  },
+  "priority": 0,
+  "retry": {
+    "max_attempts": 5,
+    "backoff_strategy": "fixed",
+    "backoff_base_ms": 1000
+  },
+  "dead_letter": {
+    "enabled": false
+  },
+  "correlation_id": "",
+  "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+  "timestamp": "2026-07-31T10:05:00Z"
+}

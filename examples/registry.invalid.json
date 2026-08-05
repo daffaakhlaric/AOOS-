@@ -1,0 +1,24 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "registry_type is 'AgentsRegistry' which is not one of the 10 defined enum values (violates schema enum / VAL-133)",
+    "entry_version is '1.2' rather than full semver MAJOR.MINOR.PATCH (violates schema pattern / VAL-134)",
+    "status is 'deprecated' but deprecation_note is absent (violates Registry Contract §4 invariant / VAL-138)",
+    "changelog is an empty array — every entry must retain at least its initial publish record (violates schema minItems:1 / VAL-139)",
+    "payload_ref is missing entirely, so the wrapped contract instance cannot be resolved (violates Constitution §9.2 / VAL-140)",
+    "supersedes does not match the '<entry_id>@<version>' pattern (violates schema pattern / VAL-142)",
+    "created_at is not a valid ISO 8601 date-time (violates schema format / VAL-144)"
+  ],
+  "id": "reg-001",
+  "registry_type": "AgentsRegistry",
+  "entry_id": "9c1f3e2a-2b1a-4e3a-8b0a-1a2b3c4d5e6f",
+  "entry_version": "1.2",
+  "status": "deprecated",
+  "tenant_scope": "tenant_override_allowed",
+  "owner": "lead-intelligence-team",
+  "created_at": "15-06-2026",
+  "created_by": "ci-publish-bot",
+  "changelog": [],
+  "supersedes": "lead_scoring_agent-v1.1.0",
+  "cache_ttl_seconds": 300
+}

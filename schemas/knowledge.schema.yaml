@@ -1,0 +1,110 @@
+# Knowledge Contract — YAML Schema
+# Contract: contract.knowledge v1.0.0
+# See: contracts/knowledge.contract.md
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://aos.platform/schemas/knowledge.schema.yaml"
+title: KnowledgeContract
+type: object
+additionalProperties: false
+required:
+  - id
+  - code
+  - title
+  - knowledge_source
+  - document
+  - confidence
+  - ownership
+  - version
+  - lifecycle
+  - max_staleness_sla
+  - last_synced_at
+  - source_citation
+  - customer_facing
+  - owner
+properties:
+  id:
+    type: string
+    format: uuid
+  code:
+    type: string
+    pattern: "^[a-z][a-z0-9_]*$"
+  title:
+    type: string
+    minLength: 1
+  knowledge_source:
+    type: object
+    required: [type, origin]
+    properties:
+      type:
+        type: string
+        enum: [structured_catalog, unstructured_document, policy_feed, compliance_feed, faq]
+      origin:
+        type: string
+        minLength: 1
+      ingestion_pipeline_ref:
+        type: string
+  document:
+    type: object
+    required: [content_ref, format]
+    properties:
+      content_ref:
+        type: string
+        minLength: 1
+      format:
+        type: string
+        enum: [pdf, html, markdown, json, csv, docx]
+      language:
+        type: string
+        pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+      checksum:
+        type: string
+        pattern: "^[a-f0-9]{64}$"
+  embedding:
+    type: object
+    required: [model, model_version, dimensions, vector_ref]
+    properties:
+      model: { type: string, minLength: 1 }
+      model_version: { type: string, minLength: 1 }
+      dimensions: { type: integer, minimum: 1 }
+      vector_ref: { type: string, minLength: 1 }
+      index_ref: { type: string }
+  confidence:
+    type: number
+    minimum: 0.0
+    maximum: 1.0
+  ownership:
+    type: object
+    required: [scope]
+    properties:
+      tenant_id:
+        type: ["string", "null"]
+        format: uuid
+      scope:
+        type: string
+        enum: [tenant, global]
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+  lifecycle:
+    type: string
+    enum: [ingested, indexed, active, stale, archived]
+  max_staleness_sla:
+    type: string
+    pattern: "^P(\\d+D|T\\d+[HMS])$"
+  last_synced_at:
+    type: string
+    format: date-time
+  source_citation:
+    type: string
+    minLength: 1
+  customer_facing:
+    type: boolean
+  owner:
+    type: string
+    minLength: 1
+  tags:
+    type: array
+    items: { type: string }
+  metadata:
+    type: object

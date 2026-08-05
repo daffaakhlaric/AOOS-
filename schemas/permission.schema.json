@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.platform/schemas/permission.schema.json",
+  "title": "PermissionContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "role",
+    "action",
+    "resource",
+    "tenant",
+    "granted_by",
+    "effective_from",
+    "break_glass",
+    "state"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "role": {
+      "type": "string",
+      "enum": [
+        "ceo_ai",
+        "coo_ai",
+        "marketing_ai",
+        "sales_ai",
+        "dealer_admin",
+        "sales_staff",
+        "admin_ops",
+        "manager"
+      ]
+    },
+    "action": { "type": "string", "enum": ["C", "R", "U", "A", "X"] },
+    "resource": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "tenant": { "type": "string", "minLength": 1 },
+    "condition": {
+      "type": "object",
+      "properties": {
+        "scope": { "type": "string", "enum": ["own_records_only", "own_branch_only", "none"] }
+      },
+      "additionalProperties": true
+    },
+    "policy": { "type": "string" },
+    "granted_by": { "type": "string", "minLength": 1 },
+    "effective_from": { "type": "string", "format": "date-time" },
+    "effective_until": { "type": "string", "format": "date-time" },
+    "break_glass": { "type": "boolean" },
+    "state": { "type": "string", "enum": ["active", "suspended", "revoked"] },
+    "audit_ref": { "type": "string" }
+  }
+}

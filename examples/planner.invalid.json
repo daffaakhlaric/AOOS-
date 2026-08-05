@@ -1,0 +1,81 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "dependency creates a cycle: sub_task.compute_score -> sub_task.fetch_crm_lead -> sub_task.compute_score (violates DAG invariant / VAL-038)",
+    "sub_task.publish_classification declares both tool_ref and agent_ref non-null (violates Planner Contract §4 'exactly one' rule / VAL-039)",
+    "success_criteria is an empty array (violates schema minItems:1 and §4 / VAL-041)",
+    "constraints contains no entry with type 'cost_ceiling' (violates Planner Contract §4 / VAL-044)",
+    "fallback is null while this Planner is owned by an Agent with security_level=restricted (violates Planner Contract §4 / VAL-042)",
+    "max_replan_attempts is missing (violates required field / VAL-047)",
+    "priority is 12, outside the 1-10 range (violates schema maximum:10 / VAL-045)"
+  ],
+  "planner_id": "planner.campaign_budget_reallocation",
+  "version": "1.0.0",
+  "goal": "Reallocate underperforming ad spend toward higher-converting campaigns",
+  "objective": {
+    "metric": "cost_per_lead",
+    "target_value": 15.0,
+    "deadline": "2026-09-30T00:00:00Z"
+  },
+  "task": [
+    {
+      "task_id": "task.analyze_spend",
+      "description": "Analyze campaign spend performance",
+      "sub_tasks": [
+        "sub_task.fetch_crm_lead",
+        "sub_task.compute_score",
+        "sub_task.publish_classification"
+      ]
+    }
+  ],
+  "sub_task": [
+    {
+      "sub_task_id": "sub_task.fetch_crm_lead",
+      "parent_task_id": "task.analyze_spend",
+      "description": "Fetch current campaign spend data",
+      "tool_ref": "tool.fetch_ads_spend",
+      "agent_ref": null
+    },
+    {
+      "sub_task_id": "sub_task.compute_score",
+      "parent_task_id": "task.analyze_spend",
+      "description": "Score campaigns by efficiency",
+      "tool_ref": null,
+      "agent_ref": "reasoner.campaign_efficiency.v1"
+    },
+    {
+      "sub_task_id": "sub_task.publish_classification",
+      "parent_task_id": "task.analyze_spend",
+      "description": "Reallocate budget across campaigns",
+      "tool_ref": "tool.update_ads_budget",
+      "agent_ref": "reasoner.campaign_efficiency.v1"
+    }
+  ],
+  "dependency": [
+    {
+      "from": "sub_task.fetch_crm_lead",
+      "to": "sub_task.compute_score",
+      "type": "finish_to_start"
+    },
+    { "from": "sub_task.compute_score", "to": "sub_task.fetch_crm_lead", "type": "finish_to_start" }
+  ],
+  "priority": 12,
+  "constraints": [
+    { "constraint_id": "c1", "type": "time_ceiling", "expression": "total_duration <= PT5M" }
+  ],
+  "execution_plan": {
+    "ordered_steps": [
+      "sub_task.fetch_crm_lead",
+      "sub_task.compute_score",
+      "sub_task.publish_classification"
+    ],
+    "graph_ref": "planner.campaign_budget_reallocation.v1.graph"
+  },
+  "fallback": null,
+  "success_criteria": [],
+  "failure_criteria": [
+    { "criterion_id": "fc1", "metric": "ads_api_error_rate", "threshold": 0, "comparator": "gt" }
+  ],
+  "model_ref": "model.gpt_router_default.v1",
+  "status": "active"
+}

@@ -1,0 +1,22 @@
+/** "SEARCH MODES" (docs/PROMPT-005.7D-KNOWLEDGE-RETRIEVAL.md) — the 19 search modes `KnowledgeSearchPipeline` can dispatch to. */
+export enum KnowledgeSearchMode {
+  KEYWORD = "keyword",
+  METADATA = "metadata",
+  RELATIONSHIP = "relationship",
+  NAMESPACE = "namespace",
+  CATEGORY = "category",
+  TAGS = "tags",
+  TEMPLATE = "template",
+  HYBRID = "hybrid",
+  SEMANTIC_REFERENCE = "semantic_reference",
+  EXACT_MATCH = "exact_match",
+  PREFIX = "prefix",
+  WILDCARD = "wildcard",
+  FUZZY = "fuzzy",
+  VERSION = "version",
+  POLICY = "policy",
+  PERMISSION = "permission",
+  COLLECTION = "collection",
+  WORKSPACE = "workspace",
+  TENANT = "tenant",
+}

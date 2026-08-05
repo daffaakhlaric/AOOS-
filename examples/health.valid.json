@@ -1,0 +1,44 @@
+{
+  "id": "b4c3d2e1-f0a9-4b8c-9d7e-6f5a4b3c2d1e",
+  "component_ref": "agent.lead_scoring_agent",
+  "heartbeat": {
+    "interval": "PT10S",
+    "timeout": "PT30S"
+  },
+  "availability": {
+    "slo_target": 99.9,
+    "measurement_window": "rolling_30d"
+  },
+  "latency": {
+    "p50_ms": 400,
+    "p95_ms": 1200,
+    "p99_ms": 2500,
+    "budget_ms": 3000
+  },
+  "error_rate": {
+    "threshold_percent": 1.0,
+    "measurement_window": "rolling_1h"
+  },
+  "recovery": {
+    "mode": "automatic",
+    "automatic_action": "restart_and_reroute_to_fallback_model",
+    "manual_runbook_ref": null,
+    "circuit_breaker_ref": "tool.fetch_crm_lead.circuit_breaker"
+  },
+  "dependency_check": [
+    {
+      "dependency_id": "model_router.claude_sonnet_5",
+      "dependency_type": "llm_provider",
+      "health_ref": "health.model_router.v1"
+    },
+    {
+      "dependency_id": "tool.fetch_crm_lead",
+      "dependency_type": "tool_provider",
+      "health_ref": "health.fetch_crm_lead.v1"
+    }
+  ],
+  "readiness_gate": true,
+  "dashboard_ref": "dashboard.lead_intelligence.v1",
+  "state": "healthy",
+  "last_evaluated": "2026-07-31T03:15:00Z"
+}

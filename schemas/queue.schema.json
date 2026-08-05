@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.platform/schemas/queue.schema.json",
+  "title": "QueueContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "queue_name",
+    "version",
+    "description",
+    "state",
+    "priority",
+    "fifo",
+    "fair_share",
+    "delay",
+    "retry",
+    "dead_letter",
+    "visibility_timeout",
+    "throughput",
+    "idempotency_required",
+    "tenant_scope",
+    "owner"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "queue_name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*\\.[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+    },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string", "minLength": 10 },
+    "state": { "type": "string", "enum": ["draft", "active", "deprecated", "retired"] },
+    "priority": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "fifo": {
+      "type": "object",
+      "required": ["enabled", "per_tenant_partition"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "per_tenant_partition": { "type": "boolean" }
+      }
+    },
+    "fair_share": {
+      "type": "object",
+      "required": ["strategy", "max_share_percent"],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": { "type": "string", "enum": ["round_robin", "weighted", "token_bucket"] },
+        "max_share_percent": { "type": "number", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "delay": {
+      "type": "object",
+      "required": ["default_delay_seconds", "max_delay_seconds"],
+      "additionalProperties": false,
+      "properties": {
+        "default_delay_seconds": { "type": "integer", "minimum": 0 },
+        "max_delay_seconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "required": ["max_attempts", "backoff_strategy", "backoff_base_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "backoff_strategy": { "type": "string", "enum": ["fixed", "linear", "exponential"] },
+        "backoff_base_ms": { "type": "integer", "minimum": 100 }
+      }
+    },
+    "dead_letter": {
+      "type": "object",
+      "required": ["destination", "max_retries_before_dlq", "alert_policy"],
+      "additionalProperties": false,
+      "properties": {
+        "destination": { "type": "string", "minLength": 1 },
+        "max_retries_before_dlq": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "alert_policy": { "type": "string", "minLength": 1 }
+      }
+    },
+    "visibility_timeout": { "type": "string", "pattern": "^PT\\d+[SM]$" },
+    "throughput": {
+      "type": "object",
+      "required": ["max_messages_per_second", "burst_limit", "protected_resource"],
+      "additionalProperties": false,
+      "properties": {
+        "max_messages_per_second": { "type": "number", "minimum": 0.1 },
+        "burst_limit": { "type": "integer", "minimum": 1 },
+        "protected_resource": { "type": "string", "minLength": 1 }
+      }
+    },
+    "idempotency_required": { "type": "boolean" },
+    "tenant_scope": {
+      "type": "string",
+      "enum": ["global", "tenant_override_allowed", "tenant_only"]
+    },
+    "owner": { "type": "string", "minLength": 1 },
+    "events": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "publishes": { "type": "array", "items": { "type": "string" } },
+        "subscribes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "metadata": { "type": "object" }
+  }
+}

@@ -1,0 +1,15 @@
+# ADR-TSR-018 — CI/CD: GitHub Actions + ArgoCD
+
+**Status:** Accepted
+
+**Context:** AOS requires pipeline and deployment automation satisfying Constitution §18 and RULE-086–091: IaC-driven, traceable, gated deployment (health checks before traffic shift) to Kubernetes (§3.20), compatible with the canary/tenant-subset rollout pattern already mandated by Architecture ADR-014, for a polyglot (TypeScript/Go/Python, §3.1) codebase. A push-based "CI directly deploys" model requires the CI system to hold standing production cluster credentials, in tension with Constitution §20's least-privilege mandate.
+
+**Decision:** Adopt **GitHub Actions** for build/test/CI (assuming GitHub as the source control host, the default for a TypeScript-first team) and **ArgoCD** for GitOps-based Kubernetes deployment. CI pipelines build, test, and containerize (Docker, §3.19) artifacts and update a Git-tracked deployment manifest; ArgoCD reconciles cluster state to that manifest's declared desired state, gating rollout on health checks (RULE-087/RULE-088) and supporting canary/tenant-subset promotion (Architecture ADR-014). ArgoCD, not GitHub Actions, holds Kubernetes cluster credentials.
+
+**Consequences:** AOS operates two pipeline systems (CI configuration in workflow YAML, CD configuration in ArgoCD Application manifests) rather than one combined tool, requiring a clear handoff convention between them (CI publishes an artifact/updates a manifest; ArgoCD watches and reconciles). In exchange, no CI job ever holds direct production cluster write credentials — only ArgoCD's own scoped RBAC does — a materially safer credential-exposure posture than push-based deployment, and every production cluster change is traceable to a Git commit reconciled by ArgoCD, satisfying RULE-086's auditability requirement end to end (source code in Git → desired cluster state in Git → ArgoCD as the only path to apply it).
+
+**Alternatives Considered:**
+
+- **GitLab CI** — a credible combined CI/CD alternative (via its native GitOps agent) if the organization standardizes on GitLab instead of GitHub; not adopted as primary because GitHub is assumed as the default source-control host for a TypeScript-first startup-to-scaleup team, but named explicitly as the direct substitute, since the build → test → containerize → GitOps-sync pattern is portable between the two.
+- **Push-based CI-triggered deployment (CI running `kubectl apply`/`helm upgrade` directly)** — simpler, single-system model; rejected because it requires CI to hold standing production cluster credentials and lacks a reconciling controller to detect/correct drift between declared and actual cluster state, both of which GitOps/ArgoCD address directly.
+- **Flux** — the other dominant CNCF GitOps controller, operating on the same Kubernetes-manifest-in-Git model as ArgoCD; not adopted over ArgoCD for this decision but named as the direct like-for-like swap target if ArgoCD's fit is ever reconsidered, since both tools reconcile the same class of standard deployment artifacts.

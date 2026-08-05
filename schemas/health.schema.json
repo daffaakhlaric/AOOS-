@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.platform/schemas/health.schema.json",
+  "title": "HealthContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "component_ref",
+    "heartbeat",
+    "availability",
+    "latency",
+    "error_rate",
+    "recovery",
+    "dependency_check",
+    "readiness_gate",
+    "state",
+    "last_evaluated"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "component_ref": { "type": "string", "minLength": 1 },
+    "heartbeat": {
+      "type": "object",
+      "required": ["interval", "timeout"],
+      "properties": {
+        "interval": { "type": "string", "pattern": "^PT\\d+[SM]$" },
+        "timeout": { "type": "string", "pattern": "^PT\\d+[SM]$" }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "required": ["slo_target", "measurement_window"],
+      "properties": {
+        "slo_target": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
+        "measurement_window": {
+          "type": "string",
+          "enum": ["rolling_24h", "rolling_7d", "rolling_30d", "calendar_month"]
+        }
+      }
+    },
+    "latency": {
+      "type": "object",
+      "required": ["p50_ms", "p95_ms", "p99_ms", "budget_ms"],
+      "properties": {
+        "p50_ms": { "type": "number", "minimum": 0 },
+        "p95_ms": { "type": "number", "minimum": 0 },
+        "p99_ms": { "type": "number", "minimum": 0 },
+        "budget_ms": { "type": "number", "minimum": 0 }
+      }
+    },
+    "error_rate": {
+      "type": "object",
+      "required": ["threshold_percent", "measurement_window"],
+      "properties": {
+        "threshold_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "measurement_window": {
+          "type": "string",
+          "enum": ["rolling_5m", "rolling_1h", "rolling_24h"]
+        }
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["automatic", "manual", "hybrid"] },
+        "automatic_action": { "type": "string" },
+        "manual_runbook_ref": { "type": "string" },
+        "circuit_breaker_ref": { "type": "string" }
+      }
+    },
+    "dependency_check": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dependency_id", "dependency_type", "health_ref"],
+        "properties": {
+          "dependency_id": { "type": "string" },
+          "dependency_type": {
+            "type": "string",
+            "enum": [
+              "tool_provider",
+              "llm_provider",
+              "database",
+              "event_bus",
+              "cache",
+              "third_party_api"
+            ]
+          },
+          "health_ref": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "readiness_gate": { "type": "boolean" },
+    "dashboard_ref": { "type": "string" },
+    "state": { "type": "string", "enum": ["healthy", "degraded", "unhealthy", "unknown"] },
+    "last_evaluated": { "type": "string", "format": "date-time" }
+  }
+}

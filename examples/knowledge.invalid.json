@@ -1,0 +1,36 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "lifecycle is 'active' but embedding is entirely absent (violates Knowledge Contract §4 / VAL-087)",
+    "confidence is 1.7, outside the 0.0-1.0 range (violates schema maximum:1.0 / VAL-086)",
+    "customer_facing is true and last_synced_at is over a year old, far beyond max_staleness_sla, yet lifecycle is still 'active' making it eligible for pricing claims (violates DDD BR-094 / VAL-089)",
+    "source_citation is an empty string (violates Architecture §21 Best Practice / VAL-090)",
+    "ownership.scope is 'tenant' but ownership.tenant_id is null (violates Knowledge Contract §4 / VAL-092)",
+    "knowledge_source.type is 'structured_catalog' but document.format is 'markdown', not json/csv (violates domain rule / VAL-091)",
+    "max_staleness_sla is 'forever', not a valid ISO 8601 duration (violates schema pattern / VAL-093)"
+  ],
+  "id": "6c7d8e9f-0a1b-42c3-9d4e-5f6a7b8c9d0e",
+  "code": "knowledge_vehicle_price_list_v2",
+  "title": "2026 Vehicle Price List",
+  "knowledge_source": {
+    "type": "structured_catalog",
+    "origin": "dms://tenant-8a1b2c3d/pricing/2026"
+  },
+  "document": {
+    "content_ref": "s3://aos-knowledge/tenant-8a1b2c3d/price_list_2026.md",
+    "format": "markdown",
+    "language": "en-US"
+  },
+  "confidence": 1.7,
+  "ownership": {
+    "tenant_id": null,
+    "scope": "tenant"
+  },
+  "version": "2.0.0",
+  "lifecycle": "active",
+  "max_staleness_sla": "forever",
+  "last_synced_at": "2025-06-01T00:00:00Z",
+  "source_citation": "",
+  "customer_facing": true,
+  "owner": "inventory-team"
+}

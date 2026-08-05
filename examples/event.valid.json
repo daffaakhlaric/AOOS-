@@ -1,0 +1,31 @@
+{
+  "event_id": "7d8e9f0a-1b2c-43d4-8e5f-6a7b8c9d0e1f",
+  "event_name": "lead.hot",
+  "schema_version": "1.1.0",
+  "publisher": "lead_scoring_agent",
+  "subscriber": ["notification_dispatch_service", "sales_notify_workflow"],
+  "payload_schema": "schemas/events/lead-hot-payload.schema.json",
+  "payload": {
+    "lead_id": "lead.7e2d1a90",
+    "customer_id": "customer.9d8c7b60",
+    "score": 88,
+    "reason": "financing_pre_approval_plus_repeat_test_drive_requests",
+    "assigned_to": "sales.4f2a1c00"
+  },
+  "priority": 9,
+  "retry": {
+    "max_attempts": 3,
+    "backoff_strategy": "exponential",
+    "backoff_base_ms": 500
+  },
+  "dead_letter": {
+    "enabled": true,
+    "queue_ref": "queue.lead_events_dlq.v1",
+    "max_retries": 3,
+    "alert_required": true
+  },
+  "trace_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "correlation_id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+  "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+  "timestamp": "2026-07-31T09:12:45Z"
+}

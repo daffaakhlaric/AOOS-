@@ -1,0 +1,12 @@
+export type { IKnowledgeSynchronizationProvider } from "./i-knowledge-synchronization-provider.js";
+export type { IKnowledgeSynchronizationStorage } from "./i-knowledge-synchronization-storage.js";
+export type { IKnowledgeSynchronizationScheduler } from "./i-knowledge-synchronization-scheduler.js";
+export type { IKnowledgeSynchronizationObserver } from "./i-knowledge-synchronization-observer.js";
+export type { IKnowledgeSynchronizationHook } from "./i-knowledge-synchronization-hook.js";
+export type { IKnowledgeSynchronizationRetryStrategy } from "./i-knowledge-synchronization-retry-strategy.js";
+export type { IKnowledgeSynchronizationConflictResolver } from "./i-knowledge-synchronization-conflict-resolver.js";
+export type { IKnowledgeSynchronizationQueue } from "./i-knowledge-synchronization-queue.js";
+export type { IKnowledgeSynchronizationChangeDetector } from "./i-knowledge-synchronization-change-detector.js";
+export type { IKnowledgeSynchronizationCommitter } from "./i-knowledge-synchronization-committer.js";
+export type { IKnowledgeSynchronizationTracer } from "./i-knowledge-synchronization-tracer.js";
+export type { IKnowledgeSynchronizationTelemetry } from "./i-knowledge-synchronization-telemetry.js";

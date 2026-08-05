@@ -1,0 +1,54 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "confidence is 1.4, outside the 0.0-1.0 range (violates schema maximum:1.0 / VAL-052)",
+    "alternatives is an empty array (violates schema minItems:1 and Reasoner Contract §4 / VAL-051)",
+    "decision.references_alternative is null even though the schema requires a non-empty string (violates Reasoner Contract §4 auditability rule / VAL-050)",
+    "risk is 'high' but recommendation.requires_guardrail_approval is false (violates Constitution §11.7 / VAL-053)",
+    "hypothesis[0].supported_by references 'ev9' which does not exist in evidence (violates Reasoner Contract §4 / VAL-055)",
+    "decision.chosen_hypothesis references 'h9' which does not exist in hypothesis (violates Reasoner Contract §4 / VAL-056)"
+  ],
+  "reasoner_id": "reasoner.campaign_budget_shift",
+  "version": "1.0.0",
+  "problem": {
+    "problem_id": "problem.reallocate_budget",
+    "statement": "Decide whether to shift 30% of Campaign C-118 budget to Campaign C-204.",
+    "problem_type": "resource_allocation"
+  },
+  "context": {
+    "memory_refs": ["memory.semantic.campaign_c118.performance"],
+    "knowledge_refs": ["knowledge.ads_budget_policy.v1"],
+    "tenant_id": "tenant.dealer_00042"
+  },
+  "evidence": [
+    {
+      "evidence_id": "ev1",
+      "source": "ads_platform",
+      "content_ref": "ads.campaign.c118.metrics",
+      "weight": 0.5
+    }
+  ],
+  "hypothesis": [
+    {
+      "hypothesis_id": "h1",
+      "statement": "Shift budget to C-204 due to higher conversion rate",
+      "supported_by": ["ev9"]
+    }
+  ],
+  "alternatives": [],
+  "decision": {
+    "decision_id": "decision.budget_shift.c118_c204",
+    "chosen_hypothesis": "h9",
+    "references_alternative": null,
+    "rationale": "C-204 shows better cost-per-lead trend."
+  },
+  "confidence": 1.4,
+  "risk": "high",
+  "recommendation": {
+    "action_ref": "tool.update_ads_budget",
+    "requires_guardrail_approval": false
+  },
+  "model_ref": "model.gpt_router_default.v1",
+  "trace_id": "a1b2c3d4-e5f6-4a7b-8c9d-1a2b3c4d5e6f",
+  "status": "active"
+}

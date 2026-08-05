@@ -1,0 +1,51 @@
+{
+  "name": "@aos/knowledge-synchronization",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Knowledge Synchronization — the vendor-neutral synchronization orchestrator bridging the Enterprise Knowledge Platform to external knowledge sources. Orchestrates Job/Session lifecycle, Validation, Policy/Permission gating, Provider Resolution, Change Detection, Scheduling, and Commit only — no OAuth, no API clients, no Connector SDK, no LLM, no AI, no retrieval, no indexing, no memory, no provider-specific logic.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/knowledge-engine": "workspace:*",
+    "@aos/knowledge-indexing": "workspace:*",
+    "@aos/knowledge-retrieval": "workspace:*",
+    "@aos/knowledge-runtime": "workspace:*",
+    "@aos/registry": "workspace:*",
+    "@aos/runtime-kernel": "workspace:*",
+    "@aos/scheduler": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@aos/workflow-execution": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

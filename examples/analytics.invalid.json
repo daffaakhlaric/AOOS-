@@ -1,0 +1,31 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "dimension does not include 'tenant_id' (violates Analytics Contract §4 invariant / VAL-171)",
+    "source_events references 'campaign.spend_updated_direct_db_read', not an Event Bus domain event name (violates RULE-023 / VAL-172)",
+    "definition text does not match the DDD §28 catalog definition for 'cost_per_hot_lead' (violates Analytics Contract §4 invariant / VAL-173)",
+    "export.destinations includes 'third_party_bi' but tenant_isolation_required is false (violates Constitution §20.1 / VAL-176)",
+    "retention.hot_days (365) is greater than retention.cold_days (30) (violates Analytics Contract §4 invariant / VAL-174)",
+    "state is 'active' but rollup_schedule is missing (violates Analytics Contract §4 invariant / VAL-177)"
+  ],
+  "id": "3f2a1b9c-6d5e-4f3a-9b8c-7d6e5f4a3b2c",
+  "metric": "cost_per_hot_lead",
+  "display_name": "Cost per Hot Lead (CPHL)",
+  "definition": "Total marketing spend divided by number of leads, unfiltered",
+  "domain": "campaign",
+  "dimension": ["campaign_id", "branch_id"],
+  "aggregation": "ratio",
+  "source_events": ["campaign.spend_updated_direct_db_read"],
+  "retention": {
+    "hot_days": 365,
+    "cold_days": 30,
+    "cold_tier": "warehouse_cold_storage"
+  },
+  "export": {
+    "destinations": ["dashboard", "third_party_bi"],
+    "tenant_isolation_required": false
+  },
+  "freshness_sla": "PT2H",
+  "owner": "analytics-platform-team",
+  "state": "active"
+}

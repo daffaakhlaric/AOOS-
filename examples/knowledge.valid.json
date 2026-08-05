@@ -1,0 +1,40 @@
+{
+  "id": "6c7d8e9f-0a1b-42c3-9d4e-5f6a7b8c9d0e",
+  "code": "knowledge_qualification_policy_v1",
+  "title": "Tenant Lead Qualification Policy — Hot/Warm/Cold Thresholds",
+  "knowledge_source": {
+    "type": "policy_feed",
+    "origin": "dealer-crm://tenant-8a1b2c3d/policies/qualification",
+    "ingestion_pipeline_ref": "pipeline.policy_ingestion.v1"
+  },
+  "document": {
+    "content_ref": "s3://aos-knowledge/tenant-8a1b2c3d/qualification_policy_v1.md",
+    "format": "markdown",
+    "language": "en-US",
+    "checksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  },
+  "embedding": {
+    "model": "aos-embedding-standard",
+    "model_version": "2.3.0",
+    "dimensions": 1536,
+    "vector_ref": "vectordb://knowledge-base/tenant-8a1b2c3d/qualification_policy_v1",
+    "index_ref": "vectordb://knowledge-base/index/tenant-8a1b2c3d"
+  },
+  "confidence": 0.91,
+  "ownership": {
+    "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+    "scope": "tenant"
+  },
+  "version": "1.2.0",
+  "lifecycle": "active",
+  "max_staleness_sla": "P30D",
+  "last_synced_at": "2026-07-20T06:00:00Z",
+  "source_citation": "Tenant Qualification Policy v1.2, dealer-crm export dated 2026-07-20",
+  "customer_facing": false,
+  "owner": "lead-intelligence-team",
+  "tags": ["qualification", "policy", "lead-scoring"],
+  "metadata": {
+    "reviewed_by": "compliance-team",
+    "changelog_ref": "registry.knowledge.knowledge_qualification_policy_v1@1.2.0"
+  }
+}

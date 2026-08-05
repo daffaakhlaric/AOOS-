@@ -1,0 +1,15 @@
+{
+  "id": "7a1b2c3d-4e5f-4a6b-8c7d-1e2f3a4b5c6d",
+  "role": "sales_staff",
+  "action": "U",
+  "resource": "appointment",
+  "tenant": "tenant_dealer_astra_motors",
+  "condition": { "scope": "own_records_only" },
+  "policy": "sales_pipeline_own_records_policy",
+  "granted_by": "dealer_admin_wijaya",
+  "effective_from": "2026-01-01T00:00:00Z",
+  "effective_until": null,
+  "break_glass": false,
+  "state": "active",
+  "audit_ref": null
+}

@@ -1,0 +1,32 @@
+{
+  "id": "8a4e2b1f-3c5d-4e6a-9b7c-1d2e3f4a5b6c",
+  "registry_type": "AgentRegistry",
+  "entry_id": "9c1f3e2a-2b1a-4e3a-8b0a-1a2b3c4d5e6f",
+  "entry_version": "1.2.0",
+  "status": "active",
+  "tenant_scope": "tenant_override_allowed",
+  "owner": "lead-intelligence-team",
+  "created_at": "2026-06-15T08:00:00Z",
+  "created_by": "ci-publish-bot",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-01-10T09:00:00Z",
+      "author": "daffa.akhlaric52@gmail.com",
+      "notes": "Initial publish of LeadScoringAgent."
+    },
+    {
+      "version": "1.2.0",
+      "date": "2026-06-15T08:00:00Z",
+      "author": "ci-publish-bot",
+      "notes": "Raised hot_threshold, added conversation.customer_replied subscription."
+    }
+  ],
+  "payload_ref": "contracts/agent/lead_scoring_agent@1.2.0.json",
+  "supersedes": "9c1f3e2a-2b1a-4e3a-8b0a-1a2b3c4d5e6f@1.1.0",
+  "cache_ttl_seconds": 300,
+  "tags": ["agent", "lead-scoring"],
+  "metadata": {
+    "published_event": "registry.agent_registry.published"
+  }
+}

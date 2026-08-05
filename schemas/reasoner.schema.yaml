@@ -1,0 +1,117 @@
+# Reasoner Contract — YAML Schema
+# Contract: contract.reasoner v1.0.0
+# See: contracts/reasoner.contract.md
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://aos.platform/schemas/reasoner.schema.yaml"
+title: ReasonerContract
+type: object
+additionalProperties: false
+required:
+  - reasoner_id
+  - version
+  - problem
+  - context
+  - evidence
+  - hypothesis
+  - alternatives
+  - decision
+  - confidence
+  - risk
+  - recommendation
+  - model_ref
+  - trace_id
+  - status
+properties:
+  reasoner_id:
+    type: string
+    pattern: "^reasoner\\.[a-z][a-z0-9_]*$"
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+  problem:
+    type: object
+    required: [problem_id, statement, problem_type]
+    additionalProperties: false
+    properties:
+      problem_id: { type: string, minLength: 1 }
+      statement: { type: string, minLength: 1 }
+      problem_type:
+        {
+          type: string,
+          enum: [classification, ranking, resource_allocation, next_best_action, anomaly_detection],
+        }
+  context:
+    type: object
+    required: [memory_refs, knowledge_refs, tenant_id]
+    additionalProperties: false
+    properties:
+      memory_refs: { type: array, items: { type: string } }
+      knowledge_refs: { type: array, items: { type: string } }
+      tenant_id: { type: string, minLength: 1 }
+  evidence:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [evidence_id, source, content_ref, weight]
+      additionalProperties: false
+      properties:
+        evidence_id: { type: string, minLength: 1 }
+        source: { type: string, minLength: 1 }
+        content_ref: { type: string, minLength: 1 }
+        weight: { type: number, minimum: 0, maximum: 1 }
+  hypothesis:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [hypothesis_id, statement, supported_by]
+      additionalProperties: false
+      properties:
+        hypothesis_id: { type: string, minLength: 1 }
+        statement: { type: string, minLength: 1 }
+        supported_by: { type: array, items: { type: string }, minItems: 1 }
+  alternatives:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [alternative_id, description, rejected_reason]
+      additionalProperties: false
+      properties:
+        alternative_id: { type: string, minLength: 1 }
+        description: { type: string, minLength: 1 }
+        rejected_reason: { type: string, minLength: 1 }
+  decision:
+    type: object
+    required: [decision_id, chosen_hypothesis, references_alternative, rationale]
+    additionalProperties: false
+    properties:
+      decision_id: { type: string, minLength: 1 }
+      chosen_hypothesis: { type: string, minLength: 1 }
+      references_alternative: { type: string, minLength: 1 }
+      rationale: { type: string, minLength: 1 }
+  confidence:
+    type: number
+    minimum: 0.0
+    maximum: 1.0
+  risk:
+    type: string
+    enum: [low, medium, high]
+  recommendation:
+    type: object
+    required: [action_ref, requires_guardrail_approval]
+    additionalProperties: false
+    properties:
+      action_ref: { type: string, minLength: 1 }
+      requires_guardrail_approval: { type: boolean }
+  model_ref:
+    type: string
+    minLength: 1
+  trace_id:
+    type: string
+    format: uuid
+  status:
+    type: string
+    enum: [draft, active, deprecated, retired]

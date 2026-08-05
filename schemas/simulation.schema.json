@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.platform/schemas/simulation.schema.json",
+  "title": "SimulationContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "scenario",
+    "candidate_ref",
+    "seed",
+    "dummy_dealer",
+    "dummy_customer",
+    "dummy_sales",
+    "dummy_crm",
+    "dummy_whatsapp",
+    "dummy_meta",
+    "dummy_google_ads",
+    "dummy_tiktok_ads",
+    "dummy_leads",
+    "dummy_budget",
+    "replay",
+    "sandbox_isolation",
+    "state"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "scenario": {
+      "type": "object",
+      "required": ["scenario_id", "name", "description", "expected_outcome"],
+      "properties": {
+        "scenario_id": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "expected_outcome": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "candidate_ref": { "type": "string", "minLength": 1 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "dummy_dealer": {
+      "type": "object",
+      "required": ["tenant_id", "branch_ids", "name"],
+      "properties": {
+        "tenant_id": { "type": "string", "pattern": "^sim_" },
+        "branch_ids": { "type": "array", "items": { "type": "string" } },
+        "name": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "dummy_customer": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["customer_id", "profile", "behavior_script"],
+        "properties": {
+          "customer_id": { "type": "string" },
+          "profile": { "type": "object" },
+          "behavior_script": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "dummy_sales": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sales_id", "role", "behavior_script"],
+        "properties": {
+          "sales_id": { "type": "string" },
+          "role": { "type": "string", "enum": ["sales_staff", "manager"] },
+          "behavior_script": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "dummy_crm": {
+      "type": "object",
+      "required": ["adapter_mode", "seed_records"],
+      "properties": {
+        "adapter_mode": { "type": "string", "const": "sandboxed" },
+        "seed_records": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "dummy_whatsapp": {
+      "type": "object",
+      "required": ["adapter_mode", "seed_conversations"],
+      "properties": {
+        "adapter_mode": { "type": "string", "const": "sandboxed" },
+        "seed_conversations": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "dummy_meta": {
+      "type": "object",
+      "required": ["adapter_mode", "seed_campaigns"],
+      "properties": {
+        "adapter_mode": { "type": "string", "const": "sandboxed" },
+        "seed_campaigns": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "dummy_google_ads": {
+      "type": "object",
+      "required": ["adapter_mode", "seed_campaigns"],
+      "properties": {
+        "adapter_mode": { "type": "string", "const": "sandboxed" },
+        "seed_campaigns": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "dummy_tiktok_ads": {
+      "type": "object",
+      "required": ["adapter_mode", "seed_campaigns"],
+      "properties": {
+        "adapter_mode": { "type": "string", "const": "sandboxed" },
+        "seed_campaigns": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "dummy_leads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["lead_id", "source", "initial_state"],
+        "properties": {
+          "lead_id": { "type": "string" },
+          "source": { "type": "string" },
+          "initial_state": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "dummy_budget": {
+      "type": "object",
+      "required": ["currency", "amount", "period"],
+      "properties": {
+        "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+        "amount": { "type": "number", "minimum": 0 },
+        "period": { "type": "string", "enum": ["per_run", "daily", "monthly"] }
+      },
+      "additionalProperties": false
+    },
+    "replay": {
+      "type": "object",
+      "required": ["replayable"],
+      "properties": {
+        "replayable": { "type": "boolean" },
+        "source_run_id": { "type": "string" },
+        "deterministic_hash": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "outcome_scorer": {
+      "type": "object",
+      "required": ["accuracy", "cost", "latency", "guardrail_trigger_rate", "pass"],
+      "properties": {
+        "accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "cost": { "type": "number", "minimum": 0 },
+        "latency": { "type": "number", "minimum": 0 },
+        "guardrail_trigger_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pass": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "sandbox_isolation": {
+      "type": "object",
+      "required": ["network_egress_denied", "adapter_binding"],
+      "properties": {
+        "network_egress_denied": { "type": "boolean", "const": true },
+        "adapter_binding": { "type": "string", "enum": ["mocked", "sandboxed_replica"] }
+      },
+      "additionalProperties": false
+    },
+    "state": { "type": "string", "enum": ["queued", "running", "completed", "failed", "aborted"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.platform/schemas/analytics.schema.json",
+  "title": "AnalyticsContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "metric",
+    "display_name",
+    "definition",
+    "domain",
+    "dimension",
+    "aggregation",
+    "source_events",
+    "retention",
+    "export",
+    "rollup_schedule",
+    "freshness_sla",
+    "owner",
+    "state"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "metric": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "display_name": { "type": "string", "minLength": 1 },
+    "definition": { "type": "string", "minLength": 5 },
+    "domain": {
+      "type": "string",
+      "enum": ["dealer", "sales", "campaign", "ads", "content", "ai_agent", "workflow"]
+    },
+    "dimension": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "contains": { "const": "tenant_id" }
+    },
+    "aggregation": {
+      "type": "string",
+      "enum": ["sum", "avg", "count", "p50", "p95", "p99", "ratio"]
+    },
+    "source_events": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "retention": {
+      "type": "object",
+      "required": ["hot_days", "cold_days", "cold_tier"],
+      "properties": {
+        "hot_days": { "type": "integer", "minimum": 1 },
+        "cold_days": { "type": "integer", "minimum": 1 },
+        "cold_tier": {
+          "type": "string",
+          "enum": ["warehouse_cold_storage", "archive", "glacier_equivalent"]
+        }
+      }
+    },
+    "sampling": {
+      "type": "object",
+      "required": ["rate", "strategy"],
+      "properties": {
+        "rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "strategy": { "type": "string", "enum": ["none", "fixed_rate", "reservoir"] }
+      }
+    },
+    "export": {
+      "type": "object",
+      "required": ["destinations", "tenant_isolation_required"],
+      "properties": {
+        "destinations": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["dashboard", "warehouse", "third_party_bi"] },
+          "minItems": 1
+        },
+        "tenant_isolation_required": { "type": "boolean" }
+      }
+    },
+    "rollup_schedule": { "type": "string", "minLength": 1 },
+    "freshness_sla": { "type": "string", "pattern": "^PT\\d+[SMH]$" },
+    "owner": { "type": "string", "minLength": 1 },
+    "state": { "type": "string", "enum": ["draft", "active", "deprecated", "retired"] },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "side_effect_class is 'irreversible-write' but authorization.requires_policy_approval is false (violates Constitution §12.3 / RULE-007 / VAL-015)",
+    "side_effect_class is 'irreversible-write' but compensation is null (violates Tool Contract §4 invariant / RULE-028 / VAL-016)",
+    "permission_scope is an empty array (violates schema minItems:1 and Tool Contract §4 / VAL-018)",
+    "retry.idempotency_key_param references 'txn_key' which is not present in the referenced input_schema (violates §12.4 / RULE-004 / VAL-017)",
+    "authentication.secret_ref is empty string (violates schema minLength:1 and §12.6 / RULE-060 / VAL-019)",
+    "circuit_breaker.failure_threshold is 0 (violates schema minimum:1 and §12.5 / VAL-021)",
+    "status is 'active' while version uses a non-semver string (violates schema pattern / VAL-024)"
+  ],
+  "tool_id": "tool.charge_payment_card",
+  "provider": {
+    "name": "Payment Gateway",
+    "system": "internal_payment_processor",
+    "adapter_type": "rest"
+  },
+  "category": "payment",
+  "side_effect_class": "irreversible-write",
+  "authentication": {
+    "method": "api_key",
+    "secret_ref": "",
+    "scope": ["payments_charge"]
+  },
+  "authorization": {
+    "requires_policy_approval": false
+  },
+  "permission_scope": [],
+  "input_schema": "schemas/charge-payment-card-input.schema.json",
+  "output_schema": "schemas/charge-payment-card-output.schema.json",
+  "timeout": "PT10S",
+  "retry": {
+    "max_attempts": 2,
+    "backoff_strategy": "fixed",
+    "backoff_base_ms": 200,
+    "idempotency_key_param": "txn_key"
+  },
+  "rollback": null,
+  "compensation": null,
+  "circuit_breaker": {
+    "failure_threshold": 0,
+    "reset_timeout": "PT30S",
+    "half_open_max_calls": 1
+  },
+  "rate_limit": {
+    "requests": 10,
+    "period": "second"
+  },
+  "quota": {
+    "amount": 500,
+    "period": "daily",
+    "scope": "per_tenant"
+  },
+  "health_check": "health.tool_charge_payment_card.v1",
+  "telemetry": {
+    "trace_enabled": true,
+    "log_level": "info",
+    "pii_redaction": true
+  },
+  "metrics": ["tool_call_count"],
+  "cost": {
+    "unit_cost": 0.1,
+    "currency": "USD",
+    "billing_model": "per_call"
+  },
+  "version": "1.0",
+  "status": "active"
+}

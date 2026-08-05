@@ -1,0 +1,37 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "quality_score is 1.4, outside the 0.0-1.0 range (violates schema maximum:1.0 / VAL-061)",
+    "confidence_threshold is -0.1, outside the 0.0-1.0 range (violates schema minimum:0.0 / VAL-062)",
+    "quality_score (0.40) is below confidence_threshold but escalation.triggered is false and status is 'completed', silently completing a low-confidence decision (violates RULE-083 / VAL-063)",
+    "escalation.triggered is true but escalated_to and reason are absent (violates conditional requirement / VAL-064)",
+    "status is 'escalated' but failure_analysis is entirely absent (violates Reflection Contract §4 / VAL-065)",
+    "status is both 'completed'-adjacent in intent and 'escalated' with triggered=true simultaneously present in the same record, an invalid co-occurrence (violates Reflection Contract §4 / VAL-068)",
+    "task_review.actual_outcome is an empty string (violates schema minLength:1 / VAL-069)",
+    "feedback.rating is 7, outside the 1-5 range (violates schema maximum:5 / VAL-072)"
+  ],
+  "id": "3f9a2c10-7b1e-4f4a-9c2d-1e5f6a7b8c9d",
+  "code": "reflection_lead_scoring_20260731_002",
+  "agent_id": "lead_scoring_agent",
+  "task_id": "task.lead_scoring.9f1c2b80",
+  "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+  "version": "1.0.0",
+  "created_at": "2026-07-31T09:20:11Z",
+  "task_review": {
+    "summary": "Scored inbound web lead with incomplete profile data",
+    "expected_outcome": "Lead classified conservatively pending more signal",
+    "actual_outcome": "",
+    "evaluation_criteria": ["scoring_accuracy"]
+  },
+  "quality_score": 1.4,
+  "confidence_threshold": -0.1,
+  "escalation": {
+    "triggered": true
+  },
+  "feedback": {
+    "source": "human",
+    "rating": 7,
+    "comments": "Score seems inflated given the sparse profile data"
+  },
+  "status": "escalated"
+}

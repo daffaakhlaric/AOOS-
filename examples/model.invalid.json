@@ -1,0 +1,42 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "fallback includes 'model.anthropic.claude-sonnet-5' which is this same model's own model_id, creating a self-referential cycle (violates Model Contract §4 invariant / VAL-149)",
+    "capabilities is an empty array — at least one capability is required (violates schema minItems:1 / VAL-146)",
+    "cost.currency is missing while cost.unit is 'per_token', so cost cannot be evaluated against Agent cost_limit (violates RULE-081 / VAL-150)",
+    "context_window.max_output_tokens is 0, which is below the schema minimum of 1 (violates schema minimum:1 / VAL-148)",
+    "routing_policy.tier value 'ultra' is not one of economy|standard|premium (violates schema enum / VAL-153)",
+    "priority is 11, outside the 1-10 range (violates schema maximum:10 / VAL-152)",
+    "state is 'active' but availability is missing entirely (violates Model Contract §2 required field / VAL-151)"
+  ],
+  "id": "1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+  "model_id": "model.anthropic.claude-sonnet-5",
+  "version": "1.0.0",
+  "description": "misconfigured model entry",
+  "state": "active",
+  "provider": "anthropic",
+  "model_name": "claude-sonnet-5-20260115",
+  "capabilities": [],
+  "reasoning_level": "medium",
+  "context_window": {
+    "max_input_tokens": 200000,
+    "max_output_tokens": 0
+  },
+  "cost": {
+    "unit": "per_token",
+    "input_cost": 0.000003,
+    "output_cost": 0.000015
+  },
+  "latency": {
+    "p50_ms": 900,
+    "p95_ms": 2500
+  },
+  "fallback": ["model.anthropic.claude-sonnet-5"],
+  "priority": 11,
+  "routing_policy": {
+    "tier": "ultra",
+    "task_type_mapping_ref": "registry.model_registry.task_tier_mapping.v1"
+  },
+  "tenant_scope": "tenant_override_allowed",
+  "owner": "ai-platform-team"
+}

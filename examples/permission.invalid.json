@@ -1,0 +1,19 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "role is 'ceo_ai' but action is 'A' on resource 'quotation', a Sales-pipeline resource — CEO AI has read-only visibility into pipeline execution (violates Permission Contract §4 invariant / VAL-160)",
+    "action is 'approve', not one of the enum values C/R/U/A/X (violates schema enum / VAL-158)",
+    "resource is 'Quotation', not snake_case (violates schema pattern ^[a-z][a-z0-9_]*$ / VAL-159)",
+    "break_glass is true but effective_until is missing (violates RULE-066, time-boxed requirement / VAL-165)",
+    "break_glass is true but audit_ref is missing (violates RULE-066, auditability requirement / VAL-165)",
+    "state is 'active' but effective_from is missing entirely (violates required field / VAL-157)"
+  ],
+  "id": "7a1b2c3d-4e5f-4a6b-8c7d-1e2f3a4b5c6d",
+  "role": "ceo_ai",
+  "action": "approve",
+  "resource": "Quotation",
+  "tenant": "tenant_dealer_astra_motors",
+  "granted_by": "admin_ops_internal",
+  "break_glass": true,
+  "state": "active"
+}

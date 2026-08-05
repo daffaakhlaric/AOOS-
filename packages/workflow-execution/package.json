@@ -1,0 +1,50 @@
+{
+  "name": "@aos/workflow-execution",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Workflow Execution Engine — the only component that orchestrates executing a Workflow Instance, walking its graph node-by-node exclusively through @aos/workflow-runtime and @aos/node-runtime. Never executes AI, Tools, or Capabilities directly.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/logger": "workspace:*",
+    "@aos/node-runtime": "workspace:*",
+    "@aos/registry": "workspace:*",
+    "@aos/runtime-kernel": "workspace:*",
+    "@aos/types": "workspace:*",
+    "@aos/workflow-definition": "workspace:*",
+    "@aos/workflow-runtime": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

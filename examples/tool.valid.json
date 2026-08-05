@@ -1,0 +1,62 @@
+{
+  "tool_id": "tool.send_whatsapp_message",
+  "provider": {
+    "name": "WhatsApp Business Platform",
+    "system": "meta_whatsapp_cloud_api",
+    "adapter_type": "rest"
+  },
+  "category": "messaging",
+  "side_effect_class": "irreversible-write",
+  "authentication": {
+    "method": "oauth2",
+    "secret_ref": "secrets/meta_whatsapp/tenant_scoped_token",
+    "scope": ["whatsapp_business_messaging"]
+  },
+  "authorization": {
+    "requires_policy_approval": true,
+    "approval_policy_ref": "policy.bulk_messaging_guardrail.v1"
+  },
+  "permission_scope": ["tool:messaging:send", "channel:whatsapp"],
+  "input_schema": "schemas/send-whatsapp-message-input.schema.json",
+  "output_schema": "schemas/send-whatsapp-message-output.schema.json",
+  "timeout": "PT10S",
+  "retry": {
+    "max_attempts": 3,
+    "backoff_strategy": "exponential",
+    "backoff_base_ms": 500,
+    "idempotency_key_param": "message_idempotency_key"
+  },
+  "rollback": null,
+  "compensation": {
+    "strategy": "corrective_action",
+    "compensation_action_ref": "tool.send_whatsapp_correction_notice"
+  },
+  "circuit_breaker": {
+    "failure_threshold": 5,
+    "reset_timeout": "PT60S",
+    "half_open_max_calls": 2
+  },
+  "rate_limit": {
+    "requests": 80,
+    "period": "second"
+  },
+  "quota": {
+    "amount": 10000,
+    "period": "daily",
+    "scope": "per_tenant"
+  },
+  "health_check": "health.tool_send_whatsapp_message.v1",
+  "telemetry": {
+    "trace_enabled": true,
+    "log_level": "info",
+    "pii_redaction": true
+  },
+  "metrics": ["tool_call_count", "tool_success_rate", "tool_latency_p95"],
+  "cost": {
+    "unit_cost": 0.005,
+    "currency": "USD",
+    "billing_model": "per_call"
+  },
+  "version": "1.4.0",
+  "status": "active"
+}

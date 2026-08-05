@@ -1,0 +1,62 @@
+{
+  "reasoner_id": "reasoner.lead_scoring",
+  "version": "1.0.0",
+  "problem": {
+    "problem_id": "problem.classify_lead_temperature",
+    "statement": "Given the retrieved CRM profile and conversation history for Lead L-48213, classify the Lead as Hot, Warm, or Cold.",
+    "problem_type": "classification"
+  },
+  "context": {
+    "memory_refs": ["memory.episodic.lead_48213.conversation_history"],
+    "knowledge_refs": ["knowledge.qualification_policy.v1"],
+    "tenant_id": "tenant.dealer_00042"
+  },
+  "evidence": [
+    { "evidence_id": "ev1", "source": "crm", "content_ref": "crm.lead.48213", "weight": 0.4 },
+    {
+      "evidence_id": "ev2",
+      "source": "conversation",
+      "content_ref": "conversation.c-9931.messages",
+      "weight": 0.6
+    }
+  ],
+  "hypothesis": [
+    {
+      "hypothesis_id": "h1",
+      "statement": "Lead is Hot — replied within 2 minutes and asked for a test drive slot",
+      "supported_by": ["ev1", "ev2"]
+    },
+    {
+      "hypothesis_id": "h2",
+      "statement": "Lead is Warm — engaged but no explicit purchase intent signal",
+      "supported_by": ["ev2"]
+    }
+  ],
+  "alternatives": [
+    {
+      "alternative_id": "alt1",
+      "description": "Classify as Warm",
+      "rejected_reason": "Explicit test-drive request in conversation outweighs the Warm-tier engagement-only signal"
+    },
+    {
+      "alternative_id": "alt2",
+      "description": "Classify as Cold",
+      "rejected_reason": "Lead has active two-way conversation within the last hour, contradicting Cold criteria"
+    }
+  ],
+  "decision": {
+    "decision_id": "decision.lead_48213.classification",
+    "chosen_hypothesis": "h1",
+    "references_alternative": "alt1",
+    "rationale": "Test-drive request combined with sub-2-minute reply latency meets the Hot threshold per knowledge.qualification_policy.v1."
+  },
+  "confidence": 0.87,
+  "risk": "low",
+  "recommendation": {
+    "action_ref": "workflow.lead_qualification.notify_sales",
+    "requires_guardrail_approval": false
+  },
+  "model_ref": "model.gpt_router_default.v1",
+  "trace_id": "3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "status": "active"
+}

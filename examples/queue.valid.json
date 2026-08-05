@@ -1,0 +1,48 @@
+{
+  "id": "3f2a9b1c-7d4e-4a2b-9c3d-1e5f6a7b8c9d",
+  "queue_name": "tenant-astra-motors.lead-intelligence.scoring-jobs",
+  "version": "1.1.0",
+  "description": "Carries asynchronous Lead Scoring Agent invocation jobs triggered by lead.created and conversation.customer_replied events for Astra Motors dealership tenant.",
+  "state": "active",
+  "priority": 8,
+  "fifo": {
+    "enabled": true,
+    "per_tenant_partition": true
+  },
+  "fair_share": {
+    "strategy": "weighted",
+    "max_share_percent": 35
+  },
+  "delay": {
+    "default_delay_seconds": 0,
+    "max_delay_seconds": 300
+  },
+  "retry": {
+    "max_attempts": 5,
+    "backoff_strategy": "exponential",
+    "backoff_base_ms": 500
+  },
+  "dead_letter": {
+    "destination": "tenant-astra-motors.lead-intelligence.scoring-jobs.dlq",
+    "max_retries_before_dlq": 5,
+    "alert_policy": "alert.queue_dlq_threshold.v1"
+  },
+  "visibility_timeout": "PT90S",
+  "throughput": {
+    "max_messages_per_second": 20,
+    "burst_limit": 50,
+    "protected_resource": "crm.astra_motors.lead_api"
+  },
+  "idempotency_required": true,
+  "tenant_scope": "tenant_override_allowed",
+  "owner": "lead-intelligence-team",
+  "events": {
+    "publishes": ["queue.job_dead_lettered", "queue.job_completed"],
+    "subscribes": []
+  },
+  "tags": ["lead-scoring", "async", "core-domain"],
+  "metadata": {
+    "max_processing_time_ms": 45000,
+    "created_by": "system"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "id": "9c1f3e2a-2b1a-4e3a-8b0a-1a2b3c4d5e6f",
+  "code": "lead_scoring_agent",
+  "name": "LeadScoringAgent",
+  "display_name": "Lead Scoring Agent",
+  "version": "1.2.0",
+  "description": "Computes and updates Lead Score from behavioral and profile signals, determining Hot/Warm/Cold classification per tenant thresholds.",
+  "category": "lead_intelligence",
+  "role": "Lead Qualifier",
+  "goal": "Ensure every Lead is scored within 60 seconds of a qualifying interaction",
+  "objective": {
+    "metric": "time_to_hot_lead_p95_seconds",
+    "target_value": 60,
+    "deadline": "2026-12-31T00:00:00Z"
+  },
+  "responsibilities": [
+    "Compute Lead Score from Memory-retrieved interaction history",
+    "Classify Lead as Hot, Warm, or Cold per tenant threshold",
+    "Publish lead.scored and, when applicable, lead.hot events"
+  ],
+  "input_schema": "schemas/lead-scoring-input.schema.json",
+  "output_schema": "schemas/lead-scoring-output.schema.json",
+  "planner": "planner.lead_scoring.v1",
+  "reasoner": "reasoner.lead_scoring.v1",
+  "reflection": "reflection.lead_scoring.v1",
+  "memory": "memory.lead_scoring.v1",
+  "knowledge": ["knowledge.qualification_policy.v1"],
+  "workflow": ["workflow.lead_qualification.v1"],
+  "toolset": ["tool.fetch_crm_lead", "tool.query_conversation_history"],
+  "permissions": "permission.lead_scoring_agent.v1",
+  "scheduler": null,
+  "retry_policy": {
+    "max_attempts": 3,
+    "backoff_strategy": "exponential",
+    "backoff_base_ms": 500
+  },
+  "timeout": "PT30S",
+  "priority": 8,
+  "cost_limit": {
+    "amount": 0.05,
+    "currency": "USD",
+    "period": "per_invocation"
+  },
+  "token_limit": {
+    "max_input_tokens": 4000,
+    "max_output_tokens": 500
+  },
+  "execution_mode": "event_driven",
+  "state": "active",
+  "health": "health.lead_scoring_agent.v1",
+  "metrics": ["agent_success_rate", "agent_confidence_avg", "agent_cost_per_decision"],
+  "logging": "logging.standard.v1",
+  "events": {
+    "publishes": ["lead.scored", "lead.hot", "lead.warm", "lead.cold"],
+    "subscribes": ["lead.created", "conversation.customer_replied"]
+  },
+  "dependencies": [],
+  "configuration": {
+    "hot_threshold": 80,
+    "warm_threshold": 50
+  },
+  "tenant_scope": "tenant_override_allowed",
+  "security_level": "standard",
+  "owner": "lead-intelligence-team",
+  "tags": ["lead", "scoring", "core-domain"],
+  "metadata": {
+    "created_by": "system",
+    "changelog_ref": "registry.agent.lead_scoring_agent@1.2.0"
+  }
+}

@@ -1,0 +1,15 @@
+# Default owner for everything not matched below.
+# Replace @aos-platform-team with the real GitHub team/handle before enabling branch protection.
+*                           @aos-platform-team
+
+/docs/                      @aos-platform-team
+/contracts/                 @aos-platform-team
+/schemas/                   @aos-platform-team
+/tech-stack/                @aos-platform-team
+/adr/                       @aos-platform-team
+
+/packages/                  @aos-platform-team
+/configs/                   @aos-platform-team
+/docker/                    @aos-platform-team
+/scripts/                   @aos-platform-team
+/.github/                   @aos-platform-team

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.platform/schemas/scheduler.schema.json",
+  "title": "SchedulerContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "job_name",
+    "version",
+    "description",
+    "state",
+    "trigger_type",
+    "timezone",
+    "misfire_policy",
+    "priority",
+    "retry",
+    "execution_sla",
+    "owner_ref",
+    "missed_run_alert_policy",
+    "tenant_scope",
+    "owner"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "job_name": { "type": "string", "pattern": "^[a-z][a-z0-9_.]*$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string", "minLength": 10 },
+    "state": { "type": "string", "enum": ["draft", "active", "paused", "retired"] },
+    "trigger_type": { "type": "string", "enum": ["cron", "interval", "calendar"] },
+    "cron": { "type": ["string", "null"], "pattern": "^(\\S+\\s+){4,5}\\S+$" },
+    "interval": {
+      "type": ["object", "null"],
+      "required": ["every", "unit"],
+      "additionalProperties": false,
+      "properties": {
+        "every": { "type": "integer", "minimum": 1 },
+        "unit": { "type": "string", "enum": ["seconds", "minutes", "hours", "days"] }
+      }
+    },
+    "calendar": {
+      "type": ["object", "null"],
+      "required": ["rrule"],
+      "additionalProperties": false,
+      "properties": {
+        "rrule": { "type": "string", "minLength": 1 },
+        "exceptions": { "type": "array", "items": { "type": "string", "format": "date" } }
+      }
+    },
+    "timezone": { "type": "string", "minLength": 1 },
+    "misfire_policy": { "type": "string", "enum": ["catch_up", "skip_if_missed"] },
+    "dependency": {
+      "type": "object",
+      "required": ["depends_on", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "depends_on": { "type": "array", "items": { "type": "string" } },
+        "mode": { "type": "string", "enum": ["all", "any"] }
+      }
+    },
+    "priority": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "retry": {
+      "type": "object",
+      "required": ["max_attempts", "backoff_strategy", "backoff_base_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "backoff_strategy": { "type": "string", "enum": ["fixed", "linear", "exponential"] },
+        "backoff_base_ms": { "type": "integer", "minimum": 100 }
+      }
+    },
+    "execution_sla": { "type": "string", "pattern": "^PT\\d+[SM]$" },
+    "owner_ref": {
+      "type": "object",
+      "required": ["type", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["agent", "workflow"] },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "missed_run_alert_policy": { "type": "string", "minLength": 1 },
+    "tenant_scope": {
+      "type": "string",
+      "enum": ["global", "tenant_override_allowed", "tenant_only"]
+    },
+    "owner": { "type": "string", "minLength": 1 },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "metadata": { "type": "object" }
+  }
+}

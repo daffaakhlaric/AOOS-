@@ -1,0 +1,74 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "nodes[1] (charge_deposit) has an implied irreversible-write side effect (payment) but declares compensation: null, and it is absent from the top-level compensation array (violates RULE-028 / VAL-027)",
+    "edges references node_id 'send_confirmation' which does not exist in nodes (violates DAG validity / VAL-026)",
+    "state_machine.states omits 'Compensated' even though rollback.supported is true (violates Workflow Contract §4 / VAL-030)",
+    "parallel_execution.enabled is true but join_strategy is null (violates Workflow Contract §4 invariant / VAL-032)",
+    "timeout is missing (violates §10.6 / VAL-034)",
+    "cost_budget is missing entirely (violates §10.6 / VAL-034)",
+    "priority is 0, outside the 1-10 range (violates schema minimum:1 / VAL-033)"
+  ],
+  "workflow_id": "workflow.deposit_and_confirm",
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "node_id": "fetch_quotation",
+      "type": "tool_invocation",
+      "invokes": "tool.fetch_crm_quotation",
+      "input_schema": "schemas/fetch-crm-quotation-input.schema.json",
+      "output_schema": "schemas/fetch-crm-quotation-output.schema.json",
+      "timeout": "PT5S",
+      "retry_policy": {
+        "max_attempts": 3,
+        "backoff_strategy": "exponential",
+        "backoff_base_ms": 300
+      },
+      "compensation": null
+    },
+    {
+      "node_id": "charge_deposit",
+      "type": "tool_invocation",
+      "invokes": "tool.charge_payment_card",
+      "input_schema": "schemas/charge-payment-card-input.schema.json",
+      "output_schema": "schemas/charge-payment-card-output.schema.json",
+      "timeout": "PT10S",
+      "retry_policy": { "max_attempts": 2, "backoff_strategy": "fixed", "backoff_base_ms": 500 },
+      "compensation": null
+    }
+  ],
+  "edges": [
+    { "from": "fetch_quotation", "to": "charge_deposit", "condition_ref": null },
+    { "from": "charge_deposit", "to": "send_confirmation", "condition_ref": null }
+  ],
+  "parallel_execution": {
+    "enabled": true,
+    "max_concurrency": 3,
+    "join_strategy": null
+  },
+  "retry_policy": {
+    "max_attempts": 2,
+    "backoff_strategy": "fixed",
+    "backoff_base_ms": 500
+  },
+  "rollback": {
+    "supported": true,
+    "strategy": "saga"
+  },
+  "compensation": [],
+  "priority": 0,
+  "events": {
+    "publishes": ["workflow.started", "workflow.completed"],
+    "subscribes": ["quotation.approved"]
+  },
+  "state_machine": {
+    "states": ["Created", "Running", "Paused", "Failed", "Completed"],
+    "transitions": [
+      { "from": "Created", "to": "Running", "on": "start" },
+      { "from": "Running", "to": "Completed", "on": "all_steps_complete" }
+    ],
+    "initial_state": "Created"
+  },
+  "metrics": ["workflow_completion_rate"],
+  "status": "active"
+}

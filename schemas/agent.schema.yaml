@@ -1,0 +1,180 @@
+# Agent Contract — YAML Schema
+# Contract: contract.agent v1.0.0
+# See: contracts/agent.contract.md
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://aos.platform/schemas/agent.schema.yaml"
+title: AgentContract
+type: object
+additionalProperties: false
+required:
+  - id
+  - code
+  - name
+  - display_name
+  - version
+  - description
+  - category
+  - role
+  - goal
+  - objective
+  - responsibilities
+  - input_schema
+  - output_schema
+  - planner
+  - reflection
+  - memory
+  - toolset
+  - permissions
+  - retry_policy
+  - timeout
+  - priority
+  - cost_limit
+  - token_limit
+  - execution_mode
+  - state
+  - health
+  - metrics
+  - logging
+  - events
+  - tenant_scope
+  - security_level
+  - owner
+properties:
+  id:
+    type: string
+    format: uuid
+  code:
+    type: string
+    pattern: "^[a-z][a-z0-9_]*$"
+  name:
+    type: string
+    pattern: "^[A-Z][A-Za-z0-9]*Agent$"
+  display_name:
+    type: string
+    minLength: 1
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+  description:
+    type: string
+    minLength: 10
+  category:
+    type: string
+    enum: [lead_intelligence, nurturing, campaign_ops, content, conversation, analytics, strategic]
+  role:
+    type: string
+  goal:
+    type: string
+  objective:
+    type: object
+    required: [metric, target_value, deadline]
+    properties:
+      metric: { type: string }
+      target_value: { type: number }
+      deadline: { type: string, format: date-time }
+  responsibilities:
+    type: array
+    items: { type: string }
+    minItems: 1
+  input_schema:
+    type: string
+    description: "$ref pointer to a JSON Schema document"
+  output_schema:
+    type: string
+    description: "$ref pointer to a JSON Schema document"
+  planner:
+    type: string
+    description: "reference to a Planner Contract id"
+  reasoner:
+    type: string
+    description: "optional reference to a Reasoner Contract id"
+  reflection:
+    type: string
+    description: "reference to a Reflection Contract id"
+  memory:
+    type: string
+    description: "reference to a Memory Contract id"
+  knowledge:
+    type: array
+    items: { type: string }
+  workflow:
+    type: array
+    items: { type: string }
+  toolset:
+    type: array
+    items: { type: string }
+    minItems: 0
+  permissions:
+    type: string
+    description: "reference to a Permission Contract id"
+  scheduler:
+    type: string
+    description: "reference to a Scheduler Contract id"
+  retry_policy:
+    type: object
+    required: [max_attempts, backoff_strategy, backoff_base_ms]
+    properties:
+      max_attempts: { type: integer, minimum: 0, maximum: 10 }
+      backoff_strategy: { type: string, enum: [fixed, linear, exponential] }
+      backoff_base_ms: { type: integer, minimum: 100 }
+  timeout:
+    type: string
+    pattern: "^PT\\d+[SM]$"
+  priority:
+    type: integer
+    minimum: 1
+    maximum: 10
+  cost_limit:
+    type: object
+    required: [amount, currency, period]
+    properties:
+      amount: { type: number, minimum: 0 }
+      currency: { type: string, minLength: 3, maxLength: 3 }
+      period: { type: string, enum: [per_invocation, hourly, daily, monthly] }
+  token_limit:
+    type: object
+    required: [max_input_tokens, max_output_tokens]
+    properties:
+      max_input_tokens: { type: integer, minimum: 1 }
+      max_output_tokens: { type: integer, minimum: 1 }
+  execution_mode:
+    type: string
+    enum: [sync, async, scheduled, event_driven]
+  state:
+    type: string
+    enum: [draft, active, deprecated, retired, quarantined]
+  health:
+    type: string
+    description: "reference to a Health Contract id"
+  metrics:
+    type: array
+    items: { type: string }
+  logging:
+    type: string
+    description: "reference to a Logging Contract id"
+  events:
+    type: object
+    required: [publishes, subscribes]
+    properties:
+      publishes: { type: array, items: { type: string } }
+      subscribes: { type: array, items: { type: string } }
+  dependencies:
+    type: array
+    items: { type: string }
+  configuration:
+    type: object
+  tenant_scope:
+    type: string
+    enum: [global, tenant_override_allowed, tenant_only]
+  security_level:
+    type: string
+    enum: [standard, elevated, restricted]
+  owner:
+    type: string
+    minLength: 1
+  tags:
+    type: array
+    items: { type: string }
+  metadata:
+    type: object

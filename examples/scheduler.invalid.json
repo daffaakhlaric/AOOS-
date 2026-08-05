@@ -1,0 +1,39 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "trigger_type is 'cron' but both cron AND interval are set simultaneously — trigger types are mutually exclusive (violates Scheduler Contract §4 invariant / VAL-121)",
+    "timezone is missing entirely (violates Constitution §16.2 / VAL-124)",
+    "misfire_policy value 'ignore' is not one of catch_up|skip_if_missed (violates schema enum / VAL-125)",
+    "dependency.depends_on references this same job_name, forming a self-cycle (violates Scheduler Contract §4 invariant / VAL-127)",
+    "owner_ref.type is 'campaign' which is not a valid enum value (violates schema enum / VAL-129)",
+    "priority is 12, outside the 1-10 range (violates schema maximum:10 / VAL-131)",
+    "state is 'active' but execution_sla is missing, so SLA cannot be enforced (violates Scheduler Contract §2 required field / VAL-132)"
+  ],
+  "id": "sched-001",
+  "job_name": "nightly.analytics.lead_funnel_rollup",
+  "version": "1.0.0",
+  "description": "bad scheduled job definition",
+  "state": "active",
+  "trigger_type": "cron",
+  "cron": "0 2 * * *",
+  "interval": { "every": 1, "unit": "days" },
+  "calendar": null,
+  "misfire_policy": "ignore",
+  "dependency": {
+    "depends_on": ["nightly.analytics.lead_funnel_rollup"],
+    "mode": "all"
+  },
+  "priority": 12,
+  "retry": {
+    "max_attempts": 2,
+    "backoff_strategy": "fixed",
+    "backoff_base_ms": 60000
+  },
+  "owner_ref": {
+    "type": "campaign",
+    "id": "workflow.analytics_rollup.v1"
+  },
+  "missed_run_alert_policy": "alert.scheduler_missed_run.v1",
+  "tenant_scope": "global",
+  "owner": "analytics-platform-team"
+}

@@ -1,0 +1,49 @@
+{
+  "name": "@aos/workflow-definition",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Workflow Definition Language (AOS-WDL) — contracts, schema, node/transition/variable model, expression interfaces, parser, serializer, validator, builder, versioning, and registry for Workflow Definitions. Defines workflows; never executes them.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/runtime-kernel": "workspace:*",
+    "@aos/types": "workspace:*",
+    "js-yaml": "^4.1.0",
+    "semver": "^7.6.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.0",
+    "@types/semver": "^7.5.8",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

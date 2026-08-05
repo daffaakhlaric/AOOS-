@@ -1,0 +1,23 @@
+/** "PROVIDER CAPABILITIES" (docs/PROMPT-005.7F-KNOWLEDGE-PROVIDER.md) — the 20 capability flags a Provider can declare. */
+export enum KnowledgeProviderCapabilityFlag {
+  SUPPORTS_READ = "supports_read",
+  SUPPORTS_WRITE = "supports_write",
+  SUPPORTS_METADATA = "supports_metadata",
+  SUPPORTS_VERSION = "supports_version",
+  SUPPORTS_INCREMENTAL = "supports_incremental",
+  SUPPORTS_PERMISSION = "supports_permission",
+  SUPPORTS_POLICY = "supports_policy",
+  SUPPORTS_SEARCH = "supports_search",
+  SUPPORTS_WEBHOOK = "supports_webhook",
+  SUPPORTS_REALTIME = "supports_realtime",
+  SUPPORTS_BATCH = "supports_batch",
+  SUPPORTS_STREAMING = "supports_streaming",
+  SUPPORTS_DELETE = "supports_delete",
+  SUPPORTS_RESTORE = "supports_restore",
+  SUPPORTS_MOVE = "supports_move",
+  SUPPORTS_RENAME = "supports_rename",
+  SUPPORTS_HIERARCHY = "supports_hierarchy",
+  SUPPORTS_TAG = "supports_tag",
+  SUPPORTS_CATEGORY = "supports_category",
+  SUPPORTS_RELATIONSHIP = "supports_relationship",
+}

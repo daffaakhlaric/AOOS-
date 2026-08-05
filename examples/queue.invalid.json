@@ -1,0 +1,43 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "queue_name does not follow <tenant-scope>.<domain>.<purpose> pattern (only two segments present) (violates Constitution §6.6 / VAL-109)",
+    "fifo.enabled is true but fair_share is missing entirely — fair-share is mandatory even under FIFO (violates RULE-019 / VAL-110)",
+    "dead_letter is missing entirely (violates RULE-038 / VAL-111)",
+    "visibility_timeout (PT5S) is less than metadata.max_processing_time_ms (45000ms = 45s), so a job would be picked up twice before it finishes (violates Queue Contract §4 invariant / VAL-114)",
+    "throughput.max_messages_per_second is 0, which does not protect nor permit any dispatch (violates schema minimum:0.1 / VAL-116)",
+    "idempotency_required is false while retry.max_attempts > 0, risking duplicate side-effects on retry (violates RULE-038 / VAL-118)",
+    "priority is 0, outside the 1-10 range (violates schema minimum:1 / VAL-120)"
+  ],
+  "id": "queue-001",
+  "queue_name": "astra-motors.scoring-jobs",
+  "version": "1.0",
+  "description": "bad queue",
+  "state": "active",
+  "priority": 0,
+  "fifo": {
+    "enabled": true,
+    "per_tenant_partition": true
+  },
+  "delay": {
+    "default_delay_seconds": 0,
+    "max_delay_seconds": 300
+  },
+  "retry": {
+    "max_attempts": 5,
+    "backoff_strategy": "exponential",
+    "backoff_base_ms": 500
+  },
+  "visibility_timeout": "PT5S",
+  "throughput": {
+    "max_messages_per_second": 0,
+    "burst_limit": 50,
+    "protected_resource": "crm.astra_motors.lead_api"
+  },
+  "idempotency_required": false,
+  "tenant_scope": "tenant_override_allowed",
+  "owner": "lead-intelligence-team",
+  "metadata": {
+    "max_processing_time_ms": 45000
+  }
+}

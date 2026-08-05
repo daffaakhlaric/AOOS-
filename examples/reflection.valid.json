@@ -1,0 +1,47 @@
+{
+  "id": "3f9a2c10-7b1e-4f4a-9c2d-1e5f6a7b8c9d",
+  "code": "reflection_lead_scoring_20260731_001",
+  "agent_id": "lead_scoring_agent",
+  "task_id": "task.lead_scoring.7e2d1a90",
+  "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+  "version": "1.0.0",
+  "created_at": "2026-07-31T09:12:44Z",
+  "task_review": {
+    "summary": "Scored inbound web lead after chatbot qualification conversation",
+    "expected_outcome": "Lead classified with a score consistent with declared budget and financing intent signals",
+    "actual_outcome": "Lead scored 88/100 and classified Hot based on financing pre-approval signal and 2 test-drive requests",
+    "evaluation_criteria": ["scoring_accuracy", "classification_consistency", "latency_within_sla"]
+  },
+  "quality_score": 0.93,
+  "confidence_threshold": 0.75,
+  "escalation": {
+    "triggered": false
+  },
+  "improvement_plan": {
+    "recommended_action": "None required; monitor for score drift over next 50 leads",
+    "owner": "lead-intelligence-team",
+    "target_date": "2026-09-30"
+  },
+  "learning": [
+    {
+      "insight": "Financing pre-approval combined with repeat test-drive requests is a strong Hot Lead signal at this tenant",
+      "applicability_scope": "tenant_wide",
+      "confidence": 0.86
+    }
+  ],
+  "feedback": {
+    "source": "system",
+    "rating": 5,
+    "comments": "Downstream Sales team accepted the Hot classification without correction"
+  },
+  "knowledge_update": {
+    "knowledge_id": "knowledge.qualification_policy.v1",
+    "update_type": "revise",
+    "proposed_content_ref": "s3://aos-knowledge/proposed/qualification_policy_financing_signal_v2.md"
+  },
+  "status": "completed",
+  "metadata": {
+    "model_used": "router.default_reasoning_tier",
+    "reflection_engine_version": "1.4.0"
+  }
+}

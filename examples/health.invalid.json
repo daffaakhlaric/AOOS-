@@ -1,0 +1,42 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "heartbeat.interval (PT60S) is not strictly less than heartbeat.timeout (PT30S) (violates Health Contract §4 invariant / VAL-195)",
+    "availability.slo_target is 0, must be exclusiveMinimum 0 (violates schema constraint / VAL-196)",
+    "dependency_check entry is missing health_ref (violates Health Contract §4 invariant / VAL-198)",
+    "recovery.mode is 'automatic' but circuit_breaker_ref is missing (violates Constitution §18.6 / VAL-199)",
+    "readiness_gate is true but latency.budget_ms is missing (violates Health Contract §4 invariant / VAL-200)",
+    "state is 'active', not one of the enum values healthy/degraded/unhealthy/unknown (violates schema enum / VAL-193)"
+  ],
+  "id": "b4c3d2e1-f0a9-4b8c-9d7e-6f5a4b3c2d1e",
+  "component_ref": "agent.lead_scoring_agent",
+  "heartbeat": {
+    "interval": "PT60S",
+    "timeout": "PT30S"
+  },
+  "availability": {
+    "slo_target": 0,
+    "measurement_window": "rolling_30d"
+  },
+  "latency": {
+    "p50_ms": 400,
+    "p95_ms": 1200,
+    "p99_ms": 2500
+  },
+  "error_rate": {
+    "threshold_percent": 1.0,
+    "measurement_window": "rolling_1h"
+  },
+  "recovery": {
+    "mode": "automatic"
+  },
+  "dependency_check": [
+    {
+      "dependency_id": "model_router.claude_sonnet_5",
+      "dependency_type": "llm_provider"
+    }
+  ],
+  "readiness_gate": true,
+  "state": "active",
+  "last_evaluated": "2026-07-31T03:15:00Z"
+}

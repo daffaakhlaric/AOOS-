@@ -1,0 +1,106 @@
+{
+  "planner_id": "planner.lead_scoring",
+  "version": "1.0.0",
+  "goal": "Ensure every Lead is scored within 60 seconds of a qualifying interaction",
+  "objective": {
+    "metric": "time_to_hot_lead_p95_seconds",
+    "target_value": 60,
+    "deadline": "2026-12-31T00:00:00Z"
+  },
+  "task": [
+    {
+      "task_id": "task.gather_signals",
+      "description": "Retrieve CRM lead profile and conversation history",
+      "sub_tasks": ["sub_task.fetch_crm_lead", "sub_task.fetch_conversation_history"]
+    },
+    {
+      "task_id": "task.classify_lead",
+      "description": "Compute score and classify as Hot/Warm/Cold",
+      "sub_tasks": ["sub_task.compute_score", "sub_task.publish_classification"]
+    }
+  ],
+  "sub_task": [
+    {
+      "sub_task_id": "sub_task.fetch_crm_lead",
+      "parent_task_id": "task.gather_signals",
+      "description": "Call CRM Tool to fetch the Lead record",
+      "tool_ref": "tool.fetch_crm_lead",
+      "agent_ref": null
+    },
+    {
+      "sub_task_id": "sub_task.fetch_conversation_history",
+      "parent_task_id": "task.gather_signals",
+      "description": "Call conversation history Tool to fetch prior interactions",
+      "tool_ref": "tool.query_conversation_history",
+      "agent_ref": null
+    },
+    {
+      "sub_task_id": "sub_task.compute_score",
+      "parent_task_id": "task.classify_lead",
+      "description": "Reasoner computes Lead Score from gathered signals",
+      "tool_ref": null,
+      "agent_ref": "reasoner.lead_scoring.v1"
+    },
+    {
+      "sub_task_id": "sub_task.publish_classification",
+      "parent_task_id": "task.classify_lead",
+      "description": "Publish lead.scored event with classification",
+      "tool_ref": "tool.publish_domain_event",
+      "agent_ref": null
+    }
+  ],
+  "dependency": [
+    {
+      "from": "sub_task.fetch_crm_lead",
+      "to": "sub_task.compute_score",
+      "type": "finish_to_start"
+    },
+    {
+      "from": "sub_task.fetch_conversation_history",
+      "to": "sub_task.compute_score",
+      "type": "finish_to_start"
+    },
+    {
+      "from": "sub_task.compute_score",
+      "to": "sub_task.publish_classification",
+      "type": "finish_to_start"
+    }
+  ],
+  "priority": 8,
+  "constraints": [
+    { "constraint_id": "c1", "type": "cost_ceiling", "expression": "total_cost <= 0.05 USD" },
+    { "constraint_id": "c2", "type": "time_ceiling", "expression": "total_duration <= PT30S" },
+    {
+      "constraint_id": "c3",
+      "type": "tool_allowlist",
+      "expression": "tool_ref in ['tool.fetch_crm_lead','tool.query_conversation_history','tool.publish_domain_event']"
+    }
+  ],
+  "execution_plan": {
+    "ordered_steps": [
+      "sub_task.fetch_crm_lead",
+      "sub_task.fetch_conversation_history",
+      "sub_task.compute_score",
+      "sub_task.publish_classification"
+    ],
+    "graph_ref": "planner.lead_scoring.v1.graph"
+  },
+  "fallback": {
+    "strategy": "escalate_to_human",
+    "fallback_plan_ref": null
+  },
+  "success_criteria": [
+    {
+      "criterion_id": "sc1",
+      "metric": "classification_published",
+      "threshold": 1,
+      "comparator": "eq"
+    }
+  ],
+  "failure_criteria": [
+    { "criterion_id": "fc1", "metric": "crm_fetch_error_rate", "threshold": 0, "comparator": "gt" }
+  ],
+  "model_ref": "model.gpt_router_default.v1",
+  "max_replan_attempts": 2,
+  "status": "active"
+}

@@ -1,0 +1,43 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "dummy_dealer.tenant_id is 'tenant_dealer_astra_motors', a real-looking tenant id not prefixed 'sim_' (violates Simulation Contract §4 critical safety invariant / VAL-208)",
+    "dummy_crm.adapter_mode is 'live', not 'sandboxed' (violates Simulation Contract §4 invariant / VAL-208)",
+    "sandbox_isolation.network_egress_denied is false (violates Simulation Contract §4 critical safety invariant / VAL-209)",
+    "seed is -1, not a non-negative integer (violates schema minimum:0 / VAL-205)",
+    "replay.replayable is true but deterministic_hash is missing (violates Simulation Contract §4 invariant / VAL-211)",
+    "scenario.expected_outcome is missing while state is 'running' (violates Simulation Contract §4 invariant / VAL-210)",
+    "state is 'completed' but outcome_scorer is absent (violates Simulation Contract §4 invariant / VAL-213)"
+  ],
+  "id": "c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f",
+  "scenario": {
+    "scenario_id": "scenario.hot_lead_handoff_v3",
+    "name": "Hot Lead Handoff — WhatsApp to Sales Notification",
+    "description": "Synthetic Customer sends 3 rapid WhatsApp replies."
+  },
+  "candidate_ref": "agent.lead_scoring_agent@1.3.0-draft",
+  "seed": -1,
+  "dummy_dealer": {
+    "tenant_id": "tenant_dealer_astra_motors",
+    "branch_ids": ["branch_001"],
+    "name": "Astra Motors"
+  },
+  "dummy_customer": [],
+  "dummy_sales": [],
+  "dummy_crm": {
+    "adapter_mode": "live",
+    "seed_records": []
+  },
+  "dummy_whatsapp": { "adapter_mode": "sandboxed", "seed_conversations": [] },
+  "dummy_meta": { "adapter_mode": "sandboxed", "seed_campaigns": [] },
+  "dummy_google_ads": { "adapter_mode": "sandboxed", "seed_campaigns": [] },
+  "dummy_tiktok_ads": { "adapter_mode": "sandboxed", "seed_campaigns": [] },
+  "dummy_leads": [],
+  "dummy_budget": { "currency": "USD", "amount": 5.0, "period": "per_run" },
+  "replay": { "replayable": true },
+  "sandbox_isolation": {
+    "network_egress_denied": false,
+    "adapter_binding": "mocked"
+  },
+  "state": "completed"
+}

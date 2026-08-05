@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter @aos/knowledge-engine run test -- --run test/events test/metrics test/health test/monitoring)",
+      "Bash(pnpm --filter @aos/knowledge-engine run test -- --run test/engine test/bootstrap)",
+      "Bash(pnpm --filter @aos/knowledge-engine run test -- --run)",
+      "Bash(pnpm --filter @aos/knowledge-engine run test:coverage)",
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//tmp/**)",
+      "Bash(pnpm run *)",
+      "Bash(echo \"LINT_EXIT:$?\")",
+      "Bash(echo \"BUILD_EXIT:$?\")",
+      "Bash(echo \"TYPECHECK_EXIT:$?\")",
+      "Bash(echo \"FORMAT_EXIT:$?\")",
+      "Bash(pnpm --filter @aos/knowledge-engine run build)",
+      "Bash(echo \"BUILD:$?\")",
+      "Bash(pnpm --filter @aos/knowledge-engine run lint)",
+      "Bash(echo \"LINT:$?\")",
+      "Bash(echo \"TEST_EXIT:$?\")",
+      "Bash(echo \"FORMAT:$?\")",
+      "Bash(pnpm --filter @aos/knowledge-runtime run build)",
+      "Bash(rm -rf dist *.tsbuildinfo)",
+      "Bash(npx tsc *)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run typecheck)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run lint)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run test -- --run)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run test -- --run test/state-machine test/lifecycle)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run test -- --run test/registry test/loader test/resolver test/factory test/manager test/snapshot)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run test -- --run test/validator)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run test -- --run test/middleware)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run test -- --run test/events test/metrics test/health test/monitoring)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run test -- --run test/runtime)",
+      "Bash(pnpm --filter @aos/knowledge-runtime run test:coverage)",
+      "Bash(echo \"TYPECHECK:$?\")",
+      "Bash(echo \"TEST:$?\")"
+    ]
+  }
+}

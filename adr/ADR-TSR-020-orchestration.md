@@ -1,0 +1,14 @@
+# ADR-TSR-020 — Orchestration: Kubernetes (Managed)
+
+**Status:** Accepted
+
+**Context:** AOS's deployment topology (Architecture §11 Deployment Diagram) and scalability model (Architecture §31 Scalability Architecture) already assume a container orchestration platform capable of multi-region, multi-tenant, thousands-of-dealer scale, with per-service autoscaling and a mature operator ecosystem for the platform's named stateful dependencies: Temporal (§3.9), NATS JetStream (§3.8), and PostgreSQL/CockroachDB (§3.4). This decision confirms, rather than newly introduces, the orchestration layer already implicit throughout the Architecture document.
+
+**Decision:** Adopt **Kubernetes**, deployed as a managed offering (EKS/GKE-class) rather than self-managed, as the platform's container orchestration layer. Autoscaling is implemented via Horizontal Pod Autoscaling (tied to custom metrics sourced from the LGTM observability stack, §3.17) and Cluster Autoscaler for node-level elasticity. Stateful dependencies are operated via their respective mature Kubernetes Operators rather than hand-managed. Multi-region topology (Architecture §32 Disaster Recovery) is provisioned via Terraform (§3.21) for deterministic standby-region rebuildability.
+
+**Consequences:** AOS inherits the deepest available ecosystem of ready-made operators and tooling for its own named dependencies (Temporal's official Operator, NATS/Kafka-native Operators, Postgres/CockroachDB Operators, Kong's Ingress Controller, ArgoCD itself), directly reducing the custom operational engineering that would otherwise be required to run these dependencies reliably. In exchange, AOS accepts Kubernetes's materially higher operational complexity (CNI, CSI, Ingress, admission webhooks, CRDs) relative to a simpler scheduler — mitigated by choosing a managed offering so the cloud provider, not AOS, owns control-plane HA and upgrade operations, and by having ArgoCD/Terraform own most declarative manifest authoring on the platform team's behalf rather than requiring every feature engineer to hand-author raw Kubernetes YAML.
+
+**Alternatives Considered:**
+
+- **Nomad** — simpler operational model, lower baseline resource overhead, and genuine cloud-agnosticism; not adopted because its operator/tooling ecosystem for AOS's specific stateful dependencies (Temporal, Kafka/NATS, Postgres) is materially smaller than Kubernetes's, requiring more custom operational engineering to achieve equivalent reliability. Its 2023 relicensing to the Business Source License (BSL) 1.1 is also noted as a distinct, non-technical vendor-relationship risk relative to Kubernetes's Apache 2.0/CNCF governance.
+- **Docker Swarm** — simplest of the three, Docker-native; not recommended because its ecosystem momentum has stagnated relative to Kubernetes and it lacks the autoscaling sophistication (no native HPA-equivalent) that Architecture §31 requires as a hard scaling target, not an optional nicety.

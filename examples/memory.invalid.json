@@ -1,0 +1,81 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "working_memory.ttl is missing entirely, but working_memory is an ephemeral tier that requires ttl (violates schema required + Constitution §13.3 / VAL-076)",
+    "session_memory.ownership.tenant_id is null, violating tenant partitioning (violates Constitution §13.2 / VAL-073)",
+    "long_term_memory is missing retention_policy, but it is a durable tier that requires one (violates schema required + Constitution §13.3 / VAL-077)",
+    "semantic_memory.pii.contains_pii is true but erasure_cascade_required is false (violates DDD BR-109 / VAL-078)",
+    "vector_memory is missing embedding_model_version entirely (violates schema required + Architecture §20 / VAL-079)",
+    "access_gateway is an empty string, implying a direct store connection bypass (violates Architecture §20 mediation pattern / VAL-080)",
+    "pii_policy.contains_pii is true but erasure_cascade_required is missing (violates Constitution §13.5 / VAL-078)"
+  ],
+  "id": "5b6c7d8e-9f0a-41b2-8c3d-4e5f6a7b8c9d",
+  "code": "memory_lead_scoring_v2",
+  "version": "1.1.0",
+  "description": "Broken memory configuration used to demonstrate validation failures.",
+  "working_memory": {
+    "enabled": true,
+    "store_ref": "redis://memory-working/tenant-partitioned",
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "lead.7e2d1a90",
+      "entity_type": "lead"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true }
+  },
+  "session_memory": {
+    "enabled": true,
+    "store_ref": "redis://memory-session/tenant-partitioned",
+    "ttl": "PT2H",
+    "ownership": {
+      "tenant_id": null,
+      "entity_id": "conversation.4c2b1a00",
+      "entity_type": "conversation"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true }
+  },
+  "long_term_memory": {
+    "enabled": true,
+    "store_ref": "postgres://memory-episodic/tenant-partitioned",
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "lead.7e2d1a90",
+      "entity_type": "lead"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true }
+  },
+  "semantic_memory": {
+    "enabled": true,
+    "store_ref": "vectordb://memory-semantic/tenant-partitioned",
+    "retention_policy": { "duration": "P730D", "action": "archive" },
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "customer.9d8c7b60",
+      "entity_type": "customer"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": false }
+  },
+  "vector_memory": {
+    "enabled": true,
+    "store_ref": "vectordb://memory-semantic/tenant-partitioned",
+    "retention_policy": { "duration": "P730D", "action": "archive" },
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "customer.9d8c7b60",
+      "entity_type": "customer"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true },
+    "dimensions": 1536
+  },
+  "retention_policy": { "duration": "P365D", "action": "anonymize" },
+  "ttl": "PT30M",
+  "ownership": {
+    "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+    "entity_id": "lead_scoring_agent",
+    "entity_type": "agent"
+  },
+  "access_gateway": "",
+  "pii_policy": { "contains_pii": true },
+  "status": "active",
+  "owner": "lead-intelligence-team"
+}

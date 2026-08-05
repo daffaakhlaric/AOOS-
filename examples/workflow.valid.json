@@ -1,0 +1,104 @@
+{
+  "workflow_id": "workflow.lead_qualification",
+  "version": "1.1.0",
+  "nodes": [
+    {
+      "node_id": "fetch_lead",
+      "type": "tool_invocation",
+      "invokes": "tool.fetch_crm_lead",
+      "input_schema": "schemas/fetch-crm-lead-input.schema.json",
+      "output_schema": "schemas/fetch-crm-lead-output.schema.json",
+      "timeout": "PT5S",
+      "retry_policy": {
+        "max_attempts": 3,
+        "backoff_strategy": "exponential",
+        "backoff_base_ms": 300
+      },
+      "compensation": null
+    },
+    {
+      "node_id": "score_lead",
+      "type": "agent_invocation",
+      "invokes": "agent.lead_scoring_agent",
+      "input_schema": "schemas/lead-scoring-input.schema.json",
+      "output_schema": "schemas/lead-scoring-output.schema.json",
+      "timeout": "PT30S",
+      "retry_policy": { "max_attempts": 2, "backoff_strategy": "fixed", "backoff_base_ms": 1000 },
+      "compensation": null
+    },
+    {
+      "node_id": "notify_sales",
+      "type": "tool_invocation",
+      "invokes": "tool.send_whatsapp_message",
+      "input_schema": "schemas/send-whatsapp-message-input.schema.json",
+      "output_schema": "schemas/send-whatsapp-message-output.schema.json",
+      "timeout": "PT10S",
+      "retry_policy": {
+        "max_attempts": 3,
+        "backoff_strategy": "exponential",
+        "backoff_base_ms": 500
+      },
+      "compensation": "tool.send_whatsapp_correction_notice"
+    }
+  ],
+  "edges": [
+    { "from": "fetch_lead", "to": "score_lead", "condition_ref": null },
+    { "from": "score_lead", "to": "notify_sales", "condition_ref": "cond.is_hot_lead" }
+  ],
+  "conditions": [
+    {
+      "condition_id": "cond.is_hot_lead",
+      "expression": "score_lead.output.classification == 'hot'",
+      "evaluated_on": "score_lead"
+    }
+  ],
+  "parallel_execution": {
+    "enabled": false,
+    "max_concurrency": 1,
+    "join_strategy": null
+  },
+  "retry_policy": {
+    "max_attempts": 3,
+    "backoff_strategy": "exponential",
+    "backoff_base_ms": 500
+  },
+  "rollback": {
+    "supported": true,
+    "strategy": "saga"
+  },
+  "compensation": [
+    { "node_id": "notify_sales", "compensation_action_ref": "tool.send_whatsapp_correction_notice" }
+  ],
+  "timeout": "PT2H",
+  "priority": 8,
+  "events": {
+    "publishes": [
+      "workflow.started",
+      "workflow.step_completed",
+      "workflow.completed",
+      "workflow.failed"
+    ],
+    "subscribes": ["lead.created"]
+  },
+  "dependencies": ["tool.fetch_crm_lead", "agent.lead_scoring_agent", "tool.send_whatsapp_message"],
+  "state_machine": {
+    "states": ["Created", "Running", "Paused", "Failed", "Completed", "Compensated"],
+    "transitions": [
+      { "from": "Created", "to": "Running", "on": "start" },
+      { "from": "Running", "to": "Running", "on": "step_ok" },
+      { "from": "Running", "to": "Paused", "on": "pause" },
+      { "from": "Paused", "to": "Running", "on": "resume" },
+      { "from": "Running", "to": "Failed", "on": "step_failed_no_compensation" },
+      { "from": "Running", "to": "Completed", "on": "all_steps_complete" },
+      { "from": "Failed", "to": "Compensated", "on": "compensation_executed" }
+    ],
+    "initial_state": "Created"
+  },
+  "metrics": ["workflow_completion_rate", "workflow_duration_p95", "workflow_cost_total"],
+  "cost_budget": {
+    "amount": 2.5,
+    "currency": "USD"
+  },
+  "human_checkpoints": [],
+  "status": "active"
+}

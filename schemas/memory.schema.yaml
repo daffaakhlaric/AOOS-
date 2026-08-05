@@ -1,0 +1,129 @@
+# Memory Contract — YAML Schema
+# Contract: contract.memory v1.0.0
+# See: contracts/memory.contract.md
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://aos.platform/schemas/memory.schema.yaml"
+title: MemoryContract
+type: object
+additionalProperties: false
+required:
+  - id
+  - code
+  - version
+  - description
+  - working_memory
+  - session_memory
+  - long_term_memory
+  - semantic_memory
+  - vector_memory
+  - retention_policy
+  - ttl
+  - ownership
+  - access_gateway
+  - pii_policy
+  - status
+  - owner
+$defs:
+  ownership:
+    type: object
+    required: [tenant_id, entity_id, entity_type]
+    properties:
+      tenant_id: { type: string, format: uuid }
+      entity_id: { type: string, minLength: 1 }
+      entity_type:
+        type: string
+        enum: [lead, conversation, customer, tenant, agent, dealer]
+  pii_flag:
+    type: object
+    required: [contains_pii, erasure_cascade_required]
+    properties:
+      contains_pii: { type: boolean }
+      erasure_cascade_required: { type: boolean }
+  retention_policy:
+    type: object
+    required: [duration, action]
+    properties:
+      duration: { type: string, pattern: "^P(\\d+D|T\\d+[HMS])$" }
+      action: { type: string, enum: [delete, anonymize, archive] }
+  ephemeral_memory_tier:
+    type: object
+    required: [enabled, store_ref, ttl, ownership, pii]
+    properties:
+      enabled: { type: boolean }
+      store_ref: { type: string, minLength: 1 }
+      ttl: { type: string, pattern: "^P(\\d+D|T\\d+[HMS])$" }
+      ownership: { $ref: "#/$defs/ownership" }
+      pii: { $ref: "#/$defs/pii_flag" }
+  durable_memory_tier:
+    type: object
+    required: [enabled, store_ref, retention_policy, ownership, pii]
+    properties:
+      enabled: { type: boolean }
+      store_ref: { type: string, minLength: 1 }
+      retention_policy: { $ref: "#/$defs/retention_policy" }
+      ownership: { $ref: "#/$defs/ownership" }
+      pii: { $ref: "#/$defs/pii_flag" }
+  vector_memory_tier:
+    type: object
+    required: [enabled, store_ref, retention_policy, ownership, pii, embedding_model_version]
+    properties:
+      enabled: { type: boolean }
+      store_ref: { type: string, minLength: 1 }
+      retention_policy: { $ref: "#/$defs/retention_policy" }
+      ownership: { $ref: "#/$defs/ownership" }
+      pii: { $ref: "#/$defs/pii_flag" }
+      embedding_model: { type: string }
+      embedding_model_version: { type: string, minLength: 1 }
+      dimensions: { type: integer, minimum: 1 }
+      index_ref: { type: string }
+properties:
+  id:
+    type: string
+    format: uuid
+  code:
+    type: string
+    pattern: "^[a-z][a-z0-9_]*$"
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+  description:
+    type: string
+    minLength: 10
+  working_memory: { $ref: "#/$defs/ephemeral_memory_tier" }
+  session_memory: { $ref: "#/$defs/ephemeral_memory_tier" }
+  long_term_memory: { $ref: "#/$defs/durable_memory_tier" }
+  knowledge_memory: { $ref: "#/$defs/durable_memory_tier" }
+  semantic_memory: { $ref: "#/$defs/durable_memory_tier" }
+  vector_memory: { $ref: "#/$defs/vector_memory_tier" }
+  cache:
+    type: object
+    properties:
+      enabled: { type: boolean }
+      ttl: { type: string, pattern: "^P(\\d+D|T\\d+[HMS])$" }
+      store_ref: { type: string }
+  retention_policy: { $ref: "#/$defs/retention_policy" }
+  ttl:
+    type: string
+    pattern: "^P(\\d+D|T\\d+[HMS])$"
+  ownership: { $ref: "#/$defs/ownership" }
+  access_gateway:
+    type: string
+    minLength: 1
+  pii_policy:
+    type: object
+    required: [contains_pii, erasure_cascade_required]
+    properties:
+      contains_pii: { type: boolean }
+      erasure_cascade_required: { type: boolean }
+  status:
+    type: string
+    enum: [draft, active, deprecated, retired]
+  owner:
+    type: string
+    minLength: 1
+  tags:
+    type: array
+    items: { type: string }
+  metadata:
+    type: object

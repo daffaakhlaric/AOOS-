@@ -1,0 +1,97 @@
+{
+  "id": "5b6c7d8e-9f0a-41b2-8c3d-4e5f6a7b8c9d",
+  "code": "memory_lead_scoring_v1",
+  "version": "1.0.0",
+  "description": "Memory configuration for LeadScoringAgent covering per-task working memory through cross-session semantic recall of lead preferences.",
+  "working_memory": {
+    "enabled": true,
+    "store_ref": "redis://memory-working/tenant-partitioned",
+    "ttl": "PT30M",
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "lead.7e2d1a90",
+      "entity_type": "lead"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true }
+  },
+  "session_memory": {
+    "enabled": true,
+    "store_ref": "redis://memory-session/tenant-partitioned",
+    "ttl": "PT2H",
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "conversation.4c2b1a00",
+      "entity_type": "conversation"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true }
+  },
+  "long_term_memory": {
+    "enabled": true,
+    "store_ref": "postgres://memory-episodic/tenant-partitioned",
+    "retention_policy": { "duration": "P365D", "action": "anonymize" },
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "lead.7e2d1a90",
+      "entity_type": "lead"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true }
+  },
+  "knowledge_memory": {
+    "enabled": true,
+    "store_ref": "cache://knowledge-retrieval-cache",
+    "retention_policy": { "duration": "P7D", "action": "delete" },
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "lead_scoring_agent",
+      "entity_type": "agent"
+    },
+    "pii": { "contains_pii": false, "erasure_cascade_required": false }
+  },
+  "semantic_memory": {
+    "enabled": true,
+    "store_ref": "vectordb://memory-semantic/tenant-partitioned",
+    "retention_policy": { "duration": "P730D", "action": "archive" },
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "customer.9d8c7b60",
+      "entity_type": "customer"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true }
+  },
+  "vector_memory": {
+    "enabled": true,
+    "store_ref": "vectordb://memory-semantic/tenant-partitioned",
+    "retention_policy": { "duration": "P730D", "action": "archive" },
+    "ownership": {
+      "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "entity_id": "customer.9d8c7b60",
+      "entity_type": "customer"
+    },
+    "pii": { "contains_pii": true, "erasure_cascade_required": true },
+    "embedding_model": "aos-embedding-standard",
+    "embedding_model_version": "2.3.0",
+    "dimensions": 1536,
+    "index_ref": "vectordb://memory-semantic/index/tenant-8a1b2c3d"
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": "PT5M",
+    "store_ref": "redis://memory-read-through-cache"
+  },
+  "retention_policy": { "duration": "P365D", "action": "anonymize" },
+  "ttl": "PT30M",
+  "ownership": {
+    "tenant_id": "8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+    "entity_id": "lead_scoring_agent",
+    "entity_type": "agent"
+  },
+  "access_gateway": "gateway.memory_access.v1",
+  "pii_policy": { "contains_pii": true, "erasure_cascade_required": true },
+  "status": "active",
+  "owner": "lead-intelligence-team",
+  "tags": ["memory", "lead-scoring", "tenant-partitioned"],
+  "metadata": {
+    "created_by": "system",
+    "changelog_ref": "registry.memory.memory_lead_scoring_v1@1.0.0"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "@aos/runtime-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Runtime Kernel — the framework-agnostic foundation (bootstrap, lifecycle, DI container, context, health, diagnostics, events, metrics) every future AI Agent runtime component builds on. No Agent, Workflow, Tool, or Dashboard code lives here.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/config": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/logger": "workspace:*",
+    "@aos/telemetry": "workspace:*",
+    "@aos/types": "workspace:*",
+    "semver": "^7.6.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@types/semver": "^7.5.8",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

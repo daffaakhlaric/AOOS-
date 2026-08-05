@@ -1,0 +1,70 @@
+{
+  "id": "c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f",
+  "scenario": {
+    "scenario_id": "scenario.hot_lead_handoff_v3",
+    "name": "Hot Lead Handoff — WhatsApp to Sales Notification",
+    "description": "Synthetic Customer sends 3 rapid WhatsApp replies expressing test-drive intent; candidate LeadScoringAgent must classify Hot within 60s and trigger sales notification.",
+    "expected_outcome": {
+      "classification": "hot",
+      "time_to_hot_seconds_max": 60,
+      "sales_notified": true
+    }
+  },
+  "candidate_ref": "agent.lead_scoring_agent@1.3.0-draft",
+  "seed": 482913,
+  "dummy_dealer": {
+    "tenant_id": "sim_tenant_astra_motors_001",
+    "branch_ids": ["sim_branch_001"],
+    "name": "Simulation Astra Motors"
+  },
+  "dummy_customer": [
+    {
+      "customer_id": "sim_customer_001",
+      "profile": { "segment": "first_time_buyer", "vehicle_interest": "SUV" },
+      "behavior_script": "script.eager_test_drive_seeker.v1"
+    }
+  ],
+  "dummy_sales": [
+    {
+      "sales_id": "sim_sales_001",
+      "role": "sales_staff",
+      "behavior_script": "script.responsive_sales_staff.v1"
+    }
+  ],
+  "dummy_crm": {
+    "adapter_mode": "sandboxed",
+    "seed_records": [{ "lead_id": "sim_lead_001", "status": "new" }]
+  },
+  "dummy_whatsapp": {
+    "adapter_mode": "sandboxed",
+    "seed_conversations": [{ "conversation_id": "sim_conv_001", "messages": 3 }]
+  },
+  "dummy_meta": { "adapter_mode": "sandboxed", "seed_campaigns": [] },
+  "dummy_google_ads": { "adapter_mode": "sandboxed", "seed_campaigns": [] },
+  "dummy_tiktok_ads": { "adapter_mode": "sandboxed", "seed_campaigns": [] },
+  "dummy_leads": [{ "lead_id": "sim_lead_001", "source": "whatsapp", "initial_state": "new" }],
+  "dummy_budget": {
+    "currency": "USD",
+    "amount": 5.0,
+    "period": "per_run"
+  },
+  "replay": {
+    "replayable": true,
+    "source_run_id": null,
+    "deterministic_hash": "sha256:9f8e7d6c5b4a3928f1e0d9c8b7a69584736251409f8e7d6c5b4a392"
+  },
+  "outcome_scorer": {
+    "accuracy": 0.97,
+    "cost": 0.04,
+    "latency": 850,
+    "guardrail_trigger_rate": 0.0,
+    "pass": true
+  },
+  "sandbox_isolation": {
+    "network_egress_denied": true,
+    "adapter_binding": "mocked"
+  },
+  "state": "completed",
+  "started_at": "2026-07-31T02:00:00Z",
+  "completed_at": "2026-07-31T02:00:47Z"
+}

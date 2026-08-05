@@ -1,0 +1,22 @@
+/** "KNOWLEDGE TEMPLATES: Support templates ..." (docs/PROMPT-005.7A-KNOWLEDGE-ENGINE.md) — the 19 industry/function template categories `KnowledgeTemplateEngine` organizes Templates under. */
+export enum KnowledgeTemplateCategory {
+  PRODUCT = "product",
+  FAQ = "faq",
+  MANUAL = "manual",
+  PLAYBOOK = "playbook",
+  SALES = "sales",
+  MARKETING = "marketing",
+  HR = "hr",
+  LEGAL = "legal",
+  HEALTHCARE = "healthcare",
+  GOVERNMENT = "government",
+  EDUCATION = "education",
+  INSURANCE = "insurance",
+  AUTOMOTIVE = "automotive",
+  REAL_ESTATE = "real_estate",
+  RETAIL = "retail",
+  RESTAURANT = "restaurant",
+  LOGISTICS = "logistics",
+  FINANCE = "finance",
+  CUSTOM = "custom",
+}

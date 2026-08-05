@@ -1,0 +1,147 @@
+# Tool Contract — YAML Schema
+# Contract: contract.tool v1.0.0
+# See: contracts/tool.contract.md
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://aos.platform/schemas/tool.schema.yaml"
+title: ToolContract
+type: object
+additionalProperties: false
+required:
+  - tool_id
+  - provider
+  - category
+  - side_effect_class
+  - authentication
+  - authorization
+  - permission_scope
+  - input_schema
+  - output_schema
+  - timeout
+  - retry
+  - circuit_breaker
+  - rate_limit
+  - quota
+  - health_check
+  - telemetry
+  - metrics
+  - cost
+  - version
+  - status
+properties:
+  tool_id:
+    type: string
+    pattern: "^tool\\.[a-z][a-z0-9_]*$"
+  provider:
+    type: object
+    required: [name, system, adapter_type]
+    additionalProperties: false
+    properties:
+      name: { type: string, minLength: 1 }
+      system: { type: string, minLength: 1 }
+      adapter_type: { type: string, enum: [rest, graphql, grpc, sdk, webhook, browser_automation] }
+  category:
+    type: string
+    enum: [crm, messaging, ads_platform, database, browser, email, sms, payment, internal_service]
+  side_effect_class:
+    type: string
+    enum: [read-only, reversible-write, irreversible-write]
+  authentication:
+    type: object
+    required: [method, secret_ref, scope]
+    additionalProperties: false
+    properties:
+      method: { type: string, enum: [oauth2, api_key, hmac, mtls, service_account] }
+      secret_ref: { type: string, minLength: 1 }
+      scope: { type: array, items: { type: string } }
+  authorization:
+    type: object
+    required: [requires_policy_approval]
+    additionalProperties: false
+    properties:
+      requires_policy_approval: { type: boolean }
+      approval_policy_ref: { type: [string, "null"] }
+  permission_scope:
+    type: array
+    items: { type: string }
+    minItems: 1
+  input_schema:
+    type: string
+  output_schema:
+    type: string
+  timeout:
+    type: string
+    pattern: "^PT\\d+[SM]$"
+  retry:
+    type: object
+    required: [max_attempts, backoff_strategy, backoff_base_ms, idempotency_key_param]
+    additionalProperties: false
+    properties:
+      max_attempts: { type: integer, minimum: 0, maximum: 10 }
+      backoff_strategy: { type: string, enum: [fixed, linear, exponential] }
+      backoff_base_ms: { type: integer, minimum: 100 }
+      idempotency_key_param: { type: string, minLength: 1 }
+  rollback:
+    type: [object, "null"]
+    additionalProperties: false
+    properties:
+      supported: { type: boolean }
+      rollback_tool_ref: { type: [string, "null"] }
+  compensation:
+    type: [object, "null"]
+    additionalProperties: false
+    properties:
+      strategy:
+        { type: string, enum: [compensating_tool, manual_reconciliation, corrective_action, none] }
+      compensation_action_ref: { type: [string, "null"] }
+  circuit_breaker:
+    type: object
+    required: [failure_threshold, reset_timeout, half_open_max_calls]
+    additionalProperties: false
+    properties:
+      failure_threshold: { type: integer, minimum: 1 }
+      reset_timeout: { type: string, pattern: "^PT\\d+[SM]$" }
+      half_open_max_calls: { type: integer, minimum: 1 }
+  rate_limit:
+    type: object
+    required: [requests, period]
+    additionalProperties: false
+    properties:
+      requests: { type: integer, minimum: 1 }
+      period: { type: string, enum: [second, minute, hour, day] }
+  quota:
+    type: object
+    required: [amount, period, scope]
+    additionalProperties: false
+    properties:
+      amount: { type: number, minimum: 0 }
+      period: { type: string, enum: [daily, monthly, per_tenant_lifetime] }
+      scope: { type: string, enum: [per_tenant, per_agent, global] }
+  health_check:
+    type: string
+    description: "reference to a Health Contract id"
+  telemetry:
+    type: object
+    required: [trace_enabled, log_level, pii_redaction]
+    additionalProperties: false
+    properties:
+      trace_enabled: { type: boolean }
+      log_level: { type: string, enum: [debug, info, warn, error] }
+      pii_redaction: { type: boolean }
+  metrics:
+    type: array
+    items: { type: string }
+  cost:
+    type: object
+    required: [unit_cost, currency, billing_model]
+    additionalProperties: false
+    properties:
+      unit_cost: { type: number, minimum: 0 }
+      currency: { type: string, minLength: 3, maxLength: 3 }
+      billing_model: { type: string, enum: [per_call, per_unit, flat_period] }
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+  status:
+    type: string
+    enum: [draft, active, deprecated, retired]

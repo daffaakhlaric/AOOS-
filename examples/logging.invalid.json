@@ -1,0 +1,24 @@
+{
+  "_comment": "INVALID example — annotated with the specific violations for training/validation-test purposes. Remove _comment and _violations before using as a test fixture; they are not part of the schema (additionalProperties:false would reject them too).",
+  "_violations": [
+    "tenant_id is missing entirely (violates RULE-045 / VAL-183)",
+    "metadata contains a raw plaintext phone number, a PII field (violates RULE-046 / VAL-184)",
+    "pii_redacted is false while metadata still contains PII (violates Logging Contract §4 invariant / VAL-184)",
+    "severity is 'CRITICAL' but alert_dispatched is missing/false with no follow-up (violates Logging Contract §4 invariant / VAL-186)",
+    "emitting_component is an Agent recording a model decision but context is absent (violates Constitution §17.4 / VAL-187)",
+    "severity is 'FATAL', not one of the enum values DEBUG/INFO/WARN/ERROR/CRITICAL (violates schema enum / VAL-182)"
+  ],
+  "log_id": "1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+  "trace_id": "9e8d7c6b-5a4f-4e3d-9c2b-1a0f9e8d7c6b",
+  "span_id": "5f4e3d2c-1b0a-4f9e-8d7c-6b5a4f3e2d1c",
+  "emitting_component": "agent.lead_scoring_agent",
+  "severity": "FATAL",
+  "timestamp": "2026-07-31T03:12:44Z",
+  "message": "Model call failed while scoring lead",
+  "metadata": {
+    "customer_phone": "+6281234567890"
+  },
+  "pii_redacted": false,
+  "alert_dispatched": false,
+  "retention_class": "standard"
+}

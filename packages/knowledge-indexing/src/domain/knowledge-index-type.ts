@@ -1,0 +1,20 @@
+/** "INDEX TYPES" (docs/PROMPT-005.7C-KNOWLEDGE-INDEXING.md) — the 17 index kinds `KnowledgeIndexBuilder` understands. */
+export enum KnowledgeIndexType {
+  KEYWORD = "keyword",
+  METADATA = "metadata",
+  NAMESPACE = "namespace",
+  RELATIONSHIP = "relationship",
+  POLICY = "policy",
+  PERMISSION = "permission",
+  TEMPLATE = "template",
+  TAG = "tag",
+  CATEGORY = "category",
+  LANGUAGE = "language",
+  WORKSPACE = "workspace",
+  TENANT = "tenant",
+  DEPARTMENT = "department",
+  COLLECTION = "collection",
+  ASSET_TYPE = "asset_type",
+  EMBEDDING_REFERENCE = "embedding_reference",
+  HYBRID_METADATA = "hybrid_metadata",
+}

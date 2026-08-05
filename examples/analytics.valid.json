@@ -1,0 +1,28 @@
+{
+  "id": "3f2a1b9c-6d5e-4f3a-9b8c-7d6e5f4a3b2c",
+  "metric": "cost_per_hot_lead",
+  "display_name": "Cost per Hot Lead (CPHL)",
+  "definition": "Campaign Spend / LeadHot attributed",
+  "domain": "campaign",
+  "dimension": ["tenant_id", "campaign_id", "branch_id", "channel"],
+  "aggregation": "ratio",
+  "source_events": ["campaign.spend_recorded", "lead.hot"],
+  "retention": {
+    "hot_days": 90,
+    "cold_days": 730,
+    "cold_tier": "warehouse_cold_storage"
+  },
+  "sampling": {
+    "rate": 1.0,
+    "strategy": "none"
+  },
+  "export": {
+    "destinations": ["dashboard", "warehouse"],
+    "tenant_isolation_required": true
+  },
+  "rollup_schedule": "PT1H",
+  "freshness_sla": "PT2H",
+  "owner": "analytics-platform-team",
+  "state": "active",
+  "tags": ["kpi", "campaign", "cost-efficiency"]
+}
