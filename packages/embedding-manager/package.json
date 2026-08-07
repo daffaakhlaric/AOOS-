@@ -1,0 +1,44 @@
+{
+  "name": "@aos/embedding-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Embedding Manager Platform — orchestrates embedding lifecycle, embedding metadata, provider abstraction, model registry, embedding versioning, embedding jobs, cache metadata, and embedding contracts. It owns ONLY embedding orchestration, embedding metadata, embedding lifecycle, embedding jobs, embedding sessions, embedding requests, embedding result metadata, embedding providers, embedding models, embedding versions, embedding cache metadata, embedding statistics, and embedding audit. It MUST NEVER generate embeddings, perform vector search, connect directly to a vector database, tokenize text, perform chunking, calculate similarity, retrieve context, execute RAG, or execute recommendation. All real embedding generation, storage, and search work is delegated through IEmbeddingProvider/IEmbeddingModelProvider/IEmbeddingStorageProvider/IEmbeddingCacheProvider interfaces the package never implements.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/runtime-kernel": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

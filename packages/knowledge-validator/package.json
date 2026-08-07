@@ -1,0 +1,44 @@
+{
+  "name": "@aos/knowledge-validator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Knowledge Validator AI Platform — orchestrates enterprise validation of knowledge assets before acceptance into the Knowledge Platform: validation lifecycle, validation sessions, validation jobs, validation requests, validation findings (metadata only), validation rules, validation decisions (metadata only), validation reports (metadata/summary only), validation result metadata, validation configuration, validation policy integration, validation statistics, validation audit only. It owns ONLY validation orchestration, validation metadata, validation lifecycle, validation decisions, validation reports, validation metrics, validation contracts, and provider abstraction. It MUST NEVER perform AI validation directly, call any LLM SDK, compute a decision itself, calculate embeddings, generate/modify/edit/recommend knowledge, or calculate a quality score. All real validation/decision work is delegated through IKnowledgeValidationProvider/IKnowledgeValidationRuleProvider/IKnowledgeValidationPolicyProvider/IKnowledgeValidationDecisionProvider interfaces the package never implements.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/runtime-kernel": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "@aos/knowledge-graph",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Knowledge Graph — the standalone, in-memory relationship engine of the platform. Manages explicit typed relationships (nodes and edges) between knowledge entities (Knowledge, Document, Chunk, Embedding, Memory, Prompt, Agent, Workflow, Capability, Tool, Connector, Organization, Department, Role, Employee, BusinessProcess, SolutionPack, Custom) and supports traversal, dependency discovery, reasoning, impact analysis, relationship management, and graph analytics. Pure domain: no database, no Neo4j, no GraphDB, no persistence — everything in-memory. This package imports ZERO other @aos/* packages at runtime; it defines its own exception base class and its own lightweight event-publishing mechanism so it remains fully standalone.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

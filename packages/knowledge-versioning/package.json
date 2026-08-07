@@ -1,0 +1,44 @@
+{
+  "name": "@aos/knowledge-versioning",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Knowledge Versioning Platform — manages the complete lifecycle of every Knowledge Asset revision: version lifecycle, version metadata, revision history, branches, snapshots, lineage, merge contracts, rollback contracts, comparison metadata, version statistics, and version audit metadata only. No retrieval, no synchronization, no indexing, no search, no chunking, no embedding, no vector search, no RAG, no AI, no LLM, no merge algorithms, no diff engines, no file parsing/manipulation.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/runtime-kernel": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

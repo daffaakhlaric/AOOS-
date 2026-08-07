@@ -1,0 +1,38 @@
+{
+  "name": "@aos/knowledge-analytics",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Knowledge Analytics — the standalone, in-memory analytics, metrics, and reporting engine of the Knowledge Runtime. Aggregates caller-supplied samples (usage, search, retrieval, query, embedding, graph, quality, performance, trend, cost, recommendation) and computes real derived statistics (rates, averages, percentiles, trends) via a shared metric calculator, then assembles the results into ten report types and dashboard snapshots through a six-stage analytics pipeline. Pure domain: no database, no network, no filesystem persistence — everything in-memory. This package imports ZERO other @aos/* packages at runtime; it defines its own exception base class, its own lightweight event-publishing mechanism, and its own module contract so it remains fully standalone.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

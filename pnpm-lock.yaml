@@ -136,6 +136,49 @@ importers:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/embedding-manager:
+    dependencies:
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../common
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@aos/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      '@aos/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
   packages/errors:
     dependencies:
       '@aos/common':
@@ -213,6 +256,60 @@ importers:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/knowledge-analytics:
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/knowledge-auto-update:
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
   packages/knowledge-engine:
     dependencies:
       '@aos/common':
@@ -280,6 +377,76 @@ importers:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/knowledge-generator:
+    dependencies:
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../common
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@aos/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      '@aos/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/knowledge-graph:
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
   packages/knowledge-indexing:
     dependencies:
       '@aos/common':
@@ -306,6 +473,119 @@ importers:
       '@aos/scheduler':
         specifier: workspace:*
         version: link:../scheduler
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/knowledge-intelligence:
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/knowledge-marketplace:
+    dependencies:
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../common
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@aos/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      '@aos/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/knowledge-policy:
+    dependencies:
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../common
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@aos/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      '@aos/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -389,6 +669,49 @@ importers:
       '@aos/workflow-execution':
         specifier: workspace:*
         version: link:../workflow-execution
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/knowledge-quality:
+    dependencies:
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../common
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@aos/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      '@aos/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
       '@types/node':
         specifier: ^20.14.0
         version: 20.19.43
@@ -639,6 +962,92 @@ importers:
       '@aos/workflow-execution':
         specifier: workspace:*
         version: link:../workflow-execution
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/knowledge-validator:
+    dependencies:
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../common
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@aos/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      '@aos/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/knowledge-versioning:
+    dependencies:
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../common
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@aos/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      '@aos/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
       '@types/node':
         specifier: ^20.14.0
         version: 20.19.43

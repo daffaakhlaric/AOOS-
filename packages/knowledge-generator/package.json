@@ -1,0 +1,44 @@
+{
+  "name": "@aos/knowledge-generator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Knowledge Generator AI Platform — orchestrates AI-assisted generation of enterprise knowledge assets: generation lifecycle, generation sessions, generation jobs, generation requests, generation results (metadata only), generation metadata, prompt references, context references, output metadata, generation policies, generation statistics, generation audit only. It owns ONLY orchestration, lifecycle, validation pipeline, provider abstraction, and generation metadata. It MUST NEVER call the OpenAI SDK, Claude SDK, Gemini SDK, or any provider SDK; MUST NEVER implement inference, embeddings, vector search, memory, or workflow execution. All real generation work is delegated through IKnowledgeGenerationProvider/IKnowledgePromptProvider/IKnowledgeContextProvider interfaces the package never implements.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/runtime-kernel": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

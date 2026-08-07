@@ -1,0 +1,38 @@
+{
+  "name": "@aos/knowledge-auto-update",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Knowledge Auto Update — the standalone, in-memory engine that detects, schedules, validates, refreshes, synchronizes, and updates knowledge assets throughout the Knowledge Runtime. Provides a deterministic priority-queue-and-cron-model scheduler, a real 10-stage update pipeline, 13 update-type strategies, dependency-aware ordering, conflict resolution, staleness analysis, exponential backoff retry, and 16 computed metrics. Pure domain: no database, no network, no filesystem persistence, no OS-dependent timers — everything in-memory and driven by an injectable clock. This package imports ZERO other @aos/* packages at runtime; it defines its own exception base class, its own lightweight event-publishing mechanism, and its own module contract so it remains fully standalone.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

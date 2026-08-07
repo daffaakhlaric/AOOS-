@@ -1,0 +1,44 @@
+{
+  "name": "@aos/knowledge-quality",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AOS Enterprise Knowledge Quality Engine — orchestrates enterprise knowledge quality assessment: assessment lifecycle, assessment sessions, assessment jobs, assessment requests, quality findings (metadata only), quality rules, quality profiles, quality reports (metadata/summary only), quality score metadata, quality configuration, quality policies, quality statistics, quality audit only. It owns ONLY quality orchestration, quality metadata, quality lifecycle, quality policies, quality reports, quality metrics, quality contracts, and provider abstraction. It MUST NEVER evaluate AI quality directly, call any LLM SDK, compute an AI quality score, calculate embeddings, perform validation, or generate/modify/edit/recommend knowledge. All real quality evaluation work is delegated through IKnowledgeQualityProvider/IKnowledgeQualityRuleProvider/IKnowledgeQualityScoringProvider/IKnowledgeQualityPolicyProvider interfaces the package never implements.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/runtime-kernel": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

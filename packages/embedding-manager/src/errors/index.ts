@@ -1,0 +1,13 @@
+export { EmbeddingManagerException } from "./embedding-manager-exception.js";
+export { EmbeddingNotFoundException } from "./embedding-not-found-exception.js";
+export { DuplicateEmbeddingEntryException } from "./duplicate-embedding-entry-exception.js";
+export { IllegalEmbeddingTransitionException } from "./illegal-embedding-transition-exception.js";
+export { InvalidEmbeddingMetadataException } from "./invalid-embedding-metadata-exception.js";
+export { EmbeddingCheckException } from "./embedding-check-exception.js";
+export { EmbeddingOperationException } from "./embedding-operation-exception.js";
+export { EmbeddingConfigurationException } from "./embedding-configuration-exception.js";
+export { EmbeddingSessionException } from "./embedding-session-exception.js";
+export { EmbeddingProviderException } from "./embedding-provider-exception.js";
+export { EmbeddingModelException } from "./embedding-model-exception.js";
+export { EmbeddingVersionException } from "./embedding-version-exception.js";
+export { EmbeddingNamespaceException } from "./embedding-namespace-exception.js";
