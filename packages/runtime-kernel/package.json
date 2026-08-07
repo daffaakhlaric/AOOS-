@@ -39,10 +39,10 @@
     "@aos/testing": "workspace:*",
     "@aos/tsconfig": "workspace:*",
     "@aos/vitest-config": "workspace:*",
-    "@types/node": "^20.14.0",
-    "@types/semver": "^7.5.8",
-    "@vitest/coverage-v8": "^2.0.5",
-    "typescript": "^5.5.4",
+    "@types/node": "^26.1.2",
+    "@types/semver": "^7.8.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^7.0.2",
     "vitest": "^2.0.5"
   }
 }
