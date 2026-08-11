@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MobixScraperService } from "../../../src/application/services/MobixScraperService.js";
 import { DetectInventoryChanges } from "../../../src/application/use-cases/DetectInventoryChanges.js";
+import type {
+  RunFullScrape,
+  RunFullScrapeResult,
+} from "../../../src/application/use-cases/RunFullScrape.js";
 import type { ScrapeInventory } from "../../../src/application/use-cases/ScrapeInventory.js";
 import type { ScrapePromos } from "../../../src/application/use-cases/ScrapePromos.js";
 import { ScrapedUnit } from "../../../src/domain/entities/ScrapedUnit.js";
@@ -117,5 +121,61 @@ describe("MobixScraperService", () => {
       expect(diff.value.newUnits.map((u) => u.identityKey)).toEqual(["brio-2"]);
     }
     expect(service.lastScrapedSession?.sessionId).toBe("s2");
+  });
+
+  it("runFullScrape() returns a ScrapeError when the factory did not compose a RunFullScrape use case", async () => {
+    const scrapeInventory = { execute: vi.fn() } as unknown as ScrapeInventory;
+    const scrapePromos = { execute: vi.fn() } as unknown as ScrapePromos;
+    const publisher = createFakePublisher();
+    const detect = new DetectInventoryChanges(new MobixScraperEvents(publisher), clock);
+    const service = new MobixScraperService(scrapeInventory, scrapePromos, detect);
+
+    const result = await service.runFullScrape();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toMatch(/not composed with a RunFullScrape/);
+    }
+  });
+
+  it("runFullScrape() delegates to RunFullScrape with the remembered lastScrapedSession and updates it", async () => {
+    const first = makeSession("s1", [makeUnit("brio-1")]);
+    const fullScrapeResult: RunFullScrapeResult = {
+      session: makeSession("s2", [makeUnit("brio-1"), makeUnit("brio-2")]),
+      diff: { newUnits: [makeUnit("brio-2")], soldUnits: [], unchangedCount: 1 },
+      photoResults: [],
+    };
+    const fullScrapeExecute = vi.fn(async () => ok(fullScrapeResult));
+    const fullScrape = { execute: fullScrapeExecute } as unknown as RunFullScrape;
+
+    const scrapeInventory = {
+      execute: vi.fn(async () => ok(first)),
+    } as unknown as ScrapeInventory;
+    const scrapePromos = { execute: vi.fn() } as unknown as ScrapePromos;
+    const publisher = createFakePublisher();
+    const detect = new DetectInventoryChanges(new MobixScraperEvents(publisher), clock);
+    const service = new MobixScraperService(scrapeInventory, scrapePromos, detect, fullScrape);
+
+    await service.scrapeInventoryUnits();
+    const result = await service.runFullScrape("corr-99");
+
+    expect(fullScrapeExecute).toHaveBeenCalledWith(first, "corr-99");
+    expect(result.ok).toBe(true);
+    expect(service.lastScrapedSession?.sessionId).toBe("s2");
+  });
+
+  it("runFullScrape() propagates a failure without updating lastScrapedSession", async () => {
+    const fullScrapeExecute = vi.fn(async () => err(new ScrapeError("scrape boom")));
+    const fullScrape = { execute: fullScrapeExecute } as unknown as RunFullScrape;
+    const scrapeInventory = { execute: vi.fn() } as unknown as ScrapeInventory;
+    const scrapePromos = { execute: vi.fn() } as unknown as ScrapePromos;
+    const publisher = createFakePublisher();
+    const detect = new DetectInventoryChanges(new MobixScraperEvents(publisher), clock);
+    const service = new MobixScraperService(scrapeInventory, scrapePromos, detect, fullScrape);
+
+    const result = await service.runFullScrape();
+
+    expect(result.ok).toBe(false);
+    expect(service.lastScrapedSession).toBeUndefined();
   });
 });

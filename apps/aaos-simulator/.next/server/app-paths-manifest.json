@@ -1,6 +1,0 @@
-{
-  "/simulator/page": "app/simulator/page.js",
-  "/api/simulate-all/route": "app/api/simulate-all/route.js",
-  "/api/simulate/route": "app/api/simulate/route.js",
-  "/report/page": "app/report/page.js"
-}

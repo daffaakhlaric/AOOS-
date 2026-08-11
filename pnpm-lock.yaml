@@ -323,6 +323,61 @@ importers:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@20.19.43)(jsdom@24.1.3)(msw@2.15.0(@types/node@20.19.43)(typescript@5.9.3))(terser@5.49.2)
 
+  packages/asset-library:
+    dependencies:
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../common
+      '@aos/config':
+        specifier: workspace:*
+        version: link:../config
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@aos/event-bus':
+        specifier: workspace:*
+        version: link:../event-bus
+      '@aos/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@aos/meta-ads-connector':
+        specifier: workspace:*
+        version: link:../meta-ads-connector
+      '@aos/telemetry':
+        specifier: workspace:*
+        version: link:../telemetry
+      '@supabase/supabase-js':
+        specifier: ^2.45.0
+        version: 2.112.2(@opentelemetry/api@1.9.1)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@aos/eslint-config':
+        specifier: workspace:*
+        version: link:../../configs/eslint-config
+      '@aos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aos/tsconfig':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@aos/vitest-config':
+        specifier: workspace:*
+        version: link:../../configs/vitest-config
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.43)(jsdom@24.1.3)(msw@2.15.0(@types/node@20.19.43)(typescript@5.9.3))(terser@5.49.2))
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@20.19.43)(jsdom@24.1.3)(msw@2.15.0(@types/node@20.19.43)(typescript@5.9.3))(terser@5.49.2)
+
   packages/branch-manager:
     dependencies:
       '@aos/common':
@@ -1700,6 +1755,9 @@ importers:
 
   packages/mobix-web-scraper:
     dependencies:
+      '@aos/asset-library':
+        specifier: workspace:*
+        version: link:../asset-library
       '@aos/common':
         specifier: workspace:*
         version: link:../common

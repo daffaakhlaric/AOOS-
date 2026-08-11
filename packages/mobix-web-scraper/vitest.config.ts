@@ -15,6 +15,7 @@ export default withBaseConfig({
         "src/domain/events/NewUnitDetected.ts",
         "src/domain/events/UnitSoldOut.ts",
         "src/domain/events/PromoDetected.ts",
+        "src/domain/events/PhotoUploaded.ts",
       ],
       thresholds: {
         statements: 100,

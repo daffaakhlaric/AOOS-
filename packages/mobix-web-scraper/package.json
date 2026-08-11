@@ -25,6 +25,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aos/asset-library": "workspace:*",
     "@aos/common": "workspace:*",
     "@aos/errors": "workspace:*",
     "@aos/event-bus": "workspace:*",

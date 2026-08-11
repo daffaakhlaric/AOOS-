@@ -3,13 +3,14 @@ import { randomUUID } from "node:crypto";
 import { EventCategory, type IPublisher } from "@aos/event-bus";
 
 import type { NewUnitDetected } from "./NewUnitDetected.js";
+import type { PhotoUploaded } from "./PhotoUploaded.js";
 import type { PromoDetected } from "./PromoDetected.js";
 import type { ScrapeCompleted } from "./ScrapeCompleted.js";
 import type { ScrapeFailed } from "./ScrapeFailed.js";
 import type { UnitSoldOut } from "./UnitSoldOut.js";
 
 /**
- * Wraps the real `@aos/event-bus` `IPublisher` for this package's 5 named events, mirroring
+ * Wraps the real `@aos/event-bus` `IPublisher` for this package's 6 named events, mirroring
  * `@aos/meta-ads-agent`'s `MetaAdsAgentEvents` convention. `@aos/event-bus`'s envelope `version`
  * must be a full SemVer string ("x.y.z"), distinct from each payload's own `version: "1.0"`
  * business field — always the literal `"1.0.0"` here.
@@ -38,6 +39,10 @@ export class MobixScraperEvents {
 
   async publishPromoDetected(payload: PromoDetected, correlationId?: string): Promise<void> {
     await this.publish("aaos.mobix-scraper.promo.detected", payload, correlationId);
+  }
+
+  async publishPhotoUploaded(payload: PhotoUploaded, correlationId?: string): Promise<void> {
+    await this.publish("aaos.mobix-scraper.photo.uploaded", payload, correlationId);
   }
 
   private async publish<T>(type: string, payload: T, correlationId?: string): Promise<void> {
