@@ -1,0 +1,48 @@
+{
+  "name": "@aos/dss-inventory-connector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AAOS DSS Inventory Connector — syncs used car inventory from Google Sheets, DMS, and custom API into a unified in-memory store. Interface-based adapters: real adapters implemented when credentials available.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/common": "workspace:*",
+    "@aos/config": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/logger": "workspace:*",
+    "@aos/meta-ads-connector": "workspace:*",
+    "@aos/telemetry": "workspace:*",
+    "@aos/types": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

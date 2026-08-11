@@ -1,0 +1,138 @@
+// Factory
+export { MetaAdsConnectorFactory } from "./factories/MetaAdsConnectorFactory.js";
+export type {
+  MetaAdsConnector,
+  MetaAdsConnectorFactoryOptions,
+} from "./factories/MetaAdsConnectorFactory.js";
+
+// Use Cases
+export { PullCampaignData } from "./application/use-cases/PullCampaignData.js";
+export type {
+  DatePreset,
+  PullCampaignDataInput,
+} from "./application/use-cases/PullCampaignData.js";
+export { ExecuteVerdict } from "./application/use-cases/ExecuteVerdict.js";
+export type { ExecuteVerdictInput } from "./application/use-cases/ExecuteVerdict.js";
+export { ProcessLeadWebhook } from "./application/use-cases/ProcessLeadWebhook.js";
+export type { ProcessLeadWebhookInput } from "./application/use-cases/ProcessLeadWebhook.js";
+
+// Services
+export { MetaAdsSyncService } from "./application/services/MetaAdsSyncService.js";
+export { VerdictExecutionService } from "./application/services/VerdictExecutionService.js";
+
+// Domain — Entities
+export type { AdAccount } from "./domain/entities/AdAccount.js";
+export type { Campaign } from "./domain/entities/Campaign.js";
+export type { AdSet } from "./domain/entities/AdSet.js";
+export type { Ad } from "./domain/entities/Ad.js";
+export type { Lead } from "./domain/entities/Lead.js";
+
+// Domain — Value Objects
+export { AdAccountId } from "./domain/value-objects/AdAccountId.js";
+export { CampaignId } from "./domain/value-objects/CampaignId.js";
+export { AdSetId } from "./domain/value-objects/AdSetId.js";
+export { AdId } from "./domain/value-objects/AdId.js";
+export { LeadId } from "./domain/value-objects/LeadId.js";
+export { StableId } from "./domain/value-objects/StableId.js";
+export { Spend } from "./domain/value-objects/Spend.js";
+export { Budget } from "./domain/value-objects/Budget.js";
+export { Rph } from "./domain/value-objects/Rph.js";
+export { AdMetrics } from "./domain/value-objects/AdMetrics.js";
+export { Verdict } from "./domain/value-objects/Verdict.js";
+export { Branch } from "./domain/value-objects/Branch.js";
+export { Funnel } from "./domain/value-objects/Funnel.js";
+export { AdStatus } from "./domain/value-objects/AdStatus.js";
+export { CampaignObjective } from "./domain/value-objects/CampaignObjective.js";
+export { LeadType } from "./domain/value-objects/LeadType.js";
+export { PublisherPlatform } from "./domain/value-objects/PublisherPlatform.js";
+
+// Domain — Events
+export type { LeadReceived } from "./domain/events/LeadReceived.js";
+export type { AdPaused } from "./domain/events/AdPaused.js";
+export type { BudgetScaled } from "./domain/events/BudgetScaled.js";
+export type { ObjectiveFixed } from "./domain/events/ObjectiveFixed.js";
+export type { SyncCompleted } from "./domain/events/SyncCompleted.js";
+export type { SyncFailed } from "./domain/events/SyncFailed.js";
+export { MetaAdsConnectorEvents } from "./domain/events/MetaAdsConnectorEvents.js";
+
+// Domain — Services
+export { evaluateVerdict } from "./domain/services/VerdictEngine.js";
+export type { VerdictEngineInput } from "./domain/services/VerdictEngine.js";
+
+// Errors
+export {
+  MetaAdsConnectorError,
+  MetaApiError,
+  ApiServerError,
+  RateLimitError,
+  AuthError,
+  PermissionError,
+  WebhookError,
+  SignatureVerificationError,
+  TokenVerificationError,
+  PayloadParseError,
+  ConnectorConfigError,
+} from "./domain/errors/index.js";
+
+// Config
+export type {
+  MetaAdsConnectorConfig,
+  MetaAdsConnectorConfigInput,
+} from "./config/MetaAdsConnectorConfig.js";
+export {
+  MetaAdsConnectorConfigSchema,
+  parseMetaAdsConnectorConfig,
+} from "./config/MetaAdsConnectorConfig.js";
+
+// Registry
+export { AdAccountRegistry } from "./registry/AdAccountRegistry.js";
+
+// Contracts
+export type { IMetaAdsClient, PageCursor } from "./contracts/IMetaAdsClient.js";
+export type { ILeadWebhookParser, RawLeadData } from "./contracts/ILeadWebhookParser.js";
+export type {
+  ExecutionAction,
+  ExecutionResult,
+  IVerdictExecutor,
+  VerdictExecutionInput,
+  VerdictTargetType,
+} from "./contracts/IVerdictExecutor.js";
+export type { IAdAccountRepository } from "./contracts/IAdAccountRepository.js";
+export type { IRateLimiter, RateLimitStatus } from "./contracts/IRateLimiter.js";
+
+// Infrastructure
+export { MetaApiClient } from "./infrastructure/meta-api/MetaApiClient.js";
+export { MetaApiRequestBuilder } from "./infrastructure/meta-api/MetaApiRequestBuilder.js";
+export { MetaResponseMapper } from "./infrastructure/meta-api/MetaResponseMapper.js";
+export { WebhookParser } from "./infrastructure/webhook/WebhookParser.js";
+export { WebhookVerifier } from "./infrastructure/webhook/WebhookVerifier.js";
+export { TokenBucketRateLimiter } from "./infrastructure/rate-limiter/TokenBucketRateLimiter.js";
+export {
+  ExponentialBackoffRetry,
+  isRetryable,
+} from "./infrastructure/retry/ExponentialBackoffRetry.js";
+
+// Builders
+export { CampaignBuilder } from "./builders/CampaignBuilder.js";
+export { AdSetBuilder } from "./builders/AdSetBuilder.js";
+export { AdBuilder } from "./builders/AdBuilder.js";
+export { LeadBuilder } from "./builders/LeadBuilder.js";
+
+// Utils
+export {
+  assignAdStableIds,
+  assignAdSetStableIds,
+  assignCampaignStableIds,
+} from "./utils/StableIdAssigner.js";
+export { classifyFunnel } from "./utils/FunnelClassifier.js";
+export { extractBranch } from "./utils/BranchExtractor.js";
+export { calculateActionBreakdown } from "./utils/D3Calculator.js";
+export { centsToRupiah, rupiahToCents, formatIDR } from "./utils/CurrencyUtils.js";
+
+// Mappers
+export { mapCampaign } from "./mappers/CampaignMapper.js";
+export { mapAdSet } from "./mappers/AdSetMapper.js";
+export { mapAd } from "./mappers/AdMapper.js";
+export { mapInsightRowToMetrics } from "./mappers/MetricsMapper.js";
+export { mapLead, mapLeads, derivePublisherPlatform } from "./mappers/LeadMapper.js";
+export type { AdIdentifiers, AdResolver } from "./mappers/LeadMapper.js";

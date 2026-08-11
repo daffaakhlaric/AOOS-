@@ -1,0 +1,9 @@
+{
+  "extends": "@aos/tsconfig/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

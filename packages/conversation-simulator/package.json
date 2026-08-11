@@ -1,0 +1,50 @@
+{
+  "name": "@aos/conversation-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AAOS Conversation Simulator — runs AI buyer personas against Jessy to test conversation quality before production deployment.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aos/branch-manager": "workspace:*",
+    "@aos/common": "workspace:*",
+    "@aos/config": "workspace:*",
+    "@aos/dss-inventory-connector": "workspace:*",
+    "@aos/errors": "workspace:*",
+    "@aos/event-bus": "workspace:*",
+    "@aos/logger": "workspace:*",
+    "@aos/meta-ads-connector": "workspace:*",
+    "@aos/sales-agent": "workspace:*",
+    "@aos/telemetry": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/testing": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@aos/vitest-config": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

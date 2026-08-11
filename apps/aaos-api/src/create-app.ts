@@ -1,0 +1,38 @@
+import { NestFactory } from "@nestjs/core";
+import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+
+import { AppModule } from "./app.module.js";
+import type { AaosApiConfig } from "./config/aaos-api.config.js";
+
+/**
+ * Shared composition entry point used by both `main.ts` (real process bootstrap) and the e2e
+ * test bootstrap helper (`test/helpers/bootstrap.ts`) — keeps body-parsing/module wiring
+ * identical between "the real app" and "the app under test".
+ *
+ * `WebhookSignatureGuard` needs the exact bytes Meta signed for HMAC verification — Fastify's
+ * default JSON body parser only exposes the already-parsed object, not the original bytes.
+ * Rather than hand-rolling a custom `addContentTypeParser` (which would need to fight
+ * `@nestjs/platform-fastify`'s own default JSON parser registration — verified empirically: a
+ * manual `addContentTypeParser("application/json", ...)` call collided with the framework's own
+ * parser and threw "Content type parser already present" at bootstrap, regardless of call
+ * order), this uses `@nestjs/platform-fastify`'s own OFFICIALLY SUPPORTED `rawBody: true`
+ * application option — `NestFactory.create(AppModule, adapter, { rawBody: true })` — which makes
+ * `FastifyAdapter` attach the exact raw bytes to `request.rawBody` for every JSON/urlencoded
+ * request, without any extra dependency beyond what the spec's `package.json` already lists.
+ */
+export async function createApp(config: AaosApiConfig): Promise<NestFastifyApplication> {
+  const adapter = new FastifyAdapter();
+
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule.forRoot(config), adapter, {
+    logger: false,
+    rawBody: true,
+  });
+
+  await app.init();
+  // Fastify's own plugin/hook/route registration is asynchronous — `app.init()` resolving does
+  // not guarantee Fastify has finished booting. `.ready()` waits for that explicitly; skipping it
+  // was observed to occasionally let a request race ahead of full route-context initialization
+  // (Fastify's internal `preParsing` hook array reads as `undefined` for such a request).
+  await app.getHttpAdapter().getInstance().ready();
+  return app;
+}
