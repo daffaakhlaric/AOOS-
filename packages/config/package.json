@@ -28,8 +28,8 @@
     "@aos/common": "workspace:*",
     "@aos/errors": "workspace:*",
     "@aos/types": "workspace:*",
-    "dotenv": "^16.4.5",
-    "zod": "^3.23.8"
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@aos/eslint-config": "workspace:*",
@@ -37,7 +37,7 @@
     "@aos/vitest-config": "workspace:*",
     "@vitest/coverage-v8": "^2.0.5",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5",
+    "vitest": "^4.1.10",
     "@types/node": "^20.14.0"
   }
 }
