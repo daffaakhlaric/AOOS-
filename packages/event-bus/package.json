@@ -30,7 +30,7 @@
     "@aos/runtime-kernel": "workspace:*",
     "@aos/types": "workspace:*",
     "semver": "^7.6.3",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@aos/eslint-config": "workspace:*",
@@ -41,6 +41,6 @@
     "@types/semver": "^7.5.8",
     "@vitest/coverage-v8": "^2.0.5",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5"
+    "vitest": "^4.1.10"
   }
 }
