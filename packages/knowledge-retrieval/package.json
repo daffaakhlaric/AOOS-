@@ -42,9 +42,9 @@
     "@aos/tsconfig": "workspace:*",
     "@aos/vitest-config": "workspace:*",
     "@aos/workflow-execution": "workspace:*",
-    "@types/node": "^20.14.0",
-    "@vitest/coverage-v8": "^2.0.5",
-    "typescript": "^5.5.4",
+    "@types/node": "^26.2.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^7.0.2",
     "vitest": "^2.0.5"
   }
 }
