@@ -80,6 +80,70 @@ describe("MetaApiClient", () => {
     expect(unwrap(result).success).toBe(true);
   });
 
+  it("createCampaign() POSTs objective=OUTCOME_LEADS, status=PAUSED and parses the new id (AAOS-W1D-S3)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/campaigns`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "new-campaign-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createCampaign(
+      "act_123",
+      {
+        name: "Meta-CTWA-Leads-Mobix-Cinere",
+        objective: "OUTCOME_LEADS",
+        specialAdCategories: [],
+        status: "PAUSED",
+      },
+      "TOKEN",
+    );
+    expect(unwrap(result).id).toBe("new-campaign-1");
+    expect(capturedBody).toEqual({
+      name: "Meta-CTWA-Leads-Mobix-Cinere",
+      objective: "OUTCOME_LEADS",
+      special_ad_categories: [],
+      status: "PAUSED",
+      access_token: "TOKEN",
+    });
+  });
+
+  it("createAdSet() POSTs destination_type=WHATSAPP, optimization_goal=LEAD_GENERATION, status=PAUSED and parses the new id (AAOS-W1D-S3)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/adsets`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "new-adset-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createAdSet(
+      "act_123",
+      {
+        campaignId: "new-campaign-1",
+        name: "Meta-CTWA-Leads-Mobix-Cinere-adset",
+        destinationType: "WHATSAPP",
+        optimizationGoal: "LEAD_GENERATION",
+        billingEvent: "IMPRESSIONS",
+        dailyBudgetCents: 10_000_000,
+        status: "PAUSED",
+      },
+      "TOKEN",
+    );
+    expect(unwrap(result).id).toBe("new-adset-1");
+    expect(capturedBody).toEqual({
+      campaign_id: "new-campaign-1",
+      name: "Meta-CTWA-Leads-Mobix-Cinere-adset",
+      destination_type: "WHATSAPP",
+      optimization_goal: "LEAD_GENERATION",
+      billing_event: "IMPRESSIONS",
+      daily_budget: 10_000_000,
+      status: "PAUSED",
+      access_token: "TOKEN",
+    });
+  });
+
   it("maps Meta error code 190 to AuthError regardless of HTTP status", async () => {
     mswServer.use(
       http.get(`${BASE}/act_123/campaigns`, () =>

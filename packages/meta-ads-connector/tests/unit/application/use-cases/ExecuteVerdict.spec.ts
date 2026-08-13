@@ -137,7 +137,7 @@ describe("ExecuteVerdict (unit, fake IVerdictExecutor)", () => {
     expect(payload.occurredAt.getTime()).toBeGreaterThanOrEqual(before);
   });
 
-  it("ObjectiveFixed event defaults newObjective to OUTCOME_ENGAGEMENT when the executor doesn't return a string", async () => {
+  it("ObjectiveFixed event defaults newObjective to OUTCOME_LEADS when the executor doesn't return a string (AAOS-W1D-S3: was OUTCOME_ENGAGEMENT)", async () => {
     const { useCase, publisher } = makeUseCase(
       fakeExecutor(
         ok({ action: "FIXED", targetId: "campaign-1", targetType: "campaign", newValue: 123 }),
@@ -152,6 +152,6 @@ describe("ExecuteVerdict (unit, fake IVerdictExecutor)", () => {
       correlationId: "c1",
     });
     const payload = publisher.published[0]?.payload as { newObjective: string };
-    expect(payload.newObjective).toBe("OUTCOME_ENGAGEMENT");
+    expect(payload.newObjective).toBe("OUTCOME_LEADS");
   });
 });

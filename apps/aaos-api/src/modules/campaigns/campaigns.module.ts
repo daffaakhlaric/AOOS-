@@ -1,0 +1,12 @@
+import { Module } from "@nestjs/common";
+
+import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+
+import { CampaignsController } from "./campaigns.controller.js";
+import { CampaignsService } from "./campaigns.service.js";
+
+@Module({
+  controllers: [CampaignsController],
+  providers: [CampaignsService, ApiKeyGuard],
+})
+export class CampaignsModule {}

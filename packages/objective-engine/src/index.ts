@@ -61,7 +61,15 @@ export {
 } from "./domain/errors/index.js";
 
 // Config
-export type { ObjectiveEngineConfig } from "./config/ObjectiveEngineConfig.js";
+export type {
+  ObjectiveEngineConfig,
+  ObjectiveEngineConfigInput,
+} from "./config/ObjectiveEngineConfig.js";
+export {
+  parseObjectiveEngineConfig,
+  ObjectiveEngineConfigSchema,
+  DEFAULT_OBJECTIVE_ENGINE_CONFIG,
+} from "./config/ObjectiveEngineConfig.js";
 
 // Registry
 export { ObjectiveRegistry } from "./registry/ObjectiveRegistry.js";

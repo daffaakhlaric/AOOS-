@@ -13,16 +13,17 @@ import { AssetLibraryEvents } from "../../../src/domain/events/AssetLibraryEvent
 import { AssetStatus } from "../../../src/domain/value-objects/AssetStatus.js";
 import { AssetType } from "../../../src/domain/value-objects/AssetType.js";
 import { AssetRepository } from "../../../src/infrastructure/supabase/AssetRepository.js";
-import { SupabaseStorageClient } from "../../../src/infrastructure/supabase/SupabaseStorageClient.js";
+import { createFakeAssetStorage } from "../../helpers/assetStorage.js";
 import { createFakePublisher } from "../../helpers/publisher.js";
 import { unwrap } from "../../helpers/result.js";
-import { createFakeSupabaseStorageClient } from "../../helpers/storage.js";
 import { createFakeSupabaseClient } from "../../helpers/supabase.js";
 
 const config = {
   supabaseUrl: "https://example.supabase.co",
   supabaseServiceKey: "key",
-  bucketName: "mobix-assets",
+  gcsBucketName: "aoos",
+  gcsProjectId: "fake-test-project",
+  gcsKeyFilePath: "./fake-service-account.json",
   tenantId: "dss-motor",
   imageSizeLimitBytes: 10 * 1024 * 1024,
   videoSizeLimitBytes: 100 * 1024 * 1024,
@@ -30,7 +31,7 @@ const config = {
 
 function makeAssetService() {
   const repository = new AssetRepository(createFakeSupabaseClient());
-  const storage = new SupabaseStorageClient(createFakeSupabaseStorageClient(), config.bucketName);
+  const storage = createFakeAssetStorage();
   const storageService = new StorageService(storage, config);
   const tagger = new DefaultAssetTagger();
   const events = new AssetLibraryEvents(createFakePublisher());

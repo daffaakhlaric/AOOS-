@@ -13,7 +13,7 @@ export interface UploadedFile {
   readonly publicUrl: string;
 }
 
-/** Port over Supabase Storage (Hexagonal Architecture — spec: `IAssetStorage.ts ← Supabase Storage port`). Implemented by `infrastructure/supabase/SupabaseStorageClient.ts`. */
+/** Port over file-byte storage (Hexagonal Architecture — spec: `IAssetStorage.ts ← storage port`). Implemented by `infrastructure/gcs/GcsStorageClient.ts` (Google Cloud Storage, since AAOS-W3E-S1 — originally Supabase Storage). */
 export interface IAssetStorage {
   upload(input: UploadFileInput): Promise<Result<UploadedFile, StorageError>>;
 }

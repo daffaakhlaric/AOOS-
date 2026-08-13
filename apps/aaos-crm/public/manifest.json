@@ -1,0 +1,13 @@
+{
+  "name": "Mobix CRM",
+  "short_name": "Mobix CRM",
+  "description": "Sales dashboard untuk tim Mobix DSS Motor",
+  "start_url": "/leads",
+  "display": "standalone",
+  "background_color": "#F2F2F7",
+  "theme_color": "#0A84FF",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -8,10 +8,9 @@ import { AssetLibraryEvents } from "../../../src/domain/events/AssetLibraryEvent
 import { AssetStatus } from "../../../src/domain/value-objects/AssetStatus.js";
 import { AssetType } from "../../../src/domain/value-objects/AssetType.js";
 import { AssetRepository } from "../../../src/infrastructure/supabase/AssetRepository.js";
-import { SupabaseStorageClient } from "../../../src/infrastructure/supabase/SupabaseStorageClient.js";
+import { createFakeAssetStorage } from "../../helpers/assetStorage.js";
 import { createFakePublisher } from "../../helpers/publisher.js";
 import { unwrap, unwrapErr } from "../../helpers/result.js";
-import { createFakeSupabaseStorageClient } from "../../helpers/storage.js";
 import { createFakeSupabaseClient } from "../../helpers/supabase.js";
 
 const IMAGE_MAX = 10 * 1024 * 1024;
@@ -19,7 +18,9 @@ const IMAGE_MAX = 10 * 1024 * 1024;
 const config = {
   supabaseUrl: "https://example.supabase.co",
   supabaseServiceKey: "key",
-  bucketName: "mobix-assets",
+  gcsBucketName: "aoos",
+  gcsProjectId: "fake-test-project",
+  gcsKeyFilePath: "./fake-service-account.json",
   tenantId: "dss-motor",
   imageSizeLimitBytes: IMAGE_MAX,
   videoSizeLimitBytes: 100 * 1024 * 1024,
@@ -27,9 +28,8 @@ const config = {
 
 function makeUploadAsset(now = () => new Date("2026-01-01T00:00:00.000Z")) {
   const client = createFakeSupabaseClient();
-  const storageClient = createFakeSupabaseStorageClient();
+  const storage = createFakeAssetStorage();
   const repository = new AssetRepository(client);
-  const storage = new SupabaseStorageClient(storageClient, config.bucketName);
   const storageService = new StorageService(storage, config);
   const publisher = createFakePublisher();
   const events = new AssetLibraryEvents(publisher);
@@ -40,7 +40,7 @@ function makeUploadAsset(now = () => new Date("2026-01-01T00:00:00.000Z")) {
     events,
     now,
   );
-  return { uploadAsset, repository, publisher, storageClient };
+  return { uploadAsset, repository, publisher, storage };
 }
 
 describe("UploadAsset (integration)", () => {
@@ -242,8 +242,7 @@ describe("UploadAsset (integration)", () => {
     const client = createFakeSupabaseClient();
     client.forceErrorOnce("assets", "insert failed");
     const failingRepository = new AssetRepository(client);
-    const storageClient = createFakeSupabaseStorageClient();
-    const storage = new SupabaseStorageClient(storageClient, config.bucketName);
+    const storage = createFakeAssetStorage();
     const storageService = new StorageService(storage, config);
     const publisher = createFakePublisher();
     const events = new AssetLibraryEvents(publisher);

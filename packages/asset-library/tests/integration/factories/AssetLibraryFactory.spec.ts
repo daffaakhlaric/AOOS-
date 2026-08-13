@@ -1,17 +1,35 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AssetType } from "../../../src/domain/value-objects/AssetType.js";
 import { AssetLibraryFactory } from "../../../src/factories/AssetLibraryFactory.js";
+import { createFakeAssetStorage } from "../../helpers/assetStorage.js";
 import { createFakeLogger } from "../../helpers/logger.js";
 import { createFakePublisher } from "../../helpers/publisher.js";
 import { unwrap } from "../../helpers/result.js";
-import { createFakeSupabaseStorageClient } from "../../helpers/storage.js";
 import { createFakeSupabaseClient } from "../../helpers/supabase.js";
+
+// The "builds real clients when none are injected" test constructs a real `GcsStorageClient`,
+// which constructs a real `@google-cloud/storage` `Storage` instance — mocked here (zero real GCS
+// network calls / credential file reads, per this task's security instruction) exactly like the
+// adjacent `FakeWebSocket` stub does for the real `@supabase/supabase-js` client below.
+vi.mock("@google-cloud/storage", () => ({
+  Storage: vi.fn().mockImplementation(() => ({
+    bucket: vi.fn().mockReturnValue({
+      file: vi.fn().mockReturnValue({
+        save: vi.fn(),
+        download: vi.fn(),
+        delete: vi.fn(),
+      }),
+    }),
+  })),
+}));
 
 const config = {
   supabaseUrl: "https://example.supabase.co",
   supabaseServiceKey: "key",
-  bucketName: "mobix-assets",
+  gcsBucketName: "aoos",
+  gcsProjectId: "fake-test-project",
+  gcsKeyFilePath: "./fake-service-account.json",
   tenantId: "dss-motor",
   imageSizeLimitBytes: 10 * 1024 * 1024,
   videoSizeLimitBytes: 100 * 1024 * 1024,
@@ -24,7 +42,7 @@ describe("AssetLibraryFactory (integration)", () => {
       publisher: createFakePublisher(),
       logger: createFakeLogger(),
       supabaseClient: createFakeSupabaseClient(),
-      supabaseStorageClient: createFakeSupabaseStorageClient(),
+      assetStorage: createFakeAssetStorage(),
       now: () => new Date("2026-01-01T00:00:00.000Z"),
     });
 
@@ -67,7 +85,7 @@ describe("AssetLibraryFactory (integration)", () => {
       config,
       publisher: createFakePublisher(),
       supabaseClient: createFakeSupabaseClient(),
-      supabaseStorageClient: createFakeSupabaseStorageClient(),
+      assetStorage: createFakeAssetStorage(),
     });
     expect(library.assetService).toBeDefined();
 

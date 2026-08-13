@@ -91,4 +91,28 @@ describe("CreativeBrief", () => {
     const brief = CreativeBrief.create(baseProps());
     expect(brief.ok && brief.value.referenceAdId).toBeUndefined();
   });
+
+  // AAOS-W1D-S3, coordinator note correction #7: callToAction/destinationType/wabaPhoneNumber
+  // are new, purely additive optional fields on CreativeBriefProps.
+  it("exposes callToAction/destinationType/wabaPhoneNumber when provided (AAOS-W1D-S3)", () => {
+    const props = {
+      ...baseProps(),
+      callToAction: "SEND_WHATSAPP_MESSAGE",
+      destinationType: "WHATSAPP",
+      wabaPhoneNumber: "+6281100000001",
+    };
+    const result = CreativeBrief.create(props);
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.callToAction).toBe("SEND_WHATSAPP_MESSAGE");
+    expect(result.ok && result.value.destinationType).toBe("WHATSAPP");
+    expect(result.ok && result.value.wabaPhoneNumber).toBe("+6281100000001");
+  });
+
+  it("callToAction/destinationType/wabaPhoneNumber are undefined when not provided — purely additive, no breaking change for existing callers (AAOS-W1D-S3)", () => {
+    const result = CreativeBrief.create(baseProps());
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.callToAction).toBeUndefined();
+    expect(result.ok && result.value.destinationType).toBeUndefined();
+    expect(result.ok && result.value.wabaPhoneNumber).toBeUndefined();
+  });
 });

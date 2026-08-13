@@ -63,4 +63,12 @@ describe("MetaApiRequestBuilder", () => {
     const url = new URL(MetaApiRequestBuilder.campaignsUrl("act_123", "a b&c", "last_30d"));
     expect(url.searchParams.get("access_token")).toBe("a b&c");
   });
+
+  it("builds the create-campaign action URL as {base}/{version}/{ad-account}/campaigns (AAOS-W1D-S3)", () => {
+    expect(MetaApiRequestBuilder.createCampaignUrl("act_123")).toBe(`${BASE}/act_123/campaigns`);
+  });
+
+  it("builds the create-adset action URL as {base}/{version}/{ad-account}/adsets (AAOS-W1D-S3)", () => {
+    expect(MetaApiRequestBuilder.createAdSetUrl("act_123")).toBe(`${BASE}/act_123/adsets`);
+  });
 });

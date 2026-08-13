@@ -25,10 +25,16 @@ const REFRESH_FREQUENCY_THRESHOLD = 3.5;
  * Precedence (highest to lowest priority) — the spec states each threshold rule but not what
  * happens when several apply simultaneously, so this is a documented design decision:
  *
- *   1. FIX      — a misconfigured campaign objective (VISIT_INSTAGRAM_PROFILE) invalidates the
- *                 relevance of every performance metric below it: the campaign isn't even
- *                 optimizing for messaging, so cost/volume numbers are not actionable until the
- *                 objective itself is corrected.
+ *   1. FIX      — a misconfigured campaign objective invalidates the relevance of every
+ *                 performance metric below it: the campaign isn't even optimizing for the CTWA
+ *                 WhatsApp-lead funnel DSS Motor runs on, so cost/volume numbers are not
+ *                 actionable until the objective itself is corrected to `OUTCOME_LEADS`.
+ *                 AAOS-W1D-S3: any objective other than `OUTCOME_LEADS` triggers FIX — computed
+ *                 as `objective !== OUTCOME_LEADS` rather than a hardcoded list of "bad"
+ *                 objectives, so it automatically covers every current member
+ *                 (`OUTCOME_ENGAGEMENT`, `OUTCOME_SALES`, `LINK_CLICKS`,
+ *                 `VISIT_INSTAGRAM_PROFILE`) and any future one without needing this file
+ *                 touched again.
  *   2. PAUSE    — protects ad spend from being wasted. Takes priority over SCALE/REFRESH/KEEP
  *                 because an ad burning budget with zero conversations, or at a cost above the
  *                 REVIEW ceiling, must stop before any other optimization is considered. (Note:
@@ -46,7 +52,7 @@ const REFRESH_FREQUENCY_THRESHOLD = 3.5;
  *                 rather than silently defaulting to KEEP or PAUSE.
  */
 export function evaluateVerdict(input: VerdictEngineInput): Verdict {
-  if (input.objective === CampaignObjective.VISIT_INSTAGRAM_PROFILE) {
+  if (input.objective !== CampaignObjective.OUTCOME_LEADS) {
     return Verdict.FIX;
   }
 

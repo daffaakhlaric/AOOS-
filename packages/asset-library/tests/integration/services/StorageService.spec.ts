@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { StorageService } from "../../../src/application/services/StorageService.js";
 import { StoragePath } from "../../../src/domain/value-objects/StoragePath.js";
-import { SupabaseStorageClient } from "../../../src/infrastructure/supabase/SupabaseStorageClient.js";
+import { createFakeAssetStorage } from "../../helpers/assetStorage.js";
 import { unwrap, unwrapErr } from "../../helpers/result.js";
-import { createFakeSupabaseStorageClient } from "../../helpers/storage.js";
 
 const IMAGE_MAX = 10 * 1024 * 1024;
 const VIDEO_MAX = 100 * 1024 * 1024;
@@ -12,16 +11,17 @@ const VIDEO_MAX = 100 * 1024 * 1024;
 const config = {
   supabaseUrl: "https://example.supabase.co",
   supabaseServiceKey: "key",
-  bucketName: "mobix-assets",
+  gcsBucketName: "aoos",
+  gcsProjectId: "fake-test-project",
+  gcsKeyFilePath: "./fake-service-account.json",
   tenantId: "dss-motor",
   imageSizeLimitBytes: IMAGE_MAX,
   videoSizeLimitBytes: VIDEO_MAX,
 };
 
 function makeService() {
-  const fake = createFakeSupabaseStorageClient();
-  const storage = new SupabaseStorageClient(fake, config.bucketName);
-  return { fake, service: new StorageService(storage, config) };
+  const fake = createFakeAssetStorage();
+  return { fake, service: new StorageService(fake, config) };
 }
 
 describe("StorageService", () => {

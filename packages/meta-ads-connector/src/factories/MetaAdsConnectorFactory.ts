@@ -6,6 +6,7 @@ import { getTracer } from "@aos/telemetry";
 
 import { MetaAdsSyncService } from "../application/services/MetaAdsSyncService.js";
 import { VerdictExecutionService } from "../application/services/VerdictExecutionService.js";
+import { CreateCampaign } from "../application/use-cases/CreateCampaign.js";
 import { ExecuteVerdict } from "../application/use-cases/ExecuteVerdict.js";
 import { ProcessLeadWebhook } from "../application/use-cases/ProcessLeadWebhook.js";
 import { PullCampaignData, type Tracer } from "../application/use-cases/PullCampaignData.js";
@@ -36,6 +37,7 @@ export interface MetaAdsConnector {
   readonly verdictService: VerdictExecutionService;
   readonly pullCampaignData: PullCampaignData;
   readonly executeVerdict: ExecuteVerdict;
+  readonly createCampaign: CreateCampaign;
   readonly processLeadWebhook: ProcessLeadWebhook;
   readonly registry: AdAccountRegistry;
   readonly rateLimiter: TokenBucketRateLimiter;
@@ -78,6 +80,15 @@ export class MetaAdsConnectorFactory {
       now,
     );
     const executeVerdict = new ExecuteVerdict(verdictService, events, logger, tracer, now);
+    const createCampaign = new CreateCampaign(
+      client,
+      rateLimiter,
+      retry,
+      events,
+      logger,
+      tracer,
+      now,
+    );
 
     const webhookVerifier = new WebhookVerifier();
     const webhookParser = new WebhookParser({ now });
@@ -107,6 +118,7 @@ export class MetaAdsConnectorFactory {
       verdictService,
       pullCampaignData,
       executeVerdict,
+      createCampaign,
       processLeadWebhook,
       registry,
       rateLimiter,

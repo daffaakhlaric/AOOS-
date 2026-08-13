@@ -77,7 +77,7 @@ describe("VerdictExecutionService", () => {
     expect(result.newValue).toBe(0);
   });
 
-  it("FIX calls client.fixCampaignObjective with OUTCOME_ENGAGEMENT", async () => {
+  it("FIX calls client.fixCampaignObjective with OUTCOME_LEADS (AAOS-W1D-S3: DSS Motor's real strategy objective, was OUTCOME_ENGAGEMENT)", async () => {
     const client = fakeClient();
     const service = makeService(client);
     const result = unwrap(
@@ -89,10 +89,10 @@ describe("VerdictExecutionService", () => {
       }),
     );
     expect(result.action).toBe("FIXED");
-    expect(result.newValue).toBe("OUTCOME_ENGAGEMENT");
+    expect(result.newValue).toBe("OUTCOME_LEADS");
     expect(client.fixCampaignObjective).toHaveBeenCalledWith(
       "campaign-1",
-      "OUTCOME_ENGAGEMENT",
+      "OUTCOME_LEADS",
       "TOKEN",
     );
   });

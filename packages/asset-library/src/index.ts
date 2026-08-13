@@ -77,13 +77,9 @@ export { AssetCollectionBuilder } from "./builders/AssetCollectionBuilder.js";
 
 // Infrastructure
 export { AssetRepository } from "./infrastructure/supabase/AssetRepository.js";
-export { SupabaseStorageClient } from "./infrastructure/supabase/SupabaseStorageClient.js";
-export {
-  createSupabaseClient,
-  createSupabaseStorageClient,
-} from "./infrastructure/supabase/SupabaseClient.js";
+export { createSupabaseClient } from "./infrastructure/supabase/SupabaseClient.js";
 export type { SupabaseClientLike } from "./infrastructure/supabase/SupabaseTypes.js";
-export type { SupabaseStorageClientLike } from "./infrastructure/supabase/SupabaseStorageTypes.js";
+export { GcsStorageClient } from "./infrastructure/gcs/GcsStorageClient.js";
 
 // Mappers
 export { AssetMapper } from "./infrastructure/mappers/AssetMapper.js";

@@ -106,7 +106,7 @@ export class TamaraAgentFactory {
       options.metaAccessToken,
     );
     const escalationService = new EscalationService();
-    const creativeBriefBuilder = new CreativeBriefBuilder(now);
+    const creativeBriefBuilder = new CreativeBriefBuilder(now, options.config.ctwaPhoneNumbers);
     const digestService = new DigestService(events);
 
     const generateCreativeBrief = new GenerateCreativeBrief(creativeBriefBuilder, events);

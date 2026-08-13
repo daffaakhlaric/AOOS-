@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { AdDestinationType } from "../../../src/domain/value-objects/AdDestinationType.js";
 import { AdStatus } from "../../../src/domain/value-objects/AdStatus.js";
 import { Branch } from "../../../src/domain/value-objects/Branch.js";
 import { CampaignObjective } from "../../../src/domain/value-objects/CampaignObjective.js";
@@ -17,9 +18,15 @@ describe("AdStatus", () => {
 });
 
 describe("CampaignObjective", () => {
-  it("has exactly the 4 documented members", () => {
+  it("has exactly the 5 documented members (AAOS-W1D-S3 added OUTCOME_LEADS)", () => {
     expect(Object.values(CampaignObjective).sort()).toEqual(
-      ["LINK_CLICKS", "OUTCOME_ENGAGEMENT", "OUTCOME_SALES", "VISIT_INSTAGRAM_PROFILE"].sort(),
+      [
+        "LINK_CLICKS",
+        "OUTCOME_ENGAGEMENT",
+        "OUTCOME_LEADS",
+        "OUTCOME_SALES",
+        "VISIT_INSTAGRAM_PROFILE",
+      ].sort(),
     );
   });
 });
@@ -58,6 +65,14 @@ describe("Funnel", () => {
   it("has exactly the 4 documented members", () => {
     expect(Object.values(Funnel).sort()).toEqual(
       ["BRAND_BOOST", "CTWA", "DM", "WEBSITE_LEAD"].sort(),
+    );
+  });
+});
+
+describe("AdDestinationType (AAOS-W1D-S3)", () => {
+  it("has exactly the 4 documented members", () => {
+    expect(Object.values(AdDestinationType).sort()).toEqual(
+      ["INSTAGRAM", "MESSENGER", "WEBSITE", "WHATSAPP"].sort(),
     );
   });
 });

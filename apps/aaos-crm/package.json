@@ -1,0 +1,46 @@
+{
+  "name": "aaos-crm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AAOS CRM — the mobile-first PWA sales humans at DSS Motor use to claim hot leads (realtime), follow up, and input closing/SPK records. Proxies all data mutations/reads to apps/aaos-api; subscribes to Supabase Realtime directly from the browser (the one deliberate exception — RLS enforces access control client-side).",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.1",
+    "@supabase/supabase-js": "^2.45.0",
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@aos/eslint-config": "workspace:*",
+    "@aos/tsconfig": "workspace:*",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "@vitest/coverage-v8": "^2.0.5",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.0",
+    "eslint-config-prettier": "^9.1.0",
+    "jsdom": "^24.1.0",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

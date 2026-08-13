@@ -16,15 +16,19 @@ import { callMetaApi } from "../use-cases/meta-api-call-helpers.js";
 
 /** SCALE always raises the daily budget by exactly +20%, per the spec's Execute Actions mapping. */
 const SCALE_FACTOR = 1.2;
-/** REFRESH's FIX target objective, per the spec's Execute Actions mapping. */
-const FIX_OBJECTIVE = CampaignObjective.OUTCOME_ENGAGEMENT;
+/**
+ * FIX's target objective. AAOS-W1D-S3: DSS Motor's real strategy is OUTCOME_LEADS + CTWA (lead
+ * clicks the ad, lands straight in WhatsApp with Jessy) — was `OUTCOME_ENGAGEMENT` before this
+ * supplement.
+ */
+const FIX_OBJECTIVE = CampaignObjective.OUTCOME_LEADS;
 
 /**
  * `IVerdictExecutor` implementation composing `IMetaAdsClient` calls, per the spec's
  * ExecuteVerdict mapping:
  *   PAUSE   → POST /{ad-id}      { status: "PAUSED" }
  *   SCALE   → POST /{adset-id}   { daily_budget: current * 1.2 }
- *   FIX     → POST /{campaign-id} { objective: "OUTCOME_ENGAGEMENT" }
+ *   FIX     → POST /{campaign-id} { objective: "OUTCOME_LEADS" }
  *   REFRESH → no API call — ExecutionResult.action = "HUMAN_ACTION_REQUIRED"
  *   KEEP, REVIEW → no-op — ExecutionResult.action = "NO_ACTION"
  */

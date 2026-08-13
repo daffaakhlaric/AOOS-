@@ -96,6 +96,21 @@ describe("GenerateRecommendation", () => {
     }
   });
 
+  it("AAOS-W1D-S3: FIX action's reason mentions OUTCOME_LEADS + CTWA (DSS Motor's real strategy — this file is the real, current location of 'GenerateRecommendation's FIX action output', not @aos/meta-ads-agent)", async () => {
+    const { useCase, objective } = setup();
+    const result = await useCase.execute({
+      objectiveId: objective.id,
+      adAccount: buildAdAccountFixture(),
+      correlationId: "corr-4b",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const fix = result.value.actions.find((a) => a.type === "FIX");
+      expect(fix?.reason).toContain("OUTCOME_LEADS");
+      expect(fix?.reason).toContain("CTWA");
+    }
+  });
+
   it("emits RecommendationGenerated with correct actionCount/confidence", async () => {
     const { useCase, publisher, objective } = setup();
     const result = await useCase.execute({

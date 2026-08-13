@@ -3,6 +3,7 @@ import { EventCategory, type IPublisher } from "@aos/event-bus";
 import type { AdPaused } from "./AdPaused.js";
 import type { BudgetScaled } from "./BudgetScaled.js";
 import type { LeadReceived } from "./LeadReceived.js";
+import type { NewCampaignCreated } from "./NewCampaignCreated.js";
 import type { ObjectiveFixed } from "./ObjectiveFixed.js";
 import type { SyncCompleted } from "./SyncCompleted.js";
 import type { SyncFailed } from "./SyncFailed.js";
@@ -48,6 +49,16 @@ export class MetaAdsConnectorEvents {
   async publishObjectiveFixed(payload: ObjectiveFixed): Promise<void> {
     await this.publish(
       "aaos.meta.objective.fixed",
+      payload,
+      payload.tenantId,
+      payload.correlationId,
+    );
+  }
+
+  /** AAOS-W1D-S3: emitted by `CreateCampaign` after successfully creating a new OUTCOME_LEADS + CTWA campaign/adset pair. */
+  async publishNewCampaignCreated(payload: NewCampaignCreated): Promise<void> {
+    await this.publish(
+      "aaos.meta.campaign.created",
       payload,
       payload.tenantId,
       payload.correlationId,

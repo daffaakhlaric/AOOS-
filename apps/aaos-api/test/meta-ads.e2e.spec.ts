@@ -2,7 +2,11 @@ import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { mswServer, registerHappyPathMetaApiHandlers } from "../src/test-support/meta-api-msw.js";
+import {
+  mswServer,
+  registerCreateCampaignMswHandlers,
+  registerHappyPathMetaApiHandlers,
+} from "../src/test-support/meta-api-msw.js";
 
 import { bootstrapTestApp } from "./helpers/bootstrap.js";
 
@@ -86,6 +90,63 @@ describe("meta-ads e2e — GET /api/v1/campaigns, POST /api/v1/verdicts", () => 
     const response = await request(app.getHttpServer())
       .post("/api/v1/verdicts")
       .send({ verdict: "PAUSE", targetId: "id", targetType: "ad" });
+
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("campaigns e2e — POST /api/v1/campaigns/create (AAOS-W1D-S3)", () => {
+  let app: NestFastifyApplication;
+
+  beforeAll(async () => {
+    mswServer.listen({ onUnhandledRequest: "bypass" });
+    app = await bootstrapTestApp();
+  });
+  afterEach(() => mswServer.resetHandlers());
+  afterAll(async () => {
+    mswServer.close();
+    await app.close();
+  });
+
+  it("POST /api/v1/campaigns/create -> 200 with { campaignId, adSetId }", async () => {
+    registerCreateCampaignMswHandlers({
+      newCampaignId: "120000000000099",
+      newAdSetId: "120000000000100",
+    });
+    const response = await request(app.getHttpServer())
+      .post("/api/v1/campaigns/create")
+      .set("x-api-key", API_KEY)
+      .send({
+        adAccountId: "act_752604553578354",
+        name: "Meta-CTWA-Leads-Mobix-Cinere",
+        branch: "CINERE",
+        funnel: "CTWA",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      campaignId: "120000000000099",
+      adSetId: "120000000000100",
+    });
+  });
+
+  it("POST /api/v1/campaigns/create with an invalid body -> 422", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/api/v1/campaigns/create")
+      .set("x-api-key", API_KEY)
+      .send({ adAccountId: "not-an-account", name: "X", branch: "CINERE", funnel: "CTWA" });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe("ValidationError");
+  });
+
+  it("POST /api/v1/campaigns/create without x-api-key -> 401", async () => {
+    const response = await request(app.getHttpServer()).post("/api/v1/campaigns/create").send({
+      adAccountId: "act_752604553578354",
+      name: "X",
+      branch: "CINERE",
+      funnel: "CTWA",
+    });
 
     expect(response.status).toBe(401);
   });

@@ -40,6 +40,7 @@ describe("MetaAdsConnectorFactory.create", () => {
     expect(connector.verdictService).toBeDefined();
     expect(connector.pullCampaignData).toBeDefined();
     expect(connector.executeVerdict).toBeDefined();
+    expect(connector.createCampaign).toBeDefined();
     expect(connector.processLeadWebhook).toBeDefined();
     expect(connector.registry).toBeDefined();
     expect(connector.rateLimiter).toBeDefined();

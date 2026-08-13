@@ -1,7 +1,13 @@
 import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
-import type { IMetaAdsClient, PageCursor } from "../../contracts/IMetaAdsClient.js";
+import type {
+  CreateAdSetParams,
+  CreateCampaignParams,
+  IMetaAdsClient,
+  MetaCreateResponse as ClientMetaCreateResponse,
+  PageCursor,
+} from "../../contracts/IMetaAdsClient.js";
 import {
   ApiServerError,
   AuthError,
@@ -16,6 +22,7 @@ import {
   type MetaAdSetListResponse,
   MetaCampaignListResponseSchema,
   type MetaCampaignListResponse,
+  MetaCreateResponseSchema,
   MetaErrorResponseSchema,
   MetaUpdateResponseSchema,
   type MetaUpdateResponse,
@@ -109,6 +116,39 @@ export class MetaApiClient implements IMetaAdsClient {
     });
   }
 
+  /** AAOS-W1D-S3: `POST /{ad-account}/campaigns` — always `objective: "OUTCOME_LEADS"`, `status: "PAUSED"` for AAOS-created campaigns (`CreateCampaign` use case is the only caller and always passes those). */
+  async createCampaign(
+    adAccountId: string,
+    params: CreateCampaignParams,
+    accessToken: string,
+  ): Promise<Result<ClientMetaCreateResponse, MetaApiError>> {
+    return this.postJsonBody(MetaApiRequestBuilder.createCampaignUrl(adAccountId), {
+      name: params.name,
+      objective: params.objective,
+      special_ad_categories: params.specialAdCategories,
+      status: params.status,
+      access_token: accessToken,
+    });
+  }
+
+  /** AAOS-W1D-S3: `POST /{ad-account}/adsets` — always `destination_type: "WHATSAPP"`, `status: "PAUSED"` for AAOS-created ad sets (`CreateCampaign` use case is the only caller and always passes those). */
+  async createAdSet(
+    adAccountId: string,
+    params: CreateAdSetParams,
+    accessToken: string,
+  ): Promise<Result<ClientMetaCreateResponse, MetaApiError>> {
+    return this.postJsonBody(MetaApiRequestBuilder.createAdSetUrl(adAccountId), {
+      campaign_id: params.campaignId,
+      name: params.name,
+      destination_type: params.destinationType,
+      optimization_goal: params.optimizationGoal,
+      billing_event: params.billingEvent,
+      daily_budget: params.dailyBudgetCents,
+      status: params.status,
+      access_token: accessToken,
+    });
+  }
+
   private async getJson<T>(
     url: string,
     schema: {
@@ -140,6 +180,28 @@ export class MetaApiClient implements IMetaAdsClient {
         safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: unknown };
       },
     );
+  }
+
+  /**
+   * AAOS-W1D-S3: like `postJson`, but for the create-campaign/create-adset bodies, whose
+   * `special_ad_categories`/other fields aren't representable in `postJson`'s
+   * `Record<string, string | number>` (Meta's JSON body accepts any JSON-compatible value, e.g.
+   * an array for `special_ad_categories`). Response is validated against `MetaCreateResponseSchema`
+   * (`{ id: string }`) rather than `MetaUpdateResponseSchema`.
+   */
+  private async postJsonBody(
+    url: string,
+    body: Readonly<Record<string, string | number | ReadonlyArray<string>>>,
+  ): Promise<Result<ClientMetaCreateResponse, MetaApiError>> {
+    const responseResult = await this.doFetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!responseResult.ok) {
+      return responseResult;
+    }
+    return this.parseBody(responseResult.value, MetaCreateResponseSchema);
   }
 
   private async doFetch(url: string, init: RequestInit): Promise<Result<Response, MetaApiError>> {

@@ -90,6 +90,21 @@ describe("MetaAdsConnectorEvents (fake publisher — shape assertions)", () => {
     expect(publisher.published[0]?.type).toBe("aaos.meta.objective.fixed");
   });
 
+  it("publishNewCampaignCreated publishes on 'aaos.meta.campaign.created' (AAOS-W1D-S3)", async () => {
+    const publisher = createFakePublisher();
+    const events = new MetaAdsConnectorEvents(publisher);
+    await events.publishNewCampaignCreated({
+      campaignId: "campaign-1",
+      adSetId: "adset-1",
+      adAccountId: "act_1",
+      name: "Meta-CTWA-Leads-Mobix-Cinere",
+      branch: "CINERE",
+      funnel: "CTWA",
+      ...base,
+    });
+    expect(publisher.published[0]?.type).toBe("aaos.meta.campaign.created");
+  });
+
   it("uses a custom source string when provided", async () => {
     const publisher = createFakePublisher();
     const events = new MetaAdsConnectorEvents(publisher, "custom-source");

@@ -20,13 +20,9 @@ import type { IAssetRepository } from "../contracts/IAssetRepository.js";
 import type { IAssetStorage } from "../contracts/IAssetStorage.js";
 import type { IAssetTagger } from "../contracts/IAssetTagger.js";
 import { AssetLibraryEvents } from "../domain/events/AssetLibraryEvents.js";
+import { GcsStorageClient } from "../infrastructure/gcs/GcsStorageClient.js";
 import { AssetRepository } from "../infrastructure/supabase/AssetRepository.js";
-import {
-  createSupabaseClient,
-  createSupabaseStorageClient,
-} from "../infrastructure/supabase/SupabaseClient.js";
-import { SupabaseStorageClient } from "../infrastructure/supabase/SupabaseStorageClient.js";
-import type { SupabaseStorageClientLike } from "../infrastructure/supabase/SupabaseStorageTypes.js";
+import { createSupabaseClient } from "../infrastructure/supabase/SupabaseClient.js";
 import type { SupabaseClientLike } from "../infrastructure/supabase/SupabaseTypes.js";
 
 export interface AssetLibraryFactoryOptions {
@@ -36,10 +32,10 @@ export interface AssetLibraryFactoryOptions {
   readonly logger?: Logger;
   /** Injectable clock — defaults to the real wall clock only here. */
   readonly now?: () => Date;
-  /** Injectable Supabase Postgrest client (tests supply a mock satisfying `SupabaseClientLike`; production omits this and gets the real `@supabase/supabase-js` client). */
+  /** Injectable Supabase Postgrest client (tests supply a mock satisfying `SupabaseClientLike`; production omits this and gets the real `@supabase/supabase-js` client). Metadata persistence only — see `AssetLibraryConfig.ts`'s docstring. */
   readonly supabaseClient?: SupabaseClientLike;
-  /** Injectable Supabase Storage client (tests supply a mock satisfying `SupabaseStorageClientLike`; production omits this and gets the real `@supabase/supabase-js` `.storage` client). */
-  readonly supabaseStorageClient?: SupabaseStorageClientLike;
+  /** Injectable file-byte storage adapter (tests supply a fake `IAssetStorage`; production omits this and gets a real `GcsStorageClient` backed by `@google-cloud/storage`). Replaces the old `supabaseStorageClient` option (AAOS-W3E-S1). */
+  readonly assetStorage?: IAssetStorage;
 }
 
 export interface AssetLibrary {
@@ -65,14 +61,10 @@ export class AssetLibraryFactory {
     const logger = options.logger ?? createLogger({ serviceName: "asset-library" });
     const now = options.now ?? (() => new Date());
     const client = options.supabaseClient ?? createSupabaseClient(options.config);
-    const storageClient =
-      options.supabaseStorageClient ?? createSupabaseStorageClient(options.config);
 
     const assetRepository = new AssetRepository(client);
-    const assetStorage: IAssetStorage = new SupabaseStorageClient(
-      storageClient,
-      options.config.bucketName,
-    );
+    const assetStorage: IAssetStorage =
+      options.assetStorage ?? new GcsStorageClient(options.config);
     const storageService = new StorageService(assetStorage, options.config);
     const tagger: IAssetTagger = new DefaultAssetTagger();
     const events = new AssetLibraryEvents(options.publisher);

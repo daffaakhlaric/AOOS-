@@ -89,9 +89,7 @@ export class ExecuteVerdict {
         campaignId: input.targetId,
         previousObjective: "VISIT_INSTAGRAM_PROFILE",
         newObjective:
-          typeof result.newValue === "string"
-            ? result.newValue
-            : CampaignObjective.OUTCOME_ENGAGEMENT,
+          typeof result.newValue === "string" ? result.newValue : CampaignObjective.OUTCOME_LEADS,
         tenantId: input.tenantId,
         correlationId: input.correlationId,
         occurredAt,

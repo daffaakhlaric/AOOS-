@@ -4,9 +4,13 @@ import { describe, expect, it } from "vitest";
 import { AppModule } from "./app.module.js";
 import {
   AAOS_API_CONFIG,
+  BRANCH_MANAGER,
   EVENT_PUBLISHER,
   LEAD_STORE,
+  LEAD_STORE_CLOSING_REPOSITORY,
+  LEAD_STORE_MESSAGE_REPOSITORY,
   META_ADS_CONNECTOR,
+  OBJECTIVE_ENGINE,
   WHATSAPP_CONNECTOR,
 } from "./di-tokens.js";
 import { buildTestConfig } from "./test-support/fixtures.js";
@@ -30,8 +34,11 @@ describe("AppModule.forRoot", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.module).toBe(AppModule);
     expect(dynamicModule.global).toBe(true);
-    expect(dynamicModule.imports).toHaveLength(5);
-    expect(dynamicModule.providers).toHaveLength(8);
+    // AAOS-W1D-S3: +1 import (CampaignsModule) for POST /api/v1/campaigns/create.
+    // AAOS-W4B: +2 imports (ClosingsModule, SalesModule) and +2 providers
+    // (LEAD_STORE_MESSAGE_REPOSITORY, LEAD_STORE_CLOSING_REPOSITORY).
+    expect(dynamicModule.imports).toHaveLength(11);
+    expect(dynamicModule.providers).toHaveLength(12);
   });
 
   it("throws the raw ConnectorConfigError when META_API_VERSION is not the literal v21.0", () => {
@@ -52,7 +59,7 @@ describe("AppModule.forRoot", () => {
     );
   });
 
-  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE tokens", () => {
+  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY tokens", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.exports).toEqual([
       AAOS_API_CONFIG,
@@ -60,6 +67,10 @@ describe("AppModule.forRoot", () => {
       META_ADS_CONNECTOR,
       WHATSAPP_CONNECTOR,
       LEAD_STORE,
+      OBJECTIVE_ENGINE,
+      BRANCH_MANAGER,
+      LEAD_STORE_MESSAGE_REPOSITORY,
+      LEAD_STORE_CLOSING_REPOSITORY,
     ]);
   });
 

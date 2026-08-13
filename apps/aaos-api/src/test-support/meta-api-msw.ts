@@ -125,3 +125,31 @@ export function registerMetaApiPostErrorHandler(status: number, code?: number): 
     ),
   );
 }
+
+/**
+ * AAOS-W1D-S3: registers `POST /{ad-account}/campaigns` -> `{ id: newCampaignId }` and
+ * `POST /{ad-account}/adsets` -> `{ id: newAdSetId }`, for `CampaignsService.createCampaign`
+ * happy-path tests.
+ */
+export function registerCreateCampaignMswHandlers(
+  options: { readonly newCampaignId?: string; readonly newAdSetId?: string } = {},
+): void {
+  const newCampaignId = options.newCampaignId ?? "120000000000099";
+  const newAdSetId = options.newAdSetId ?? "120000000000100";
+  mswServer.use(
+    http.post(`${BASE}/:adAccountId/campaigns`, () => HttpResponse.json({ id: newCampaignId })),
+    http.post(`${BASE}/:adAccountId/adsets`, () => HttpResponse.json({ id: newAdSetId })),
+  );
+}
+
+/** AAOS-W1D-S3: registers a failing `POST /{ad-account}/campaigns` handler, for `CreateCampaign` error-path tests. */
+export function registerCreateCampaignErrorHandler(status: number, code?: number): void {
+  mswServer.use(
+    http.post(`${BASE}/:adAccountId/campaigns`, () =>
+      HttpResponse.json(
+        { error: { message: "Meta API error", type: "OAuthException", code: code ?? 1 } },
+        { status },
+      ),
+    ),
+  );
+}

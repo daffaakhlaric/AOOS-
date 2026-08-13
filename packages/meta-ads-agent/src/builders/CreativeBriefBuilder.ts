@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "@aos/common";
-import { formatIDR, type Ad, type AdAccount } from "@aos/meta-ads-connector";
+import { formatIDR, type Ad, type AdAccount, type Branch } from "@aos/meta-ads-connector";
 import type { ScrapedUnit } from "@aos/mobix-web-scraper";
 
 import type { ICreativeBriefGenerator } from "../contracts/ICreativeBriefGenerator.js";
@@ -11,6 +11,7 @@ import { CreativeBriefId } from "../domain/value-objects/CreativeBriefId.js";
 import { TargetPersona } from "../domain/value-objects/TargetPersona.js";
 import { AngleRecommender } from "../intelligence/AngleRecommender.js";
 import {
+  AAOS_CAMPAIGN_DEFAULTS,
   ANGLE_USP_MAP,
   BusinessKnowledgeBase,
   TOP_UNITS,
@@ -62,7 +63,17 @@ function unitKeyOf(unit: string): string {
  * account has a defined `rphD3`.
  */
 export class CreativeBriefBuilder implements ICreativeBriefGenerator {
-  constructor(private readonly now: () => Date = () => new Date()) {}
+  /**
+   * `ctwaPhoneNumbers` is AAOS-W1D-S3 (coordinator note correction #6) — sourced from
+   * `MetaAdsAgentConfig.ctwaPhoneNumbers` at composition time (`TamaraAgentFactory`), never read
+   * from `process.env` here. Added as a second, defaulted parameter (rather than threading it
+   * through `generate()`, which would break `ICreativeBriefGenerator`'s existing signature) so
+   * every pre-existing call site (`new CreativeBriefBuilder(now)`) keeps compiling unchanged.
+   */
+  constructor(
+    private readonly now: () => Date = () => new Date(),
+    private readonly ctwaPhoneNumbers: Partial<Record<Branch, string>> = {},
+  ) {}
 
   generate(
     ad: Ad,
@@ -128,6 +139,11 @@ export class CreativeBriefBuilder implements ICreativeBriefGenerator {
       priceContext: priceInfo?.context,
       activePromo: relevantPromo?.title,
       uspMessages: memory ? ANGLE_USP_MAP[angle] : undefined,
+      // AAOS-W1D-S3: every brief tells Kai it's a CTWA WhatsApp creative — always
+      // SEND_WHATSAPP_MESSAGE / WHATSAPP, per DSS Motor's real strategy.
+      callToAction: AAOS_CAMPAIGN_DEFAULTS.callToAction,
+      destinationType: AAOS_CAMPAIGN_DEFAULTS.destinationType,
+      wabaPhoneNumber: this.ctwaPhoneNumbers[ad.branch],
     });
     /* v8 ignore next 5 */
     if (!briefResult.ok) {

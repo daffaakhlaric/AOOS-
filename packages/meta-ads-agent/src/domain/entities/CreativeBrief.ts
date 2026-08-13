@@ -38,6 +38,22 @@ export interface CreativeBriefProps {
   readonly activePromo?: string;
   /** AAOS-W1D-S1S2 (S2) — `BusinessKnowledgeBase.ANGLE_USP_MAP[angle]`, carried onto the brief for Kai's convenience. */
   readonly uspMessages?: ReadonlyArray<string>;
+  /**
+   * AAOS-W1D-S3 — DSS Motor's real strategy: every CTWA brief tells Kai which Meta CTA button the
+   * creative should drive (`SEND_WHATSAPP_MESSAGE`), so the ad routes straight into WhatsApp with
+   * Jessy. Optional/additive (coordinator note correction #7) — `undefined` for briefs built
+   * before this supplement or by a caller that doesn't populate it.
+   */
+  readonly callToAction?: string;
+  /** AAOS-W1D-S3 — the CTWA destination type (`WHATSAPP`), mirroring `callToAction` above. */
+  readonly destinationType?: string;
+  /**
+   * AAOS-W1D-S3 — the branch's WhatsApp number the lead lands in, sourced from
+   * `MetaAdsAgentConfig.ctwaPhoneNumbers` (coordinator note correction #6 — never
+   * `process.env` read inside this package). `undefined` when the config has no number for
+   * `branch`.
+   */
+  readonly wabaPhoneNumber?: string;
 }
 
 /** Tamara's brief for Kai (future `@aos/creative-agent`) when a REFRESH verdict fires. */
@@ -161,5 +177,17 @@ export class CreativeBrief {
 
   get uspMessages(): ReadonlyArray<string> | undefined {
     return this.props.uspMessages;
+  }
+
+  get callToAction(): string | undefined {
+    return this.props.callToAction;
+  }
+
+  get destinationType(): string | undefined {
+    return this.props.destinationType;
+  }
+
+  get wabaPhoneNumber(): string | undefined {
+    return this.props.wabaPhoneNumber;
   }
 }

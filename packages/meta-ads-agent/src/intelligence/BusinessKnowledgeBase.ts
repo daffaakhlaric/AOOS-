@@ -1,4 +1,4 @@
-import { Branch, Funnel } from "@aos/meta-ads-connector";
+import { AdDestinationType, Branch, CampaignObjective, Funnel } from "@aos/meta-ads-connector";
 
 import { AdAngle } from "../domain/value-objects/AdAngle.js";
 import type { FatiguePattern } from "../domain/value-objects/FatiguePattern.js";
@@ -457,3 +457,38 @@ const KNOWN_FATIGUE_PATTERN_SEEDS: ReadonlyArray<FatiguePattern> = [
 export const KNOWN_FATIGUE_PATTERNS: ReadonlyMap<Funnel, number> = toFatiguePatternMap(
   KNOWN_FATIGUE_PATTERN_SEEDS,
 );
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// AAOS-W1D-S3 — Outcome Leads + CTWA defaults (DSS Motor's real strategy: lead clicks ad →
+// straight to Jessy on WhatsApp → follow up → HOT → handoff). New additions (coordinator note
+// correction #4 — neither constant existed in this file before this supplement).
+// ═══════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * DSS Motor's default campaign-creation settings — used by `CreativeBriefBuilder` (and any
+ * future Tamara campaign-creation flow) to populate CTWA-specific fields. `ctwaDestination`
+ * (per-branch WhatsApp phone numbers) is deliberately NOT included here — coordinator note
+ * correction #6: those numbers must come from `MetaAdsAgentConfig.ctwaPhoneNumbers` (itself
+ * populated by `apps/aaos-api`'s config layer from real env vars), never hardcoded or read from
+ * `process.env` inside this package.
+ */
+export const AAOS_CAMPAIGN_DEFAULTS = {
+  objective: CampaignObjective.OUTCOME_LEADS,
+  destinationType: AdDestinationType.WHATSAPP,
+  optimizationGoal: "LEAD_GENERATION",
+  billingEvent: "IMPRESSIONS",
+  callToAction: "SEND_WHATSAPP_MESSAGE",
+} as const;
+
+/**
+ * Every `CampaignObjective` that is NOT DSS Motor's correct objective — for this package's OWN
+ * purposes only (e.g. building human-readable recommendation/digest text; see
+ * `GenerateRecommendation`/`DailyDigestBuilder`). Coordinator note correction #1/#4: derived
+ * (`!== OUTCOME_LEADS`) rather than a hardcoded partial list, so it automatically stays correct
+ * as `CampaignObjective` gains members — same reasoning as `@aos/meta-ads-connector`'s
+ * `VerdictEngine.ts` FIX check, which is the actual, independent source of truth for the FIX
+ * verdict itself; this constant is NOT imported by connector and does not feed that decision.
+ */
+export const FIX_OBJECTIVES: ReadonlyArray<CampaignObjective> = Object.values(
+  CampaignObjective,
+).filter((objective) => objective !== CampaignObjective.OUTCOME_LEADS);

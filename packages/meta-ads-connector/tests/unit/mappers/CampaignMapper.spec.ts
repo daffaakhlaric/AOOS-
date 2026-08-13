@@ -26,8 +26,11 @@ describe("mapCampaign", () => {
   });
 
   it("rejects an unrecognized objective", () => {
+    // AAOS-W1D-S3: OUTCOME_LEADS is now a real, recognized CampaignObjective member — use a
+    // genuinely bogus value to keep testing the "unrecognized objective" rejection path.
     expect(
-      unwrapErr(mapCampaign(makeCampaign({ objective: "OUTCOME_LEADS" }), adAccountId, 1)).message,
+      unwrapErr(mapCampaign(makeCampaign({ objective: "BOGUS_OBJECTIVE" }), adAccountId, 1))
+        .message,
     ).toMatch(/objective/);
   });
 

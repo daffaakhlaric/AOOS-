@@ -116,6 +116,19 @@ describe("GetClosingStats — aggregates", () => {
     expect(stats.totalClosings).toBe(1);
   });
 
+  it("filtered by salesHumanId (AAOS-W4B addition)", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("closings", [
+      makeClosingRow({ sales_human_id: "sales-rina", created_at: "2026-01-10T00:00:00.000Z" }),
+      makeClosingRow({ sales_human_id: "sales-budi", created_at: "2026-01-11T00:00:00.000Z" }),
+    ]);
+    const useCase = new GetClosingStats(new ClosingRepository(client), makeSpendProvider({}));
+    const stats = unwrap(
+      await useCase.execute({ salesHumanId: "sales-rina", fromDate: FROM, toDate: TO }),
+    );
+    expect(stats.totalClosings).toBe(1);
+  });
+
   it("surfaces a repository error", async () => {
     const client = createFakeSupabaseClient();
     client.forceErrorOnce("closings", "timeout");

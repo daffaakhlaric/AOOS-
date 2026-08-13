@@ -10,6 +10,8 @@ export interface GetClosingStatsInput {
   readonly campaignId?: string;
   readonly adId?: string;
   readonly branchId?: BranchId;
+  /** AAOS-W4B addition: narrows aggregation to one sales human's own closings — threaded straight through to `ClosingFilter.salesHumanId`. */
+  readonly salesHumanId?: string;
   readonly fromDate: Date;
   readonly toDate: Date;
 }
@@ -41,6 +43,7 @@ export class GetClosingStats {
       campaignId: input.campaignId,
       adId: input.adId,
       branchId: input.branchId,
+      salesHumanId: input.salesHumanId,
       fromDate: input.fromDate,
       toDate: input.toDate,
     });

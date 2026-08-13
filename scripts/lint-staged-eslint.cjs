@@ -12,8 +12,10 @@
  * than one literally at the repo root.
  *
  * Fix: group the staged files by their nearest package root (the first ancestor directory that
- * has both `package.json` and `.eslintrc.cjs`), then run `eslint --fix` once per group with `cwd`
- * set to that package root — mirroring exactly how `pnpm -w lint` already runs cleanly.
+ * has both `package.json` and an ESLint config — `.eslintrc.cjs` for backend packages, or
+ * `.eslintrc.json` for the Next.js apps, which use that extension by Next.js's own convention),
+ * then run `eslint --fix` once per group with `cwd` set to that package root — mirroring exactly
+ * how `pnpm -w lint` already runs cleanly.
  */
 "use strict";
 
@@ -32,7 +34,9 @@ function findPackageRoot(filePath) {
   let dir = path.dirname(path.resolve(filePath));
   while (dir.startsWith(repoRoot)) {
     const hasPackageJson = fs.existsSync(path.join(dir, "package.json"));
-    const hasEslintrc = fs.existsSync(path.join(dir, ".eslintrc.cjs"));
+    const hasEslintrc =
+      fs.existsSync(path.join(dir, ".eslintrc.cjs")) ||
+      fs.existsSync(path.join(dir, ".eslintrc.json"));
     if (hasPackageJson && hasEslintrc) {
       return dir;
     }

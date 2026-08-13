@@ -68,6 +68,36 @@ describe("parseMetaAdsAgentConfig", () => {
       escalateRphMultiple: 1.8,
       cycleIntervalHours: 24,
       digestTimeHour: 7,
+      ctwaPhoneNumbers: {},
     });
+  });
+
+  it("defaults ctwaPhoneNumbers to {} when not provided (AAOS-W1D-S3)", () => {
+    const result = parseMetaAdsAgentConfig({ tenantId: "dss-motor" });
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.ctwaPhoneNumbers).toEqual({});
+  });
+
+  it("accepts a ctwaPhoneNumbers map keyed by Branch (AAOS-W1D-S3)", () => {
+    const result = parseMetaAdsAgentConfig({
+      tenantId: "dss-motor",
+      ctwaPhoneNumbers: {
+        BINTARO: "+6281100000001",
+        CINERE: "+6281100000002",
+        UMUM: "+6281100000003",
+        BANDUNG: "+6281100000004",
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.ctwaPhoneNumbers.BINTARO).toBe("+6281100000001");
+    expect(result.ok && result.value.ctwaPhoneNumbers.BANDUNG).toBe("+6281100000004");
+  });
+
+  it("rejects a ctwaPhoneNumbers entry keyed by a non-Branch string", () => {
+    const result = parseMetaAdsAgentConfig({
+      tenantId: "dss-motor",
+      ctwaPhoneNumbers: { NOT_A_BRANCH: "+6281100000001" },
+    });
+    expect(result.ok).toBe(false);
   });
 });

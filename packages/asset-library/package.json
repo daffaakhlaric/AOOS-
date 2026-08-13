@@ -2,7 +2,7 @@
   "name": "@aos/asset-library",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS Asset Library — Supabase Storage backed asset management for unit photos, brand assets, and AI-generated creatives from Kai.",
+  "description": "AAOS Asset Library — Google Cloud Storage backed asset management for unit photos, brand assets, and AI-generated creatives from Kai.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,6 +32,7 @@
     "@aos/logger": "workspace:*",
     "@aos/meta-ads-connector": "workspace:*",
     "@aos/telemetry": "workspace:*",
+    "@google-cloud/storage": "^7.12.0",
     "@supabase/supabase-js": "^2.45.0",
     "zod": "^3.23.8"
   },

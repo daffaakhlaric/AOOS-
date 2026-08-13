@@ -1,3 +1,4 @@
+import { BranchNotFoundError } from "@aos/branch-manager";
 import { NotFoundError, ValidationError } from "@aos/errors";
 import type { Logger } from "@aos/logger";
 import {
@@ -8,6 +9,7 @@ import {
   PermissionError,
   RateLimitError,
 } from "@aos/meta-ads-connector";
+import { InvalidObjectiveError, ObjectiveNotFoundError } from "@aos/objective-engine";
 import type { ArgumentsHost } from "@nestjs/common";
 import {
   HttpException,
@@ -223,6 +225,33 @@ describe("AaosExceptionFilter", () => {
     filter.catch(error, host);
     expect(error.retryAfterMs).toBe(5000);
     expect(reply.body[0]).not.toHaveProperty("retryAfterMs");
+  });
+
+  it("maps @aos/objective-engine's ObjectiveNotFoundError (an AosError not covered by an explicit instanceof branch) to 404 via its ErrorCode.NOT_FOUND", () => {
+    const filter = new AaosExceptionFilter(buildFakeLogger());
+    const { host, reply } = buildHost();
+    filter.catch(new ObjectiveNotFoundError("no such objective"), host);
+    expect(reply.statusCode).toBe(404);
+    expect(reply.body[0]).toMatchObject({
+      statusCode: 404,
+      error: "ObjectiveNotFoundError",
+      message: "no such objective",
+    });
+  });
+
+  it("maps @aos/objective-engine's InvalidObjectiveError to 422 via its ErrorCode.VALIDATION_ERROR", () => {
+    const filter = new AaosExceptionFilter(buildFakeLogger());
+    const { host, reply } = buildHost();
+    filter.catch(new InvalidObjectiveError("bad input"), host);
+    expect(reply.statusCode).toBe(422);
+  });
+
+  it("maps @aos/branch-manager's BranchNotFoundError to 404 via its ErrorCode.NOT_FOUND", () => {
+    const filter = new AaosExceptionFilter(buildFakeLogger());
+    const { host, reply } = buildHost();
+    filter.catch(new BranchNotFoundError("no such branch"), host);
+    expect(reply.statusCode).toBe(404);
+    expect(reply.body[0]).toMatchObject({ error: "BranchNotFoundError" });
   });
 
   it("uses the response body's timestamp as a fresh Date each call, not a cached value", () => {

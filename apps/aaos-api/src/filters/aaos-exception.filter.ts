@@ -1,4 +1,5 @@
-import { NotFoundError, ValidationError } from "@aos/errors";
+import { ErrorCode } from "@aos/common";
+import { AosError, NotFoundError, ValidationError } from "@aos/errors";
 import type { Logger } from "@aos/logger";
 import { createLogger } from "@aos/logger";
 import {
@@ -134,6 +135,19 @@ function classify(exception: unknown): { statusCode: number; error: string; mess
       message: exception.message,
     };
   }
+  /*
+   * AAOS-W4A addition: `@aos/objective-engine`'s `ObjectiveNotFoundError`/`InvalidObjectiveError`
+   * and `@aos/branch-manager`'s `BranchNotFoundError`/`SalesHumanNotFoundError`/
+   * `BranchConfigError`/`AssignmentError`/`NoAvailableSalesError` all extend `AosError` directly
+   * (not the specific `NotFoundError`/`ValidationError` subclasses above), each carrying its own
+   * `ErrorCode`. Rather than growing the explicit `instanceof` list above per new package (which
+   * would need updating for every future domain package's error hierarchy), any remaining
+   * `AosError` is classified generically by its `.code` — the same `ErrorCode` values
+   * `NotFoundError`/`ValidationError`/etc. above already use.
+   */
+  if (exception instanceof AosError) {
+    return classifyByErrorCode(exception);
+  }
   if (exception instanceof HttpException) {
     const status = exception.getStatus();
     const responseBody = exception.getResponse();
@@ -155,6 +169,37 @@ function classify(exception: unknown): { statusCode: number; error: string; mess
     error: "UnknownError",
     message: "An unexpected error occurred",
   };
+}
+
+/** Maps a generic `AosError`'s `.code` to an HTTP status, for domain errors this filter has no dedicated `instanceof` branch for. See the AAOS-W4A comment above `classify`'s `AosError` check. */
+function classifyByErrorCode(exception: AosError): {
+  statusCode: number;
+  error: string;
+  message: string;
+} {
+  const error = exception.constructor.name;
+  const message = exception.message;
+  switch (exception.code) {
+    case ErrorCode.NOT_FOUND:
+      return { statusCode: HttpStatus.NOT_FOUND, error, message };
+    case ErrorCode.VALIDATION_ERROR:
+      return { statusCode: HttpStatus.UNPROCESSABLE_ENTITY, error, message };
+    case ErrorCode.UNAUTHORIZED:
+      return { statusCode: HttpStatus.UNAUTHORIZED, error, message };
+    case ErrorCode.FORBIDDEN:
+      return { statusCode: HttpStatus.FORBIDDEN, error, message };
+    case ErrorCode.CONFLICT:
+      return { statusCode: HttpStatus.CONFLICT, error, message };
+    case ErrorCode.TIMEOUT:
+      return { statusCode: HttpStatus.GATEWAY_TIMEOUT, error, message };
+    case ErrorCode.RATE_LIMITED:
+      return { statusCode: HttpStatus.TOO_MANY_REQUESTS, error, message };
+    case ErrorCode.UNAVAILABLE:
+      return { statusCode: HttpStatus.SERVICE_UNAVAILABLE, error, message };
+    case ErrorCode.INTERNAL:
+    default:
+      return { statusCode: HttpStatus.INTERNAL_SERVER_ERROR, error, message };
+  }
 }
 
 function extractHttpExceptionMessage(body: object, fallback: string): string {

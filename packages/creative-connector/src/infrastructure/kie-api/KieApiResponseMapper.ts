@@ -1,0 +1,123 @@
+import { err, ok, type Result } from "@aos/common";
+import { ValidationError } from "@aos/errors";
+import { z } from "zod";
+
+import type { RawTaskStatusResponse } from "../../contracts/ICreativeClient.js";
+import { FileUploadError } from "../../domain/errors/FileUploadError.js";
+import { KieApiError } from "../../domain/errors/KieApiError.js";
+
+const UploadResponseSchema = z.object({
+  success: z.boolean(),
+  code: z.number(),
+  msg: z.string(),
+  data: z
+    .object({
+      fileId: z.string(),
+      fileUrl: z.string(),
+    })
+    .optional(),
+});
+
+const TaskCreatedResponseSchema = z.object({
+  code: z.number(),
+  msg: z.string().optional(),
+  data: z
+    .object({
+      taskId: z.string(),
+    })
+    .optional(),
+});
+
+const TaskStatusResponseSchema = z.object({
+  code: z.number(),
+  msg: z.string().optional(),
+  data: z
+    .object({
+      taskId: z.string(),
+      successFlag: z.number(),
+      videoUrl: z.string().optional(),
+      imageUrl: z.string().optional(),
+      images: z.array(z.string()).optional(),
+    })
+    .optional(),
+});
+
+export interface UploadResponseData {
+  readonly fileId: string;
+  readonly fileUrl: string;
+}
+
+export interface TaskCreatedResponseData {
+  readonly taskId: string;
+}
+
+/**
+ * Translates raw Kie AI JSON response bodies (Parts 1-4 of the spec) into typed, validated
+ * shapes or a `Result.err`, so the two infrastructure clients never hand-parse `unknown` JSON
+ * themselves. Zod-validated per Constitution §5.5 ("all external inputs ... validated against an
+ * explicit schema before use").
+ */
+export class KieApiResponseMapper {
+  static mapUploadResponse(json: unknown): Result<UploadResponseData, FileUploadError> {
+    const parsed = UploadResponseSchema.safeParse(json);
+    if (!parsed.success) {
+      return err(
+        new FileUploadError("Kie AI file-stream-upload response failed schema validation", {
+          cause: new ValidationError("schema validation failed", {
+            context: { zodError: parsed.error },
+          }),
+        }),
+      );
+    }
+    if (!parsed.data.success || !parsed.data.data) {
+      return err(
+        new FileUploadError(`Kie AI file upload failed: ${parsed.data.msg}`, {
+          context: { code: parsed.data.code },
+        }),
+      );
+    }
+    return ok(parsed.data.data);
+  }
+
+  static mapTaskCreatedResponse(json: unknown): Result<TaskCreatedResponseData, KieApiError> {
+    const parsed = TaskCreatedResponseSchema.safeParse(json);
+    if (!parsed.success) {
+      return err(
+        new KieApiError("Kie AI task-creation response failed schema validation", {
+          cause: new ValidationError("schema validation failed", {
+            context: { zodError: parsed.error },
+          }),
+        }),
+      );
+    }
+    if (parsed.data.code !== 200 || !parsed.data.data) {
+      return err(
+        new KieApiError(`Kie AI task creation failed: ${parsed.data.msg ?? "unknown error"}`, {
+          context: { code: parsed.data.code },
+        }),
+      );
+    }
+    return ok(parsed.data.data);
+  }
+
+  static mapTaskStatusResponse(json: unknown): Result<RawTaskStatusResponse, KieApiError> {
+    const parsed = TaskStatusResponseSchema.safeParse(json);
+    if (!parsed.success) {
+      return err(
+        new KieApiError("Kie AI task-status response failed schema validation", {
+          cause: new ValidationError("schema validation failed", {
+            context: { zodError: parsed.error },
+          }),
+        }),
+      );
+    }
+    if (parsed.data.code !== 200 || !parsed.data.data) {
+      return err(
+        new KieApiError(`Kie AI task status query failed: ${parsed.data.msg ?? "unknown error"}`, {
+          context: { code: parsed.data.code },
+        }),
+      );
+    }
+    return ok(parsed.data.data);
+  }
+}

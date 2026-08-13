@@ -12,13 +12,22 @@ function rph(value: number): Rph {
   return Rph.calculate(value, 1);
 }
 
+/**
+ * AAOS-W1D-S3: defaults to `OUTCOME_LEADS` (the correct/non-FIX objective) so every describe
+ * block below that doesn't explicitly test the FIX rule keeps exercising the
+ * SCALE/PAUSE/REFRESH/KEEP/REVIEW thresholds in isolation — since FIX now triggers for ANY
+ * objective other than `OUTCOME_LEADS` (see `VerdictEngine.ts`), leaving the old
+ * `OUTCOME_ENGAGEMENT` default here would make every one of those tests observe FIX instead of
+ * the verdict they're actually about. The dedicated "FIX" describe block below still explicitly
+ * overrides `objective` per case.
+ */
 function input(overrides: Partial<VerdictEngineInput> = {}): VerdictEngineInput {
   return {
     rphChat: rph(10_000),
     conversations: 10,
     spendAmount: 100_000,
     frequency: 1,
-    objective: CampaignObjective.OUTCOME_ENGAGEMENT,
+    objective: CampaignObjective.OUTCOME_LEADS,
     ...overrides,
   };
 }

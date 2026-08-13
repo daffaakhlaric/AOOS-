@@ -13,6 +13,14 @@ export type {
 } from "./application/use-cases/PullCampaignData.js";
 export { ExecuteVerdict } from "./application/use-cases/ExecuteVerdict.js";
 export type { ExecuteVerdictInput } from "./application/use-cases/ExecuteVerdict.js";
+export {
+  CreateCampaign,
+  DEFAULT_DAILY_BUDGET_IDR,
+} from "./application/use-cases/CreateCampaign.js";
+export type {
+  CreateCampaignInput,
+  CreateCampaignOutput,
+} from "./application/use-cases/CreateCampaign.js";
 export { ProcessLeadWebhook } from "./application/use-cases/ProcessLeadWebhook.js";
 export type { ProcessLeadWebhookInput } from "./application/use-cases/ProcessLeadWebhook.js";
 
@@ -43,6 +51,7 @@ export { Branch } from "./domain/value-objects/Branch.js";
 export { Funnel } from "./domain/value-objects/Funnel.js";
 export { AdStatus } from "./domain/value-objects/AdStatus.js";
 export { CampaignObjective } from "./domain/value-objects/CampaignObjective.js";
+export { AdDestinationType } from "./domain/value-objects/AdDestinationType.js";
 export { LeadType } from "./domain/value-objects/LeadType.js";
 export { PublisherPlatform } from "./domain/value-objects/PublisherPlatform.js";
 
@@ -51,6 +60,7 @@ export type { LeadReceived } from "./domain/events/LeadReceived.js";
 export type { AdPaused } from "./domain/events/AdPaused.js";
 export type { BudgetScaled } from "./domain/events/BudgetScaled.js";
 export type { ObjectiveFixed } from "./domain/events/ObjectiveFixed.js";
+export type { NewCampaignCreated } from "./domain/events/NewCampaignCreated.js";
 export type { SyncCompleted } from "./domain/events/SyncCompleted.js";
 export type { SyncFailed } from "./domain/events/SyncFailed.js";
 export { MetaAdsConnectorEvents } from "./domain/events/MetaAdsConnectorEvents.js";
@@ -88,7 +98,13 @@ export {
 export { AdAccountRegistry } from "./registry/AdAccountRegistry.js";
 
 // Contracts
-export type { IMetaAdsClient, PageCursor } from "./contracts/IMetaAdsClient.js";
+export type {
+  IMetaAdsClient,
+  PageCursor,
+  CreateCampaignParams,
+  CreateAdSetParams,
+  MetaCreateResponse,
+} from "./contracts/IMetaAdsClient.js";
 export type { ILeadWebhookParser, RawLeadData } from "./contracts/ILeadWebhookParser.js";
 export type {
   ExecutionAction,

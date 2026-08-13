@@ -102,7 +102,13 @@ export class RecommendationService {
         targetId: ad.id.toString(),
         targetType: "ad",
         targetName: adTargetName(ad),
-        reason: "Verdict FIX dari meta-ads-connector — funnel/creative perlu diperbaiki",
+        // AAOS-W1D-S3: names the actual fix target — DSS Motor's real strategy objective
+        // (OUTCOME_LEADS + CTWA straight to WhatsApp), not just "needs fixing" in the abstract.
+        // Note: this file lives in @aos/objective-engine (not @aos/meta-ads-agent, where the
+        // W1D-S3 spec's "Update TamaraRecommendation — FIX action" section assumed it would be) —
+        // it's the real, current location of "GenerateRecommendation's FIX action output".
+        reason:
+          "Verdict FIX dari meta-ads-connector — objective perlu diganti ke OUTCOME_LEADS + CTWA (lead langsung ke WhatsApp)",
         priority: 3,
       });
     }

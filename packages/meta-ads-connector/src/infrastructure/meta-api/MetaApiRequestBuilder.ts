@@ -61,6 +61,16 @@ export class MetaApiRequestBuilder {
     return `${BASE_URL}/${API_VERSION}/${campaignId}`;
   }
 
+  /** AAOS-W1D-S3: `POST /{ad-account}/campaigns` — create a new campaign. */
+  static createCampaignUrl(adAccountId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${adAccountId}/campaigns`;
+  }
+
+  /** AAOS-W1D-S3: `POST /{ad-account}/adsets` — create a new ad set. */
+  static createAdSetUrl(adAccountId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${adAccountId}/adsets`;
+  }
+
   private static buildGetUrl(
     path: string,
     accessToken: string,

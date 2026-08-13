@@ -1,5 +1,6 @@
 import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
+import { Branch } from "@aos/meta-ads-connector";
 import { z } from "zod";
 
 import { DecisionError } from "../domain/errors/index.js";
@@ -19,6 +20,16 @@ export interface MetaAdsAgentConfig {
 
   readonly cycleIntervalHours: number; // default: 24
   readonly digestTimeHour: number; // default: 7
+
+  /**
+   * AAOS-W1D-S3, coordinator note correction #6: DSS Motor's per-branch WhatsApp (CTWA)
+   * destination numbers, keyed by `Branch` — populated by `apps/aaos-api`'s config layer from
+   * the real `PHONE_NUMBER_*` env vars (the same values `@aos/whatsapp-connector` already reads),
+   * NOT read from `process.env` directly inside this package. Not every `Branch` necessarily has
+   * a number (e.g. `BOOST`/`MULTI` are aggregate/multi-branch labels, not a single WABA) — hence
+   * `Partial`. Default `{}` for callers/tests that don't need CTWA phone lookups.
+   */
+  readonly ctwaPhoneNumbers: Partial<Record<Branch, string>>;
 }
 
 export const MetaAdsAgentConfigSchema = z.object({
@@ -32,6 +43,7 @@ export const MetaAdsAgentConfigSchema = z.object({
   escalateRphMultiple: z.number().positive().default(1.8),
   cycleIntervalHours: z.number().int().positive().default(24),
   digestTimeHour: z.number().int().min(0).max(23).default(7),
+  ctwaPhoneNumbers: z.record(z.nativeEnum(Branch), z.string().min(1)).default({}),
 });
 
 export type MetaAdsAgentConfigInput = z.input<typeof MetaAdsAgentConfigSchema>;
@@ -70,4 +82,5 @@ export const DEFAULT_META_ADS_AGENT_CONFIG: Omit<MetaAdsAgentConfig, "tenantId">
   escalateRphMultiple: 1.8,
   cycleIntervalHours: 24,
   digestTimeHour: 7,
+  ctwaPhoneNumbers: {},
 };

@@ -43,6 +43,9 @@ export class ClosingRepository implements IClosingRepository {
     if (filter.branchId !== undefined) {
       query = query.eq("branch_id", filter.branchId);
     }
+    if (filter.salesHumanId !== undefined) {
+      query = query.eq("sales_human_id", filter.salesHumanId);
+    }
     const { data, error } = await query;
     if (error !== null) {
       return err(new SupabaseError(`ClosingRepository.findByFilter failed: ${error.message}`));

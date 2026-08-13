@@ -1,14 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  createSupabaseClient,
-  createSupabaseStorageClient,
-} from "../../../src/infrastructure/supabase/SupabaseClient.js";
+import { createSupabaseClient } from "../../../src/infrastructure/supabase/SupabaseClient.js";
 
 const config = {
   supabaseUrl: "https://xxxx.supabase.co",
   supabaseServiceKey: "service-key",
-  bucketName: "mobix-assets",
+  gcsBucketName: "aoos",
+  gcsProjectId: "fake-test-project",
+  gcsKeyFilePath: "./fake-service-account.json",
   tenantId: "dss-motor",
   imageSizeLimitBytes: 10 * 1024 * 1024,
   videoSizeLimitBytes: 100 * 1024 * 1024,
@@ -32,12 +31,5 @@ describe("createSupabaseClient", () => {
   it("builds a Postgrest-capable client", () => {
     const client = createSupabaseClient(config);
     expect(client.from).toBeInstanceOf(Function);
-  });
-});
-
-describe("createSupabaseStorageClient", () => {
-  it("builds a Storage-capable client", () => {
-    const storage = createSupabaseStorageClient(config);
-    expect(storage.from).toBeInstanceOf(Function);
   });
 });

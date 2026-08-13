@@ -25,6 +25,7 @@
     "@aos/lead-store": "workspace:*",
     "@aos/logger": "workspace:*",
     "@aos/meta-ads-connector": "workspace:*",
+    "@aos/objective-engine": "workspace:*",
     "@aos/telemetry": "workspace:*",
     "@aos/whatsapp-connector": "workspace:*",
     "@nestjs/common": "^10.4.0",

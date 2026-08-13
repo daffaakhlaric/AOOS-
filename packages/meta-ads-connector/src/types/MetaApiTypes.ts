@@ -106,6 +106,12 @@ export const MetaUpdateResponseSchema = z
   });
 export type MetaUpdateResponse = z.infer<typeof MetaUpdateResponseSchema>;
 
+/** Response of `POST /{ad-account}/campaigns` and `POST /{ad-account}/adsets` create calls (AAOS-W1D-S3). Meta always returns `{ id: "<new-object-id>" }` on success. */
+export const MetaCreateResponseSchema = z.object({
+  id: z.string(),
+});
+export type MetaCreateResponse = z.infer<typeof MetaCreateResponseSchema>;
+
 export const MetaErrorResponseSchema = z.object({
   error: z.object({
     message: z.string(),

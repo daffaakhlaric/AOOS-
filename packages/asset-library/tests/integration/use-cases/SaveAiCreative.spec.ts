@@ -7,17 +7,18 @@ import { SaveAiCreative } from "../../../src/application/use-cases/SaveAiCreativ
 import { AssetLibraryEvents } from "../../../src/domain/events/AssetLibraryEvents.js";
 import { AssetType } from "../../../src/domain/value-objects/AssetType.js";
 import { AssetRepository } from "../../../src/infrastructure/supabase/AssetRepository.js";
-import { SupabaseStorageClient } from "../../../src/infrastructure/supabase/SupabaseStorageClient.js";
+import { createFakeAssetStorage } from "../../helpers/assetStorage.js";
 import { createFakePublisher } from "../../helpers/publisher.js";
 import { AssetError, createStubAssetRepository, err } from "../../helpers/repository.js";
 import { unwrap, unwrapErr } from "../../helpers/result.js";
-import { createFakeSupabaseStorageClient } from "../../helpers/storage.js";
 import { createFakeSupabaseClient } from "../../helpers/supabase.js";
 
 const config = {
   supabaseUrl: "https://example.supabase.co",
   supabaseServiceKey: "key",
-  bucketName: "mobix-assets",
+  gcsBucketName: "aoos",
+  gcsProjectId: "fake-test-project",
+  gcsKeyFilePath: "./fake-service-account.json",
   tenantId: "dss-motor",
   imageSizeLimitBytes: 10 * 1024 * 1024,
   videoSizeLimitBytes: 100 * 1024 * 1024,
@@ -25,9 +26,8 @@ const config = {
 
 function makeSaveAiCreative(now = () => new Date("2026-01-01T00:00:00.000Z")) {
   const client = createFakeSupabaseClient();
-  const storageClient = createFakeSupabaseStorageClient();
+  const storage = createFakeAssetStorage();
   const repository = new AssetRepository(client);
-  const storage = new SupabaseStorageClient(storageClient, config.bucketName);
   const storageService = new StorageService(storage, config);
   const publisher = createFakePublisher();
   const events = new AssetLibraryEvents(publisher);
@@ -134,10 +134,9 @@ describe("SaveAiCreative (integration)", () => {
 
   it("propagates a storage error for an image", async () => {
     const client = createFakeSupabaseClient();
-    const storageClient = createFakeSupabaseStorageClient();
-    storageClient.forceErrorOnce("disk full");
+    const storage = createFakeAssetStorage();
+    storage.forceErrorOnce("disk full");
     const repository = new AssetRepository(client);
-    const storage = new SupabaseStorageClient(storageClient, config.bucketName);
     const storageService = new StorageService(storage, config);
     const publisher = createFakePublisher();
     const events = new AssetLibraryEvents(publisher);
@@ -163,8 +162,7 @@ describe("SaveAiCreative (integration)", () => {
   });
 
   it("propagates a repository insert error for the video asset", async () => {
-    const storageClient = createFakeSupabaseStorageClient();
-    const storage = new SupabaseStorageClient(storageClient, config.bucketName);
+    const storage = createFakeAssetStorage();
     const storageService = new StorageService(storage, config);
     const publisher = createFakePublisher();
     const events = new AssetLibraryEvents(publisher);

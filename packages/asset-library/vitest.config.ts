@@ -11,7 +11,6 @@ export default withBaseConfig({
         "src/index.ts",
         "src/contracts/**/*.ts",
         "src/infrastructure/supabase/SupabaseTypes.ts",
-        "src/infrastructure/supabase/SupabaseStorageTypes.ts",
         "src/domain/events/AssetUploaded.ts",
         "src/domain/events/AssetArchived.ts",
         "src/domain/events/AssetTagged.ts",

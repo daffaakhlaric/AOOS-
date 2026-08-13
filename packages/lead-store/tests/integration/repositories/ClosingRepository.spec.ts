@@ -87,6 +87,20 @@ describe("ClosingRepository", () => {
     expect(result).toHaveLength(1);
   });
 
+  it("findByFilter filters by salesHumanId (AAOS-W4B addition)", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("closings", [
+      makeClosingRow({ sales_human_id: "sales-rina", created_at: "2026-01-15T00:00:00.000Z" }),
+      makeClosingRow({ sales_human_id: "sales-budi", created_at: "2026-01-16T00:00:00.000Z" }),
+    ]);
+    const repo = new ClosingRepository(client);
+    const result = unwrap(
+      await repo.findByFilter({ salesHumanId: "sales-rina", fromDate: FROM, toDate: TO }),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]?.salesHumanId.toString()).toBe("sales-rina");
+  });
+
   it("findByFilter surfaces a Supabase error", async () => {
     const client = createFakeSupabaseClient();
     client.forceErrorOnce("closings", "timeout");

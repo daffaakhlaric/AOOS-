@@ -1,28 +1,50 @@
+import type { BranchManager } from "@aos/branch-manager";
+import { BranchManagerFactory } from "@aos/branch-manager";
 import { EventBroker, type IPublisher } from "@aos/event-bus";
-import { LeadStoreFactory, type LeadStore } from "@aos/lead-store";
+import {
+  ClosingRepository,
+  createSupabaseClient,
+  LeadStoreFactory,
+  MessageRepository,
+  type LeadStore,
+} from "@aos/lead-store";
 import { MetaAdsConnectorFactory, type MetaAdsConnector } from "@aos/meta-ads-connector";
+import type { ObjectiveEngine } from "@aos/objective-engine";
+import { ObjectiveEngineFactory } from "@aos/objective-engine";
 import { WhatsAppConnectorFactory, type WhatsAppConnector } from "@aos/whatsapp-connector";
 import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 
 import type { AaosApiConfig } from "./config/aaos-api.config.js";
+import { toBranchManagerConfig } from "./config/to-branch-manager-config.js";
 import { toConnectorConfig } from "./config/to-connector-config.js";
 import { toLeadStoreConfig } from "./config/to-lead-store-config.js";
+import { toObjectiveEngineConfig } from "./config/to-objective-engine-config.js";
 import { toWhatsAppConnectorConfig } from "./config/to-whatsapp-connector-config.js";
 import {
   AAOS_API_CONFIG,
+  BRANCH_MANAGER,
   EVENT_PUBLISHER,
   LEAD_STORE,
+  LEAD_STORE_CLOSING_REPOSITORY,
+  LEAD_STORE_MESSAGE_REPOSITORY,
   META_ADS_CONNECTOR,
+  OBJECTIVE_ENGINE,
   WHATSAPP_CONNECTOR,
 } from "./di-tokens.js";
 import { AaosExceptionFilter } from "./filters/aaos-exception.filter.js";
 import { LoggingInterceptor } from "./interceptors/logging.interceptor.js";
 import { TracingInterceptor } from "./interceptors/tracing.interceptor.js";
+import { BranchesModule } from "./modules/branches/branches.module.js";
+import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
+import { ClosingsModule } from "./modules/closings/closings.module.js";
+import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
+import { ObjectiveModule } from "./modules/objective/objective.module.js";
+import { SalesModule } from "./modules/sales/sales.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
 import { WhatsAppWebhookModule } from "./modules/whatsapp-webhook/whatsapp-webhook.module.js";
 
@@ -54,6 +76,14 @@ export class AppModule {
     if (!leadStoreConfigResult.ok) {
       throw leadStoreConfigResult.error;
     }
+    const objectiveEngineConfigResult = toObjectiveEngineConfig(config);
+    if (!objectiveEngineConfigResult.ok) {
+      throw objectiveEngineConfigResult.error;
+    }
+    const branchManagerConfigResult = toBranchManagerConfig(config);
+    if (!branchManagerConfigResult.ok) {
+      throw branchManagerConfigResult.error;
+    }
 
     const publisher: IPublisher = new EventBroker();
     const connector: MetaAdsConnector = MetaAdsConnectorFactory.create({
@@ -67,21 +97,58 @@ export class AppModule {
       config: whatsAppConnectorConfigResult.value,
       publisher,
     });
+    // AAOS-W4B: the Supabase client is built once here (rather than left to LeadStoreFactory's
+    // internal default) so `MessageRepository`/`ClosingRepository` below can share the exact same
+    // client/connection `LeadStore`'s own repositories use — one Supabase client for the whole
+    // `leads`/`closings`/`messages` schema, not two.
+    const leadStoreSupabaseClient = createSupabaseClient(leadStoreConfigResult.value);
     const leadStore: LeadStore = LeadStoreFactory.create({
       config: leadStoreConfigResult.value,
+      publisher,
+      supabaseClient: leadStoreSupabaseClient,
+    });
+    // AAOS-W4B additions: real `@aos/lead-store` infra classes, exported from its public
+    // `index.ts`, composed here because no `LeadStore` use case exposes "list every message in a
+    // conversation" or "list raw closings matching a filter" (see di-tokens.ts's docstring).
+    const messageRepository = new MessageRepository(leadStoreSupabaseClient);
+    const closingRepository = new ClosingRepository(leadStoreSupabaseClient);
+    // AAOS-W4A additions: shares the same real `IPublisher` as every other composed package —
+    // one event bus for the whole app, per the same discipline established above.
+    const objectiveEngine: ObjectiveEngine = ObjectiveEngineFactory.create({
+      config: objectiveEngineConfigResult.value,
+      publisher,
+    });
+    const branchManager: BranchManager = BranchManagerFactory.create({
+      config: branchManagerConfigResult.value,
       publisher,
     });
 
     return {
       module: AppModule,
       global: true,
-      imports: [HealthModule, LeadsModule, MetaAdsModule, WebhookModule, WhatsAppWebhookModule],
+      imports: [
+        HealthModule,
+        LeadsModule,
+        MetaAdsModule,
+        WebhookModule,
+        WhatsAppWebhookModule,
+        ObjectiveModule,
+        CreativePackagesModule,
+        BranchesModule,
+        CampaignsModule,
+        ClosingsModule,
+        SalesModule,
+      ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },
         { provide: EVENT_PUBLISHER, useValue: publisher },
         { provide: META_ADS_CONNECTOR, useValue: connector },
         { provide: WHATSAPP_CONNECTOR, useValue: whatsAppConnector },
         { provide: LEAD_STORE, useValue: leadStore },
+        { provide: OBJECTIVE_ENGINE, useValue: objectiveEngine },
+        { provide: BRANCH_MANAGER, useValue: branchManager },
+        { provide: LEAD_STORE_MESSAGE_REPOSITORY, useValue: messageRepository },
+        { provide: LEAD_STORE_CLOSING_REPOSITORY, useValue: closingRepository },
         { provide: APP_FILTER, useValue: new AaosExceptionFilter() },
         { provide: APP_INTERCEPTOR, useValue: new LoggingInterceptor() },
         { provide: APP_INTERCEPTOR, useValue: new TracingInterceptor() },
@@ -92,6 +159,10 @@ export class AppModule {
         META_ADS_CONNECTOR,
         WHATSAPP_CONNECTOR,
         LEAD_STORE,
+        OBJECTIVE_ENGINE,
+        BRANCH_MANAGER,
+        LEAD_STORE_MESSAGE_REPOSITORY,
+        LEAD_STORE_CLOSING_REPOSITORY,
       ],
     };
   }
