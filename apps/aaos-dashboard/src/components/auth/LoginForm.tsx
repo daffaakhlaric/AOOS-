@@ -6,6 +6,25 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
+const DEFAULT_REDIRECT = "/dashboard";
+
+/**
+ * Resolves the post-login redirect target from the `redirectedFrom` query param, guarding against
+ * two failure modes: (1) an absolute/protocol-relative URL (`https://evil.example`, `//evil`),
+ * which would be an open redirect if used unchecked — only a same-origin path starting with a
+ * single `/` is accepted; (2) `redirectedFrom` pointing back at `/login` itself, which previously
+ * could chain into a pathological self-redirect if middleware ever redirected there again.
+ */
+function resolveRedirectTarget(raw: string | null): string {
+  if (raw === null || !raw.startsWith("/") || raw.startsWith("//")) {
+    return DEFAULT_REDIRECT;
+  }
+  if (raw === "/login" || raw.startsWith("/login/") || raw.startsWith("/login?")) {
+    return DEFAULT_REDIRECT;
+  }
+  return raw;
+}
+
 /** Supabase Auth login form (spec "app/(auth)/login/page.tsx"). Split from `page.tsx` so `useSearchParams` (which requires a Suspense boundary in a static-exported page) is isolated to this client component. */
 export function LoginForm(): React.ReactElement {
   const router = useRouter();
@@ -26,7 +45,7 @@ export function LoginForm(): React.ReactElement {
         setError(signInError.message);
         return;
       }
-      const redirectedFrom = searchParams.get("redirectedFrom") ?? "/dashboard";
+      const redirectedFrom = resolveRedirectTarget(searchParams.get("redirectedFrom"));
       router.push(redirectedFrom);
       router.refresh();
     } catch (caught) {

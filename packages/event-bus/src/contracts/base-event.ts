@@ -19,8 +19,8 @@ export const baseEventSchema = z.object({
     .string()
     .min(1)
     .regex(
-      /^[a-z][a-z0-9_]*(\.[a-zA-Z0-9_]+)+$/,
-      'type must be namespace-qualified, e.g. "agent.created"',
+      /^[a-z][a-z0-9_-]*(\.[a-zA-Z0-9_-]+)+$/,
+      'type must be namespace-qualified, e.g. "agent.created" or "lead-store.lead.created"',
     ),
   category: z.nativeEnum(EventCategory),
   correlationId: z.string().min(1),

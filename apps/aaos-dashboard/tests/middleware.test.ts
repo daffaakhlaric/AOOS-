@@ -45,11 +45,18 @@ describe("middleware", () => {
     expect(response.headers.get("location")).toBe("https://crm.example.test/");
   });
 
-  it("falls back to '/' when NEXT_PUBLIC_CRM_URL is not set", async () => {
+  it("does NOT redirect a 'sales' role session when NEXT_PUBLIC_CRM_URL is unset (regression: this used to fall back to '/', which is itself a protected path — an immediate self-redirect loop, ERR_TOO_MANY_REDIRECTS, since middleware would just see the same 'sales' session on '/' and redirect to '/' again)", async () => {
     delete process.env["NEXT_PUBLIC_CRM_URL"];
     getSession.mockResolvedValue({ userId: "u1", role: "sales" });
     const response = await middleware(buildRequest("/dashboard"));
-    expect(response.headers.get("location")).toBe("http://localhost:3001/");
+    expect(response.status).toBe(200);
+  });
+
+  it("does not redirect a 'sales' role session when NEXT_PUBLIC_CRM_URL is set to an empty string", async () => {
+    process.env["NEXT_PUBLIC_CRM_URL"] = "";
+    getSession.mockResolvedValue({ userId: "u1", role: "sales" });
+    const response = await middleware(buildRequest("/dashboard"));
+    expect(response.status).toBe(200);
   });
 
   it("allows a manager/owner session through", async () => {
