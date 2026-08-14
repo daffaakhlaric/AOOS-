@@ -8,6 +8,7 @@ import type { CampaignAdDto } from "@/types/dashboard.types";
 function buildAd(overrides: Partial<CampaignAdDto> = {}): CampaignAdDto {
   return {
     id: "A001",
+    stableId: "#A001",
     name: "#A001 Meta-DM-Leads-Mobix",
     campaignName: "Meta-DM-Leads-Mobix",
     status: "ACTIVE",
@@ -16,6 +17,7 @@ function buildAd(overrides: Partial<CampaignAdDto> = {}): CampaignAdDto {
     verdict: "REVIEW",
     metrics: {
       spend: 6_000_000,
+      clicks: 1200,
       conversations: 790,
       d2: 400,
       d3: 307,
@@ -38,7 +40,7 @@ describe("CampaignTable", () => {
 
   it("VerdictBadge shows the correct color per verdict", () => {
     render(<CampaignTable ads={[buildAd({ verdict: "PAUSE" })]} />);
-    expect(screen.getByText("PAUSE")).toHaveClass("text-brand-danger");
+    expect(screen.getByText("PAUSE")).toHaveClass("text-red-700");
   });
 
   it("Execute button is visible and calls onExecute", async () => {

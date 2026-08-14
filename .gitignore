@@ -20,6 +20,11 @@ test-results/
 .env.local
 .env.*.local
 
+# Service account / credential keys — never committed, regardless of where they land
+*service-account*.json
+*.pem
+*.key
+
 # Logs
 *.log
 npm-debug.log*

@@ -10,8 +10,20 @@ const ADSET_FIELDS = ["id", "name", "status", "daily_budget"].join(",");
 
 const AD_FIELDS = ["id", "name", "status", "created_time"].join(",");
 
-const INSIGHTS_METRIC_FIELDS =
-  "spend,impressions,reach,frequency,clicks,actions,messaging_conversation_started";
+/**
+ * `messaging_conversation_started` was removed from this list — it is not a valid top-level
+ * Insights `fields` param (Meta rejects it: `"(#100) messaging_conversation_started is not
+ * valid for fields param"`). The real data comes back nested inside `actions[]` as
+ * `action_type: "onsite_conversion.total_messaging_connection"` / `"...messaging_conversation_
+ * started_7d"`, which `actions` (already in this list) already requests — see
+ * `utils/D3Calculator.ts`. `D3Calculator.calculateActionBreakdown`'s `messagingConversationStarted`
+ * fallback parameter (for when the `total_messaging_connection` action row is absent) is now
+ * permanently unreachable as a result — it degrades to reporting 0 conversations in that edge
+ * case instead of a fallback value, rather than throwing. Left in place rather than removed
+ * here since narrowing that logic is a separate, deliberate follow-up, not implied by "remove
+ * this field from the fields list."
+ */
+const INSIGHTS_METRIC_FIELDS = "spend,impressions,reach,frequency,clicks,actions";
 
 function insightsExpansion(datePreset: string, fields: string): string {
   return `insights.date_preset(${datePreset}){${fields}}`;

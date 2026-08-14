@@ -1,6 +1,6 @@
 import { type Result } from "@aos/common";
 
-import { ApiServerError, type MetaApiError } from "../../domain/errors/index.js";
+import { ApiServerError, type MetaApiError, RateLimitError } from "../../domain/errors/index.js";
 
 const RETRYABLE_HTTP_STATUSES: ReadonlySet<number> = new Set([429, 500, 503]);
 const NON_RETRYABLE_HTTP_STATUSES: ReadonlySet<number> = new Set([400, 401, 403]);
@@ -75,7 +75,17 @@ export class ExponentialBackoffRetry {
       if (!canRetry) {
         return result;
       }
-      await this.sleep(this.delayForAttempt(attempt));
+      // Real bug fix: a 429 (`RateLimitError`) used to wait the same 1s/2s/4s exponential
+      // schedule as every other retryable error, hammering Meta's already-rate-limited endpoint
+      // again a second later — worsening the rate limit instead of backing off from it. Meta's
+      // own `Retry-After` header (parsed into `RateLimitError.retryAfterMs` by
+      // `MetaApiClient.toMetaApiError`, defaulting to 60s when the header is absent) is the
+      // authoritative wait time for a 429 and is honored here instead of the exponential delay.
+      const delayMs =
+        result.error instanceof RateLimitError
+          ? result.error.retryAfterMs
+          : this.delayForAttempt(attempt);
+      await this.sleep(delayMs);
     }
     // Unreachable when maxAttempts >= 1 (the loop always assigns lastResult and returns before
     // falling through), but TypeScript can't prove that from the loop shape alone.

@@ -35,4 +35,22 @@ describe("SummaryCards", () => {
     render(<SummaryCards data={DATA} />);
     expect(screen.getByText("Rp 26.4jt")).toBeInTheDocument();
   });
+
+  it("omits Belanja/D3 Lead entirely when spend/d3Leads are undefined — only 2 cards render (real bug fix: DashboardClient no longer has Meta Ads data to show, see SummaryCards.tsx's docstring)", () => {
+    render(
+      <SummaryCards
+        data={{
+          hotLeads: 47,
+          hotLeadsChangePercent: 15,
+          closings: 12,
+          closingsChangePercent: 20,
+        }}
+      />,
+    );
+    expect(screen.getAllByTestId("metric-card")).toHaveLength(2);
+    expect(screen.queryByText(/Belanja/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/D3 Lead/)).not.toBeInTheDocument();
+    expect(screen.getByText("47")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+  });
 });

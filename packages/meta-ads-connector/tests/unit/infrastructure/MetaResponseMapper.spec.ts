@@ -4,6 +4,7 @@ import { AdAccountId } from "../../../src/domain/value-objects/AdAccountId.js";
 import { AdSetId } from "../../../src/domain/value-objects/AdSetId.js";
 import { Branch } from "../../../src/domain/value-objects/Branch.js";
 import { CampaignId } from "../../../src/domain/value-objects/CampaignId.js";
+import { CampaignObjective } from "../../../src/domain/value-objects/CampaignObjective.js";
 import { Funnel } from "../../../src/domain/value-objects/Funnel.js";
 import { MetaResponseMapper } from "../../../src/infrastructure/meta-api/MetaResponseMapper.js";
 import type { MetaAd, MetaAdSet, MetaCampaign } from "../../../src/types/MetaApiTypes.js";
@@ -30,10 +31,17 @@ describe("MetaResponseMapper.mapCampaigns", () => {
     expect(unwrap(MetaResponseMapper.mapCampaigns([], adAccountId))).toEqual([]);
   });
 
-  it("propagates a per-item mapping failure", () => {
+  it("propagates a per-item mapping failure (status — objective is no longer a failure mode, see CampaignMapper.ts's docstring: an unrecognized objective now maps to UNKNOWN instead of erroring)", () => {
     expect(
-      MetaResponseMapper.mapCampaigns([makeCampaign({ objective: "BOGUS" })], adAccountId).ok,
+      MetaResponseMapper.mapCampaigns([makeCampaign({ status: "BOGUS" })], adAccountId).ok,
     ).toBe(false);
+  });
+
+  it("maps a campaign with an unrecognized objective to UNKNOWN rather than propagating a failure (real bug fix: this used to abort the whole batch over one campaign)", () => {
+    const campaigns = unwrap(
+      MetaResponseMapper.mapCampaigns([makeCampaign({ objective: "BOGUS" })], adAccountId),
+    );
+    expect(campaigns[0]?.objective).toBe(CampaignObjective.UNKNOWN);
   });
 
   it("skips a sparse-array hole (defensive guard against an undefined array entry)", () => {

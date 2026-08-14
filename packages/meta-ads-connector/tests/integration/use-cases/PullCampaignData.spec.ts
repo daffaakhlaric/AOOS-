@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { PullCampaignData } from "../../../src/application/use-cases/PullCampaignData.js";
 import { MetaAdsConnectorEvents } from "../../../src/domain/events/MetaAdsConnectorEvents.js";
 import { AdAccountId } from "../../../src/domain/value-objects/AdAccountId.js";
+import { CampaignObjective } from "../../../src/domain/value-objects/CampaignObjective.js";
 import { MetaApiClient } from "../../../src/infrastructure/meta-api/MetaApiClient.js";
 import { TokenBucketRateLimiter } from "../../../src/infrastructure/rate-limiter/TokenBucketRateLimiter.js";
 import { ExponentialBackoffRetry } from "../../../src/infrastructure/retry/ExponentialBackoffRetry.js";
@@ -268,7 +269,7 @@ describe("PullCampaignData (MSW-mocked Meta API)", () => {
     expect(rphD3).toBeNull();
   });
 
-  it("propagates a campaign mapping failure (unrecognized objective) as Result.err", async () => {
+  it("maps a campaign with an unrecognized objective to UNKNOWN rather than failing the whole sync (real bug fix: this used to abort every campaign in the ad account over one unrecognized objective — see CampaignObjective.ts's docstring)", async () => {
     mswServer.use(
       http.get(`${BASE}/act_752604553578354/campaigns`, () =>
         HttpResponse.json({
@@ -283,10 +284,11 @@ describe("PullCampaignData (MSW-mocked Meta API)", () => {
           ],
         }),
       ),
+      http.get(`${BASE}/c1/adsets`, () => HttpResponse.json({ data: [] })),
     );
     const { useCase } = makeUseCase();
-    const result = await useCase.execute(baseInput());
-    expect(unwrapErr(result).message).toMatch(/objective/);
+    const account = unwrap(await useCase.execute(baseInput()));
+    expect(account.campaigns[0]?.objective).toBe(CampaignObjective.UNKNOWN);
   });
 
   it("propagates a getAdSets transport failure while hydrating a campaign", async () => {

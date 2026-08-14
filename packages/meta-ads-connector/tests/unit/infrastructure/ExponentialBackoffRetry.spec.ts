@@ -98,6 +98,33 @@ describe("ExponentialBackoffRetry", () => {
     expect(sleep).toHaveBeenCalledTimes(2);
   });
 
+  it("honors RateLimitError.retryAfterMs instead of the exponential schedule on a 429 (real bug fix: this used to retry a rate-limited call after the same 1s exponential delay as any other retryable error, hammering an already-rate-limited endpoint)", async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retry = new ExponentialBackoffRetry({ sleep, maxAttempts: 2, baseDelayMs: 1000 });
+    const operation = vi
+      .fn()
+      .mockResolvedValueOnce(err(new RateLimitError("rate limited", 60_000)))
+      .mockResolvedValueOnce(ok("recovered"));
+
+    const result = await retry.execute(operation);
+    expect(result).toEqual(ok("recovered"));
+    expect(sleep).toHaveBeenCalledWith(60_000);
+    expect(sleep).not.toHaveBeenCalledWith(1000);
+  });
+
+  it("honors a short RateLimitError.retryAfterMs too — the real Retry-After header value wins, not a floor at the exponential delay", async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retry = new ExponentialBackoffRetry({ sleep, maxAttempts: 2, baseDelayMs: 1000 });
+    const operation = vi
+      .fn()
+      .mockResolvedValueOnce(err(new RateLimitError("rate limited", 5000)))
+      .mockResolvedValueOnce(ok("recovered"));
+
+    const result = await retry.execute(operation);
+    expect(result).toEqual(ok("recovered"));
+    expect(sleep).toHaveBeenCalledWith(5000);
+  });
+
   it("does NOT retry a non-retryable failure (e.g. 401) — fails on the first attempt", async () => {
     const sleep = vi.fn().mockResolvedValue(undefined);
     const retry = new ExponentialBackoffRetry({ sleep, maxAttempts: 3 });

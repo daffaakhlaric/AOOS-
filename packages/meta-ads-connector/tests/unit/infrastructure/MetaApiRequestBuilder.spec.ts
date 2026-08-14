@@ -13,7 +13,7 @@ describe("MetaApiRequestBuilder", () => {
     const fields = url.searchParams.get("fields") ?? "";
     expect(fields).toContain("id,name,objective,status,created_time");
     expect(fields).toContain(
-      "insights.date_preset(last_30d){spend,impressions,reach,frequency,clicks,actions,messaging_conversation_started}",
+      "insights.date_preset(last_30d){spend,impressions,reach,frequency,clicks,actions}",
     );
   });
 
@@ -43,7 +43,7 @@ describe("MetaApiRequestBuilder", () => {
     const fields = url.searchParams.get("fields") ?? "";
     expect(fields).toContain("id,name,status,created_time");
     expect(fields).toContain(
-      "insights.date_preset(last_14d){spend,impressions,reach,frequency,clicks,actions,messaging_conversation_started}",
+      "insights.date_preset(last_14d){spend,impressions,reach,frequency,clicks,actions}",
     );
   });
 

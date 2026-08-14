@@ -5,14 +5,13 @@ import { Campaign } from "../domain/entities/Campaign.js";
 import type { AdAccountId } from "../domain/value-objects/AdAccountId.js";
 import { AdStatus } from "../domain/value-objects/AdStatus.js";
 import { CampaignId } from "../domain/value-objects/CampaignId.js";
-import { CampaignObjective } from "../domain/value-objects/CampaignObjective.js";
+import { parseCampaignObjective } from "../domain/value-objects/CampaignObjective.js";
 import { Spend } from "../domain/value-objects/Spend.js";
 import { StableId } from "../domain/value-objects/StableId.js";
 import type { MetaCampaign } from "../types/MetaApiTypes.js";
 import { extractBranch } from "../utils/BranchExtractor.js";
 import { classifyFunnel } from "../utils/FunnelClassifier.js";
 
-const KNOWN_OBJECTIVES: ReadonlySet<string> = new Set(Object.values(CampaignObjective));
 const KNOWN_STATUSES: ReadonlySet<string> = new Set(Object.values(AdStatus));
 
 /**
@@ -24,24 +23,19 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set(Object.values(AdStatus));
  * `PullCampaignData`). `adSets` starts empty; `AdSetMapper` results are attached by the caller
  * via `Campaign.withAdSets`.
  *
- * Judgment call: an `objective` value Meta returns that isn't one of AAOS's understood
- * `CampaignObjective` members (e.g. `OUTCOME_LEADS`, `OUTCOME_TRAFFIC`) is treated as a mapping
- * **failure**, not silently coerced to a default. `VerdictEngine`'s FIX rule depends on an exact
- * objective match, so silently mapping an unrecognized objective to, say, `OUTCOME_ENGAGEMENT`
- * could mask a real misconfiguration instead of surfacing it.
+ * `objective` is parsed via `parseCampaignObjective`, never rejected: real bug fix, previously an
+ * `objective` value outside AAOS's `CampaignObjective` enum (e.g. `OUTCOME_APP_PROMOTION`) failed
+ * this mapper, which — since `MetaResponseMapper.mapCampaigns` short-circuits its loop on the
+ * first `err` — aborted the *entire* ad account's campaign sync over one campaign AAOS doesn't
+ * even act on. An unrecognized objective now maps to `CampaignObjective.UNKNOWN` and the campaign
+ * still gets synced; nothing is masked by this since `UNKNOWN !== OUTCOME_LEADS` still correctly
+ * trips `VerdictEngine`'s FIX rule (see that enum's docstring).
  */
 export function mapCampaign(
   raw: MetaCampaign,
   adAccountId: AdAccountId,
   placeholderSequence: number,
 ): Result<Campaign, ValidationError> {
-  if (!KNOWN_OBJECTIVES.has(raw.objective)) {
-    return err(
-      new ValidationError(
-        `Unrecognized Meta campaign objective "${raw.objective}" for campaign ${raw.id}`,
-      ),
-    );
-  }
   if (!KNOWN_STATUSES.has(raw.status)) {
     return err(
       new ValidationError(
@@ -67,7 +61,7 @@ export function mapCampaign(
     metaId: raw.id,
     adAccountId,
     name: raw.name,
-    objective: raw.objective as CampaignObjective,
+    objective: parseCampaignObjective(raw.objective),
     status: raw.status as AdStatus,
     funnel: classifyFunnel(raw.name),
     branch: extractBranch(raw.name),

@@ -38,6 +38,21 @@ export function formatDateId(iso: string): string {
   }).format(new Date(iso));
 }
 
+/** Formats an ISO timestamp as "14 Agu 09:49 WIB" — day/month/time in Asia/Jakarta (WIB, UTC+7), e.g. for "meta-ads/page.tsx"'s "Data diambil: ..." (MAAO2 redesign). */
+export function formatDateTimeIdWib(iso: string): string {
+  const parts = new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Jakarta",
+  }).formatToParts(new Date(iso));
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("day")} ${get("month")} ${get("hour")}:${get("minute")} WIB`;
+}
+
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;

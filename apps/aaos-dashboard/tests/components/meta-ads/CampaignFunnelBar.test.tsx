@@ -9,6 +9,7 @@ describe("CampaignFunnelBar", () => {
       <CampaignFunnelBar
         metrics={{
           spend: 0,
+          clicks: 1500,
           conversations: 790,
           d2: 400,
           d3: 307,
@@ -19,6 +20,7 @@ describe("CampaignFunnelBar", () => {
         }}
       />,
     );
+    expect(screen.getByText("1.500")).toBeInTheDocument();
     expect(screen.getByText("790")).toBeInTheDocument();
     expect(screen.getByText("400")).toBeInTheDocument();
     expect(screen.getByText("307")).toBeInTheDocument();

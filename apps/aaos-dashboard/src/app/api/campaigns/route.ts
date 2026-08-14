@@ -1,17 +1,35 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AaosApiError, callAaosApi } from "@/lib/api";
-import type { AdAccountSummaryDto, CampaignAdDto } from "@/types/dashboard.types";
+import type {
+  AdAccountSummaryDto,
+  AdSetSummaryDto,
+  AdSummaryDto,
+  CampaignAdDto,
+  CampaignSummaryDto,
+} from "@/types/dashboard.types";
 
+/** `aaos-api`'s real `GET /api/v1/campaigns` response shape (`apps/aaos-api/src/modules/meta-ads/dto/campaign-response.dto.ts`) — already carries the full hierarchy with real, spend-sorted `stableId`s (`@aos/meta-ads-connector`'s `StableIdAssigner`) and per-ad `verdict` (the real `VerdictEngine`). Nothing here is recomputed — this route only reshapes field names for the browser. */
 interface AdAccountResponseDto {
   readonly id: string;
   readonly name: string;
   readonly syncedAt: string;
   readonly campaigns: ReadonlyArray<{
+    readonly id: string;
+    readonly stableId: string;
     readonly name: string;
+    readonly objective: string;
+    readonly status: string;
+    readonly spend: number;
     readonly adSets: ReadonlyArray<{
+      readonly id: string;
+      readonly stableId: string;
+      readonly name: string;
+      readonly status: string;
+      readonly spend: number;
       readonly ads: ReadonlyArray<{
         readonly id: string;
+        readonly stableId: string;
         readonly name: string;
         readonly status: string;
         readonly funnel: string;
@@ -25,6 +43,7 @@ interface AdAccountResponseDto {
 
 const ZERO_METRICS: CampaignAdDto["metrics"] = {
   spend: 0,
+  clicks: 0,
   conversations: 0,
   d2: 0,
   d3: 0,
@@ -34,13 +53,66 @@ const ZERO_METRICS: CampaignAdDto["metrics"] = {
   rphD3: null,
 };
 
-function flatten(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
+function toAdSummary(
+  ad: AdAccountResponseDto["campaigns"][number]["adSets"][number]["ads"][number],
+): AdSummaryDto {
+  return {
+    id: ad.id,
+    stableId: ad.stableId,
+    name: ad.name,
+    status: ad.status,
+    funnel: ad.funnel,
+    branch: ad.branch,
+    verdict: ad.verdict,
+    metrics: ad.metrics,
+  };
+}
+
+function toAdSetSummary(
+  adSet: AdAccountResponseDto["campaigns"][number]["adSets"][number],
+): AdSetSummaryDto {
+  return {
+    id: adSet.id,
+    stableId: adSet.stableId,
+    name: adSet.name,
+    status: adSet.status,
+    spend: adSet.spend,
+    ads: adSet.ads.map(toAdSummary),
+  };
+}
+
+function toCampaignSummary(
+  campaign: AdAccountResponseDto["campaigns"][number],
+): CampaignSummaryDto {
+  return {
+    id: campaign.id,
+    stableId: campaign.stableId,
+    name: campaign.name,
+    objective: campaign.objective,
+    status: campaign.status,
+    spend: campaign.spend,
+    adSets: campaign.adSets.map(toAdSetSummary),
+  };
+}
+
+/**
+ * Real bug fix (MAAO2 redesign): this route used to flatten the campaign→ad-set→ad hierarchy into
+ * a single ads[] list, discarding `aaos-api`'s real spend-sorted `#A/#B/#C` stableIds and the
+ * ad-set-level spend rollups the MAAO2-style tree view needs. It now keeps the full `campaigns[]`
+ * hierarchy AND still returns the flattened `ads[]` list, since `CampaignDetailClient`
+ * (`/meta-ads/[campaignId]`) looks a single ad up by id from that flat list and has no use for the
+ * tree shape.
+ */
+function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
+  const campaigns = adAccount.campaigns.map(toCampaignSummary);
+
   const ads: CampaignAdDto[] = [];
   for (const campaign of adAccount.campaigns) {
     for (const adSet of campaign.adSets) {
       for (const ad of adSet.ads) {
         ads.push({
           id: ad.id,
+          stableId: ad.stableId,
           name: ad.name,
           campaignName: campaign.name,
           status: ad.status,
@@ -52,9 +124,11 @@ function flatten(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
       }
     }
   }
+
   const totals = ads.reduce(
     (acc, ad) => ({
       spend: acc.spend + ad.metrics.spend,
+      clicks: acc.clicks + ad.metrics.clicks,
       conversations: acc.conversations + ad.metrics.conversations,
       d2: acc.d2 + ad.metrics.d2,
       d3: acc.d3 + ad.metrics.d3,
@@ -65,18 +139,74 @@ function flatten(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
     }),
     { ...ZERO_METRICS },
   );
-  return { id: adAccount.id, name: adAccount.name, syncedAt: adAccount.syncedAt, ads, totals };
+
+  return {
+    id: adAccount.id,
+    name: adAccount.name,
+    syncedAt: adAccount.syncedAt,
+    campaigns,
+    ads,
+    totals,
+    campaignCount: campaigns.length,
+    adCount: ads.length,
+  };
 }
 
-/** `GET /api/campaigns` — proxies `GET /api/v1/campaigns` on `aaos-api` (spec "API Integration"), flattening the campaign/ad-set/ad hierarchy into a single ad-level list this app's `CampaignTable` renders directly. */
+const CACHE_TTL_MS = 300_000; // 5 minutes
+
+interface CacheEntry {
+  readonly body: AdAccountSummaryDto;
+  readonly cachedAt: number;
+}
+
+/**
+ * Real bug fix: this route was calling `aaos-api` → Meta's Insights API on every single mount of
+ * `MetaAdsClient` with no caching at all, which was tripping Meta's own rate limit under normal
+ * use (page revisits, tab refocus, etc., each firing a fresh Meta API round-trip). A simple
+ * in-memory, per-process, per-query-key cache with a 5-minute TTL absorbs repeat requests for the
+ * same `adAccountId`/`datePreset` combination without a second Meta API call. This is a *second*,
+ * server-side layer on top of `MetaAdsClient`'s own 30-minute `localStorage` cache — this one
+ * protects against multiple browser tabs/sessions each independently deciding their local cache is
+ * stale at roughly the same time.
+ *
+ * Deliberately NOT a shared/distributed cache (Redis, etc.) — this is a single Next.js server
+ * process for one dealership's internal dashboard, not a multi-instance deployment; a `Map` living
+ * in the route module's closure is correct for this scale and needs no extra infrastructure. It is
+ * cleared on every server restart/redeploy, which is fine — a cold cache just means the next
+ * request pays for one real fetch.
+ */
+const cache = new Map<string, CacheEntry>();
+
+function cacheKey(adAccountId: string | undefined, datePreset: string | undefined): string {
+  return `${adAccountId ?? ""}::${datePreset ?? ""}`;
+}
+
+/**
+ * `GET /api/campaigns` — proxies `GET /api/v1/campaigns` on `aaos-api` (spec "API Integration"),
+ * reshaping it into `AdAccountSummaryDto` (hierarchy + flattened list + totals/counts) for this
+ * app's client components. Cached 5 minutes per `adAccountId`/`datePreset` — see `cache` above.
+ * `?refresh=1` bypasses the cache *read* (a fresh result is still written back into it) — used by
+ * `MetaAdsClient`'s manual "Tarik Data" button and its post-Execute re-fetch, both of which need
+ * genuinely fresh data rather than up-to-5-minutes-stale.
+ */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const adAccountId = request.nextUrl.searchParams.get("adAccountId") ?? undefined;
   const datePreset = request.nextUrl.searchParams.get("datePreset") ?? undefined;
+  const forceRefresh = request.nextUrl.searchParams.get("refresh") === "1";
+  const key = cacheKey(adAccountId, datePreset);
+
+  const cached = cache.get(key);
+  if (!forceRefresh && cached !== undefined && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+    return NextResponse.json(cached.body);
+  }
+
   try {
     const data = await callAaosApi<AdAccountResponseDto>("/api/v1/campaigns", {
       searchParams: { adAccountId, datePreset },
     });
-    return NextResponse.json(flatten(data));
+    const summary = toSummary(data);
+    cache.set(key, { body: summary, cachedAt: Date.now() });
+    return NextResponse.json(summary);
   } catch (error) {
     if (error instanceof AaosApiError) {
       return NextResponse.json({ error: { message: error.message } }, { status: error.statusCode });

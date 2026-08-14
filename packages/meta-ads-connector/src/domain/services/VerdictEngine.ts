@@ -32,9 +32,11 @@ const REFRESH_FREQUENCY_THRESHOLD = 3.5;
  *                 AAOS-W1D-S3: any objective other than `OUTCOME_LEADS` triggers FIX — computed
  *                 as `objective !== OUTCOME_LEADS` rather than a hardcoded list of "bad"
  *                 objectives, so it automatically covers every current member
- *                 (`OUTCOME_ENGAGEMENT`, `OUTCOME_SALES`, `LINK_CLICKS`,
- *                 `VISIT_INSTAGRAM_PROFILE`) and any future one without needing this file
- *                 touched again.
+ *                 (`OUTCOME_ENGAGEMENT`, `OUTCOME_SALES`, `OUTCOME_AWARENESS`,
+ *                 `OUTCOME_TRAFFIC`, `OUTCOME_APP_PROMOTION`, `LINK_CLICKS`,
+ *                 `VISIT_INSTAGRAM_PROFILE`) — including `UNKNOWN` (any Meta objective string
+ *                 `CampaignObjective.ts`'s `parseCampaignObjective` doesn't recognize) — and any
+ *                 future one without needing this file touched again.
  *   2. PAUSE    — protects ad spend from being wasted. Takes priority over SCALE/REFRESH/KEEP
  *                 because an ad burning budget with zero conversations, or at a cost above the
  *                 REVIEW ceiling, must stop before any other optimization is considered. (Note:

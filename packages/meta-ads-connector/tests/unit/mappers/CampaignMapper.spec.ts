@@ -25,13 +25,18 @@ describe("mapCampaign", () => {
     expect(campaign.adSets).toEqual([]);
   });
 
-  it("rejects an unrecognized objective", () => {
-    // AAOS-W1D-S3: OUTCOME_LEADS is now a real, recognized CampaignObjective member — use a
-    // genuinely bogus value to keep testing the "unrecognized objective" rejection path.
-    expect(
-      unwrapErr(mapCampaign(makeCampaign({ objective: "BOGUS_OBJECTIVE" }), adAccountId, 1))
-        .message,
-    ).toMatch(/objective/);
+  it("maps an unrecognized objective to UNKNOWN rather than rejecting the campaign (real bug fix: this used to abort the entire ad account's sync — see CampaignObjective.ts's docstring)", () => {
+    const campaign = unwrap(
+      mapCampaign(makeCampaign({ objective: "OUTCOME_LOCAL_AWARENESS" }), adAccountId, 1),
+    );
+    expect(campaign.objective).toBe(CampaignObjective.UNKNOWN);
+  });
+
+  it("maps a genuinely bogus objective string to UNKNOWN too, not just known-but-unmapped ODAX objectives", () => {
+    const campaign = unwrap(
+      mapCampaign(makeCampaign({ objective: "BOGUS_OBJECTIVE" }), adAccountId, 1),
+    );
+    expect(campaign.objective).toBe(CampaignObjective.UNKNOWN);
   });
 
   it("rejects an unrecognized status", () => {

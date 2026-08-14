@@ -8,7 +8,7 @@ import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { TamaraDigest } from "@/components/dashboard/TamaraDigest";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import type { AdAccountSummaryDto, LeadDto, ObjectiveDto } from "@/types/dashboard.types";
+import type { LeadDto, ObjectiveDto } from "@/types/dashboard.types";
 
 /** Derives an `OnTrackStatus` from a simple progress ratio — a placeholder until `GetObjectiveStatus`/`ForecastObjective` are wired to a real `aaos-api` endpoint (see `README.md`'s "Known limitations"). */
 function deriveOnTrackStatus(fraction: number): OnTrackStatus {
@@ -21,32 +21,41 @@ function deriveOnTrackStatus(fraction: number): OnTrackStatus {
   return "OFF_TRACK";
 }
 
-/** Fetches everything `/dashboard` needs from this app's own `/api/*` proxy routes and renders the overview (spec "dashboard/page.tsx"). */
+/**
+ * Fetches this app's own `/api/leads` and `/api/objective` proxy routes and renders the overview
+ * (spec "dashboard/page.tsx").
+ *
+ * Real bug fix: this used to also call `/api/campaigns` (which proxies to Meta's Insights API via
+ * `aaos-api`) on every single mount — the dashboard overview is the page every manager lands on
+ * first, so that single unconditional Meta call fired on every visit, every tab reopen, every
+ * navigation back to `/dashboard`, which was enough on its own to trip Meta's rate limit. The
+ * overview now only reads Supabase-backed data — `leads` (`@aos/lead-store`, via `/api/leads`)
+ * and `objective` (`@aos/objective-engine`, via `/api/objective` — config the manager sets, not a
+ * Meta API call) — never Meta Ads data. Belanja/D3 Lead are consequently no longer shown here;
+ * see `SummaryCards.tsx`'s docstring. Meta Ads figures live on `/meta-ads`, which only fetches on
+ * an explicit "Tarik Data" click (see `MetaAdsClient.tsx`).
+ */
 export function DashboardClient(): React.ReactElement {
   const [leads, setLeads] = useState<readonly LeadDto[] | undefined>(undefined);
   const [objective, setObjective] = useState<ObjectiveDto | null | undefined>(undefined);
-  const [campaigns, setCampaigns] = useState<AdAccountSummaryDto | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
     async function load(): Promise<void> {
       try {
-        const [leadsRes, objectiveRes, campaignsRes] = await Promise.all([
+        const [leadsRes, objectiveRes] = await Promise.all([
           fetch("/api/leads"),
           fetch("/api/objective"),
-          fetch("/api/campaigns"),
         ]);
-        if (!leadsRes.ok || !objectiveRes.ok || !campaignsRes.ok) {
+        if (!leadsRes.ok || !objectiveRes.ok) {
           throw new Error("Gagal memuat data dashboard.");
         }
         const leadsBody = (await leadsRes.json()) as { leads: readonly LeadDto[] };
         const objectiveBody = (await objectiveRes.json()) as { objective: ObjectiveDto | null };
-        const campaignsBody = (await campaignsRes.json()) as AdAccountSummaryDto;
         if (!cancelled) {
           setLeads(leadsBody.leads);
           setObjective(objectiveBody.objective);
-          setCampaigns(campaignsBody);
         }
       } catch (caught) {
         if (!cancelled) {
@@ -63,7 +72,7 @@ export function DashboardClient(): React.ReactElement {
   if (error !== undefined) {
     return <ErrorCard message={error} />;
   }
-  if (leads === undefined || objective === undefined || campaigns === undefined) {
+  if (leads === undefined || objective === undefined) {
     return <LoadingSpinner />;
   }
 
@@ -77,10 +86,6 @@ export function DashboardClient(): React.ReactElement {
       <h2 className="text-base font-semibold text-ink">🎯 Overview Bulan Ini</h2>
       <SummaryCards
         data={{
-          spend: campaigns.totals.spend,
-          spendChangePercent: 0,
-          d3Leads: campaigns.totals.d3,
-          d3ChangePercent: 0,
           hotLeads: hotLeadCount,
           hotLeadsChangePercent: 0,
           closings: closingCount,

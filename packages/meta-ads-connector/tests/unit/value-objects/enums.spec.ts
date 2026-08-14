@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { AdDestinationType } from "../../../src/domain/value-objects/AdDestinationType.js";
 import { AdStatus } from "../../../src/domain/value-objects/AdStatus.js";
 import { Branch } from "../../../src/domain/value-objects/Branch.js";
-import { CampaignObjective } from "../../../src/domain/value-objects/CampaignObjective.js";
+import {
+  CampaignObjective,
+  parseCampaignObjective,
+} from "../../../src/domain/value-objects/CampaignObjective.js";
 import { Funnel } from "../../../src/domain/value-objects/Funnel.js";
 import { LeadType } from "../../../src/domain/value-objects/LeadType.js";
 import { PublisherPlatform } from "../../../src/domain/value-objects/PublisherPlatform.js";
@@ -18,16 +21,47 @@ describe("AdStatus", () => {
 });
 
 describe("CampaignObjective", () => {
-  it("has exactly the 5 documented members (AAOS-W1D-S3 added OUTCOME_LEADS)", () => {
+  it("has exactly the 9 documented members (real bug fix: added the full ODAX objective set + UNKNOWN, see docstring)", () => {
     expect(Object.values(CampaignObjective).sort()).toEqual(
       [
         "LINK_CLICKS",
+        "OUTCOME_APP_PROMOTION",
+        "OUTCOME_AWARENESS",
         "OUTCOME_ENGAGEMENT",
         "OUTCOME_LEADS",
         "OUTCOME_SALES",
+        "OUTCOME_TRAFFIC",
+        "UNKNOWN",
         "VISIT_INSTAGRAM_PROFILE",
       ].sort(),
     );
+  });
+});
+
+describe("parseCampaignObjective", () => {
+  it.each([
+    "OUTCOME_LEADS",
+    "OUTCOME_ENGAGEMENT",
+    "OUTCOME_SALES",
+    "OUTCOME_AWARENESS",
+    "OUTCOME_TRAFFIC",
+    "OUTCOME_APP_PROMOTION",
+    "LINK_CLICKS",
+    "VISIT_INSTAGRAM_PROFILE",
+  ])("parses the known objective %s as itself", (value) => {
+    expect(parseCampaignObjective(value)).toBe(value);
+  });
+
+  it("maps a Meta objective Meta returns but AAOS doesn't have a member for to UNKNOWN, never throwing (real bug: this used to abort the whole campaign-list mapping)", () => {
+    expect(parseCampaignObjective("OUTCOME_LOCAL_AWARENESS")).toBe(CampaignObjective.UNKNOWN);
+  });
+
+  it("maps a genuinely bogus string to UNKNOWN", () => {
+    expect(parseCampaignObjective("NOT_A_REAL_OBJECTIVE")).toBe(CampaignObjective.UNKNOWN);
+  });
+
+  it('maps the literal string "UNKNOWN" to UNKNOWN (not treated as a spoofable known value)', () => {
+    expect(parseCampaignObjective("UNKNOWN")).toBe(CampaignObjective.UNKNOWN);
   });
 });
 

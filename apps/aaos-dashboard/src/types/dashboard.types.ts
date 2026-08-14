@@ -7,6 +7,7 @@
 
 export interface AdMetricsDto {
   readonly spend: number;
+  readonly clicks: number;
   readonly conversations: number;
   readonly d2: number;
   readonly d3: number;
@@ -18,6 +19,7 @@ export interface AdMetricsDto {
 
 export interface CampaignAdDto {
   readonly id: string;
+  readonly stableId: string;
   readonly name: string;
   readonly campaignName: string;
   readonly status: string;
@@ -27,12 +29,50 @@ export interface CampaignAdDto {
   readonly metrics: AdMetricsDto;
 }
 
+/** One ad within `AdSetSummaryDto.ads` — the `#C` level of the campaign→ad-set→ad hierarchy (spec "meta-ads/page.tsx" MAAO2 redesign). Distinct from `CampaignAdDto` only in that it omits `campaignName` (redundant once nested under its own campaign). */
+export interface AdSummaryDto {
+  readonly id: string;
+  readonly stableId: string;
+  readonly name: string;
+  readonly status: string;
+  readonly funnel: string;
+  readonly branch: string;
+  readonly verdict: string;
+  readonly metrics: AdMetricsDto;
+}
+
+/** The `#B` level. `stableId`/`spend` come straight from `aaos-api`'s real, already spend-sorted assignment (`@aos/meta-ads-connector`'s `StableIdAssigner`) — never recomputed client-side. */
+export interface AdSetSummaryDto {
+  readonly id: string;
+  readonly stableId: string;
+  readonly name: string;
+  readonly status: string;
+  readonly spend: number;
+  readonly ads: readonly AdSummaryDto[];
+}
+
+/** The `#A` level. Same authoritative-`stableId`-from-backend contract as `AdSetSummaryDto`. */
+export interface CampaignSummaryDto {
+  readonly id: string;
+  readonly stableId: string;
+  readonly name: string;
+  readonly objective: string;
+  readonly status: string;
+  readonly spend: number;
+  readonly adSets: readonly AdSetSummaryDto[];
+}
+
 export interface AdAccountSummaryDto {
   readonly id: string;
   readonly name: string;
   readonly syncedAt: string;
+  /** Full campaign→ad-set→ad hierarchy — powers the MAAO2-style tree (`CampaignTree`). */
+  readonly campaigns: readonly CampaignSummaryDto[];
+  /** The same ads, flattened — kept for `CampaignDetailClient` (`/meta-ads/[campaignId]`), which looks up one ad by id and has no use for the tree structure. */
   readonly ads: readonly CampaignAdDto[];
   readonly totals: AdMetricsDto;
+  readonly campaignCount: number;
+  readonly adCount: number;
 }
 
 export interface ObjectiveDto {

@@ -1,13 +1,20 @@
 import { formatIdrCompact, formatNumber } from "@/lib/formatters";
 import type { AdMetricsDto } from "@/types/dashboard.types";
 
-/** Belanja · Chat · D2 · D3 · D5 · Form · Total Lead summary bar (spec "components/meta-ads/MetricsSummaryBar.tsx"). */
+export interface MetricsSummaryBarProps {
+  readonly totals: AdMetricsDto;
+  /** Number of campaigns/ads in the current pull (spec "meta-ads/page.tsx" MAAO2 redesign summary bar: "KAMPANYE · IKLAN" columns). Optional so existing callers passing just `totals` keep compiling. */
+  readonly campaignCount?: number;
+  readonly adCount?: number;
+}
+
+/** Belanja · Chat · D2 · D3 · D5 · Form · Total Lead (· Kampanye · Iklan, when counts are given) summary bar (spec "components/meta-ads/MetricsSummaryBar.tsx"). */
 export function MetricsSummaryBar({
   totals,
-}: {
-  readonly totals: AdMetricsDto;
-}): React.ReactElement {
-  const items: ReadonlyArray<readonly [string, string]> = [
+  campaignCount,
+  adCount,
+}: MetricsSummaryBarProps): React.ReactElement {
+  const items: Array<readonly [string, string]> = [
     ["Belanja", formatIdrCompact(totals.spend)],
     ["Chat", formatNumber(totals.conversations)],
     ["D2", formatNumber(totals.d2)],
@@ -16,6 +23,12 @@ export function MetricsSummaryBar({
     ["Form", formatNumber(totals.leadForm)],
     ["Total Lead", formatNumber(totals.totalLead)],
   ];
+  if (campaignCount !== undefined) {
+    items.push(["Kampanye", formatNumber(campaignCount)]);
+  }
+  if (adCount !== undefined) {
+    items.push(["Iklan", formatNumber(adCount)]);
+  }
   return (
     <div
       data-testid="metrics-summary-bar"

@@ -34,41 +34,45 @@ const OBJECTIVE_BODY = {
     createdAt: "2026-08-01T00:00:00.000Z",
   },
 };
-const CAMPAIGNS_BODY = {
-  id: "act_1",
-  name: "Mobix Main",
-  syncedAt: "2026-08-11T00:00:00.000Z",
-  ads: [],
-  totals: {
-    spend: 26_400_000,
-    conversations: 0,
-    d2: 0,
-    d3: 1286,
-    d5: 0,
-    leadForm: 0,
-    totalLead: 0,
-    rphD3: null,
-  },
-};
 
-describe("DashboardClient", () => {
+describe("DashboardClient (real bug fix: no longer fetches /api/campaigns — Meta Ads data, see DashboardClient.tsx's docstring)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders KPI cards + objective progress + hot leads once all 3 fetches succeed", async () => {
-    global.fetch = vi.fn(async (input: string | URL) => {
+  it("renders KPI cards (Hot Lead + Closing only, no Belanja/D3 Lead) + objective progress + hot leads once leads/objective fetches succeed", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
       const url = input.toString();
       if (url.includes("/api/leads")) return jsonResponse(LEADS_BODY);
       if (url.includes("/api/objective")) return jsonResponse(OBJECTIVE_BODY);
-      return jsonResponse(CAMPAIGNS_BODY);
-    }) as unknown as typeof fetch;
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     render(<DashboardClient />);
 
     await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
-    expect(screen.getByText("Rp 26.4jt")).toBeInTheDocument();
     expect(screen.getByTestId("objective-progress")).toBeInTheDocument();
+    expect(screen.queryByText(/Belanja/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/D3 Lead/)).not.toBeInTheDocument();
+  });
+
+  it("never calls /api/campaigns (Meta Ads data) — the dashboard overview only reads Supabase-backed leads/objective data", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (url.includes("/api/leads")) return jsonResponse(LEADS_BODY);
+      if (url.includes("/api/objective")) return jsonResponse(OBJECTIVE_BODY);
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<DashboardClient />);
+    await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
+
+    const calledCampaigns = fetchMock.mock.calls.some(([url]) =>
+      String(url).includes("/api/campaigns"),
+    );
+    expect(calledCampaigns).toBe(false);
   });
 
   it("shows an error card when a fetch fails", async () => {
@@ -82,7 +86,7 @@ describe("DashboardClient", () => {
       const url = input.toString();
       if (url.includes("/api/leads")) return jsonResponse({ leads: [] });
       if (url.includes("/api/objective")) return jsonResponse({ objective: null });
-      return jsonResponse(CAMPAIGNS_BODY);
+      throw new Error(`unexpected fetch: ${url}`);
     }) as unknown as typeof fetch;
 
     render(<DashboardClient />);

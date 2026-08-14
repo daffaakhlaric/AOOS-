@@ -17,19 +17,31 @@ const AD_ACCOUNT_RESPONSE = {
   syncedAt: "2026-08-11T00:00:00.000Z",
   campaigns: [
     {
+      id: "campaign-1",
+      stableId: "#A001",
       name: "Meta-DM-Leads-Mobix",
+      objective: "OUTCOME_LEADS",
+      status: "ACTIVE",
+      spend: 6_000_000,
       adSets: [
         {
+          id: "adset-1",
+          stableId: "#B001",
+          name: "AdSet 1",
+          status: "ACTIVE",
+          spend: 6_000_000,
           ads: [
             {
               id: "ad-1",
-              name: "#A001",
+              stableId: "#C001",
+              name: "Ad 1",
               status: "ACTIVE",
               funnel: "DM",
               branch: "BINTARO",
               verdict: "REVIEW",
               metrics: {
                 spend: 6_000_000,
+                clicks: 1200,
                 conversations: 790,
                 d2: 400,
                 d3: 307,
@@ -56,16 +68,31 @@ describe("GET /api/campaigns", () => {
     vi.restoreAllMocks();
   });
 
-  it("proxies to aaos-api and flattens campaigns/adSets/ads into a single ad list", async () => {
+  it("proxies to aaos-api, returning both the flattened ad list AND the real hierarchy with its stableIds (real bug fix: this used to discard the hierarchy/stableIds entirely — see route.ts's docstring)", async () => {
     global.fetch = vi.fn(
       async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
     ) as unknown as typeof fetch;
 
     const response = await GET(requestWith({ datePreset: "last_30d" }));
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { ads: unknown[]; totals: { spend: number } };
+    const body = (await response.json()) as {
+      ads: unknown[];
+      totals: { spend: number };
+      campaigns: ReadonlyArray<{
+        stableId: string;
+        adSets: ReadonlyArray<{ stableId: string; ads: ReadonlyArray<{ stableId: string }> }>;
+      }>;
+      campaignCount: number;
+      adCount: number;
+    };
     expect(body.ads).toHaveLength(1);
     expect(body.totals.spend).toBe(6_000_000);
+    expect(body.campaigns).toHaveLength(1);
+    expect(body.campaigns[0]?.stableId).toBe("#A001");
+    expect(body.campaigns[0]?.adSets[0]?.stableId).toBe("#B001");
+    expect(body.campaigns[0]?.adSets[0]?.ads[0]?.stableId).toBe("#C001");
+    expect(body.campaignCount).toBe(1);
+    expect(body.adCount).toBe(1);
   });
 
   it("passes adAccountId/datePreset through as query params to aaos-api", async () => {
@@ -97,5 +124,64 @@ describe("GET /api/campaigns", () => {
 
     const response = await GET(requestWith());
     expect(response.status).toBe(500);
+  });
+
+  describe("caching (real bug fix: unbounded aaos-api calls were tripping Meta's rate limit)", () => {
+    it("caches a successful response for 5 minutes — a second call with the same adAccountId/datePreset does not call aaos-api again", async () => {
+      const fetchMock = vi.fn(
+        async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
+      );
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const params = { adAccountId: "act_cache_1", datePreset: "last_30d" };
+      await GET(requestWith(params));
+      await GET(requestWith(params));
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-fetches once the 5-minute TTL has elapsed", async () => {
+      vi.useFakeTimers();
+      try {
+        const fetchMock = vi.fn(
+          async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
+        );
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        const params = { adAccountId: "act_cache_2", datePreset: "last_30d" };
+        await GET(requestWith(params));
+        vi.advanceTimersByTime(300_001);
+        await GET(requestWith(params));
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("bypasses the cache when refresh=1 is passed, even within the 5-minute window (manual 'Tarik Data' / post-Execute re-fetch)", async () => {
+      const fetchMock = vi.fn(
+        async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
+      );
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const params = { adAccountId: "act_cache_3", datePreset: "last_30d" };
+      await GET(requestWith(params));
+      await GET(requestWith({ ...params, refresh: "1" }));
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("caches distinct adAccountId/datePreset combinations independently", async () => {
+      const fetchMock = vi.fn(
+        async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
+      );
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      await GET(requestWith({ adAccountId: "act_cache_4a", datePreset: "last_30d" }));
+      await GET(requestWith({ adAccountId: "act_cache_4b", datePreset: "last_30d" }));
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
   });
 });

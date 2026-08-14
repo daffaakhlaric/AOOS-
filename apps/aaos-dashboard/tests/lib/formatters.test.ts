@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatDateId,
+  formatDateTimeIdWib,
   formatIdr,
   formatIdrCompact,
   formatNumber,
@@ -48,6 +49,13 @@ describe("formatPercent", () => {
 describe("formatDateId", () => {
   it("formats an ISO date as an Indonesian short date", () => {
     expect(formatDateId("2026-08-09T00:00:00.000Z")).toMatch(/09 Agu 2026/);
+  });
+});
+
+describe("formatDateTimeIdWib", () => {
+  it("formats an ISO timestamp as day/month/time WIB (UTC+7)", () => {
+    // 2026-08-14T02:49:22.218Z is 09:49 WIB (UTC+7).
+    expect(formatDateTimeIdWib("2026-08-14T02:49:22.218Z")).toMatch(/14 Agu 09:49 WIB/);
   });
 });
 
