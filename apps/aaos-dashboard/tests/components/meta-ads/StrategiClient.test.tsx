@@ -142,7 +142,7 @@ describe("StrategiClient", () => {
     await userEvent.click(approveButtons[0]!);
     await userEvent.click(approveButtons[1]!);
 
-    await userEvent.click(screen.getByRole("button", { name: /Execute Semua yang Disetujui/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Execute Semua/ }));
 
     await waitFor(() => {
       const verdictCalls = fetchMock.mock.calls.filter(([url]) =>
@@ -177,7 +177,7 @@ describe("StrategiClient", () => {
     await userEvent.click(approveButtons[0]!);
     await userEvent.click(approveButtons[1]!);
 
-    await userEvent.click(screen.getByRole("button", { name: /Execute Semua yang Disetujui/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Execute Semua/ }));
 
     await waitFor(() => expect(screen.getByTestId("execute-summary")).toBeInTheDocument());
     expect(screen.getByTestId("execute-summary").textContent).toContain("1/2 berhasil");

@@ -2,6 +2,7 @@
 
 import { VerdictBadge } from "@/components/meta-ads/VerdictBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { stripAdNameSuffix } from "@/lib/adName";
 import { formatIdr, formatNumber } from "@/lib/formatters";
 import type { CampaignAdDto } from "@/types/dashboard.types";
 
@@ -26,11 +27,11 @@ export function CampaignTable({ ads, onExecute }: CampaignTableProps): React.Rea
       {ads.map((ad) => (
         <li
           key={ad.id}
-          className="rounded-card border border-hairline bg-surface-card p-4 shadow-card"
+          className="card-hover-lift rounded-card border border-hairline-card bg-surface-card p-4 shadow-card"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="font-semibold text-ink">{ad.name}</p>
+              <p className="font-semibold text-ink">{stripAdNameSuffix(ad.name)}</p>
               <p className="text-sm text-ink-muted">
                 {formatIdr(ad.metrics.spend)} · {formatNumber(ad.metrics.conversations)} chat ·{" "}
                 {formatNumber(ad.metrics.d3)} D3

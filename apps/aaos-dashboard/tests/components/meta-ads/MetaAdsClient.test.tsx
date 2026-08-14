@@ -177,7 +177,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("shows the 'Riwayat tarikan' history dropdown after a second successful pull, and switching to a history entry displays its data", async () => {
+  it("shows the snapshot selector (closed-state label = current snapshot's timestamp, per spec) after a second successful pull, and switching to a history entry displays its data", async () => {
     const secondBody: AdAccountSummaryDto = {
       ...CAMPAIGNS_BODY,
       campaigns: [{ ...CAMPAIGNS_BODY.campaigns[0]!, name: "Second Pull Campaign" }],
@@ -194,7 +194,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
     await waitFor(() => expect(screen.getByText(/#A001 Second Pull Campaign/)).toBeInTheDocument());
 
-    const historyToggle = screen.getByText(/Riwayat tarikan/);
+    const historyToggle = screen.getByTestId("snapshot-selector");
     await userEvent.click(historyToggle);
     const historyEntries = screen
       .getAllByRole("button")

@@ -6,6 +6,7 @@ import { VerdictBadge } from "@/components/meta-ads/VerdictBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { stripAdNameSuffix } from "@/lib/adName";
 import { formatIdr, formatNumber } from "@/lib/formatters";
 import { useCampaignsSnapshot } from "@/lib/useCampaignsSnapshot";
 import type {
@@ -16,21 +17,27 @@ import type {
 
 const RP_PER_CHAT_THRESHOLD = 25_000;
 
-/** Spec Section 2's exact Rp/Lead → verdict thresholds, applied to per-BRANCH aggregate cost-per-lead — distinct from (and does not override) `ad.verdict`, the real per-AD `VerdictEngine` output Section 3 renders untouched. */
-function branchVerdict(rpLead: number | null): { label: string; tone: string } {
+/**
+ * Spec Section 2's exact Rp/Lead → verdict thresholds, applied to per-BRANCH aggregate cost-per-
+ * lead — distinct from (and does not override) `ad.verdict`, the real per-AD `VerdictEngine`
+ * output Section 3 renders untouched. Returns just the label — rendering now goes through
+ * `VerdictBadge`'s shared local color-map (extended with `CUT` in the UI-overhaul pass) instead of
+ * a second, duplicate inline tone map.
+ */
+function branchVerdict(rpLead: number | null): string {
   if (rpLead === null) {
-    return { label: "REVIEW", tone: "border-orange-300 bg-orange-50 text-orange-700" };
+    return "REVIEW";
   }
   if (rpLead < 10_000) {
-    return { label: "SCALE", tone: "border-green-300 bg-green-50 text-green-700" };
+    return "SCALE";
   }
   if (rpLead < 20_000) {
-    return { label: "KEEP", tone: "border-blue-300 bg-blue-50 text-blue-700" };
+    return "KEEP";
   }
   if (rpLead < 40_000) {
-    return { label: "REVIEW", tone: "border-orange-300 bg-orange-50 text-orange-700" };
+    return "REVIEW";
   }
-  return { label: "CUT", tone: "border-red-300 bg-red-50 text-red-700" };
+  return "CUT";
 }
 
 interface BranchStat {
@@ -77,6 +84,27 @@ function reasonFor(ad: CampaignAdDto): string {
 interface Temuan {
   readonly key: string;
   readonly text: string;
+}
+
+/**
+ * Left accent-bar color + icon per `Temuan.key` (spec "Analisa & Rekomendasi ... Temuan Utama
+ * section: styled insight cards, left colored bar (red/green/orange based on sentiment)"). Maps
+ * each of `buildTemuan`'s 3 real finding kinds to a sentiment — "boros"/"waste" (money being
+ * wasted) is red, "juara"/"cabang" (a positive standout) is green, everything else is neutral
+ * orange/blue. No numeric "metric callout" is fabricated beyond what `buildTemuan` already
+ * computed into the finding's own text — this app has no separate structured title/detail/metric
+ * fields to pull one from without inventing data.
+ */
+function temuanStyle(key: string): { readonly bar: string; readonly icon: string } {
+  switch (key) {
+    case "boros":
+    case "waste":
+      return { bar: "border-l-[#DC2626]", icon: "🔴" };
+    case "juara":
+      return { bar: "border-l-[#1A9E5C]", icon: "🟢" };
+    default:
+      return { bar: "border-l-[#0A84FF]", icon: "🔵" };
+  }
 }
 
 /** Builds Section 1's rule-based bullet points from real branch/campaign aggregates only — no fabricated per-platform (Facebook/Instagram) breakdown, since no real field on `AdMetricsDto`/`CampaignAdDto` distinguishes ad platform. */
@@ -195,56 +223,88 @@ export function AnalisaClient(): React.ReactElement {
   const temuan = buildTemuan(data, branches);
   const allAds = data.ads;
 
+  const maxBranchSpend = Math.max(1, ...branches.map((branch) => branch.spend));
+
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex animate-fade-in flex-col gap-6 p-8 sm:p-10">
       <Header onPull={() => void pull()} loading={loading} />
       {error !== undefined ? <ErrorCard message={error} /> : null}
 
       <section data-testid="analisa-temuan" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">Temuan Utama</h3>
+        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-ink-muted">
+          Temuan Utama
+        </h3>
         {temuan.length === 0 ? (
           <p className="text-sm text-ink-muted">Belum cukup data untuk temuan.</p>
         ) : (
-          <ul className="flex flex-col gap-1">
-            {temuan.map((item) => (
-              <li key={item.key} className="text-sm text-ink">
-                • {item.text}
-              </li>
-            ))}
+          <ul className="flex flex-col gap-2">
+            {temuan.map((item) => {
+              const style = temuanStyle(item.key);
+              return (
+                <li
+                  key={item.key}
+                  className={`card-hover-lift flex items-start gap-3 rounded-card border border-l-4 border-hairline-card bg-surface-card p-4 shadow-card ${style.bar}`}
+                >
+                  <span aria-hidden="true" className="text-base leading-none">
+                    {style.icon}
+                  </span>
+                  <p className="text-sm text-ink">{item.text}</p>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
-      <section data-testid="analisa-branch-verdict" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">Per Cabang</h3>
+      <section data-testid="analisa-branch-verdict" className="flex flex-col gap-3">
+        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-ink-muted">
+          Per Cabang
+        </h3>
+        <div className="flex flex-col gap-2 rounded-card border border-hairline-card bg-surface-card p-4 shadow-card">
+          {branches.map((branch) => {
+            const verdict = branchVerdict(branch.rpLead);
+            const widthPercent = Math.max(4, (branch.spend / maxBranchSpend) * 100);
+            return (
+              <div key={branch.branch} className="flex items-center gap-3 text-sm">
+                <span className="w-24 shrink-0 truncate font-medium text-ink">{branch.branch}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-hairline-subtle">
+                  <div
+                    className="h-full rounded-full bg-brand-primary"
+                    style={{ width: `${widthPercent}%` }}
+                  />
+                </div>
+                <span className="w-28 shrink-0 text-right tabular-nums text-ink-muted">
+                  {branch.rpLead !== null ? `${formatIdr(branch.rpLead)}/lead` : "—"}
+                </span>
+                <VerdictBadge verdict={verdict} />
+              </div>
+            );
+          })}
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="text-xs text-ink-muted">
-                <th className="py-1 pr-3">Nama</th>
-                <th className="py-1 pr-3">Spend</th>
-                <th className="py-1 pr-3">Lead</th>
-                <th className="py-1 pr-3">Rp/Lead</th>
-                <th className="py-1 pr-3">Vonis</th>
+              <tr className="text-[11px] uppercase text-ink-muted">
+                <th className="py-2.5 pr-3">Nama</th>
+                <th className="py-2.5 pr-3">Spend</th>
+                <th className="py-2.5 pr-3">Lead</th>
+                <th className="py-2.5 pr-3">Rp/Lead</th>
+                <th className="py-2.5 pr-3">Vonis</th>
               </tr>
             </thead>
             <tbody>
               {branches.map((branch) => {
                 const verdict = branchVerdict(branch.rpLead);
                 return (
-                  <tr key={branch.branch} className="border-t border-hairline">
-                    <td className="py-1 pr-3">{branch.branch}</td>
-                    <td className="py-1 pr-3">{formatIdr(branch.spend)}</td>
-                    <td className="py-1 pr-3">{formatNumber(branch.leads)}</td>
-                    <td className="py-1 pr-3">
+                  <tr key={branch.branch} className="h-11 border-t border-hairline-table">
+                    <td className="py-1 pr-3 font-medium text-ink">{branch.branch}</td>
+                    <td className="py-1 pr-3 tabular-nums">{formatIdr(branch.spend)}</td>
+                    <td className="py-1 pr-3 tabular-nums">{formatNumber(branch.leads)}</td>
+                    <td className="py-1 pr-3 tabular-nums">
                       {branch.rpLead !== null ? formatIdr(branch.rpLead) : "—"}
                     </td>
                     <td className="py-1 pr-3">
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${verdict.tone}`}
-                      >
-                        {verdict.label}
-                      </span>
+                      <VerdictBadge verdict={verdict} />
                     </td>
                   </tr>
                 );
@@ -255,34 +315,43 @@ export function AnalisaClient(): React.ReactElement {
       </section>
 
       <section data-testid="analisa-ad-verdict" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">Per Iklan</h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-ink-muted">
+          Per Iklan
+        </h3>
+        <div className="overflow-x-auto rounded-card border border-hairline-card bg-surface-card shadow-card">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="text-xs text-ink-muted">
-                <th className="py-1 pr-3">#</th>
-                <th className="py-1 pr-3">Iklan</th>
-                <th className="py-1 pr-3">Spend</th>
-                <th className="py-1 pr-3">Chat</th>
-                <th className="py-1 pr-3">Rp/Chat</th>
-                <th className="py-1 pr-3">Verdict</th>
-                <th className="py-1 pr-3">Alasan</th>
+              <tr className="text-[11px] uppercase text-ink-muted">
+                <th className="px-4 py-2.5">#</th>
+                <th className="px-1 py-2.5">Iklan</th>
+                <th className="px-1 py-2.5">Spend</th>
+                <th className="px-1 py-2.5">Chat</th>
+                <th className="px-1 py-2.5">Rp/Chat</th>
+                <th className="px-1 py-2.5">Verdict</th>
+                <th className="px-1 py-2.5">Alasan</th>
               </tr>
             </thead>
             <tbody>
               {allAds.map((ad) => {
                 const rpChat = rpPerChat(ad.metrics.spend, ad.metrics.conversations);
                 return (
-                  <tr key={ad.id} className="border-t border-hairline">
-                    <td className="py-1 pr-3">{ad.stableId}</td>
-                    <td className="py-1 pr-3">{ad.name}</td>
-                    <td className="py-1 pr-3">{formatIdr(ad.metrics.spend)}</td>
-                    <td className="py-1 pr-3">{formatNumber(ad.metrics.conversations)}</td>
-                    <td className="py-1 pr-3">{rpChat !== null ? formatIdr(rpChat) : "—"}</td>
-                    <td className="py-1 pr-3">
+                  <tr
+                    key={ad.id}
+                    className="h-11 border-t border-hairline-table hover:bg-surface-page"
+                  >
+                    <td className="px-4 py-1 font-mono text-[11px]">{ad.stableId}</td>
+                    <td className="px-1 py-1 font-medium text-ink">{stripAdNameSuffix(ad.name)}</td>
+                    <td className="px-1 py-1 tabular-nums">{formatIdr(ad.metrics.spend)}</td>
+                    <td className="px-1 py-1 tabular-nums">
+                      {formatNumber(ad.metrics.conversations)}
+                    </td>
+                    <td className="px-1 py-1 tabular-nums">
+                      {rpChat !== null ? formatIdr(rpChat) : "—"}
+                    </td>
+                    <td className="px-1 py-1">
                       <VerdictBadge verdict={ad.verdict} />
                     </td>
-                    <td className="py-1 pr-3">{reasonFor(ad)}</td>
+                    <td className="px-1 py-1 text-ink-muted">{reasonFor(ad)}</td>
                   </tr>
                 );
               })}
@@ -296,7 +365,7 @@ export function AnalisaClient(): React.ReactElement {
           type="button"
           onClick={() => void runAiAnalysis()}
           disabled={ai.status === "loading"}
-          className="w-fit rounded-button border border-hairline px-3 py-2 text-sm font-semibold text-ink disabled:opacity-50"
+          className="btn-press w-fit rounded-button border border-hairline-card px-3 py-2 text-sm font-medium text-ink hover:bg-surface-page disabled:opacity-50"
         >
           🤖 Analisa dengan AI
         </button>
@@ -314,7 +383,7 @@ export function AnalisaClient(): React.ReactElement {
         {ai.status === "success" ? (
           <div
             data-testid="ai-result"
-            className="flex flex-col gap-3 rounded-card border border-hairline bg-surface-card p-4"
+            className="flex flex-col gap-3 rounded-card border border-hairline-card bg-surface-card p-4 shadow-card"
           >
             <div>
               <p className="text-xs font-semibold text-ink-muted">Temuan Utama</p>
@@ -357,8 +426,10 @@ function Header({
   return (
     <div className="flex items-center justify-between">
       <div>
-        <h2 className="text-base font-semibold text-ink">🎯 Analisa & Rekomendasi</h2>
-        <p className="text-xs text-ink-muted">
+        <h2 className="text-[26px] font-semibold -tracking-[0.5px] text-ink">
+          Analisa & Rekomendasi
+        </h2>
+        <p className="mt-0.5 text-[13px] text-ink-muted">
           Verdict per iklan (SCALE/KEEP/REVIEW/PAUSE/FIX) + alasan, ber-ID. Diukur dari Rp/chat.
         </p>
       </div>
@@ -366,7 +437,7 @@ function Header({
         type="button"
         onClick={onPull}
         disabled={loading}
-        className="rounded-button border border-hairline px-3 py-2 text-sm font-semibold text-ink disabled:opacity-50"
+        className="btn-press rounded-button border border-hairline-card px-3 py-2 text-sm font-medium text-ink hover:bg-surface-page disabled:opacity-50"
       >
         🔄 Tarik data baru
       </button>

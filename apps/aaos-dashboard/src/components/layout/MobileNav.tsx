@@ -12,7 +12,7 @@ export function MobileNav(): React.ReactElement {
   return (
     <nav
       aria-label="Navigasi mobile"
-      className="fixed inset-x-0 bottom-0 z-10 flex justify-around border-t border-hairline bg-surface-card py-2 md:hidden"
+      className="fixed inset-x-0 bottom-0 z-10 flex justify-around border-t border-hairline-sidebar bg-surface-card py-2 md:hidden"
     >
       {items.map((item) => {
         const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);

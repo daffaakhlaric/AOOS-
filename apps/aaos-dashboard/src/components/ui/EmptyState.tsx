@@ -8,7 +8,7 @@ export function EmptyState({ title, description }: EmptyStateProps): React.React
   return (
     <div
       data-testid="empty-state"
-      className="rounded-card border border-dashed border-hairline bg-surface-card p-8 text-center"
+      className="rounded-card border border-dashed border-hairline-card bg-surface-card p-8 text-center"
     >
       <p className="font-semibold text-ink">{title}</p>
       {description !== undefined ? (

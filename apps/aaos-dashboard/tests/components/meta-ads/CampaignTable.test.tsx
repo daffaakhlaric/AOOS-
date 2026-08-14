@@ -41,7 +41,7 @@ describe("CampaignTable", () => {
 
   it("VerdictBadge shows the correct color per verdict", () => {
     render(<CampaignTable ads={[buildAd({ verdict: "PAUSE" })]} />);
-    expect(screen.getByText("PAUSE")).toHaveClass("text-red-700");
+    expect(screen.getByTestId("verdict-badge")).toHaveClass("text-[#DC2626]");
   });
 
   it("Execute button is visible and calls onExecute", async () => {

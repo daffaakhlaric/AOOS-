@@ -175,25 +175,32 @@ export function MetaAdsClient(): React.ReactElement {
   }
 
   const cacheStale = fetchedAt !== undefined && Date.now() - fetchedAt >= CAMPAIGNS_CACHE_TTL_MS;
+  const currentSnapshotLabel =
+    fetchedAt !== undefined ? formatDateTimeIdWib(new Date(fetchedAt).toISOString()) : undefined;
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-ink">📊 Data Iklan</h2>
-          <p className="text-xs text-ink-muted">
-            Hierarki: Kampanye → Ad Set → Ad (#A #B #C). Setiap iklan menampilkan mini funnel: Klik
-            · Chat · D2 · D3 · Form.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {history.length > 0 ? (
-            <details className="relative">
-              <summary className="cursor-pointer list-none rounded-button border border-hairline px-3 py-2 text-sm font-semibold text-ink">
-                🗂️ Riwayat tarikan ▾
-              </summary>
-              <ul className="absolute right-0 z-10 mt-1 w-64 rounded-card border border-hairline bg-surface-card p-1 shadow-card">
-                {history.map((entry) => (
+    <div className="flex animate-fade-in flex-col gap-4 p-8 sm:p-10">
+      <div>
+        <h2 className="text-[26px] font-semibold -tracking-[0.5px] text-ink">Data Iklan</h2>
+        <p className="mt-0.5 text-[13px] text-ink-muted">
+          Hierarki: Kampanye → Ad Set → Ad (#A #B #C). Setiap iklan menampilkan mini funnel: Klik ·
+          Chat · D2 · D3 · Form.
+        </p>
+      </div>
+
+      {/* Header strip: snapshot selector · period preset · pull-fresh action (spec "--- Data Iklan --- Header strip"). */}
+      <div className="flex flex-wrap items-center gap-3 rounded-kpi border border-hairline-card bg-surface-card p-3 shadow-card">
+        {history.length > 0 || currentSnapshotLabel !== undefined ? (
+          <details className="relative">
+            <summary
+              data-testid="snapshot-selector"
+              className="btn-press cursor-pointer list-none rounded-button border border-hairline-card px-3 py-2 text-sm font-medium text-ink hover:bg-surface-page"
+            >
+              🗂 {currentSnapshotLabel ?? "Riwayat tarikan"} ▾
+            </summary>
+            <ul className="absolute left-0 z-10 mt-1 w-64 rounded-card border border-hairline-card bg-surface-card p-1 shadow-card">
+              {history.length > 0 ? (
+                history.map((entry) => (
                   <li key={entry.fetchedAt}>
                     <button
                       type="button"
@@ -204,24 +211,26 @@ export function MetaAdsClient(): React.ReactElement {
                       {DATE_PRESET_LABELS[entry.period] ?? entry.period}
                     </button>
                   </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
-          <DateRangeSelector value={datePreset} onChange={setDatePreset} />
-          <button
-            type="button"
-            onClick={() => void pullData()}
-            disabled={loading}
-            className="rounded-button border border-hairline px-3 py-2 text-sm font-semibold text-ink disabled:opacity-50"
-          >
-            🔄 Tarik Data Baru
-          </button>
-        </div>
+                ))
+              ) : (
+                <li className="px-2 py-1.5 text-xs text-ink-muted">Riwayat tarikan</li>
+              )}
+            </ul>
+          </details>
+        ) : null}
+        <DateRangeSelector value={datePreset} onChange={setDatePreset} />
+        <button
+          type="button"
+          onClick={() => void pullData()}
+          disabled={loading}
+          className="btn-press ml-auto rounded-button bg-brand-primary px-4 py-2 text-[13px] font-medium text-white hover:bg-[#0070E0] disabled:opacity-50"
+        >
+          ↻ Tarik Data Baru
+        </button>
       </div>
       {fetchedAt !== undefined ? (
         <p data-testid="last-updated" className="text-xs text-ink-muted">
-          🕒 Data diambil: {formatDateTimeIdWib(new Date(fetchedAt).toISOString())} · periode{" "}
+          🕒 Diambil {formatDateTimeIdWib(new Date(fetchedAt).toISOString())} · periode{" "}
           {DATE_PRESET_LABELS[datePreset] ?? datePreset}
           {cacheStale ? " (lebih dari 60 menit lalu)" : ""}
         </p>
@@ -251,7 +260,7 @@ export function MetaAdsClient(): React.ReactElement {
             onChange={(event) => setSearch(event.target.value)}
             placeholder="🔍 Cari nama/ID campaign, Xpander, Bintaro..."
             aria-label="Cari campaign"
-            className="rounded-button border border-hairline bg-surface-card px-3 py-2 text-sm"
+            className="rounded-button border border-hairline-card bg-surface-card px-3 py-2 text-sm"
           />
           <MetricsSummaryBar
             totals={data.totals}

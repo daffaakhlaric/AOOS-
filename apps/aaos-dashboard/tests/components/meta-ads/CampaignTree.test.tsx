@@ -95,7 +95,7 @@ describe("CampaignTree", () => {
   it("shows the campaign's aggregated verdict (PAUSE, the highest-priority real per-ad verdict present) as its badge", () => {
     render(<CampaignTree campaigns={CAMPAIGNS} search="" onExecute={vi.fn()} />);
     const badges = screen.getAllByTestId("verdict-badge");
-    expect(badges[0]?.textContent).toBe("PAUSE");
+    expect(badges[0]?.textContent).toBe("⏸PAUSE");
   });
 
   it("calls onExecute with the ad's own real verdict when its Execute button is clicked", async () => {

@@ -32,12 +32,12 @@ export function MetricsSummaryBar({
   return (
     <div
       data-testid="metrics-summary-bar"
-      className="grid grid-cols-3 gap-3 rounded-card border border-hairline bg-surface-card p-4 shadow-card sm:grid-cols-7"
+      className="grid grid-cols-3 divide-y divide-hairline-card rounded-kpi border border-hairline-card bg-surface-card sm:grid-cols-7 sm:divide-x sm:divide-y-0"
     >
       {items.map(([label, value]) => (
-        <div key={label}>
-          <p className="text-xs text-ink-muted">{label}</p>
-          <p className="text-sm font-semibold text-ink">{value}</p>
+        <div key={label} className="flex-1 px-6 py-4">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">{label}</p>
+          <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{value}</p>
         </div>
       ))}
     </div>

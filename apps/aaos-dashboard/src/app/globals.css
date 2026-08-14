@@ -7,6 +7,37 @@
 }
 
 body {
-  background-color: #f7f7f7;
+  background-color: #f5f5f7;
   color: #1c1c1e;
+}
+
+/**
+ * Micro-interaction primitives (spec "=== ANIMATIONS ===").
+ * `animate-fade-in` (page load) is a generated Tailwind utility (see `tailwind.config.ts`'s
+ * `animation.fade-in`); the rest are small, named, reusable classes rather than inline styles so
+ * every card/button across the app picks up the exact same timing.
+ */
+.card-hover-lift {
+  transition:
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+.card-hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.btn-press {
+  transition: all 100ms ease-out;
+}
+.btn-press:active {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+.sidebar-group-collapse {
+  overflow: hidden;
+  transition:
+    grid-template-rows 200ms ease,
+    opacity 200ms ease;
 }
