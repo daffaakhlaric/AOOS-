@@ -57,7 +57,7 @@ const BANNER_CLASSES: Readonly<Record<RefreshBanner["tone"], string>> = {
  * Caching model (real bug fix, 3rd pass): earlier versions of this component either auto-fetched
  * on mount (tripping Meta's rate limit) or cached only in React state / a short in-memory server
  * cache (both lost on every page reload). This version persists the last pull to `localStorage`
- * (30-minute TTL, `src/lib/campaignsCache.ts`) so a reload/reopen shows the last real data
+ * (60-minute TTL, `src/lib/campaignsCache.ts`) so a reload/reopen shows the last real data
  * immediately with NO network call — only an explicit "Tarik Data Baru" click ever hits
  * `/api/campaigns`. That click always forces a genuinely fresh pull (bypassing both this
  * `localStorage` cache and `/api/campaigns`'s own 5-minute server-side cache via `refresh=1`) —
@@ -223,7 +223,7 @@ export function MetaAdsClient(): React.ReactElement {
         <p data-testid="last-updated" className="text-xs text-ink-muted">
           🕒 Data diambil: {formatDateTimeIdWib(new Date(fetchedAt).toISOString())} · periode{" "}
           {DATE_PRESET_LABELS[datePreset] ?? datePreset}
-          {cacheStale ? " (lebih dari 30 menit lalu)" : ""}
+          {cacheStale ? " (lebih dari 60 menit lalu)" : ""}
         </p>
       ) : null}
       {refreshBanner !== undefined ? (

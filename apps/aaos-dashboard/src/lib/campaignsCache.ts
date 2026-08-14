@@ -5,17 +5,27 @@ import type { AdAccountSummaryDto } from "@/types/dashboard.types";
  * (MAAO2 redesign). Deliberately `localStorage`, not the in-memory React state the previous
  * iteration used — that lost the pulled data on every page reload/navigation-away-and-back, which
  * meant a routine reload looked identical to "no data yet" and often prompted an unnecessary
- * re-pull. `localStorage` survives reloads; the 30-minute TTL below still caps how long a pull is
+ * re-pull. `localStorage` survives reloads; the 60-minute TTL below still caps how long a pull is
  * trusted before a fresh one is needed.
  *
- * Pure, framework-free functions — `MetaAdsClient.tsx` is the only caller, but keeping this
- * `localStorage` access out of the component makes it independently testable and keeps the
- * component from needing to know the storage keys/shape.
+ * Pure, framework-free functions — originally `MetaAdsClient.tsx` was the only caller; the
+ * AAOS-TAMARA-PAGES redesign (coordinator note #7) extended this to be the SHARED snapshot cache
+ * for all of `/meta-ads`'s pages (`page.tsx`, `audit`, `analisa`, `strategi`, `simulasi`) rather
+ * than introducing a second, parallel cache — keeping this `localStorage` access out of any one
+ * component makes it independently testable and keeps every caller from needing to know the
+ * storage keys/shape.
  */
 
 export const CAMPAIGNS_CACHE_KEY = "aaos_campaigns_cache";
 export const CAMPAIGNS_HISTORY_KEY = "aaos_campaigns_history";
-export const CAMPAIGNS_CACHE_TTL_MS = 30 * 60_000; // 30 minutes
+/**
+ * Bumped from 30 to 60 minutes (AAOS-TAMARA-PAGES redesign, coordinator note #7): the 4 new
+ * Tamara pages (`/meta-ads/audit`, `/analisa`, `/strategi`, `/simulasi`) all read this SAME cache
+ * — one source of truth for "the current pulled snapshot" across 5 pages now, not just
+ * `MetaAdsClient`'s own. A 60-minute window better matches a manager working across several of
+ * these pages in one sitting without each page's own staleness check nagging for a re-pull.
+ */
+export const CAMPAIGNS_CACHE_TTL_MS = 60 * 60_000; // 60 minutes
 const MAX_HISTORY_ENTRIES = 3;
 
 export interface CampaignsCacheEntry {

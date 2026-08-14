@@ -27,7 +27,14 @@ export interface ResponseContext {
   readonly hotThreshold?: number;
 }
 
-/** Port: generates Jessy's natural-Indonesian reply text for a given stage/intent/context — always ≤ 300 chars, always deterministic. */
+/**
+ * Port: generates Jessy's natural-Indonesian reply text for a given stage/intent/context —
+ * always ≤ 300 chars. Async because an implementation may call out to an LLM provider
+ * (`LlmResponseGenerator`); the rule-based `ResponseGenerator` remains synchronous internally and
+ * simply resolves immediately. NOT guaranteed deterministic across all implementations — the
+ * rule-based `ResponseGenerator` is deterministic (same seed → same output), but `LlmResponseGenerator`
+ * is not, by construction.
+ */
 export interface IResponseGenerator {
-  generate(context: ResponseContext): string;
+  generate(context: ResponseContext): Promise<string>;
 }

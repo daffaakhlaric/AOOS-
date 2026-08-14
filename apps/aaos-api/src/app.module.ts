@@ -42,6 +42,7 @@ import { ClosingsModule } from "./modules/closings/closings.module.js";
 import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
+import { LlmModule } from "./modules/llm/llm.module.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
@@ -129,6 +130,7 @@ export class AppModule {
       imports: [
         HealthModule,
         LeadsModule,
+        LlmModule,
         MetaAdsModule,
         WebhookModule,
         WhatsAppWebhookModule,

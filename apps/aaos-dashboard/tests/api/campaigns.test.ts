@@ -42,6 +42,7 @@ const AD_ACCOUNT_RESPONSE = {
               metrics: {
                 spend: 6_000_000,
                 clicks: 1200,
+                frequency: 2.1,
                 conversations: 790,
                 d2: 400,
                 d3: 307,
@@ -93,6 +94,42 @@ describe("GET /api/campaigns", () => {
     expect(body.campaigns[0]?.adSets[0]?.ads[0]?.stableId).toBe("#C001");
     expect(body.campaignCount).toBe(1);
     expect(body.adCount).toBe(1);
+  });
+
+  it("passes daysSinceCreation through when the upstream ad has it (AAOS-TAMARA-PAGES: powers Audit Biaya's 'Iklan Baru' section)", async () => {
+    const withDays = {
+      ...AD_ACCOUNT_RESPONSE,
+      campaigns: [
+        {
+          ...AD_ACCOUNT_RESPONSE.campaigns[0]!,
+          adSets: [
+            {
+              ...AD_ACCOUNT_RESPONSE.campaigns[0]!.adSets[0]!,
+              ads: [
+                { ...AD_ACCOUNT_RESPONSE.campaigns[0]!.adSets[0]!.ads[0]!, daysSinceCreation: 3 },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    global.fetch = vi.fn(
+      async () => new Response(JSON.stringify(withDays), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    const response = await GET(requestWith({ adAccountId: "act_days_1", datePreset: "last_30d" }));
+    const body = (await response.json()) as { ads: ReadonlyArray<{ daysSinceCreation?: number }> };
+    expect(body.ads[0]?.daysSinceCreation).toBe(3);
+  });
+
+  it("omits daysSinceCreation when the upstream ad doesn't have it", async () => {
+    global.fetch = vi.fn(
+      async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    const response = await GET(requestWith({ adAccountId: "act_days_2", datePreset: "last_30d" }));
+    const body = (await response.json()) as { ads: ReadonlyArray<{ daysSinceCreation?: number }> };
+    expect(body.ads[0]?.daysSinceCreation).toBeUndefined();
   });
 
   it("passes adAccountId/datePreset through as query params to aaos-api", async () => {

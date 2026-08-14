@@ -37,7 +37,9 @@ describe("AppModule.forRoot", () => {
     // AAOS-W1D-S3: +1 import (CampaignsModule) for POST /api/v1/campaigns/create.
     // AAOS-W4B: +2 imports (ClosingsModule, SalesModule) and +2 providers
     // (LEAD_STORE_MESSAGE_REPOSITORY, LEAD_STORE_CLOSING_REPOSITORY).
-    expect(dynamicModule.imports).toHaveLength(11);
+    // AAOS-LLM-TAMARA: +1 import (LlmModule) — no new global provider (LlmModule composes its
+    // own OpenAI client/rate limiter/cache locally, see llm.module.ts's class doc).
+    expect(dynamicModule.imports).toHaveLength(12);
     expect(dynamicModule.providers).toHaveLength(12);
   });
 

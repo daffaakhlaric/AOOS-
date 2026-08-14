@@ -42,6 +42,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
               metrics: {
                 spend: 6_000_000,
                 clicks: 1200,
+                frequency: 2.1,
                 conversations: 790,
                 d2: 400,
                 d3: 307,
@@ -69,6 +70,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
       metrics: {
         spend: 6_000_000,
         clicks: 1200,
+        frequency: 2.1,
         conversations: 790,
         d2: 400,
         d3: 307,
@@ -82,6 +84,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
   totals: {
     spend: 6_000_000,
     clicks: 1200,
+    frequency: 0,
     conversations: 790,
     d2: 400,
     d3: 307,
@@ -123,15 +126,15 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("shows stale (>30 min old) cached data on mount too — never blanks to empty/loading when a cache exists", async () => {
-    const staleFetchedAt = Date.now() - 31 * 60_000;
+  it("shows stale (>60 min old) cached data on mount too — never blanks to empty/loading when a cache exists", async () => {
+    const staleFetchedAt = Date.now() - 61 * 60_000;
     writeCampaignsCache({ data: CAMPAIGNS_BODY, fetchedAt: staleFetchedAt, period: "last_30d" });
     global.fetch = vi.fn(async () => jsonResponse(CAMPAIGNS_BODY)) as unknown as typeof fetch;
 
     render(<MetaAdsClient />);
 
     expect(await screen.findByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument();
-    expect(screen.getByTestId("last-updated").textContent).toContain("lebih dari 30 menit lalu");
+    expect(screen.getByTestId("last-updated").textContent).toContain("lebih dari 60 menit lalu");
   });
 
   it("fetches and renders the campaign tree + summary bar after 'Tarik Data Baru' is clicked", async () => {

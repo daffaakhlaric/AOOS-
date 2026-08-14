@@ -21,6 +21,7 @@ const DATA: AdAccountSummaryDto = {
   totals: {
     spend: 0,
     clicks: 0,
+    frequency: 0,
     conversations: 0,
     d2: 0,
     d3: 0,
@@ -58,7 +59,7 @@ describe("campaignsCache", () => {
     expect(readCampaignsCache()).toEqual(entry(1000));
   });
 
-  it("isCacheFresh is true within the 30-minute TTL and false once elapsed", () => {
+  it("isCacheFresh is true within the 60-minute TTL and false once elapsed", () => {
     const cached = entry(1000);
     expect(isCacheFresh(cached, 1000 + CAMPAIGNS_CACHE_TTL_MS - 1)).toBe(true);
     expect(isCacheFresh(cached, 1000 + CAMPAIGNS_CACHE_TTL_MS)).toBe(false);

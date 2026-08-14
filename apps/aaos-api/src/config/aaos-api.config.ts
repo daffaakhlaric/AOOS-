@@ -48,6 +48,16 @@ export interface AaosApiConfig {
   readonly SUPABASE_URL: string;
   readonly SUPABASE_ANON_KEY: string;
   readonly SUPABASE_SERVICE_KEY: string;
+
+  /**
+   * AAOS-LLM-TAMARA — OpenAI API key for the `llm` module's Tamara analysis/creative-brief/chat
+   * endpoints. Deliberately allowed to be an empty string (not `min(1)`-required like every other
+   * secret in this file): per the spec's Section 7 error handling, `LlmService` MUST treat a
+   * missing/empty key as "AI unavailable" and degrade gracefully (never throw a config error at
+   * startup) — this app should boot and serve every other endpoint with no OpenAI key configured
+   * at all. See coordinator note #1 on `docs/PROMPT-AAOS-API-LLM-TAMARA.md`.
+   */
+  readonly OPENAI_API_KEY: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -91,6 +101,10 @@ export const AaosApiConfigSchema = z.object({
   SUPABASE_URL: z.string().url("SUPABASE_URL must be a valid URL"),
   SUPABASE_ANON_KEY: z.string().min(1, "SUPABASE_ANON_KEY must not be empty"),
   SUPABASE_SERVICE_KEY: z.string().min(1, "SUPABASE_SERVICE_KEY must not be empty"),
+
+  // Intentionally NOT `.min(1, ...)` — an empty/unset OPENAI_API_KEY is a valid, expected runtime
+  // state (see the `AaosApiConfig.OPENAI_API_KEY` doc comment above).
+  OPENAI_API_KEY: z.string().default(""),
 });
 
 /**

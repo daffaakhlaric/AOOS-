@@ -10,6 +10,7 @@ describe("CampaignFunnelBar", () => {
         metrics={{
           spend: 0,
           clicks: 1500,
+          frequency: 1.8,
           conversations: 790,
           d2: 400,
           d3: 307,

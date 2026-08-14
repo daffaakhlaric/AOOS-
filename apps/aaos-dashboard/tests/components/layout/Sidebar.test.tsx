@@ -27,4 +27,38 @@ describe("Sidebar", () => {
     render(<Sidebar />);
     expect(screen.getByRole("navigation", { name: "Navigasi utama" })).toBeInTheDocument();
   });
+
+  it("renders the grouped 🤖 TAMARA (META ADS) / 📋 OPERASIONAL section headers", () => {
+    render(<Sidebar />);
+    expect(screen.getByText("🤖 TAMARA (META ADS)")).toBeInTheDocument();
+    expect(screen.getByText("📋 OPERASIONAL")).toBeInTheDocument();
+  });
+
+  it("renders all 4 new Tamara/Meta-Ads pages under the TAMARA group", () => {
+    render(<Sidebar />);
+    expect(screen.getByRole("link", { name: /Audit Biaya/ })).toHaveAttribute(
+      "href",
+      "/meta-ads/audit",
+    );
+    expect(screen.getByRole("link", { name: /Analisa & Rekomendasi/ })).toHaveAttribute(
+      "href",
+      "/meta-ads/analisa",
+    );
+    expect(screen.getByRole("link", { name: /Strategi & Approve/ })).toHaveAttribute(
+      "href",
+      "/meta-ads/strategi",
+    );
+    expect(screen.getByRole("link", { name: /Simulasi Tamara × Kai/ })).toHaveAttribute(
+      "href",
+      "/meta-ads/simulasi",
+    );
+  });
+
+  it("renders Simulator (Jessy) under the OPERASIONAL group", () => {
+    render(<Sidebar />);
+    expect(screen.getByRole("link", { name: /Simulator \(Jessy\)/ })).toHaveAttribute(
+      "href",
+      "/simulator",
+    );
+  });
 });

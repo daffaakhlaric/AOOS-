@@ -60,8 +60,8 @@ const SYARIAH_ELIGIBLE_STAGES: ReadonlySet<ConversationStage> = new Set([
  * (design resolution #4) — never `Math.random()`.
  */
 export class ResponseGenerator implements IResponseGenerator {
-  generate(context: ResponseContext): string {
-    return this.validateLength(this.rawResponse(context));
+  generate(context: ResponseContext): Promise<string> {
+    return Promise.resolve(this.validateLength(this.rawResponse(context)));
   }
 
   private rawResponse(context: ResponseContext): string {

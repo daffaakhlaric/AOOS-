@@ -100,7 +100,7 @@ export class ConversationEngine implements IConversationEngine {
       }
     }
 
-    const responseText = this.responseGenerator.generate({
+    const responseText = await this.responseGenerator.generate({
       conversation,
       stage,
       intents,

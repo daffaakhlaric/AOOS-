@@ -1,9 +1,11 @@
+import { ErrorCode } from "@aos/common";
 import { describe, expect, it } from "vitest";
 
 import {
   AgentError,
   ConversationError,
   HandoffError,
+  LlmError,
   ScoringError,
 } from "../../../../src/domain/errors/index.js";
 
@@ -31,6 +33,14 @@ describe("domain errors", () => {
     const error = new HandoffError("handoff failed");
     expect(error).toBeInstanceOf(AgentError);
     expect(error.code).toBe("UNAVAILABLE");
+  });
+
+  it("LlmError is an AgentError carrying whatever code it's given (e.g. UNAVAILABLE for an OpenAI failure)", () => {
+    const error = new LlmError(ErrorCode.UNAVAILABLE, "OpenAI call failed");
+    expect(error).toBeInstanceOf(AgentError);
+    expect(error.code).toBe("UNAVAILABLE");
+    expect(error.message).toBe("OpenAI call failed");
+    expect(error.name).toBe("LlmError");
   });
 
   it("errors carry an optional cause via options", () => {

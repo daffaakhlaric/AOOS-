@@ -32,8 +32,8 @@ describe("ResponseGenerator", () => {
   const generator = new ResponseGenerator();
   const conversation = LeadConversation.start("+6281200000001", BranchId.CINERE, NOW);
 
-  it("greeting → one of the valid GREETING_POOL options", () => {
-    const text = generator.generate({
+  it("greeting → one of the valid GREETING_POOL options", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.GREETING,
       intents: [],
@@ -44,9 +44,9 @@ describe("ResponseGenerator", () => {
     expect(GREETING_POOL).toContain(text);
   });
 
-  it("unit found → includes the real price and km", () => {
+  it("unit found → includes the real price and km", async () => {
     const found = unit();
-    const text = generator.generate({
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.UNIT_INFO,
       intents: [DetectedIntent.ASK_UNIT],
@@ -58,8 +58,8 @@ describe("ResponseGenerator", () => {
     expect(text).toContain("45.000");
   });
 
-  it("unit not found → mentions the branch and stock", () => {
-    const text = generator.generate({
+  it("unit not found → mentions the branch and stock", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.UNIT_INFO,
       intents: [DetectedIntent.ASK_UNIT],
@@ -72,8 +72,8 @@ describe("ResponseGenerator", () => {
     expect(text).toContain("Mobix Cinere");
   });
 
-  it("unit not found without a requestedModel → falls back to a generic phrase", () => {
-    const text = generator.generate({
+  it("unit not found without a requestedModel → falls back to a generic phrase", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.UNIT_INFO,
       intents: [DetectedIntent.ASK_UNIT],
@@ -84,9 +84,9 @@ describe("ResponseGenerator", () => {
     expect(text).toContain("unit itu");
   });
 
-  it("dp info → correct estimatedDp and estimatedMonthly (pinned)", () => {
+  it("dp info → correct estimatedDp and estimatedMonthly (pinned)", async () => {
     const found = unit();
-    const text = generator.generate({
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.PRICE_INFO,
       intents: [DetectedIntent.ASK_PRICE],
@@ -98,8 +98,8 @@ describe("ResponseGenerator", () => {
     expect(text).toContain(found.estimatedMonthly.toNumber().toLocaleString("id-ID"));
   });
 
-  it("objection 'takut bermasalah' → Otospector response", () => {
-    const text = generator.generate({
+  it("objection 'takut bermasalah' → Otospector response", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.OBJECTION,
       intents: [DetectedIntent.HESITATION],
@@ -110,8 +110,8 @@ describe("ResponseGenerator", () => {
     expect(text).toContain("Otospector");
   });
 
-  it("objection with COMPLAINT intent (AAOS-W3A-S1) → quality objection response mentions Otospector/150", () => {
-    const text = generator.generate({
+  it("objection with COMPLAINT intent (AAOS-W3A-S1) → quality objection response mentions Otospector/150", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.OBJECTION,
       intents: [DetectedIntent.COMPLAINT],
@@ -122,8 +122,8 @@ describe("ResponseGenerator", () => {
     expect(text.includes("Otospector") || text.includes("150")).toBe(true);
   });
 
-  it("objection with a new broadened HESITATION quality-doubt phrase → still ≤ 300 chars and non-empty", () => {
-    const text = generator.generate({
+  it("objection with a new broadened HESITATION quality-doubt phrase → still ≤ 300 chars and non-empty", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.OBJECTION,
       intents: [DetectedIntent.HESITATION],
@@ -135,8 +135,8 @@ describe("ResponseGenerator", () => {
     expect(text.length).toBeLessThanOrEqual(300);
   });
 
-  it("handoff → includes the sales name", () => {
-    const text = generator.generate({
+  it("handoff → includes the sales name", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.HANDOFF,
       intents: [],
@@ -148,8 +148,8 @@ describe("ResponseGenerator", () => {
     expect(text).toContain("Budi Santoso");
   });
 
-  it("handoff without a salesName falls back to a default", () => {
-    const text = generator.generate({
+  it("handoff without a salesName falls back to a default", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.HANDOFF,
       intents: [],
@@ -160,8 +160,8 @@ describe("ResponseGenerator", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("discovery stage → a discovery question", () => {
-    const text = generator.generate({
+  it("discovery stage → a discovery question", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.DISCOVERY,
       intents: [],
@@ -172,8 +172,8 @@ describe("ResponseGenerator", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("qualification stage → a budget follow-up question", () => {
-    const text = generator.generate({
+  it("qualification stage → a budget follow-up question", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.QUALIFICATION,
       intents: [],
@@ -184,8 +184,8 @@ describe("ResponseGenerator", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("closing stage → pushes toward test drive", () => {
-    const text = generator.generate({
+  it("closing stage → pushes toward test drive", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.CLOSING,
       intents: [],
@@ -196,8 +196,8 @@ describe("ResponseGenerator", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("nurture stage → cold nurture response", () => {
-    const text = generator.generate({
+  it("nurture stage → cold nurture response", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.NURTURE,
       intents: [],
@@ -208,8 +208,8 @@ describe("ResponseGenerator", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("closed stage → a closing thank-you", () => {
-    const text = generator.generate({
+  it("closed stage → a closing thank-you", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.CLOSED,
       intents: [],
@@ -220,8 +220,8 @@ describe("ResponseGenerator", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("price info with no matched unit → asks which unit", () => {
-    const text = generator.generate({
+  it("price info with no matched unit → asks which unit", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.PRICE_INFO,
       intents: [DetectedIntent.ASK_PRICE],
@@ -232,8 +232,8 @@ describe("ResponseGenerator", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("response selection is deterministic for the same seed", () => {
-    const first = generator.generate({
+  it("response selection is deterministic for the same seed", async () => {
+    const first = await generator.generate({
       conversation,
       stage: ConversationStage.GREETING,
       intents: [],
@@ -241,7 +241,7 @@ describe("ResponseGenerator", () => {
       matchedUnits: [],
       branchName: "Mobix Cinere",
     });
-    const second = generator.generate({
+    const second = await generator.generate({
       conversation,
       stage: ConversationStage.GREETING,
       intents: [],
@@ -252,9 +252,9 @@ describe("ResponseGenerator", () => {
     expect(first).toBe(second);
   });
 
-  it("all responses across every stage stay ≤ 300 characters", () => {
+  it("all responses across every stage stay ≤ 300 characters", async () => {
     for (const stage of Object.values(ConversationStage)) {
-      const text = generator.generate({
+      const text = await generator.generate({
         conversation,
         stage,
         intents: [],

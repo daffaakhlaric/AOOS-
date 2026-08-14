@@ -36,6 +36,7 @@ interface AdAccountResponseDto {
         readonly branch: string;
         readonly verdict: string;
         readonly metrics: CampaignAdDto["metrics"];
+        readonly daysSinceCreation?: number;
       }>;
     }>;
   }>;
@@ -44,6 +45,7 @@ interface AdAccountResponseDto {
 const ZERO_METRICS: CampaignAdDto["metrics"] = {
   spend: 0,
   clicks: 0,
+  frequency: 0,
   conversations: 0,
   d2: 0,
   d3: 0,
@@ -65,6 +67,7 @@ function toAdSummary(
     branch: ad.branch,
     verdict: ad.verdict,
     metrics: ad.metrics,
+    ...(ad.daysSinceCreation !== undefined ? { daysSinceCreation: ad.daysSinceCreation } : {}),
   };
 }
 
@@ -120,6 +123,9 @@ function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
           branch: ad.branch,
           verdict: ad.verdict,
           metrics: ad.metrics,
+          ...(ad.daysSinceCreation !== undefined
+            ? { daysSinceCreation: ad.daysSinceCreation }
+            : {}),
         });
       }
     }
@@ -129,6 +135,10 @@ function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
     (acc, ad) => ({
       spend: acc.spend + ad.metrics.spend,
       clicks: acc.clicks + ad.metrics.clicks,
+      // Not summed — `frequency` is a per-ad average (impressions/reach), not an additive count;
+      // same judgment call already made for `rphD3` below. Nothing in this spec reads
+      // `totals.frequency` (the "audiens jenuh" check is per-ad only), so it stays at 0.
+      frequency: 0,
       conversations: acc.conversations + ad.metrics.conversations,
       d2: acc.d2 + ad.metrics.d2,
       d3: acc.d3 + ad.metrics.d3,
@@ -165,7 +175,7 @@ interface CacheEntry {
  * use (page revisits, tab refocus, etc., each firing a fresh Meta API round-trip). A simple
  * in-memory, per-process, per-query-key cache with a 5-minute TTL absorbs repeat requests for the
  * same `adAccountId`/`datePreset` combination without a second Meta API call. This is a *second*,
- * server-side layer on top of `MetaAdsClient`'s own 30-minute `localStorage` cache — this one
+ * server-side layer on top of `MetaAdsClient`'s own 60-minute `localStorage` cache — this one
  * protects against multiple browser tabs/sessions each independently deciding their local cache is
  * stale at roughly the same time.
  *

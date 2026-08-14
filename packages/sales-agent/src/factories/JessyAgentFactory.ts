@@ -16,6 +16,7 @@ import { ScheduleFollowUp } from "../application/use-cases/ScheduleFollowUp.js";
 import { SendFollowUp } from "../application/use-cases/SendFollowUp.js";
 import { TriggerHandoff } from "../application/use-cases/TriggerHandoff.js";
 import type { SalesAgentConfig } from "../config/SalesAgentConfig.js";
+import type { IResponseGenerator } from "../contracts/IResponseGenerator.js";
 import { ConversationEngine } from "../conversation/ConversationEngine.js";
 import { ConversationPipeline } from "../conversation/ConversationPipeline.js";
 import { ResponseGenerator } from "../conversation/ResponseGenerator.js";
@@ -24,6 +25,8 @@ import { JessyAgentEvents } from "../domain/events/JessyAgentEvents.js";
 import type { BranchId } from "../domain/value-objects/BranchId.js";
 import { InventoryQuerier } from "../intelligence/InventoryQuerier.js";
 import { JessyKnowledgeBase } from "../intelligence/JessyKnowledgeBase.js";
+import { LlmResponseGenerator } from "../llm/LlmResponseGenerator.js";
+import { OpenAiChatClient } from "../llm/OpenAiChatClient.js";
 import { LeadScorer } from "../scoring/LeadScorer.js";
 
 export interface JessyAgentFactoryOptions {
@@ -65,7 +68,7 @@ export interface JessyAgent {
  */
 export class JessyAgentFactory {
   static create(options: JessyAgentFactoryOptions): JessyAgent {
-    void (options.logger ?? createLogger({ serviceName: "sales-agent" }));
+    const logger = options.logger ?? createLogger({ serviceName: "sales-agent" });
     const tracer: Tracer = options.tracer ?? getTracer("sales-agent");
     const now = options.now ?? (() => new Date());
 
@@ -73,7 +76,7 @@ export class JessyAgentFactory {
     const events = new JessyAgentEvents(options.publisher);
 
     const inventoryQuerier = new InventoryQuerier(options.inventoryQueryService);
-    const responseGenerator = new ResponseGenerator();
+    const responseGenerator = JessyAgentFactory.createResponseGenerator(options.config, logger);
     const conversationEngine = new ConversationEngine(
       inventoryQuerier,
       { warmThreshold: options.config.warmThreshold, hotThreshold: options.config.hotThreshold },
@@ -115,5 +118,34 @@ export class JessyAgentFactory {
       handoffService,
       followUpService,
     };
+  }
+
+  /**
+   * Selects the real `IResponseGenerator` implementation (coordinator note #5's config-driven
+   * toggle, mirroring `followUpEnabled`'s pattern): `LlmResponseGenerator` — wrapping the real,
+   * unmodified `ResponseGenerator` as its own on-failure fallback — only when
+   * `config.llmReplyEnabled` is `true` AND a non-empty `config.openaiApiKey` is present; pure
+   * rule-based `ResponseGenerator` otherwise. This is the single switch that turns the LLM path
+   * back off (config-only, no code change) if something goes wrong in production.
+   */
+  private static createResponseGenerator(
+    config: SalesAgentConfig,
+    logger: Logger,
+  ): IResponseGenerator {
+    const ruleBasedGenerator = new ResponseGenerator();
+    const apiKey = config.openaiApiKey;
+    if (!config.llmReplyEnabled || apiKey === undefined || apiKey.trim().length === 0) {
+      return ruleBasedGenerator;
+    }
+
+    return new LlmResponseGenerator({
+      client: new OpenAiChatClient({
+        apiKey,
+        model: config.openaiModel,
+        timeoutMs: config.openaiTimeoutMs,
+      }),
+      fallback: ruleBasedGenerator,
+      logger,
+    });
   }
 }

@@ -140,4 +140,22 @@ describe("parseAaosApiConfig", () => {
     const result = parseAaosApiConfig(env);
     expect(result.ok).toBe(false);
   });
+
+  it("defaults OPENAI_API_KEY to an empty string when omitted (AI features degrade gracefully, config never fails to boot)", () => {
+    const env = buildTestEnv();
+    delete env.OPENAI_API_KEY;
+    const result = parseAaosApiConfig(env);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.OPENAI_API_KEY).toBe("");
+    }
+  });
+
+  it("accepts a configured OPENAI_API_KEY", () => {
+    const result = parseAaosApiConfig(buildTestEnv({ OPENAI_API_KEY: "sk-real-key" }));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.OPENAI_API_KEY).toBe("sk-real-key");
+    }
+  });
 });

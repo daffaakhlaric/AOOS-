@@ -18,6 +18,25 @@ export interface SalesAgentConfig {
 
   readonly followUpEnabled: boolean;
   readonly followUpDays: ReadonlyArray<number>;
+
+  /**
+   * Feature toggle (same pattern as `followUpEnabled`): whether `JessyAgentFactory` wires the
+   * LLM-backed `LlmResponseGenerator` instead of the pure rule-based `ResponseGenerator`. Defaults
+   * to `false` so this stays disabled — pure rule-based — without a code change unless explicitly
+   * turned on, and `JessyAgentFactory` also requires a non-empty `openaiApiKey` even when this is
+   * `true` (so an accidental `true` with no key never silently no-ops into a broken state).
+   */
+  readonly llmReplyEnabled: boolean;
+  /**
+   * OpenAI API key for `LlmResponseGenerator`'s `OpenAiChatClient`. Optional and never defaulted —
+   * `sales-agent` does not read `process.env` itself (composed by the caller, e.g. an `apps/*`
+   * composition root reading its own `OPENAI_API_KEY`), matching how every other field on this
+   * config is sourced. Left undefined, `JessyAgentFactory` never wires the LLM generator regardless
+   * of `llmReplyEnabled`.
+   */
+  readonly openaiApiKey?: string;
+  readonly openaiModel: string;
+  readonly openaiTimeoutMs: number;
 }
 
 /**
@@ -37,6 +56,10 @@ export const SalesAgentConfigSchema = z.object({
   maxResponseDelayMs: z.number().int().nonnegative().default(3000),
   followUpEnabled: z.boolean().default(true),
   followUpDays: z.array(z.number().int().positive()).default([3, 7, 14]),
+  llmReplyEnabled: z.boolean().default(false),
+  openaiApiKey: z.string().min(1).optional(),
+  openaiModel: z.string().min(1).default("gpt-4o-mini"),
+  openaiTimeoutMs: z.number().int().positive().default(8_000),
 });
 
 export type SalesAgentConfigInput = z.input<typeof SalesAgentConfigSchema>;

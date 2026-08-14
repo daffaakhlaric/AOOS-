@@ -13,7 +13,7 @@ describe("ResponseGenerator — length backstop (AAOS-W3D Fix 2)", () => {
   const generator = new ResponseGenerator();
   const conversation = LeadConversation.start("+6281200000001", BranchId.CINERE, NOW);
 
-  it("a normal UNIT_INFO response (real fixture data) stays well under the 200-char hard ceiling untouched", () => {
+  it("a normal UNIT_INFO response (real fixture data) stays well under the 200-char hard ceiling untouched", async () => {
     const unit = unwrap(
       new InventoryUnitBuilder()
         .withBrand("Mitsubishi")
@@ -22,7 +22,7 @@ describe("ResponseGenerator — length backstop (AAOS-W3D Fix 2)", () => {
         .withYear(2019)
         .build(),
     );
-    const text = generator.generate({
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.UNIT_INFO,
       intents: [],
@@ -33,7 +33,7 @@ describe("ResponseGenerator — length backstop (AAOS-W3D Fix 2)", () => {
     expect(text.length).toBeLessThanOrEqual(150);
   });
 
-  it("an artificially long unit displayName (pathological input) still produces a response ≤ 200 chars, via the trimToSentence backstop", () => {
+  it("an artificially long unit displayName (pathological input) still produces a response ≤ 200 chars, via the trimToSentence backstop", async () => {
     const unit = unwrap(
       new InventoryUnitBuilder()
         .withBrand("Mitsubishi Motors Corporation Indonesia")
@@ -43,7 +43,7 @@ describe("ResponseGenerator — length backstop (AAOS-W3D Fix 2)", () => {
         .withYear(2019)
         .build(),
     );
-    const text = generator.generate({
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.UNIT_INFO,
       intents: [],
@@ -54,7 +54,7 @@ describe("ResponseGenerator — length backstop (AAOS-W3D Fix 2)", () => {
     expect(text.length).toBeLessThanOrEqual(200);
   });
 
-  it("the trimmed pathological response still ends at a sentence/line boundary, not a mid-word cut", () => {
+  it("the trimmed pathological response still ends at a sentence/line boundary, not a mid-word cut", async () => {
     const unit = unwrap(
       new InventoryUnitBuilder()
         .withBrand("Mitsubishi Motors Corporation Indonesia")
@@ -64,7 +64,7 @@ describe("ResponseGenerator — length backstop (AAOS-W3D Fix 2)", () => {
         .withYear(2019)
         .build(),
     );
-    const text = generator.generate({
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.UNIT_INFO,
       intents: [],
@@ -76,7 +76,7 @@ describe("ResponseGenerator — length backstop (AAOS-W3D Fix 2)", () => {
     expect([".", "!", "?"].includes(lastChar) || text.length < 200).toBe(true);
   });
 
-  it("every stage's response stays ≤ 200 chars across a representative sweep of stages", () => {
+  it("every stage's response stays ≤ 200 chars across a representative sweep of stages", async () => {
     const stages: ConversationStage[] = [
       ConversationStage.GREETING,
       ConversationStage.DISCOVERY,
@@ -88,7 +88,7 @@ describe("ResponseGenerator — length backstop (AAOS-W3D Fix 2)", () => {
       ConversationStage.CLOSED,
     ];
     for (const stage of stages) {
-      const text = generator.generate({
+      const text = await generator.generate({
         conversation,
         stage,
         intents: [],

@@ -24,6 +24,7 @@
     "@aos/event-bus": "workspace:*",
     "@aos/lead-store": "workspace:*",
     "@aos/logger": "workspace:*",
+    "@aos/meta-ads-agent": "workspace:*",
     "@aos/meta-ads-connector": "workspace:*",
     "@aos/objective-engine": "workspace:*",
     "@aos/telemetry": "workspace:*",

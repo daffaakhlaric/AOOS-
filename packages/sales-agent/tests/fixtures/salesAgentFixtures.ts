@@ -26,6 +26,9 @@ export function makeSalesAgentConfig(overrides: Partial<SalesAgentConfig> = {}):
     maxResponseDelayMs: 3000,
     followUpEnabled: true,
     followUpDays: [3, 7, 14],
+    llmReplyEnabled: false,
+    openaiModel: "gpt-4o-mini",
+    openaiTimeoutMs: 8_000,
     ...overrides,
   };
 }

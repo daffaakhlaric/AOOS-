@@ -18,7 +18,7 @@ function mentionsSyariahWording(text: string): boolean {
 }
 
 describe("SyariahResponses (pools)", () => {
-  it("SYARIAH_RESPONSE_POOL: every entry mentions syariah/halal/murabahah and stays ≤ 300 chars", () => {
+  it("SYARIAH_RESPONSE_POOL: every entry mentions syariah/halal/murabahah and stays ≤ 300 chars", async () => {
     expect(SYARIAH_RESPONSE_POOL.length).toBeGreaterThan(0);
     for (const entry of SYARIAH_RESPONSE_POOL) {
       expect(mentionsSyariahWording(entry)).toBe(true);
@@ -26,7 +26,7 @@ describe("SyariahResponses (pools)", () => {
     }
   });
 
-  it("SYARIAH_DP_RESPONSE_POOL: every entry mentions syariah/halal/murabahah and stays ≤ 300 chars", () => {
+  it("SYARIAH_DP_RESPONSE_POOL: every entry mentions syariah/halal/murabahah and stays ≤ 300 chars", async () => {
     expect(SYARIAH_DP_RESPONSE_POOL.length).toBeGreaterThan(0);
     for (const entry of SYARIAH_DP_RESPONSE_POOL) {
       expect(mentionsSyariahWording(entry)).toBe(true);
@@ -34,7 +34,7 @@ describe("SyariahResponses (pools)", () => {
     }
   });
 
-  it("SYARIAH_TRUST_RESPONSE_POOL: every entry mentions syariah/halal/murabahah and stays ≤ 300 chars", () => {
+  it("SYARIAH_TRUST_RESPONSE_POOL: every entry mentions syariah/halal/murabahah and stays ≤ 300 chars", async () => {
     expect(SYARIAH_TRUST_RESPONSE_POOL.length).toBeGreaterThan(0);
     for (const entry of SYARIAH_TRUST_RESPONSE_POOL) {
       expect(mentionsSyariahWording(entry)).toBe(true);
@@ -47,8 +47,8 @@ describe("ResponseGenerator SYARIAH routing (AAOS-W3A-S1 Fix 1)", () => {
   const generator = new ResponseGenerator();
   const conversation = LeadConversation.start("+6281200000002", BranchId.CINERE, NOW);
 
-  it("SYARIAH alone (no ASK_PRICE/HESITATION) → SYARIAH_RESPONSE_POOL, mentions syariah wording", () => {
-    const text = generator.generate({
+  it("SYARIAH alone (no ASK_PRICE/HESITATION) → SYARIAH_RESPONSE_POOL, mentions syariah wording", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.DISCOVERY,
       intents: [DetectedIntent.SYARIAH],
@@ -60,8 +60,8 @@ describe("ResponseGenerator SYARIAH routing (AAOS-W3A-S1 Fix 1)", () => {
     expect(mentionsSyariahWording(text)).toBe(true);
   });
 
-  it("SYARIAH + ASK_PRICE → SYARIAH_DP_RESPONSE_POOL (overrides the generic KREDIT/DP flow)", () => {
-    const text = generator.generate({
+  it("SYARIAH + ASK_PRICE → SYARIAH_DP_RESPONSE_POOL (overrides the generic KREDIT/DP flow)", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.PRICE_INFO,
       intents: [DetectedIntent.SYARIAH, DetectedIntent.ASK_PRICE],
@@ -73,8 +73,8 @@ describe("ResponseGenerator SYARIAH routing (AAOS-W3A-S1 Fix 1)", () => {
     expect(mentionsSyariahWording(text)).toBe(true);
   });
 
-  it("SYARIAH + HESITATION → SYARIAH_TRUST_RESPONSE_POOL", () => {
-    const text = generator.generate({
+  it("SYARIAH + HESITATION → SYARIAH_TRUST_RESPONSE_POOL", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.OBJECTION,
       intents: [DetectedIntent.SYARIAH, DetectedIntent.HESITATION],
@@ -86,8 +86,8 @@ describe("ResponseGenerator SYARIAH routing (AAOS-W3A-S1 Fix 1)", () => {
     expect(mentionsSyariahWording(text)).toBe(true);
   });
 
-  it("SYARIAH + ASK_PRICE + HESITATION → ASK_PRICE wins (DP pool), same priority order as ObjectionResponses", () => {
-    const text = generator.generate({
+  it("SYARIAH + ASK_PRICE + HESITATION → ASK_PRICE wins (DP pool), same priority order as ObjectionResponses", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.PRICE_INFO,
       intents: [DetectedIntent.SYARIAH, DetectedIntent.ASK_PRICE, DetectedIntent.HESITATION],
@@ -98,8 +98,8 @@ describe("ResponseGenerator SYARIAH routing (AAOS-W3A-S1 Fix 1)", () => {
     expect(SYARIAH_DP_RESPONSE_POOL).toContain(text);
   });
 
-  it("SYARIAH intent at CLOSING stage does NOT override the closing CTA (terminal stages are excluded)", () => {
-    const text = generator.generate({
+  it("SYARIAH intent at CLOSING stage does NOT override the closing CTA (terminal stages are excluded)", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.CLOSING,
       intents: [DetectedIntent.SYARIAH],
@@ -112,8 +112,8 @@ describe("ResponseGenerator SYARIAH routing (AAOS-W3A-S1 Fix 1)", () => {
     expect(SYARIAH_TRUST_RESPONSE_POOL).not.toContain(text);
   });
 
-  it("SYARIAH intent at HANDOFF stage does NOT override the handoff message (still names the sales rep)", () => {
-    const text = generator.generate({
+  it("SYARIAH intent at HANDOFF stage does NOT override the handoff message (still names the sales rep)", async () => {
+    const text = await generator.generate({
       conversation,
       stage: ConversationStage.HANDOFF,
       intents: [DetectedIntent.SYARIAH],
@@ -125,7 +125,7 @@ describe("ResponseGenerator SYARIAH routing (AAOS-W3A-S1 Fix 1)", () => {
     expect(text).toContain("Budi Santoso");
   });
 
-  it("SYARIAH override response stays ≤ 300 chars across GREETING/UNIT_INFO/PRICE_INFO/OBJECTION stages", () => {
+  it("SYARIAH override response stays ≤ 300 chars across GREETING/UNIT_INFO/PRICE_INFO/OBJECTION stages", async () => {
     const stages = [
       ConversationStage.GREETING,
       ConversationStage.DISCOVERY,
@@ -135,7 +135,7 @@ describe("ResponseGenerator SYARIAH routing (AAOS-W3A-S1 Fix 1)", () => {
       ConversationStage.OBJECTION,
     ];
     for (const stage of stages) {
-      const text = generator.generate({
+      const text = await generator.generate({
         conversation,
         stage,
         intents: [DetectedIntent.SYARIAH],

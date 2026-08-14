@@ -8,6 +8,8 @@
 export interface AdMetricsDto {
   readonly spend: number;
   readonly clicks: number;
+  /** AAOS-TAMARA-PAGES redesign (coordinator note #3): mirrors `AdMetricsResponseDto.frequency` on the real `aaos-api` response — plumbed through so "Audit Biaya"'s "Audiens jenuh (frequency >= 3.5)" waste-detection section can work off real per-ad data, same pattern as `clicks`. */
+  readonly frequency: number;
   readonly conversations: number;
   readonly d2: number;
   readonly d3: number;
@@ -27,6 +29,8 @@ export interface CampaignAdDto {
   readonly branch: string;
   readonly verdict: string;
   readonly metrics: AdMetricsDto;
+  /** AAOS-TAMARA-PAGES redesign: mirrors `AdResponseDto.daysSinceCreation` on the real `aaos-api` response — powers "Audit Biaya"'s "Iklan Baru (last 14 days)" section. Optional (unlike `frequency`) rather than a required field on every existing fixture/caller: this app's other, already-shipped pages have no use for it, so widening every `CampaignAdDto`/`AdSummaryDto` literal across the codebase for one new section's sake isn't warranted — callers that need it check for `undefined`. */
+  readonly daysSinceCreation?: number;
 }
 
 /** One ad within `AdSetSummaryDto.ads` — the `#C` level of the campaign→ad-set→ad hierarchy (spec "meta-ads/page.tsx" MAAO2 redesign). Distinct from `CampaignAdDto` only in that it omits `campaignName` (redundant once nested under its own campaign). */
@@ -39,6 +43,8 @@ export interface AdSummaryDto {
   readonly branch: string;
   readonly verdict: string;
   readonly metrics: AdMetricsDto;
+  /** See `CampaignAdDto.daysSinceCreation` — same field, same optionality rationale. */
+  readonly daysSinceCreation?: number;
 }
 
 /** The `#B` level. `stableId`/`spend` come straight from `aaos-api`'s real, already spend-sorted assignment (`@aos/meta-ads-connector`'s `StableIdAssigner`) — never recomputed client-side. */
@@ -147,4 +153,51 @@ export interface LeadDto {
 
 export interface ApiErrorBody {
   readonly error: { readonly code?: string; readonly message: string };
+}
+
+/**
+ * `/api/llm/*` DTOs (AAOS-TAMARA-PAGES redesign) — client-safe mirrors of the `aaos-api` LLM
+ * module's response shapes documented in `docs/PROMPT-AAOS-API-LLM-TAMARA.md` (built by a sibling
+ * task; this app's `/api/llm/*` routes proxy to it). Kept as plain hand-written interfaces for the
+ * same reason as every other DTO in this file — see this file's own top docstring.
+ */
+export interface LlmTemuanDto {
+  readonly icon: string;
+  readonly judul: string;
+  readonly detail: string;
+}
+
+export interface LlmRekomendasiDto {
+  readonly aksi: string;
+  readonly target: string;
+  readonly alasan: string;
+  readonly estimasi: string;
+}
+
+export interface LlmAnalyzeResponseDto {
+  readonly temuan: readonly LlmTemuanDto[];
+  readonly rekomendasi: readonly LlmRekomendasiDto[];
+  readonly ringkasan: string;
+}
+
+/** Client-safe mirror of `@aos/meta-ads-agent`'s `CreativeBrief` entity fields (coordinator note #4/#5) — plain strings, not the backend's `Branch`/`AdAngle` enums, matching this file's "never import a backend enum" convention. */
+export interface LlmCreativeBriefResponseDto {
+  readonly unit: string;
+  readonly angle: string;
+  readonly branch: string;
+  readonly primaryMessage: string;
+  readonly tone: string;
+  readonly formats: readonly string[];
+  readonly avoid: readonly string[];
+  readonly urgency: string;
+  readonly reason: string;
+}
+
+export interface LlmChatMessageDto {
+  readonly role: "user" | "assistant";
+  readonly content: string;
+}
+
+export interface LlmChatResponseDto {
+  readonly reply: string;
 }

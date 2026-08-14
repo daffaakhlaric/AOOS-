@@ -6,6 +6,7 @@ import { MetricsSummaryBar } from "@/components/meta-ads/MetricsSummaryBar";
 const TOTALS = {
   spend: 26_400_000,
   clicks: 5000,
+  frequency: 0,
   conversations: 2866,
   d2: 1914,
   d3: 1286,

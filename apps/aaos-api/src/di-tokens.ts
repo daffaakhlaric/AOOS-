@@ -32,3 +32,12 @@ export const CREATIVE_PACKAGE_STORE = Symbol("CREATIVE_PACKAGE_STORE");
  */
 export const LEAD_STORE_MESSAGE_REPOSITORY = Symbol("LEAD_STORE_MESSAGE_REPOSITORY");
 export const LEAD_STORE_CLOSING_REPOSITORY = Symbol("LEAD_STORE_CLOSING_REPOSITORY");
+/**
+ * AAOS-LLM-TAMARA additions — module-local providers for `modules/llm`, following
+ * `CREATIVE_PACKAGE_STORE`'s precedent (a process-local implementation detail of one module, not
+ * a real external integration composed in `app.module.ts`, so these are provided inside
+ * `LlmModule` itself, not exported from `AppModule.forRoot`).
+ */
+export const LLM_OPENAI_CLIENT = Symbol("LLM_OPENAI_CLIENT");
+export const LLM_RATE_LIMITER = Symbol("LLM_RATE_LIMITER");
+export const LLM_RESPONSE_CACHE = Symbol("LLM_RESPONSE_CACHE");

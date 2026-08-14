@@ -15,6 +15,10 @@ describe("parseSalesAgentConfig", () => {
     expect(config.maxResponseDelayMs).toBe(3000);
     expect(config.followUpEnabled).toBe(true);
     expect(config.followUpDays).toEqual([3, 7, 14]);
+    expect(config.llmReplyEnabled).toBe(false);
+    expect(config.openaiApiKey).toBeUndefined();
+    expect(config.openaiModel).toBe("gpt-4o-mini");
+    expect(config.openaiTimeoutMs).toBe(8_000);
   });
 
   it("rejects a missing tenantId", () => {
@@ -52,6 +56,28 @@ describe("parseSalesAgentConfig", () => {
     expect(config.hotThreshold).toBe(70);
     expect(config.warmThreshold).toBe(40);
     expect(config.followUpDays).toEqual([1, 5]);
+  });
+
+  it("accepts explicit LLM overrides", () => {
+    const config = unwrap(
+      parseSalesAgentConfig({
+        tenantId: "t",
+        llmReplyEnabled: true,
+        openaiApiKey: "sk-test",
+        openaiModel: "gpt-4o",
+        openaiTimeoutMs: 5_000,
+      }),
+    );
+    expect(config.llmReplyEnabled).toBe(true);
+    expect(config.openaiApiKey).toBe("sk-test");
+    expect(config.openaiModel).toBe("gpt-4o");
+    expect(config.openaiTimeoutMs).toBe(5_000);
+  });
+
+  it("rejects an empty-string openaiApiKey", () => {
+    expect(unwrapErr(parseSalesAgentConfig({ tenantId: "t", openaiApiKey: "" })).message).toContain(
+      "validation failed",
+    );
   });
 
   it("rejects a non-object input", () => {

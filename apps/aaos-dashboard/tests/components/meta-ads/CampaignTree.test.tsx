@@ -11,6 +11,7 @@ function metrics(
   return {
     spend: 1_000_000,
     clicks: 100,
+    frequency: 1.5,
     conversations: 50,
     d2: 20,
     d3: 10,

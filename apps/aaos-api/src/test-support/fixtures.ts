@@ -35,6 +35,9 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     SUPABASE_URL: "https://test-project.supabase.co",
     SUPABASE_ANON_KEY: "test-supabase-anon-key",
     SUPABASE_SERVICE_KEY: "test-supabase-service-key",
+    // Empty by default — most tests exercise the "no OpenAI key configured" fallback path;
+    // llm module tests that need a configured key pass `{ OPENAI_API_KEY: "test-openai-key" }`.
+    OPENAI_API_KEY: "",
     ...overrides,
   };
 }

@@ -43,6 +43,7 @@ export {
   ConversationError,
   ScoringError,
   HandoffError,
+  LlmError,
 } from "./domain/errors/index.js";
 
 // Config

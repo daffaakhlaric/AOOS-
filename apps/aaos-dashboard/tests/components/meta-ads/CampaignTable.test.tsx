@@ -18,6 +18,7 @@ function buildAd(overrides: Partial<CampaignAdDto> = {}): CampaignAdDto {
     metrics: {
       spend: 6_000_000,
       clicks: 1200,
+      frequency: 2.1,
       conversations: 790,
       d2: 400,
       d3: 307,
