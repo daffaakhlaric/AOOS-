@@ -25,19 +25,21 @@ describe("SalesTeamTable", () => {
     expect(screen.getByText("ON")).toBeInTheDocument();
   });
 
-  it("ON renders a green badge", () => {
+  // StatusBadge is now a CSS Modules component (hashed class names) — tone is asserted via
+  // `data-tone` rather than an exact Tailwind class string.
+  it("ON renders a success-tone badge", () => {
     render(<SalesTeamTable team={[buildSales({ status: "ON" })]} />);
-    expect(screen.getByText("ON")).toHaveClass("text-brand-success");
+    expect(screen.getByText("ON")).toHaveAttribute("data-tone", "success");
   });
 
-  it("BUSY renders an amber badge", () => {
+  it("BUSY renders a warning-tone badge", () => {
     render(<SalesTeamTable team={[buildSales({ status: "BUSY", name: "Rina Dewi" })]} />);
-    expect(screen.getByText("BUSY")).toHaveClass("text-brand-warning");
+    expect(screen.getByText("BUSY")).toHaveAttribute("data-tone", "warning");
   });
 
-  it("OFF renders a red badge", () => {
+  it("OFF renders a danger-tone badge", () => {
     render(<SalesTeamTable team={[buildSales({ status: "OFF", name: "Andi" })]} />);
-    expect(screen.getByText("OFF")).toHaveClass("text-brand-danger");
+    expect(screen.getByText("OFF")).toHaveAttribute("data-tone", "danger");
   });
 
   it("shows an empty state when the team is empty", () => {

@@ -37,4 +37,25 @@ describe("stripAdNameSuffix (best-effort pattern match, not verified against rea
   it("is case-insensitive on the uuid's hex digits", () => {
     expect(stripAdNameSuffix("Creative · 3FA85F64-5717-4562-B3FC-2C963F66AFA6")).toBe("Creative");
   });
+
+  it('strips a " - Boost [uuid]" suffix (TOTAL UI REBUILD spec extension)', () => {
+    expect(
+      stripAdNameSuffix("Xpander Creative 1 - Boost 3fa85f64-5717-4562-b3fc-2c963f66afa6"),
+    ).toBe("Xpander Creative 1");
+  });
+
+  it.each(["platinum", "gold", "silver"])(
+    'strips a " - %s [uuid]" suffix, case-insensitively',
+    (tier) => {
+      expect(
+        stripAdNameSuffix(`Xpander Creative 1 - ${tier} 3fa85f64-5717-4562-b3fc-2c963f66afa6`),
+      ).toBe("Xpander Creative 1");
+    },
+  );
+
+  it("strips a generic UUID-shaped trailing segment not matching any keyword variant", () => {
+    expect(stripAdNameSuffix("Xpander Creative 1 - 3fa85f64-5717-4562-b3fc")).toBe(
+      "Xpander Creative 1",
+    );
+  });
 });

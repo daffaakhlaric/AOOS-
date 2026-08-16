@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+﻿import { StrictMode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -122,7 +122,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
 
     render(<MetaAdsClient />);
 
-    expect(await screen.findByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument();
+    expect(await screen.findByText("Meta-DM-Leads-Mobix")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -133,7 +133,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
 
     render(<MetaAdsClient />);
 
-    expect(await screen.findByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument();
+    expect(await screen.findByText("Meta-DM-Leads-Mobix")).toBeInTheDocument();
     expect(screen.getByTestId("last-updated").textContent).toContain("lebih dari 60 menit lalu");
   });
 
@@ -142,7 +142,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     render(<MetaAdsClient />);
 
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
-    await waitFor(() => expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument());
     expect(screen.getByTestId("metrics-summary-bar")).toBeInTheDocument();
     expect(screen.getByText("Kampanye")).toBeInTheDocument();
   });
@@ -165,7 +165,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     global.fetch = vi.fn(async () => jsonResponse(CAMPAIGNS_BODY)) as unknown as typeof fetch;
     const { unmount } = render(<MetaAdsClient />);
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
-    await waitFor(() => expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument());
     unmount();
 
     expect(localStorage.getItem(CAMPAIGNS_CACHE_KEY)).not.toBeNull();
@@ -173,7 +173,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     const fetchMock = vi.fn();
     global.fetch = fetchMock as unknown as typeof fetch;
     render(<MetaAdsClient />);
-    expect(await screen.findByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument();
+    expect(await screen.findByText("Meta-DM-Leads-Mobix")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -190,9 +190,9 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     render(<MetaAdsClient />);
 
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
-    await waitFor(() => expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
-    await waitFor(() => expect(screen.getByText(/#A001 Second Pull Campaign/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Second Pull Campaign")).toBeInTheDocument());
 
     const historyToggle = screen.getByTestId("snapshot-selector");
     await userEvent.click(historyToggle);
@@ -201,7 +201,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
       .filter((btn) => (btn.textContent ?? "").includes("hari terakhir"));
     expect(historyEntries.length).toBeGreaterThan(0);
     await userEvent.click(historyEntries[0]!);
-    await waitFor(() => expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument());
   });
 
   it("shows a blocking rate-limit message (429/503) when there is no cached data yet", async () => {
@@ -219,7 +219,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     writeCampaignsCache({ data: CAMPAIGNS_BODY, fetchedAt: Date.now(), period: "last_30d" });
     global.fetch = vi.fn(async () => jsonResponse({}, 503)) as unknown as typeof fetch;
     render(<MetaAdsClient />);
-    expect(await screen.findByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument();
+    expect(await screen.findByText("Meta-DM-Leads-Mobix")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
     await waitFor(() => expect(screen.getByTestId("rate-limit-banner")).toBeInTheDocument());
@@ -227,7 +227,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
       "Data terakhir ditampilkan dari cache",
     );
     // The cached data is still on screen — not replaced by an empty/error state.
-    expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument();
+    expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument();
     expect(screen.queryByTestId("error-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("empty-state")).not.toBeInTheDocument();
   });
@@ -236,7 +236,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     global.fetch = vi.fn(async () => jsonResponse(CAMPAIGNS_BODY)) as unknown as typeof fetch;
     render(<MetaAdsClient />);
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
-    await waitFor(() => expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument());
 
     await userEvent.type(screen.getByLabelText("Cari campaign"), "nonexistent-xyz");
     await waitFor(() => expect(screen.getByText("Tidak ada hasil")).toBeInTheDocument());
@@ -250,7 +250,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     global.fetch = fetchMock as unknown as typeof fetch;
     render(<MetaAdsClient />);
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
-    await waitFor(() => expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument());
 
     const executeButtons = screen.getAllByRole("button", { name: /Execute/ });
     await userEvent.click(executeButtons[0]!);
@@ -273,7 +273,7 @@ describe("MetaAdsClient (MAAO2 redesign: localStorage cache, always-force-refres
     render(<MetaAdsClient />, { wrapper: StrictMode });
 
     await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/ }));
-    await waitFor(() => expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument());
     expect(screen.queryByTestId("loading-spinner")).not.toBeInTheDocument();
   });
 });

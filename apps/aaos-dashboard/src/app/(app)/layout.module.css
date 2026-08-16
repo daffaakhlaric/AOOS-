@@ -1,0 +1,40 @@
+/**
+ * Root app-shell CSS Grid (spec "=== LAYOUT ===": `grid-template-columns: 220px 1fr`, `height:
+ * 100vh`). Lives here (`(app)/layout.tsx`), NOT `src/app/layout.tsx` — the root layout must stay
+ * bare so `(auth)/login` renders with zero app chrome.
+ *
+ * Real bug fix: `Sidebar`'s root element is `position: fixed` (spec "Sidebar: position fixed
+ * width 220px height 100vh" — see `Sidebar.module.css`). Per the CSS Grid spec, a fixed/absolutely
+ * positioned child of a grid container is taken out of grid flow entirely — it does NOT occupy a
+ * grid track and does NOT participate in auto-placement. That left `.main` as the grid's ONLY
+ * real item, and a single auto-placed item starts at the first empty cell — column 1 (the 220px
+ * track), not column 2 (`1fr`). The main content was rendering squeezed into a 220px-wide column
+ * instead of filling the remaining width, which is why the page looked almost entirely blank with
+ * disconnected/overflowing text fragments. Fix: `.main` is now explicitly placed in the second
+ * column — `Sidebar`'s fixed positioning no longer affects where the one real grid item lands.
+ */
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+
+.main {
+  grid-column: 2;
+  min-height: 100vh;
+  background: var(--gray-100);
+  min-width: 0;
+}
+
+/* Mobile: Sidebar hides itself (see Sidebar.module.css), so collapse the reserved column and
+   leave room at the bottom for MobileNav's fixed tab bar instead. */
+@media (max-width: 767px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .main {
+    grid-column: 1;
+    padding-bottom: 64px;
+  }
+}

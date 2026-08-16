@@ -1,0 +1,176 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 32px;
+  max-width: 1200px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--black);
+  line-height: 1;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.secondaryButton {
+  padding: 7px 12px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.secondaryButton:hover {
+  background: var(--gray-100);
+}
+
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lastUpdated {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.kpiBar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+@media (min-width: 640px) {
+  .kpiBar {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.kpiLabel {
+  font-size: 11px;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpiValue {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-top: 2px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.mutedText {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.groupList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupCard {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 12px;
+}
+
+.groupName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-900);
+}
+
+.groupMeta {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.wasteBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wasteLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.wasteList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wasteItem {
+  font-size: 13px;
+  color: var(--gray-900);
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+}
+
+.table {
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+
+.tableHeadRow th {
+  font-size: 11px;
+  color: var(--gray-400);
+  padding: 8px 12px;
+  font-weight: 500;
+}
+
+.tableRow {
+  border-top: var(--border);
+}
+
+.tableCell {
+  padding: 4px 12px;
+}

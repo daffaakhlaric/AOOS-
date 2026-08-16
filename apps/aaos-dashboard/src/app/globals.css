@@ -1,43 +1,78 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/**
+ * Global reset + design-token custom properties (spec "=== GLOBAL RESET ===", TOTAL UI REBUILD).
+ *
+ * This REPLACES the previous Tailwind-based globals.css (`@tailwind base/components/utilities` +
+ * a handful of Tailwind-utility-composed helper classes) with the exact hand-crafted reset the
+ * spec specifies. `tailwind.config.ts` remains in the repo (out of scope to remove per the
+ * coordinator note) but nothing in this app should be written against it going forward — every
+ * component this task touches uses a co-located `*.module.css` file against the `var(--xxx)`
+ * custom properties declared here instead.
+ *
+ * `--font`/`--mono` reference the `--font-inter`/`--font-mono` variables `next/font/google`
+ * attaches to `<html>` in `src/app/layout.tsx` (Inter + JetBrains Mono), falling back to the
+ * spec's literal font stacks if those variables are ever unset (e.g. a unit test that renders a
+ * component tree without the real root layout's `<html>` element in scope).
+ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 :root {
+  --font:
+    var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: var(--font-mono), "JetBrains Mono", "Fira Code", monospace;
+
+  --black: #000000;
+  --white: #ffffff;
+
+  --gray-100: #fafafa;
+  --gray-200: #eaeaea;
+  --gray-300: #c9c9c9;
+  --gray-400: #888888;
+  --gray-500: #666666;
+  --gray-600: #444444;
+  --gray-700: #333333;
+  --gray-900: #111111;
+
+  --blue: #0070f3;
+  --blue-light: #eef4ff;
+  --green: #0fa37f;
+  --green-light: #effcf6;
+  --red: #ee0000;
+  --red-light: #fff1f0;
+  --amber: #f5a623;
+  --amber-light: #fff8ed;
+
+  /**
+   * Not in the spec's literal `:root` block — added for `VerdictBadge`'s `REFRESH` verdict, a
+   * real `VerdictEngine` output the mockups don't depict (see `VerdictBadge.module.css`'s
+   * docstring for the full reasoning). Purple reads clearly distinct from all five spec colors
+   * above and follows the same `--color` / `--color-light` pairing convention.
+   */
+  --purple: #7c3aed;
+  --purple-light: #f5f3ff;
+
+  --border: 1px solid var(--gray-200);
+  --radius: 6px;
+  --radius-lg: 8px;
+
+  --shadow:
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md:
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 1px 4px rgba(0, 0, 0, 0.04);
+
   color-scheme: light;
 }
 
 body {
-  background-color: #f5f5f7;
-  color: #1c1c1e;
-}
-
-/**
- * Micro-interaction primitives (spec "=== ANIMATIONS ===").
- * `animate-fade-in` (page load) is a generated Tailwind utility (see `tailwind.config.ts`'s
- * `animation.fade-in`); the rest are small, named, reusable classes rather than inline styles so
- * every card/button across the app picks up the exact same timing.
- */
-.card-hover-lift {
-  transition:
-    transform 150ms ease-out,
-    box-shadow 150ms ease-out;
-}
-.card-hover-lift:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.btn-press {
-  transition: all 100ms ease-out;
-}
-.btn-press:active {
-  transform: scale(0.97);
-  transition-duration: 80ms;
-}
-
-.sidebar-group-collapse {
-  overflow: hidden;
-  transition:
-    grid-template-rows 200ms ease,
-    opacity 200ms ease;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--gray-900);
+  background: var(--gray-100);
+  -webkit-font-smoothing: antialiased;
 }

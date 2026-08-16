@@ -15,6 +15,8 @@ import type {
   LlmAnalyzeResponseDto,
 } from "@/types/dashboard.types";
 
+import styles from "./AnalisaClient.module.css";
+
 const RP_PER_CHAT_THRESHOLD = 25_000;
 
 /**
@@ -95,15 +97,17 @@ interface Temuan {
  * computed into the finding's own text — this app has no separate structured title/detail/metric
  * fields to pull one from without inventing data.
  */
+// `?? ""` resolves the `noUncheckedIndexedAccess` type-only gap on CSS Module property access —
+// see VerdictBadge.tsx's docstring for the full explanation.
 function temuanStyle(key: string): { readonly bar: string; readonly icon: string } {
   switch (key) {
     case "boros":
     case "waste":
-      return { bar: "border-l-[#DC2626]", icon: "🔴" };
+      return { bar: styles.barRed ?? "", icon: "🔴" };
     case "juara":
-      return { bar: "border-l-[#1A9E5C]", icon: "🟢" };
+      return { bar: styles.barGreen ?? "", icon: "🟢" };
     default:
-      return { bar: "border-l-[#0A84FF]", icon: "🔵" };
+      return { bar: styles.barBlue ?? "", icon: "🔵" };
   }
 }
 
@@ -205,7 +209,7 @@ export function AnalisaClient(): React.ReactElement {
 
   if (data === undefined) {
     return (
-      <div className="flex flex-col gap-4 p-6">
+      <div className={styles.page}>
         <Header onPull={() => void pull()} loading={loading} />
         {loading ? <LoadingSpinner /> : null}
         {!loading && error !== undefined ? <ErrorCard message={error} /> : null}
@@ -226,29 +230,22 @@ export function AnalisaClient(): React.ReactElement {
   const maxBranchSpend = Math.max(1, ...branches.map((branch) => branch.spend));
 
   return (
-    <div className="flex animate-fade-in flex-col gap-6 p-8 sm:p-10">
+    <div className={styles.page}>
       <Header onPull={() => void pull()} loading={loading} />
       {error !== undefined ? <ErrorCard message={error} /> : null}
 
-      <section data-testid="analisa-temuan" className="flex flex-col gap-2">
-        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-ink-muted">
-          Temuan Utama
-        </h3>
+      <section data-testid="analisa-temuan" className={styles.section}>
+        <h3 className={styles.sectionLabel}>Temuan Utama</h3>
         {temuan.length === 0 ? (
-          <p className="text-sm text-ink-muted">Belum cukup data untuk temuan.</p>
+          <p className={styles.mutedText}>Belum cukup data untuk temuan.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className={styles.temuanList}>
             {temuan.map((item) => {
               const style = temuanStyle(item.key);
               return (
-                <li
-                  key={item.key}
-                  className={`card-hover-lift flex items-start gap-3 rounded-card border border-l-4 border-hairline-card bg-surface-card p-4 shadow-card ${style.bar}`}
-                >
-                  <span aria-hidden="true" className="text-base leading-none">
-                    {style.icon}
-                  </span>
-                  <p className="text-sm text-ink">{item.text}</p>
+                <li key={item.key} className={`${styles.temuanCard} ${style.bar}`}>
+                  <span aria-hidden="true">{style.icon}</span>
+                  <p className={styles.temuanText}>{item.text}</p>
                 </li>
               );
             })}
@@ -256,24 +253,19 @@ export function AnalisaClient(): React.ReactElement {
         )}
       </section>
 
-      <section data-testid="analisa-branch-verdict" className="flex flex-col gap-3">
-        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-ink-muted">
-          Per Cabang
-        </h3>
-        <div className="flex flex-col gap-2 rounded-card border border-hairline-card bg-surface-card p-4 shadow-card">
+      <section data-testid="analisa-branch-verdict" className={styles.section}>
+        <h3 className={styles.sectionLabel}>Per Cabang</h3>
+        <div className={styles.branchPanel}>
           {branches.map((branch) => {
             const verdict = branchVerdict(branch.rpLead);
             const widthPercent = Math.max(4, (branch.spend / maxBranchSpend) * 100);
             return (
-              <div key={branch.branch} className="flex items-center gap-3 text-sm">
-                <span className="w-24 shrink-0 truncate font-medium text-ink">{branch.branch}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-hairline-subtle">
-                  <div
-                    className="h-full rounded-full bg-brand-primary"
-                    style={{ width: `${widthPercent}%` }}
-                  />
+              <div key={branch.branch} className={styles.branchRow}>
+                <span className={styles.branchName}>{branch.branch}</span>
+                <div className={styles.branchBarTrack}>
+                  <div className={styles.branchBarFill} style={{ width: `${widthPercent}%` }} />
                 </div>
-                <span className="w-28 shrink-0 text-right tabular-nums text-ink-muted">
+                <span className={styles.branchValue}>
                   {branch.rpLead !== null ? `${formatIdr(branch.rpLead)}/lead` : "—"}
                 </span>
                 <VerdictBadge verdict={verdict} />
@@ -281,29 +273,29 @@ export function AnalisaClient(): React.ReactElement {
             );
           })}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
             <thead>
-              <tr className="text-[11px] uppercase text-ink-muted">
-                <th className="py-2.5 pr-3">Nama</th>
-                <th className="py-2.5 pr-3">Spend</th>
-                <th className="py-2.5 pr-3">Lead</th>
-                <th className="py-2.5 pr-3">Rp/Lead</th>
-                <th className="py-2.5 pr-3">Vonis</th>
+              <tr className={styles.tableHeadRow}>
+                <th>Nama</th>
+                <th>Spend</th>
+                <th>Lead</th>
+                <th>Rp/Lead</th>
+                <th>Vonis</th>
               </tr>
             </thead>
             <tbody>
               {branches.map((branch) => {
                 const verdict = branchVerdict(branch.rpLead);
                 return (
-                  <tr key={branch.branch} className="h-11 border-t border-hairline-table">
-                    <td className="py-1 pr-3 font-medium text-ink">{branch.branch}</td>
-                    <td className="py-1 pr-3 tabular-nums">{formatIdr(branch.spend)}</td>
-                    <td className="py-1 pr-3 tabular-nums">{formatNumber(branch.leads)}</td>
-                    <td className="py-1 pr-3 tabular-nums">
+                  <tr key={branch.branch} className={styles.tableRow}>
+                    <td className={styles.tableCell}>{branch.branch}</td>
+                    <td className={styles.tableCellNum}>{formatIdr(branch.spend)}</td>
+                    <td className={styles.tableCellNum}>{formatNumber(branch.leads)}</td>
+                    <td className={styles.tableCellNum}>
                       {branch.rpLead !== null ? formatIdr(branch.rpLead) : "—"}
                     </td>
-                    <td className="py-1 pr-3">
+                    <td className={styles.tableCell}>
                       <VerdictBadge verdict={verdict} />
                     </td>
                   </tr>
@@ -314,44 +306,39 @@ export function AnalisaClient(): React.ReactElement {
         </div>
       </section>
 
-      <section data-testid="analisa-ad-verdict" className="flex flex-col gap-2">
-        <h3 className="text-[13px] font-semibold uppercase tracking-wide text-ink-muted">
-          Per Iklan
-        </h3>
-        <div className="overflow-x-auto rounded-card border border-hairline-card bg-surface-card shadow-card">
-          <table className="w-full text-left text-sm">
+      <section data-testid="analisa-ad-verdict" className={styles.section}>
+        <h3 className={styles.sectionLabel}>Per Iklan</h3>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
             <thead>
-              <tr className="text-[11px] uppercase text-ink-muted">
-                <th className="px-4 py-2.5">#</th>
-                <th className="px-1 py-2.5">Iklan</th>
-                <th className="px-1 py-2.5">Spend</th>
-                <th className="px-1 py-2.5">Chat</th>
-                <th className="px-1 py-2.5">Rp/Chat</th>
-                <th className="px-1 py-2.5">Verdict</th>
-                <th className="px-1 py-2.5">Alasan</th>
+              <tr className={styles.tableHeadRow}>
+                <th>#</th>
+                <th>Iklan</th>
+                <th>Spend</th>
+                <th>Chat</th>
+                <th>Rp/Chat</th>
+                <th>Verdict</th>
+                <th>Alasan</th>
               </tr>
             </thead>
             <tbody>
               {allAds.map((ad) => {
                 const rpChat = rpPerChat(ad.metrics.spend, ad.metrics.conversations);
                 return (
-                  <tr
-                    key={ad.id}
-                    className="h-11 border-t border-hairline-table hover:bg-surface-page"
-                  >
-                    <td className="px-4 py-1 font-mono text-[11px]">{ad.stableId}</td>
-                    <td className="px-1 py-1 font-medium text-ink">{stripAdNameSuffix(ad.name)}</td>
-                    <td className="px-1 py-1 tabular-nums">{formatIdr(ad.metrics.spend)}</td>
-                    <td className="px-1 py-1 tabular-nums">
+                  <tr key={ad.id} className={styles.tableRow}>
+                    <td className={styles.tableCellMono}>{ad.stableId}</td>
+                    <td className={styles.tableCell}>{stripAdNameSuffix(ad.name)}</td>
+                    <td className={styles.tableCellNum}>{formatIdr(ad.metrics.spend)}</td>
+                    <td className={styles.tableCellNum}>
                       {formatNumber(ad.metrics.conversations)}
                     </td>
-                    <td className="px-1 py-1 tabular-nums">
+                    <td className={styles.tableCellNum}>
                       {rpChat !== null ? formatIdr(rpChat) : "—"}
                     </td>
-                    <td className="px-1 py-1">
+                    <td className={styles.tableCell}>
                       <VerdictBadge verdict={ad.verdict} />
                     </td>
-                    <td className="px-1 py-1 text-ink-muted">{reasonFor(ad)}</td>
+                    <td className={styles.tableCellMuted}>{reasonFor(ad)}</td>
                   </tr>
                 );
               })}
@@ -360,17 +347,17 @@ export function AnalisaClient(): React.ReactElement {
         </div>
       </section>
 
-      <section data-testid="analisa-ai-panel" className="flex flex-col gap-3">
+      <section data-testid="analisa-ai-panel" className={styles.aiPanel}>
         <button
           type="button"
           onClick={() => void runAiAnalysis()}
           disabled={ai.status === "loading"}
-          className="btn-press w-fit rounded-button border border-hairline-card px-3 py-2 text-sm font-medium text-ink hover:bg-surface-page disabled:opacity-50"
+          className={styles.aiButton}
         >
           🤖 Analisa dengan AI
         </button>
         {ai.status === "loading" ? (
-          <p data-testid="ai-loading" className="text-sm text-ink-muted">
+          <p data-testid="ai-loading" className={styles.mutedText}>
             Tamara sedang menganalisa data iklan…
           </p>
         ) : null}
@@ -381,33 +368,30 @@ export function AnalisaClient(): React.ReactElement {
           <ErrorCard message="AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis" />
         ) : null}
         {ai.status === "success" ? (
-          <div
-            data-testid="ai-result"
-            className="flex flex-col gap-3 rounded-card border border-hairline-card bg-surface-card p-4 shadow-card"
-          >
+          <div data-testid="ai-result" className={styles.aiResult}>
             <div>
-              <p className="text-xs font-semibold text-ink-muted">Temuan Utama</p>
-              <ul className="mt-1 flex flex-col gap-1">
+              <p className={styles.aiResultLabel}>Temuan Utama</p>
+              <ul className={styles.aiResultList}>
                 {ai.result.temuan.map((item, index) => (
-                  <li key={`${item.judul}-${index}`} className="text-sm text-ink">
+                  <li key={`${item.judul}-${index}`} className={styles.aiResultItem}>
                     {item.icon} {item.judul} — {item.detail}
                   </li>
                 ))}
               </ul>
             </div>
             <div>
-              <p className="text-xs font-semibold text-ink-muted">Rekomendasi</p>
-              <ul className="mt-1 flex flex-col gap-1">
+              <p className={styles.aiResultLabel}>Rekomendasi</p>
+              <ul className={styles.aiResultList}>
                 {ai.result.rekomendasi.map((item, index) => (
-                  <li key={`${item.target}-${index}`} className="text-sm text-ink">
+                  <li key={`${item.target}-${index}`} className={styles.aiResultItem}>
                     {item.aksi} — {item.target}: {item.alasan} ({item.estimasi})
                   </li>
                 ))}
               </ul>
             </div>
             <div>
-              <p className="text-xs font-semibold text-ink-muted">Ringkasan Tamara</p>
-              <p className="text-sm text-ink">{ai.result.ringkasan}</p>
+              <p className={styles.aiResultLabel}>Ringkasan Tamara</p>
+              <p className={styles.aiResultItem}>{ai.result.ringkasan}</p>
             </div>
           </div>
         ) : null}
@@ -424,21 +408,14 @@ function Header({
   readonly loading: boolean;
 }): React.ReactElement {
   return (
-    <div className="flex items-center justify-between">
+    <div className={styles.headerRow}>
       <div>
-        <h2 className="text-[26px] font-semibold -tracking-[0.5px] text-ink">
-          Analisa & Rekomendasi
-        </h2>
-        <p className="mt-0.5 text-[13px] text-ink-muted">
+        <h2 className={styles.title}>Analisa & Rekomendasi</h2>
+        <p className={styles.subtitle}>
           Verdict per iklan (SCALE/KEEP/REVIEW/PAUSE/FIX) + alasan, ber-ID. Diukur dari Rp/chat.
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onPull}
-        disabled={loading}
-        className="btn-press rounded-button border border-hairline-card px-3 py-2 text-sm font-medium text-ink hover:bg-surface-page disabled:opacity-50"
-      >
+      <button type="button" onClick={onPull} disabled={loading} className={styles.secondaryButton}>
         🔄 Tarik data baru
       </button>
     </div>

@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import styles from "./Sidebar.module.css";
+
 /** A single sidebar/mobile-nav link. */
 export interface NavItem {
   readonly href: string;
@@ -91,14 +93,20 @@ function isActive(pathname: string | null, href: string): boolean {
  * `MobileNav` takes over (spec "Mobile responsive"). Grouped into 🤖 TAMARA (META ADS) / 📋
  * OPERASIONAL sections (AAOS-TAMARA-PAGES redesign).
  *
- * UI-overhaul pass ("=== SIDEBAR ===" spec section): fixed 220px width, logo area with a live
- * indicator dot, collapsible section headers (chevron rotates, 200ms height transition — CSS
- * grid-template-rows trick via `.sidebar-group-collapse` in `globals.css`, since collapsing to
- * `height: 0` requires either JS-measured pixel heights or the CSS-grid `1fr`→`0fr` technique;
- * the latter needs no JS measurement and animates smoothly), and the spec's exact nav-item
- * active/hover states. Groups start EXPANDED by default so every nav item stays discoverable
- * (and in the DOM) without requiring a click — matching the pre-overhaul component's always-
- * visible behavior for callers/tests that don't interact with the collapse toggle.
+ * TOTAL UI REBUILD spec "=== SIDEBAR ===": fixed 220px rail, logo area with a live indicator dot,
+ * collapsible section headers (chevron rotates, 200ms height transition via CSS grid
+ * `1fr`→`0fr`, same technique as before, now expressed in `Sidebar.module.css`), and the spec's
+ * exact nav-item active/hover states (`::before` accent bar). Groups start EXPANDED by default so
+ * every nav item stays discoverable (and in the DOM) without requiring a click — matching the
+ * pre-rebuild component's always-visible behavior for callers/tests that don't interact with the
+ * collapse toggle.
+ *
+ * The spec's "User section (bottom)" (avatar/name/role/logout) is intentionally NOT rendered
+ * here: this component receives no user/session data (that lives in `TopBar`'s `userEmail`/
+ * `onSignOut` props, wired per-page from server-side session lookups) — fabricating a user block
+ * with no real backing data would violate the "never fabricate" precedent already established
+ * elsewhere in this codebase (e.g. `DateRangeSelector.tsx`'s docstring). Sign-out remains
+ * reachable via `TopBar`.
  */
 export function Sidebar(): React.ReactElement {
   const pathname = usePathname();
@@ -109,71 +117,62 @@ export function Sidebar(): React.ReactElement {
   }
 
   return (
-    <nav
-      aria-label="Navigasi utama"
-      className="hidden w-[220px] shrink-0 flex-col gap-1 border-r border-hairline-sidebar bg-[#FAFAFA] p-4 md:flex"
-    >
-      <div className="mb-4 flex flex-col gap-1 px-2">
-        <div className="flex items-center gap-1.5">
-          <p className="text-base font-bold text-ink">🚗 AAOS</p>
-          <span
-            aria-hidden="true"
-            title="Live"
-            className="h-1.5 w-1.5 rounded-full bg-brand-success"
-          />
+    <nav aria-label="Navigasi utama" className={styles.sidebar}>
+      <div className={styles.logo}>
+        <div className={styles.logoRow}>
+          <span aria-hidden="true" className={styles.logoEmoji}>
+            🚗
+          </span>
+          <p className={styles.logoText}>AAOS</p>
+          <span aria-hidden="true" title="Live" className={styles.liveDot} />
         </div>
-        <p className="text-[11px] text-ink-muted">AI Automotive OS</p>
+        <p className={styles.subtext}>AI Automotive OS</p>
       </div>
-      {NAV_GROUPS.map((group) => {
-        const collapsed = collapsedGroups[group.key] ?? false;
-        return (
-          <div key={group.key} className="flex flex-col gap-1">
-            {group.label !== undefined ? (
-              <button
-                type="button"
-                onClick={() => toggleGroup(group.key)}
-                aria-expanded={!collapsed}
-                className="mb-1 mt-3 flex items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-[#A0A0A8] first:mt-0"
-              >
-                {group.label}
-                <span
-                  aria-hidden="true"
-                  className={`transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}
+      <div className={styles.nav}>
+        {NAV_GROUPS.map((group) => {
+          const collapsed = collapsedGroups[group.key] ?? false;
+          return (
+            <div key={group.key} className={styles.group}>
+              {group.label !== undefined ? (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.key)}
+                  aria-expanded={!collapsed}
+                  className={styles.sectionLabel}
                 >
-                  ▾
-                </span>
-              </button>
-            ) : null}
-            <div
-              className="sidebar-group-collapse grid"
-              style={{ gridTemplateRows: collapsed ? "0fr" : "1fr" }}
-            >
-              <div className="flex flex-col gap-1 overflow-hidden">
-                {group.items.map((item) => {
-                  const active = isActive(pathname, item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`mx-[6px] my-[1px] flex h-[34px] items-center gap-2 rounded-[6px] py-0 pl-3 pr-2 text-[13.5px] font-medium ${
-                        active
-                          ? "border-l-2 border-brand-primary bg-[#E8F0FE] text-brand-primary"
-                          : "border-l-2 border-transparent text-[#3A3A3C] hover:bg-[#EFEFEF]"
-                      }`}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      <span aria-hidden="true" className="text-base leading-none">
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </Link>
-                  );
-                })}
+                  {group.label}
+                  <span
+                    aria-hidden="true"
+                    className={`${styles.chevron} ${collapsed ? styles.chevronCollapsed : ""}`}
+                  >
+                    ▾
+                  </span>
+                </button>
+              ) : null}
+              <div className={`${styles.collapse} ${collapsed ? styles.collapsed : ""}`}>
+                <div className={styles.collapseInner}>
+                  {group.items.map((item) => {
+                    const active = isActive(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}
+                        aria-current={active ? "page" : undefined}
+                      >
+                        <span aria-hidden="true" className={styles.navIcon}>
+                          {item.icon}
+                        </span>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </nav>
   );
 }

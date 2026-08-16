@@ -1,0 +1,18 @@
+.section {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.target {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--gray-900);
+}

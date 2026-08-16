@@ -8,6 +8,8 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { ObjectiveDto } from "@/types/dashboard.types";
 
+import styles from "./ObjectiveClient.module.css";
+
 /** Fetches/creates the current objective via `/api/objective` (spec "objective/page.tsx"). */
 export function ObjectiveClient(): React.ReactElement {
   const [objective, setObjective] = useState<ObjectiveDto | null | undefined>(undefined);
@@ -57,8 +59,8 @@ export function ObjectiveClient(): React.ReactElement {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <h2 className="text-base font-semibold text-ink">🎯 Objective Bulan Ini</h2>
+    <div className={styles.page}>
+      <h2 className={styles.title}>🎯 Objective Bulan Ini</h2>
       {error !== undefined ? <ErrorCard message={error} /> : null}
       {objective !== null && objective !== undefined ? (
         <ObjectiveCard objective={objective} />

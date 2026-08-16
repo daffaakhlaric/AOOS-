@@ -8,6 +8,8 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { BranchDto } from "@/types/dashboard.types";
 
+import styles from "./BranchesClient.module.css";
+
 /** Branch settings overview — lists every branch (spec "branches/page.tsx"). */
 export function BranchesClient(): React.ReactElement {
   const [branches, setBranches] = useState<readonly BranchDto[] | undefined>(undefined);
@@ -35,9 +37,9 @@ export function BranchesClient(): React.ReactElement {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-6">
-      <h2 className="text-base font-semibold text-ink">⚙️ Branch Settings</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className={styles.page}>
+      <h2 className={styles.title}>⚙️ Branch Settings</h2>
+      <div className={styles.grid}>
         {branches.map((branch) => (
           <Link key={branch.id} href={`/branches/${branch.id}`}>
             <BranchCard branch={branch} />

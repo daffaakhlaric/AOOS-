@@ -1,0 +1,28 @@
+.section {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+  transition: box-shadow 150ms;
+}
+
+.section:hover {
+  box-shadow: var(--shadow);
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.name {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.meta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--gray-500);
+}

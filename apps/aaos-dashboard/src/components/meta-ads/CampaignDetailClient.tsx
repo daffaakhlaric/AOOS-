@@ -10,6 +10,8 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { formatIdr } from "@/lib/formatters";
 import type { AdAccountSummaryDto, CampaignAdDto } from "@/types/dashboard.types";
 
+import styles from "./CampaignDetailClient.module.css";
+
 /** Campaign detail (spec "meta-ads/[campaignId]/page.tsx") — finds `campaignId` (an ad's id) within `/api/campaigns`'s flattened list; `aaos-api` has no dedicated single-ad lookup endpoint, so this reuses the same list endpoint the overview page uses. */
 export function CampaignDetailClient({
   campaignId,
@@ -59,15 +61,15 @@ export function CampaignDetailClient({
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <div className="flex items-center justify-between">
+    <div className={styles.page}>
+      <div className={styles.headerRow}>
         <div>
-          <h2 className="text-base font-semibold text-ink">{ad.name}</h2>
-          <p className="text-sm text-ink-muted">{ad.campaignName}</p>
+          <h2 className={styles.name}>{ad.name}</h2>
+          <p className={styles.campaignName}>{ad.campaignName}</p>
         </div>
         <VerdictBadge verdict={ad.verdict} />
       </div>
-      <p className="text-sm text-ink-muted">Belanja: {formatIdr(ad.metrics.spend)}</p>
+      <p className={styles.spend}>Belanja: {formatIdr(ad.metrics.spend)}</p>
       <CampaignFunnelBar metrics={ad.metrics} />
     </div>
   );

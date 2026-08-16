@@ -1,0 +1,23 @@
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.select {
+  padding: 7px 12px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--gray-600);
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.select:hover {
+  border-color: var(--gray-300);
+  background: var(--gray-100);
+}

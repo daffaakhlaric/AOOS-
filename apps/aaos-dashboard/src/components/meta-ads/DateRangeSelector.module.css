@@ -1,0 +1,33 @@
+/* Spec "=== TOOLBAR === Snapshot selector" / "Date inputs" visual slot. */
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.select {
+  padding: 7px 12px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--gray-600);
+  cursor: pointer;
+  font-family: var(--font);
+  transition:
+    border-color 100ms,
+    background 100ms;
+}
+
+.select:hover {
+  border-color: var(--gray-300);
+  background: var(--gray-100);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.1);
+}

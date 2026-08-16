@@ -12,6 +12,8 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { BranchDto } from "@/types/dashboard.types";
 
+import styles from "./BranchDetailClient.module.css";
+
 /** Branch detail: WhatsApp number, sales team, assignment mode + max leads/day (spec "branches/[branchId]/page.tsx"). */
 export function BranchDetailClient({
   branchId,
@@ -103,37 +105,32 @@ export function BranchDetailClient({
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className={styles.page}>
       <div>
-        <h2 className="text-base font-semibold text-ink">{branch.displayName}</h2>
-        <p className="text-sm text-ink-muted">WhatsApp Nomor Jessy: {branch.wabaPhoneNumber}</p>
+        <h2 className={styles.title}>{branch.displayName}</h2>
+        <p className={styles.subtitle}>WhatsApp Nomor Jessy: {branch.wabaPhoneNumber}</p>
       </div>
 
       <section>
-        <h3 className="mb-2 text-sm font-semibold text-ink">Sales Team</h3>
+        <h3 className={styles.sectionTitle}>Sales Team</h3>
         <SalesTeamTable team={branch.team} onRemove={handleRemoveSales} />
       </section>
 
-      <section className="flex flex-col gap-3 rounded-card border border-hairline bg-surface-card p-4 shadow-card">
+      <section className={styles.settingsSection}>
         <AssignmentModeSelector value={mode} onChange={setMode} />
-        <label className="flex items-center gap-2 text-sm text-ink">
+        <label className={styles.field}>
           Max leads/sales/hari
           <input
             type="number"
             value={maxLeadsPerDay}
             onChange={(event) => setMaxLeadsPerDay(Number(event.target.value))}
-            className="w-20 rounded-button border border-hairline px-2 py-1"
+            className={styles.numberInput}
           />
         </label>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="self-start rounded-button bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
+        <button type="button" onClick={handleSave} disabled={saving} className={styles.saveButton}>
           {saving ? "Menyimpan..." : "Simpan Perubahan"}
         </button>
-        {saved ? <p className="text-sm text-brand-success">Perubahan disimpan.</p> : null}
+        {saved ? <p className={styles.savedNotice}>Perubahan disimpan.</p> : null}
       </section>
     </div>
   );

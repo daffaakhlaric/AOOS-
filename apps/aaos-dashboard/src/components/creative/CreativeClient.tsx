@@ -8,6 +8,8 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { CreativePackageDto } from "@/types/dashboard.types";
 
+import styles from "./CreativeClient.module.css";
+
 /** Lists pending creative packages via `/api/creative` and wires approve/reject (spec "creative/page.tsx"). */
 export function CreativeClient(): React.ReactElement {
   const [packages, setPackages] = useState<readonly CreativePackageDto[] | undefined>(undefined);
@@ -77,10 +79,10 @@ export function CreativeClient(): React.ReactElement {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className={styles.page}>
       <div>
-        <h2 className="text-base font-semibold text-ink">🎨 Creative Review</h2>
-        <p className="text-sm text-ink-muted">Package dari Kai siap untuk di-review</p>
+        <h2 className={styles.title}>🎨 Creative Review</h2>
+        <p className={styles.subtitle}>Package dari Kai siap untuk di-review</p>
       </div>
       {pending.map((pkg) => (
         <CreativePackageCard

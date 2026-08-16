@@ -8,6 +8,8 @@ import {
   type KnowledgeDocEntry,
 } from "@/components/knowledge/KnowledgeBaseList";
 
+import styles from "./KnowledgeClient.module.css";
+
 const SEED_DOCS: readonly KnowledgeDocEntry[] = [
   { name: "SOP-Penjualan-v2.xlsx", itemCount: 48, uploadedAt: "2026-08-01T00:00:00.000Z" },
   { name: "FAQ-Kredit-Agustus.xlsx", itemCount: 23, uploadedAt: "2026-08-05T00:00:00.000Z" },
@@ -31,14 +33,14 @@ export function KnowledgeClient(): React.ReactElement {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className={styles.page}>
       <div>
-        <h2 className="text-base font-semibold text-ink">📚 Knowledge Base</h2>
-        <p className="text-sm text-ink-muted">Upload SOP, FAQ, promo, kredit untuk Jessy</p>
+        <h2 className={styles.title}>📚 Knowledge Base</h2>
+        <p className={styles.subtitle}>Upload SOP, FAQ, promo, kredit untuk Jessy</p>
       </div>
       <ExcelUploader onFileSelected={handleFileSelected} />
       <div>
-        <h3 className="mb-2 text-sm font-semibold text-ink">Knowledge yang aktif</h3>
+        <h3 className={styles.sectionTitle}>Knowledge yang aktif</h3>
         <KnowledgeBaseList docs={docs} />
       </div>
     </div>

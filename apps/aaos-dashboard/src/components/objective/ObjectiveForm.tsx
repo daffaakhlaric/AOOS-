@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import styles from "./ObjectiveForm.module.css";
+
 export interface ObjectiveFormValues {
   readonly targetHotLeads: number;
   readonly budgetAllocation: number;
@@ -63,39 +65,39 @@ export function ObjectiveForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3" aria-label="Set objective">
-      <label className="flex flex-col gap-1 text-sm text-ink">
+    <form onSubmit={handleSubmit} className={styles.form} aria-label="Set objective">
+      <label className={styles.field}>
         Target Hot Leads
         <input
           type="number"
           value={targetHotLeads}
           onChange={(event) => setTargetHotLeads(event.target.value)}
-          className="rounded-button border border-hairline px-3 py-2"
+          className={styles.input}
         />
       </label>
-      <label className="flex flex-col gap-1 text-sm text-ink">
+      <label className={styles.field}>
         Budget Iklan (IDR)
         <input
           type="number"
           value={budgetAllocation}
           onChange={(event) => setBudgetAllocation(event.target.value)}
-          className="rounded-button border border-hairline px-3 py-2"
+          className={styles.input}
         />
       </label>
-      <label className="flex flex-col gap-1 text-sm text-ink">
+      <label className={styles.field}>
         Fokus Unit (pisahkan dengan koma)
         <input
           type="text"
           value={focusUnitsRaw}
           onChange={(event) => setFocusUnitsRaw(event.target.value)}
-          className="rounded-button border border-hairline px-3 py-2"
+          className={styles.input}
         />
       </label>
-      <fieldset className="flex flex-col gap-1 text-sm text-ink">
+      <fieldset className={styles.fieldset}>
         <legend>Area Prioritas</legend>
-        <div className="flex flex-wrap gap-2">
+        <div className={styles.checkboxRow}>
           {AREA_OPTIONS.map((area) => (
-            <label key={area} className="flex items-center gap-1">
+            <label key={area} className={styles.checkboxLabel}>
               <input
                 type="checkbox"
                 checked={areaPriorities.includes(area)}
@@ -106,12 +108,8 @@ export function ObjectiveForm({
           ))}
         </div>
       </fieldset>
-      {error !== undefined ? <p className="text-sm text-brand-danger">{error}</p> : null}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="self-start rounded-button bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-      >
+      {error !== undefined ? <p className={styles.error}>{error}</p> : null}
+      <button type="submit" disabled={submitting} className={styles.submitButton}>
         ✅ Set Objective
       </button>
     </form>

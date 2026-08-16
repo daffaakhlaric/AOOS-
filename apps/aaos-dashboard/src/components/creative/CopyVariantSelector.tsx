@@ -1,5 +1,7 @@
 import type { CopyVariantDto } from "@/types/dashboard.types";
 
+import styles from "./CopyVariantSelector.module.css";
+
 export interface CopyVariantSelectorProps {
   readonly variants: readonly CopyVariantDto[];
   readonly selectedId: string | undefined;
@@ -13,10 +15,10 @@ export function CopyVariantSelector({
   onSelect,
 }: CopyVariantSelectorProps): React.ReactElement {
   return (
-    <fieldset className="flex flex-col gap-2">
-      <legend className="text-sm font-medium text-ink">Pilih copy</legend>
+    <fieldset className={styles.fieldset}>
+      <legend className={styles.legend}>Pilih copy</legend>
       {variants.map((variant) => (
-        <label key={variant.id} className="flex items-start gap-2 text-sm">
+        <label key={variant.id} className={styles.option}>
           <input
             type="radio"
             name="copy-variant"
@@ -24,8 +26,8 @@ export function CopyVariantSelector({
             onChange={() => onSelect(variant.id)}
           />
           <span>
-            <span className="font-semibold text-ink">Copy {variant.variantLabel}: </span>
-            <span className="text-ink-muted">&ldquo;{variant.primaryText}&rdquo;</span>
+            <span className={styles.label}>Copy {variant.variantLabel}: </span>
+            <span className={styles.text}>&ldquo;{variant.primaryText}&rdquo;</span>
           </span>
         </label>
       ))}

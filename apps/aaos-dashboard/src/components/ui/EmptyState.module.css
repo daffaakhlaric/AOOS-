@@ -1,0 +1,18 @@
+.wrap {
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--gray-300);
+  background: var(--white);
+  padding: 32px;
+  text-align: center;
+}
+
+.title {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.description {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--gray-500);
+}

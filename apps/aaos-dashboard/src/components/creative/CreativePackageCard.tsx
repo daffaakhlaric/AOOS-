@@ -8,6 +8,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateId } from "@/lib/formatters";
 import type { CreativePackageDto } from "@/types/dashboard.types";
 
+import styles from "./CreativePackageCard.module.css";
+
 export interface CreativePackageCardProps {
   readonly pkg: CreativePackageDto;
   readonly onApprove: (selectedCopyVariantId: string) => void;
@@ -31,41 +33,31 @@ export function CreativePackageCard({
   const [selectedId, setSelectedId] = useState<string | undefined>(pkg.copyVariants[0]?.id);
 
   return (
-    <section
-      data-testid="creative-package-card"
-      className="rounded-card border border-hairline bg-surface-card p-4 shadow-card"
-    >
-      <div className="flex items-center justify-between">
-        <p className="font-semibold text-ink">
+    <section data-testid="creative-package-card" className={styles.section}>
+      <div className={styles.headerRow}>
+        <p className={styles.name}>
           Package #{pkg.id} · {pkg.unit} {pkg.branch}
         </p>
         <StatusBadge label={pkg.status} tone={STATUS_TONE[pkg.status]} />
       </div>
-      <p className="text-sm text-ink-muted">
+      <p className={styles.meta}>
         Dibuat: {formatDateId(pkg.createdAt)} · Dari brief #{pkg.briefId}
       </p>
 
-      <div className="mt-3 flex gap-2">
+      <div className={styles.mediaRow}>
         {pkg.videoUrl !== undefined ? (
-          <div
-            data-testid="creative-video-slot"
-            className="flex h-16 w-16 items-center justify-center rounded-button bg-surface-page text-xs text-ink-muted"
-          >
+          <div data-testid="creative-video-slot" className={styles.mediaSlot}>
             ▶ Video
           </div>
         ) : null}
         {pkg.imageUrls.map((url, index) => (
-          <div
-            key={url}
-            data-testid="creative-image-slot"
-            className="flex h-16 w-16 items-center justify-center rounded-button bg-surface-page text-xs text-ink-muted"
-          >
+          <div key={url} data-testid="creative-image-slot" className={styles.mediaSlot}>
             🖼 Img {index + 1}
           </div>
         ))}
       </div>
 
-      <div className="mt-3">
+      <div className={styles.copySection}>
         <CopyVariantSelector
           variants={pkg.copyVariants}
           selectedId={selectedId}
@@ -74,7 +66,7 @@ export function CreativePackageCard({
       </div>
 
       {pkg.status === "PENDING" ? (
-        <div className="mt-3">
+        <div className={styles.actions}>
           <ApproveRejectButtons
             onApprove={() => selectedId !== undefined && onApprove(selectedId)}
             onReject={onReject}

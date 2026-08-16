@@ -1,6 +1,8 @@
 import { MetricCard } from "@/components/ui/MetricCard";
 import { formatIdrCompact, formatNumber } from "@/lib/formatters";
 
+import styles from "./SummaryCards.module.css";
+
 export interface SummaryCardsData {
   /** Meta Ads-sourced — undefined when the caller has none to show without hitting Meta's API (see `DashboardClient.tsx`'s docstring). Omitted from the card list, not shown as 0/blank, when undefined. */
   readonly spend?: number;
@@ -23,7 +25,7 @@ export interface SummaryCardsData {
  */
 export function SummaryCards({ data }: { readonly data: SummaryCardsData }): React.ReactElement {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div className={styles.grid}>
       {data.spend !== undefined ? (
         <MetricCard
           label="Belanja"

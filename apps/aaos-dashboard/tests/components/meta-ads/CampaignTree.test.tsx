@@ -85,11 +85,18 @@ describe("aggregateVerdict", () => {
 
 describe("CampaignTree", () => {
   it("renders the campaign → ad-set → ad hierarchy with real stableIds", () => {
+    // TOTAL UI REBUILD spec's "ID badge" is its own bordered/mono chip element (spec "=== CAMPAIGN
+    // CARDS === ID badge"), so the id and the name are now separate DOM text nodes rather than one
+    // combined string — asserted separately here instead of via one combined regex.
     render(<CampaignTree campaigns={CAMPAIGNS} search="" onExecute={vi.fn()} />);
-    expect(screen.getByText(/#A001 Meta-DM-Leads-Mobix/)).toBeInTheDocument();
-    expect(screen.getByText(/#B001 AdSet Bintaro/)).toBeInTheDocument();
-    expect(screen.getByText(/#C001 Xpander Creative 1/)).toBeInTheDocument();
-    expect(screen.getByText(/#C002 Xpander Creative 2/)).toBeInTheDocument();
+    expect(screen.getByText("#A001")).toBeInTheDocument();
+    expect(screen.getByText("Meta-DM-Leads-Mobix")).toBeInTheDocument();
+    expect(screen.getByText("#B001")).toBeInTheDocument();
+    expect(screen.getByText("AdSet Bintaro")).toBeInTheDocument();
+    expect(screen.getByText("#C001")).toBeInTheDocument();
+    expect(screen.getByText("Xpander Creative 1")).toBeInTheDocument();
+    expect(screen.getByText("#C002")).toBeInTheDocument();
+    expect(screen.getByText("Xpander Creative 2")).toBeInTheDocument();
   });
 
   it("shows the campaign's aggregated verdict (PAUSE, the highest-priority real per-ad verdict present) as its badge", () => {
@@ -109,8 +116,8 @@ describe("CampaignTree", () => {
 
   it("filters to only campaigns/ad-sets/ads matching the search query", () => {
     render(<CampaignTree campaigns={CAMPAIGNS} search="Creative 1" onExecute={vi.fn()} />);
-    expect(screen.getByText(/#C001 Xpander Creative 1/)).toBeInTheDocument();
-    expect(screen.queryByText(/#C002 Xpander Creative 2/)).not.toBeInTheDocument();
+    expect(screen.getByText("Xpander Creative 1")).toBeInTheDocument();
+    expect(screen.queryByText("Xpander Creative 2")).not.toBeInTheDocument();
   });
 
   it("shows 'Tidak ada hasil' when the search matches nothing", () => {

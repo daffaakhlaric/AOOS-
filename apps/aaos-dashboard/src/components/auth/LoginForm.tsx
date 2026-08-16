@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
+import styles from "./LoginForm.module.css";
+
 const DEFAULT_REDIRECT = "/dashboard";
 
 /**
@@ -56,36 +58,32 @@ export function LoginForm(): React.ReactElement {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-card border border-hairline bg-surface-card p-6 shadow-card">
-      <h1 className="text-lg font-semibold text-ink">Masuk ke AAOS Dashboard</h1>
-      <p className="mt-1 text-sm text-ink-muted">Untuk manager/owner DSS Motor.</p>
-      <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm text-ink">
+    <div className={styles.card}>
+      <h1 className={styles.title}>Masuk ke AAOS Dashboard</h1>
+      <p className={styles.subtitle}>Untuk manager/owner DSS Motor.</p>
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <label className={styles.field}>
           Email
           <input
             type="email"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="rounded-button border border-hairline px-3 py-2"
+            className={styles.input}
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm text-ink">
+        <label className={styles.field}>
           Password
           <input
             type="password"
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="rounded-button border border-hairline px-3 py-2"
+            className={styles.input}
           />
         </label>
         {error !== undefined ? <ErrorCard message={error} /> : null}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-button bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
+        <button type="submit" disabled={submitting} className={styles.submitButton}>
           {submitting ? "Memproses..." : "Masuk"}
         </button>
       </form>

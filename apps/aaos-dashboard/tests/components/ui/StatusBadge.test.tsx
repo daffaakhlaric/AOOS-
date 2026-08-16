@@ -3,29 +3,28 @@ import { describe, expect, it } from "vitest";
 
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
+/**
+ * CSS Modules hash class names under this repo's Vitest transform (confirmed via a throwaway
+ * smoke test), so tone assertions use `data-tone` (rendered by the component) plus cross-tone
+ * className inequality, never exact class-name string matches.
+ */
 describe("StatusBadge", () => {
   it("renders the label", () => {
     render(<StatusBadge label="ON" tone="success" />);
     expect(screen.getByText("ON")).toBeInTheDocument();
   });
 
-  it("applies the success tone's color class", () => {
+  it("tags the badge with its tone via data-tone", () => {
     render(<StatusBadge label="ON" tone="success" />);
-    expect(screen.getByText("ON")).toHaveClass("text-brand-success");
+    expect(screen.getByTestId("status-badge")).toHaveAttribute("data-tone", "success");
   });
 
-  it("applies the danger tone's color class", () => {
-    render(<StatusBadge label="OFF" tone="danger" />);
-    expect(screen.getByText("OFF")).toHaveClass("text-brand-danger");
-  });
-
-  it("applies the warning tone's color class", () => {
-    render(<StatusBadge label="BUSY" tone="warning" />);
-    expect(screen.getByText("BUSY")).toHaveClass("text-brand-warning");
-  });
-
-  it("applies the neutral tone's color class", () => {
-    render(<StatusBadge label="N/A" tone="neutral" />);
-    expect(screen.getByText("N/A")).toHaveClass("text-ink-muted");
+  it("distinct tones produce distinct class names", () => {
+    const tones = ["success", "danger", "warning", "neutral"] as const;
+    const classes = tones.map((tone) => {
+      render(<StatusBadge label={tone} tone={tone} />);
+      return screen.getAllByTestId("status-badge").at(-1)!.className;
+    });
+    expect(new Set(classes).size).toBe(tones.length);
   });
 });

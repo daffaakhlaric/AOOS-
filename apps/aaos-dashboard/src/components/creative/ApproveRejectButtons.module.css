@@ -1,0 +1,36 @@
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.approve {
+  padding: 6px 14px;
+  background: var(--green);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+  cursor: pointer;
+}
+
+.approve:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reject {
+  padding: 6px 14px;
+  background: var(--red);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+  cursor: pointer;
+}
+
+.reject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -18,6 +18,8 @@ import {
 import { formatDateTimeIdWib } from "@/lib/formatters";
 import type { AdAccountSummaryDto } from "@/types/dashboard.types";
 
+import styles from "./MetaAdsClient.module.css";
+
 const RATE_LIMIT_MESSAGE_NO_CACHE = "Meta API sedang sibuk. Tunggu beberapa menit lalu coba lagi.";
 const RATE_LIMIT_MESSAGE_WITH_CACHE =
   "⚠️ Meta API sedang sibuk. Data terakhir ditampilkan dari cache. Tarik data baru dalam beberapa menit.";
@@ -45,11 +47,6 @@ interface RefreshBanner {
   readonly message: string;
   readonly tone: "warning" | "danger";
 }
-
-const BANNER_CLASSES: Readonly<Record<RefreshBanner["tone"], string>> = {
-  warning: "border-orange-300 bg-orange-50 text-orange-800",
-  danger: "border-brand-danger/30 bg-brand-danger/5 text-brand-danger",
-};
 
 /**
  * Renders the MAAO2-style campaign→ad-set→ad tree (spec "meta-ads/page.tsx" redesign).
@@ -179,33 +176,30 @@ export function MetaAdsClient(): React.ReactElement {
     fetchedAt !== undefined ? formatDateTimeIdWib(new Date(fetchedAt).toISOString()) : undefined;
 
   return (
-    <div className="flex animate-fade-in flex-col gap-4 p-8 sm:p-10">
+    <div className={styles.page}>
       <div>
-        <h2 className="text-[26px] font-semibold -tracking-[0.5px] text-ink">Data Iklan</h2>
-        <p className="mt-0.5 text-[13px] text-ink-muted">
+        <h2 className={styles.pageTitle}>Data Iklan</h2>
+        <p className={styles.pageSubtitle}>
           Hierarki: Kampanye → Ad Set → Ad (#A #B #C). Setiap iklan menampilkan mini funnel: Klik ·
           Chat · D2 · D3 · Form.
         </p>
       </div>
 
-      {/* Header strip: snapshot selector · period preset · pull-fresh action (spec "--- Data Iklan --- Header strip"). */}
-      <div className="flex flex-wrap items-center gap-3 rounded-kpi border border-hairline-card bg-surface-card p-3 shadow-card">
+      {/* Toolbar: snapshot selector · period preset · pull-fresh action (spec "=== TOOLBAR ==="). */}
+      <div className={styles.toolbar}>
         {history.length > 0 || currentSnapshotLabel !== undefined ? (
-          <details className="relative">
-            <summary
-              data-testid="snapshot-selector"
-              className="btn-press cursor-pointer list-none rounded-button border border-hairline-card px-3 py-2 text-sm font-medium text-ink hover:bg-surface-page"
-            >
+          <details className={styles.snapshotSelector}>
+            <summary data-testid="snapshot-selector" className={styles.snapshotSummary}>
               🗂 {currentSnapshotLabel ?? "Riwayat tarikan"} ▾
             </summary>
-            <ul className="absolute left-0 z-10 mt-1 w-64 rounded-card border border-hairline-card bg-surface-card p-1 shadow-card">
+            <ul className={styles.snapshotMenu}>
               {history.length > 0 ? (
                 history.map((entry) => (
                   <li key={entry.fetchedAt}>
                     <button
                       type="button"
                       onClick={() => handleViewHistory(entry)}
-                      className="w-full rounded-button px-2 py-1.5 text-left text-xs text-ink hover:bg-surface-page"
+                      className={styles.snapshotMenuItem}
                     >
                       {formatDateTimeIdWib(new Date(entry.fetchedAt).toISOString())} ·{" "}
                       {DATE_PRESET_LABELS[entry.period] ?? entry.period}
@@ -213,23 +207,24 @@ export function MetaAdsClient(): React.ReactElement {
                   </li>
                 ))
               ) : (
-                <li className="px-2 py-1.5 text-xs text-ink-muted">Riwayat tarikan</li>
+                <li className={styles.snapshotMenuEmpty}>Riwayat tarikan</li>
               )}
             </ul>
           </details>
         ) : null}
         <DateRangeSelector value={datePreset} onChange={setDatePreset} />
+        <span className={styles.spacer} />
         <button
           type="button"
           onClick={() => void pullData()}
           disabled={loading}
-          className="btn-press ml-auto rounded-button bg-brand-primary px-4 py-2 text-[13px] font-medium text-white hover:bg-[#0070E0] disabled:opacity-50"
+          className={styles.pullButton}
         >
           ↻ Tarik Data Baru
         </button>
       </div>
       {fetchedAt !== undefined ? (
-        <p data-testid="last-updated" className="text-xs text-ink-muted">
+        <p data-testid="last-updated" className={styles.lastUpdated}>
           🕒 Diambil {formatDateTimeIdWib(new Date(fetchedAt).toISOString())} · periode{" "}
           {DATE_PRESET_LABELS[datePreset] ?? datePreset}
           {cacheStale ? " (lebih dari 60 menit lalu)" : ""}
@@ -238,7 +233,8 @@ export function MetaAdsClient(): React.ReactElement {
       {refreshBanner !== undefined ? (
         <div
           data-testid="rate-limit-banner"
-          className={`rounded-card border p-3 text-sm ${BANNER_CLASSES[refreshBanner.tone]}`}
+          data-tone={refreshBanner.tone}
+          className={`${styles.banner} ${refreshBanner.tone === "warning" ? styles.bannerWarning : styles.bannerDanger}`}
         >
           {refreshBanner.message}
         </div>
@@ -253,15 +249,20 @@ export function MetaAdsClient(): React.ReactElement {
       ) : null}
       {data !== undefined ? (
         <>
-          {loading ? <p className="text-xs text-ink-muted">Memperbarui data…</p> : null}
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="🔍 Cari nama/ID campaign, Xpander, Bintaro..."
-            aria-label="Cari campaign"
-            className="rounded-button border border-hairline-card bg-surface-card px-3 py-2 text-sm"
-          />
+          {loading ? <p className={styles.updating}>Memperbarui data…</p> : null}
+          <div className={styles.searchWrap}>
+            <span aria-hidden="true" className={styles.searchIcon}>
+              🔍
+            </span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Cari nama/ID campaign, Xpander, Bintaro..."
+              aria-label="Cari campaign"
+              className={styles.searchInput}
+            />
+          </div>
           <MetricsSummaryBar
             totals={data.totals}
             campaignCount={data.campaignCount}

@@ -10,16 +10,16 @@ describe("MetricCard", () => {
     expect(screen.getByText("Rp 26.4jt")).toBeInTheDocument();
   });
 
-  it("shows an upward arrow and green tone for a positive change", () => {
+  it("shows an upward arrow and positive direction for a positive change", () => {
     render(<MetricCard label="D3 Lead" value="1.286" changePercent={8} />);
     const change = screen.getByText(/↑ 8%/);
-    expect(change).toHaveClass("text-brand-success");
+    expect(change).toHaveAttribute("data-direction", "positive");
   });
 
-  it("shows a downward arrow and red tone for a negative change", () => {
+  it("shows a downward arrow and negative direction for a negative change", () => {
     render(<MetricCard label="Closing" value="12" changePercent={-5} />);
     const change = screen.getByText(/↓ 5%/);
-    expect(change).toHaveClass("text-brand-danger");
+    expect(change).toHaveAttribute("data-direction", "negative");
   });
 
   it("omits the change line when changePercent is not provided", () => {

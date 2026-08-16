@@ -1,0 +1,30 @@
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.legend {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-900);
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.label {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.text {
+  color: var(--gray-500);
+}

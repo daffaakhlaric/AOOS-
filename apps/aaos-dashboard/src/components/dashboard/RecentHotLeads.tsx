@@ -2,6 +2,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { formatRelativeTimeId } from "@/lib/formatters";
 import type { LeadDto } from "@/types/dashboard.types";
 
+import styles from "./RecentHotLeads.module.css";
+
 /** Last 5 hot leads (spec "dashboard/page.tsx" mockup: "Pak Andi · Xpander · Cinere · 14 menit lalu"). */
 export function RecentHotLeads({
   leads,
@@ -21,12 +23,12 @@ export function RecentHotLeads({
   }
 
   return (
-    <ul data-testid="recent-hot-leads" className="divide-y divide-hairline">
+    <ul data-testid="recent-hot-leads" className={styles.list}>
       {hotLeads.map((lead) => (
-        <li key={lead.id} className="flex items-center justify-between py-2 text-sm">
-          <span className="font-medium text-ink">{lead.leadName ?? lead.leadPhone}</span>
-          <span className="text-ink-muted">{lead.branchId}</span>
-          <span className="text-ink-muted">{formatRelativeTimeId(lead.createdAt)}</span>
+        <li key={lead.id} className={styles.row}>
+          <span className={styles.name}>{lead.leadName ?? lead.leadPhone}</span>
+          <span className={styles.meta}>{lead.branchId}</span>
+          <span className={styles.meta}>{formatRelativeTimeId(lead.createdAt)}</span>
         </li>
       ))}
     </ul>

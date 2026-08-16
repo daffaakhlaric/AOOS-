@@ -1,6 +1,8 @@
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatIdr, formatNumber, formatPercent } from "@/lib/formatters";
 
+import styles from "./ForecastCard.module.css";
+
 export interface ForecastCardData {
   readonly forecastedHotLeads: number;
   readonly forecastedSpend: number;
@@ -22,15 +24,12 @@ export function ForecastCard({ data }: { readonly data: ForecastCardData }): Rea
         ? "warning"
         : "danger";
   return (
-    <section
-      data-testid="forecast-card"
-      className="rounded-card border border-hairline bg-surface-card p-4 shadow-card"
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-ink">Proyeksi Tamara</p>
+    <section data-testid="forecast-card" className={styles.section}>
+      <div className={styles.headerRow}>
+        <p className={styles.title}>Proyeksi Tamara</p>
         <StatusBadge label={data.onTrackStatus.replace("_", " ")} tone={tone} />
       </div>
-      <p className="mt-1 text-sm text-ink-muted">
+      <p className={styles.meta}>
         {formatNumber(data.forecastedHotLeads)} hot leads · {formatIdr(data.forecastedSpend)} ·{" "}
         {formatPercent(data.probability)} probabilitas tercapai
       </p>

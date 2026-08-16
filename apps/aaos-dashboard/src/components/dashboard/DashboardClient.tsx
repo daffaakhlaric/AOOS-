@@ -10,6 +10,8 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { LeadDto, ObjectiveDto } from "@/types/dashboard.types";
 
+import styles from "./DashboardClient.module.css";
+
 /** Derives an `OnTrackStatus` from a simple progress ratio — a placeholder until `GetObjectiveStatus`/`ForecastObjective` are wired to a real `aaos-api` endpoint (see `README.md`'s "Known limitations"). */
 function deriveOnTrackStatus(fraction: number): OnTrackStatus {
   if (fraction >= 0.85) {
@@ -82,8 +84,8 @@ export function DashboardClient(): React.ReactElement {
   const fraction = targetHotLeads > 0 ? Math.min(1, hotLeadCount / targetHotLeads) : 0;
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <h2 className="text-base font-semibold text-ink">🎯 Overview Bulan Ini</h2>
+    <div className={styles.page}>
+      <h2 className={styles.title}>🎯 Overview Bulan Ini</h2>
       <SummaryCards
         data={{
           hotLeads: hotLeadCount,
@@ -103,7 +105,7 @@ export function DashboardClient(): React.ReactElement {
       ) : null}
       <TamaraDigest text="Hari ini pause 3 iklan boros (hemat Rp 1.2jt). Scale #C047 karena Rp/D3 di bawah target." />
       <div>
-        <h3 className="mb-2 text-sm font-semibold text-ink">🔥 Hot Leads Terbaru</h3>
+        <h3 className={styles.sectionTitle}>🔥 Hot Leads Terbaru</h3>
         <RecentHotLeads leads={leads} />
       </div>
     </div>

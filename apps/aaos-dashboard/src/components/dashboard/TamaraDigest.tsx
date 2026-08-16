@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import styles from "./TamaraDigest.module.css";
+
 const TRUNCATE_LENGTH = 80;
 
 export interface TamaraDigestProps {
@@ -20,17 +22,14 @@ export function TamaraDigest({ text }: TamaraDigestProps): React.ReactElement {
   const shown = expanded || !isLong ? text : `${text.slice(0, TRUNCATE_LENGTH)}...`;
 
   return (
-    <section
-      data-testid="tamara-digest"
-      className="rounded-card border border-hairline bg-surface-card p-4 shadow-card"
-    >
-      <p className="text-sm font-semibold text-ink">💬 Tamara Daily Digest</p>
-      <p className="mt-1 text-sm text-ink-muted">{shown}</p>
+    <section data-testid="tamara-digest" className={styles.section}>
+      <p className={styles.title}>💬 Tamara Daily Digest</p>
+      <p className={styles.text}>{shown}</p>
       {isLong ? (
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
-          className="mt-1 text-sm font-medium text-brand-primary"
+          className={styles.toggle}
         >
           {expanded ? "Sembunyikan" : "Lihat selengkapnya"}
         </button>

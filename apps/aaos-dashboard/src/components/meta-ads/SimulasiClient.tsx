@@ -13,6 +13,8 @@ import type {
   LlmCreativeBriefResponseDto,
 } from "@/types/dashboard.types";
 
+import styles from "./SimulasiClient.module.css";
+
 const FREQUENCY_THRESHOLD = 3.5;
 const AD_ANGLES = [
   "DP_RINGAN",
@@ -148,7 +150,7 @@ export function SimulasiClient(): React.ReactElement {
 
   if (data === undefined) {
     return (
-      <div className="flex flex-col gap-4 p-6">
+      <div className={styles.page}>
         <Header />
         {loading ? <LoadingSpinner /> : null}
         {!loading && error !== undefined ? <ErrorCard message={error} /> : null}
@@ -165,23 +167,18 @@ export function SimulasiClient(): React.ReactElement {
   const candidates = data.ads.filter(needsRefresh);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className={styles.page}>
       <Header />
 
-      <section data-testid="simulasi-step-1" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">
-          Step 1: Pilih iklan yang butuh REFRESH creative
-        </h3>
+      <section data-testid="simulasi-step-1" className={styles.section}>
+        <h3 className={styles.sectionTitle}>Step 1: Pilih iklan yang butuh REFRESH creative</h3>
         {candidates.length === 0 ? (
-          <p className="text-sm text-ink-muted">Tidak ada iklan yang butuh refresh saat ini.</p>
+          <p className={styles.mutedText}>Tidak ada iklan yang butuh refresh saat ini.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className={styles.list}>
             {candidates.map((ad) => (
-              <li
-                key={ad.id}
-                className="flex items-center justify-between rounded-card border border-hairline bg-surface-card p-3"
-              >
-                <span className="text-sm text-ink">
+              <li key={ad.id} className={styles.row}>
+                <span className={styles.rowText}>
                   {ad.stableId} {ad.name} · {ad.verdict} · freq {ad.metrics.frequency.toFixed(1)}
                 </span>
                 <button
@@ -191,7 +188,7 @@ export function SimulasiClient(): React.ReactElement {
                     setBrief({ status: "idle" });
                     setStep(2);
                   }}
-                  className="rounded-button border border-hairline px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-page"
+                  className={styles.secondaryButton}
                 >
                   Pilih iklan ini
                 </button>
@@ -202,14 +199,14 @@ export function SimulasiClient(): React.ReactElement {
       </section>
 
       {selectedAd !== undefined && step >= 2 ? (
-        <section data-testid="simulasi-step-2" className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold text-ink">Step 2: Tamara generate CreativeBrief</h3>
-          <label className="flex items-center gap-2 text-sm text-ink">
+        <section data-testid="simulasi-step-2" className={styles.section}>
+          <h3 className={styles.sectionTitle}>Step 2: Tamara generate CreativeBrief</h3>
+          <label className={styles.angleLabel}>
             Angle
             <select
               value={angle}
               onChange={(event) => setAngle(event.target.value)}
-              className="rounded-button border border-hairline bg-surface-card px-2 py-1"
+              className={styles.select}
             >
               {AD_ANGLES.map((option) => (
                 <option key={option} value={option}>
@@ -222,20 +219,17 @@ export function SimulasiClient(): React.ReactElement {
             type="button"
             onClick={() => void generateBrief(selectedAd)}
             disabled={brief.status === "loading"}
-            className="w-fit rounded-button border border-hairline px-3 py-2 text-sm font-semibold text-ink disabled:opacity-50"
+            className={styles.primaryButton}
           >
             Generate Brief
           </button>
           {brief.status === "loading" ? (
-            <p className="text-sm text-ink-muted">Tamara sedang menyusun brief…</p>
+            <p className={styles.mutedText}>Tamara sedang menyusun brief…</p>
           ) : null}
           {brief.status === "ready" ? (
-            <div
-              data-testid="creative-brief-preview"
-              className="rounded-card border border-hairline bg-surface-card p-3 text-sm"
-            >
+            <div data-testid="creative-brief-preview" className={styles.briefCard}>
               {!brief.fromAi ? (
-                <p className="mb-2 text-xs text-ink-muted">
+                <p className={styles.briefNotice}>
                   AI tidak tersedia — menampilkan brief dasar dari data iklan.
                 </p>
               ) : null}
@@ -254,11 +248,7 @@ export function SimulasiClient(): React.ReactElement {
               <p>
                 <strong>Format:</strong> {brief.brief.formats.join(", ")}
               </p>
-              <button
-                type="button"
-                onClick={() => setStep(3)}
-                className="mt-3 rounded-button border border-hairline px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-page"
-              >
+              <button type="button" onClick={() => setStep(3)} className={styles.secondaryButton}>
                 Lanjut ke Step 3
               </button>
             </div>
@@ -267,42 +257,31 @@ export function SimulasiClient(): React.ReactElement {
       ) : null}
 
       {step >= 3 && brief.status === "ready" ? (
-        <section data-testid="simulasi-step-3" className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-ink">Step 3: Kai receive brief</h3>
-          <p className="text-sm text-ink-muted">Kai menerima brief dari Tamara…</p>
-          <p className="rounded-card border border-hairline bg-surface-card p-3 text-xs text-ink">
-            {buildKaiPrompt(brief.brief)}
-          </p>
-          <p className="text-sm text-ink">
+        <section data-testid="simulasi-step-3" className={styles.section}>
+          <h3 className={styles.sectionTitle}>Step 3: Kai receive brief</h3>
+          <p className={styles.mutedText}>Kai menerima brief dari Tamara…</p>
+          <p className={styles.kaiPrompt}>{buildKaiPrompt(brief.brief)}</p>
+          <p className={styles.rowText}>
             Format decision: <strong>{formatDecision(brief.brief.formats)}</strong>
           </p>
-          <button
-            type="button"
-            onClick={() => setStep(4)}
-            className="w-fit rounded-button border border-hairline px-3 py-2 text-sm font-semibold text-ink"
-          >
+          <button type="button" onClick={() => setStep(4)} className={styles.primaryButton}>
             Simulasi Generate
           </button>
         </section>
       ) : null}
 
       {step >= 4 && brief.status === "ready" ? (
-        <section data-testid="simulasi-step-4" className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold text-ink">Step 4: Preview hasil</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="flex h-24 items-center justify-center rounded-card border border-dashed border-hairline text-xs text-ink-muted">
-              🎬 Video
-            </div>
+        <section data-testid="simulasi-step-4" className={styles.section}>
+          <h3 className={styles.sectionTitle}>Step 4: Preview hasil</h3>
+          <div className={styles.previewGrid}>
+            <div className={styles.previewTile}>🎬 Video</div>
             {[1, 2, 3].map((index) => (
-              <div
-                key={index}
-                className="flex h-24 items-center justify-center rounded-card border border-dashed border-hairline text-xs text-ink-muted"
-              >
+              <div key={index} className={styles.previewTile}>
                 🖼️ Image {index}
               </div>
             ))}
           </div>
-          <div className="flex flex-col gap-1 text-sm text-ink">
+          <div className={styles.copyList}>
             <p>Copy A: {brief.brief.primaryMessage}</p>
             <p>Copy B: {brief.brief.primaryMessage} — Hubungi kami sekarang!</p>
             <p>Copy C: {brief.brief.primaryMessage} — Stok terbatas.</p>
@@ -310,48 +289,41 @@ export function SimulasiClient(): React.ReactElement {
           <button
             type="button"
             onClick={() => router.push("/creative")}
-            className="w-fit rounded-button bg-brand-primary px-4 py-2 text-sm font-semibold text-white"
+            className={styles.primaryButton}
           >
             Approve & Launch
           </button>
         </section>
       ) : null}
 
-      <section
-        data-testid="tamara-chat-widget"
-        className="flex flex-col gap-2 rounded-card border border-hairline bg-surface-card p-4"
-      >
-        <h3 className="text-sm font-semibold text-ink">Tanya Tamara tentang data iklan ini…</h3>
-        <ul className="flex flex-col gap-2">
+      <section data-testid="tamara-chat-widget" className={styles.chatWidget}>
+        <h3 className={styles.sectionTitle}>Tanya Tamara tentang data iklan ini…</h3>
+        <ul className={styles.chatHistory}>
           {chatHistory.map((entry) => (
             <li
               key={entry.key}
-              className={`w-fit max-w-[80%] rounded-card px-3 py-2 text-sm ${
-                entry.role === "user"
-                  ? "self-end bg-brand-primary/10 text-brand-primary"
-                  : "bg-surface-page text-ink"
-              }`}
+              className={`${styles.chatBubble} ${entry.role === "user" ? styles.chatBubbleUser : styles.chatBubbleAssistant}`}
             >
               {entry.content}
             </li>
           ))}
         </ul>
-        {chatLoading ? <p className="text-xs text-ink-muted">Tamara sedang mengetik…</p> : null}
+        {chatLoading ? <p className={styles.mutedText}>Tamara sedang mengetik…</p> : null}
         {chatError !== undefined ? <ErrorCard message={chatError} /> : null}
-        <div className="flex gap-2">
+        <div className={styles.chatInputRow}>
           <input
             type="text"
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
             placeholder="Kenapa Bandung Rp/lead nya mahal banget?"
             aria-label="Tanya Tamara"
-            className="flex-1 rounded-button border border-hairline bg-surface-page px-3 py-2 text-sm"
+            className={styles.chatInput}
           />
           <button
             type="button"
             onClick={() => void sendChat()}
             disabled={chatLoading}
-            className="rounded-button border border-hairline px-3 py-2 text-sm font-semibold text-ink disabled:opacity-50"
+            className={styles.secondaryButton}
           >
             Send
           </button>
@@ -364,8 +336,8 @@ export function SimulasiClient(): React.ReactElement {
 function Header(): React.ReactElement {
   return (
     <div>
-      <h2 className="text-base font-semibold text-ink">🎬 Simulasi Koordinasi Tamara × Kai</h2>
-      <p className="text-xs text-ink-muted">
+      <h2 className={styles.title}>🎬 Simulasi Koordinasi Tamara × Kai</h2>
+      <p className={styles.subtitle}>
         Lihat bagaimana Tamara brief Kai untuk generate creative baru.
       </p>
     </div>

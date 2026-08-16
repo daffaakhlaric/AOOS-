@@ -39,9 +39,9 @@ describe("CampaignTable", () => {
     expect(screen.getByText(/307 D3/)).toBeInTheDocument();
   });
 
-  it("VerdictBadge shows the correct color per verdict", () => {
+  it("VerdictBadge shows the correct verdict via data-verdict", () => {
     render(<CampaignTable ads={[buildAd({ verdict: "PAUSE" })]} />);
-    expect(screen.getByTestId("verdict-badge")).toHaveClass("text-[#DC2626]");
+    expect(screen.getByTestId("verdict-badge")).toHaveAttribute("data-verdict", "PAUSE");
   });
 
   it("Execute button is visible and calls onExecute", async () => {

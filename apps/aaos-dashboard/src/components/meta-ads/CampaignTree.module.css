@@ -1,0 +1,226 @@
+/* Spec "=== CAMPAIGN CARDS ===" / "=== AD SET LEVEL (#B001) ===" / "=== AD LEVEL (#C001) ===". */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card {
+  position: relative;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: box-shadow 150ms;
+}
+
+.card:hover {
+  box-shadow: var(--shadow);
+}
+
+/* Left accent — NOT a border, an absolute div (spec's own note). */
+.accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 100%;
+}
+
+.accentScale {
+  background: var(--green);
+}
+
+.accentKeep {
+  background: var(--blue);
+}
+
+.accentReview {
+  background: var(--amber);
+}
+
+.accentPause {
+  background: var(--red);
+}
+
+.accentFix {
+  background: var(--amber);
+}
+
+.accentRefresh {
+  background: var(--purple);
+}
+
+.header {
+  padding: 14px 16px 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.headerButton {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.expandChevron {
+  font-size: 14px;
+  color: var(--gray-400);
+  transition: transform 200ms;
+  flex-shrink: 0;
+}
+
+.expandChevronOpen {
+  transform: rotate(90deg);
+}
+
+.idBadge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  border: var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.idBadgeSmall {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+
+.nameBlock {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--black);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metrics {
+  font-size: 12px;
+  color: var(--gray-400);
+  margin-top: 2px;
+}
+
+.rightSide {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.executeButton {
+  padding: 5px 12px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition:
+    background 100ms,
+    border-color 100ms;
+}
+
+.executeButton:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
+.executeButton:active {
+  transform: scale(0.97);
+}
+
+.executeButtonSmall {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+/* Ad-set level container (#B001). */
+.adSetContainer {
+  background: var(--gray-100);
+  border-top: var(--border);
+  padding: 4px 0;
+}
+
+.adSetRow {
+  padding: 10px 16px 10px 36px;
+}
+
+.adSetHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adSetName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+.adSetMetrics {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-top: 2px;
+}
+
+/* Ad level (#C001). */
+.adList {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.adRow {
+  padding: 10px 16px 10px 60px;
+  background: var(--white);
+  border-bottom: 1px solid var(--gray-100);
+  transition: background 100ms;
+}
+
+.adRow:last-child {
+  border-bottom: none;
+}
+
+.adRow:hover {
+  background: var(--gray-100);
+}
+
+.adTopRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adName {
+  font-size: 13px;
+  color: var(--gray-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}

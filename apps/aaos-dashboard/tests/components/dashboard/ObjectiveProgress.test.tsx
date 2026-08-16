@@ -19,7 +19,7 @@ describe("ObjectiveProgress", () => {
         data={{ targetHotLeads: 50, currentHotLeads: 47, onTrackStatus: "ON_TRACK" }}
       />,
     );
-    expect(screen.getByText("ON TRACK")).toHaveClass("text-brand-success");
+    expect(screen.getByText("ON TRACK")).toHaveAttribute("data-tone", "success");
   });
 
   it("OFF_TRACK renders a red badge", () => {
@@ -28,7 +28,7 @@ describe("ObjectiveProgress", () => {
         data={{ targetHotLeads: 50, currentHotLeads: 10, onTrackStatus: "OFF_TRACK" }}
       />,
     );
-    expect(screen.getByText("OFF TRACK")).toHaveClass("text-brand-danger");
+    expect(screen.getByText("OFF TRACK")).toHaveAttribute("data-tone", "danger");
   });
 
   it("AT_RISK renders an amber badge", () => {
@@ -37,7 +37,7 @@ describe("ObjectiveProgress", () => {
         data={{ targetHotLeads: 50, currentHotLeads: 30, onTrackStatus: "AT_RISK" }}
       />,
     );
-    expect(screen.getByText("AT RISK")).toHaveClass("text-brand-warning");
+    expect(screen.getByText("AT RISK")).toHaveAttribute("data-tone", "warning");
   });
 
   it("shows the forecast line when forecastedHotLeads is provided", () => {

@@ -2,6 +2,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge, type StatusTone } from "@/components/ui/StatusBadge";
 import type { SalesHumanDto } from "@/types/dashboard.types";
 
+import styles from "./SalesTeamTable.module.css";
+
 const STATUS_TONE: Readonly<Record<SalesHumanDto["status"], StatusTone>> = {
   ON: "success",
   BUSY: "warning",
@@ -24,24 +26,20 @@ export function SalesTeamTable({
     return <EmptyState title="Belum ada sales" description="Tambahkan sales untuk branch ini." />;
   }
   return (
-    <ul data-testid="sales-team-table" className="divide-y divide-hairline">
+    <ul data-testid="sales-team-table" className={styles.list}>
       {team.map((sales) => (
-        <li key={sales.id} className="flex items-center justify-between py-2 text-sm">
-          <span className="font-medium text-ink">{sales.name}</span>
-          <span className="text-ink-muted">{sales.waNumber}</span>
+        <li key={sales.id} className={styles.row}>
+          <span className={styles.name}>{sales.name}</span>
+          <span className={styles.meta}>{sales.waNumber}</span>
           <StatusBadge label={sales.status} tone={STATUS_TONE[sales.status]} />
-          <span className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => onEdit?.(sales.id)}
-              className="text-sm font-medium text-brand-primary"
-            >
+          <span className={styles.actions}>
+            <button type="button" onClick={() => onEdit?.(sales.id)} className={styles.editButton}>
               Edit
             </button>
             <button
               type="button"
               onClick={() => onRemove?.(sales.id)}
-              className="text-sm font-medium text-brand-danger"
+              className={styles.removeButton}
             >
               Remove
             </button>

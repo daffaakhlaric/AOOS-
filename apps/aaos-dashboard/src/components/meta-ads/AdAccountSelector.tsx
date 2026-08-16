@@ -1,3 +1,5 @@
+import styles from "./AdAccountSelector.module.css";
+
 export interface AdAccountSelectorProps {
   readonly value: string;
   readonly options: readonly { readonly id: string; readonly name: string }[];
@@ -11,12 +13,12 @@ export function AdAccountSelector({
   onChange,
 }: AdAccountSelectorProps): React.ReactElement {
   return (
-    <label className="flex items-center gap-2 text-sm text-ink">
+    <label className={styles.wrap}>
       Ad Account
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-button border border-hairline bg-surface-card px-2 py-1"
+        className={styles.select}
       >
         {options.map((option) => (
           <option key={option.id} value={option.id}>

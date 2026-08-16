@@ -1,3 +1,5 @@
+import styles from "./AssignmentModeSelector.module.css";
+
 export type AssignmentMode = "SMART_ASSIGN" | "ROUND_ROBIN" | "MANUAL";
 
 const MODES: ReadonlyArray<{ readonly value: AssignmentMode; readonly label: string }> = [
@@ -17,10 +19,10 @@ export function AssignmentModeSelector({
   onChange,
 }: AssignmentModeSelectorProps): React.ReactElement {
   return (
-    <fieldset className="flex gap-4">
-      <legend className="text-sm font-medium text-ink">Assignment Mode</legend>
+    <fieldset className={styles.fieldset}>
+      <legend className={styles.legend}>Assignment Mode</legend>
       {MODES.map((mode) => (
-        <label key={mode.value} className="flex items-center gap-1 text-sm text-ink">
+        <label key={mode.value} className={styles.option}>
           <input
             type="radio"
             name="assignment-mode"

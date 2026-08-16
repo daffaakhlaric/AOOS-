@@ -1,0 +1,71 @@
+/**
+ * Verdict badge (spec "=== CAMPAIGN CARDS === Verdict badge" — 10px/600-weight/uppercase/tracked
+ * text, 3px/8px padding, 4px radius, 1px border) — see VerdictBadge.tsx's docstring for why
+ * REFRESH/CUT (not in the spec's 5-verdict table) get their own colors.
+ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.scale {
+  background: var(--green-light);
+  color: var(--green);
+  border-color: rgba(15, 163, 127, 0.2);
+}
+
+.keep {
+  background: var(--blue-light);
+  color: var(--blue);
+  border-color: rgba(0, 112, 243, 0.2);
+}
+
+.review {
+  background: var(--amber-light);
+  color: var(--amber);
+  border-color: rgba(245, 166, 35, 0.2);
+}
+
+.pause {
+  background: var(--red-light);
+  color: var(--red);
+  border-color: rgba(238, 0, 0, 0.2);
+}
+
+.fix {
+  background: var(--amber-light);
+  color: var(--amber);
+  border-color: rgba(245, 166, 35, 0.2);
+}
+
+/* Real client-side per-branch verdict concept (AnalisaClient.tsx), not a `Verdict` enum member —
+   intentionally the same red as PAUSE (both mean "stop"), differentiated by icon + label text. */
+.cut {
+  background: var(--red-light);
+  color: var(--red);
+  border-color: rgba(238, 0, 0, 0.2);
+}
+
+/* Real VerdictEngine output not depicted in any mockup — not in the spec's 5-color `:root` table,
+   so a dedicated `--purple`/`--purple-light` pair was added to globals.css for it. */
+.refresh {
+  background: var(--purple-light);
+  color: var(--purple);
+  border-color: rgba(124, 58, 237, 0.2);
+}
+
+.unknown {
+  background: var(--gray-100);
+  color: var(--gray-500);
+  border-color: var(--gray-300);
+}

@@ -1,6 +1,8 @@
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatDateId } from "@/lib/formatters";
 
+import styles from "./KnowledgeBaseList.module.css";
+
 export interface KnowledgeDocEntry {
   readonly name: string;
   readonly itemCount: number;
@@ -17,11 +19,11 @@ export function KnowledgeBaseList({
     return <EmptyState title="Belum ada knowledge" description="Upload Excel untuk menambahkan." />;
   }
   return (
-    <ul data-testid="knowledge-base-list" className="divide-y divide-hairline">
+    <ul data-testid="knowledge-base-list" className={styles.list}>
       {docs.map((doc) => (
-        <li key={doc.name} className="flex items-center justify-between py-2 text-sm">
-          <span className="text-ink">📄 {doc.name}</span>
-          <span className="text-ink-muted">
+        <li key={doc.name} className={styles.row}>
+          <span className={styles.name}>📄 {doc.name}</span>
+          <span className={styles.meta}>
             {doc.itemCount} items · {formatDateId(doc.uploadedAt)}
           </span>
         </li>

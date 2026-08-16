@@ -30,6 +30,6 @@ describe("ForecastCard", () => {
         }}
       />,
     );
-    expect(screen.getByText("OFF TRACK")).toHaveClass("text-brand-danger");
+    expect(screen.getByText("OFF TRACK")).toHaveAttribute("data-tone", "danger");
   });
 });

@@ -1,0 +1,60 @@
+/* Spec "=== KPI STRIP ===" — the header summary strip, applied to the Data Iklan metrics bar. */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin: 24px 0;
+}
+
+.cell {
+  padding: 20px 24px;
+  border-right: var(--border);
+  border-top: none;
+  position: relative;
+  transition: background 100ms;
+}
+
+.cell:last-child {
+  border-right: none;
+}
+
+.cell:hover {
+  background: var(--gray-100);
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  white-space: nowrap;
+}
+
+.value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--black);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* BELANJA (spend) stays black; D3 and TOTAL LEAD are highlighted blue per spec's cell notes. */
+.valueBlue {
+  color: var(--blue);
+}
+
+.valueZero {
+  color: var(--gray-300);
+}
+
+@media (max-width: 640px) {
+  .strip {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

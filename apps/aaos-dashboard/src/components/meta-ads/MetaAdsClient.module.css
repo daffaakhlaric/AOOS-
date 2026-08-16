@@ -1,0 +1,193 @@
+/* Page body + toolbar (spec "Page body: padding 32px max-width 1200px" / "=== TOOLBAR ==="). */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  max-width: 1200px;
+}
+
+.pageTitle {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--black);
+  line-height: 1;
+}
+
+.pageSubtitle {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.snapshotSelector {
+  position: relative;
+}
+
+.snapshotSummary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--gray-600);
+  cursor: pointer;
+  list-style: none;
+}
+
+.snapshotSummary:hover {
+  border-color: var(--gray-300);
+  background: var(--gray-100);
+}
+
+.snapshotSummary::-webkit-details-marker {
+  display: none;
+}
+
+.snapshotMenu {
+  position: absolute;
+  left: 0;
+  z-index: 10;
+  margin-top: 4px;
+  width: 260px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 4px;
+  box-shadow: var(--shadow-md);
+  list-style: none;
+}
+
+.snapshotMenuItem {
+  width: 100%;
+  border-radius: var(--radius);
+  border: none;
+  background: none;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.snapshotMenuItem:hover {
+  background: var(--gray-100);
+}
+
+.snapshotMenuEmpty {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* "Tarik Data Baru" — Vercel-style black button. */
+.pullButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--black);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 100ms;
+}
+
+.pullButton:hover {
+  background: var(--gray-700);
+}
+
+.pullButton:active {
+  transform: scale(0.97);
+}
+
+.pullButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lastUpdated {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.banner {
+  border-radius: var(--radius-lg);
+  border: 1px solid;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.bannerWarning {
+  border-color: rgba(245, 166, 35, 0.3);
+  background: var(--amber-light);
+  color: var(--amber);
+}
+
+.bannerDanger {
+  border-color: rgba(238, 0, 0, 0.3);
+  background: var(--red-light);
+  color: var(--red);
+}
+
+.updating {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+/* Search bar (spec "=== TOOLBAR === Search bar"). */
+.searchWrap {
+  position: relative;
+  max-width: 320px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 7px 12px 7px 32px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--gray-900);
+  outline: none;
+  font-family: var(--font);
+}
+
+.searchInput:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.1);
+}
+
+.searchInput::placeholder {
+  color: var(--gray-300);
+}
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--gray-400);
+  pointer-events: none;
+}

@@ -14,6 +14,8 @@ import type {
   CampaignSummaryDto,
 } from "@/types/dashboard.types";
 
+import styles from "./CampaignTree.module.css";
+
 /**
  * Highest-priority verdict, mirroring `VerdictEngine`'s own documented precedence (FIX > PAUSE >
  * SCALE > REFRESH > KEEP > REVIEW — `packages/meta-ads-connector/src/domain/services/
@@ -34,20 +36,22 @@ export function aggregateVerdict(verdicts: readonly string[]): string {
   return verdicts[0] ?? "REVIEW";
 }
 
-/** Left accent-bar color per aggregated verdict (spec "Data Iklan ... Each campaign = subtle card with left accent color"). Deliberately a small local map, same pattern as `VerdictBadge.tsx` — not a shared token, see that file's docstring. */
-function accentBorderColor(verdict: string): string {
+/** Left accent-bar color per aggregated verdict (spec "=== CAMPAIGN CARDS === Left accent"). */
+// `?? ""` resolves the `noUncheckedIndexedAccess` type-only gap on CSS Module property access —
+// see VerdictBadge.tsx's docstring for the full explanation.
+function accentClass(verdict: string): string {
   switch (verdict) {
     case "FIX":
     case "PAUSE":
-      return "border-l-[#DC2626]";
+      return styles.accentPause ?? "";
     case "SCALE":
-      return "border-l-[#1A9E5C]";
+      return styles.accentScale ?? "";
     case "REFRESH":
-      return "border-l-purple-400";
+      return styles.accentRefresh ?? "";
     case "KEEP":
-      return "border-l-[#2563EB]";
+      return styles.accentKeep ?? "";
     default:
-      return "border-l-[#D97706]";
+      return styles.accentReview ?? "";
   }
 }
 
@@ -108,18 +112,19 @@ export interface CampaignTreeProps {
 }
 
 /**
- * The card-based #A campaign → #B ad-set → #C ad hierarchy (UI-overhaul pass: spec "--- Data
- * Iklan ---" ASCII mockup — subtle card per campaign with a left accent-color bar, an expand/
- * collapse toggle, and an indented Ad Set → Ad hierarchy inside). Every `stableId` shown is the
- * real one `aaos-api` assigned (`@aos/meta-ads-connector`'s `StableIdAssigner`) — never resorted/
- * reassigned here.
+ * The card-based #A campaign → #B ad-set → #C ad hierarchy (TOTAL UI REBUILD spec "=== CAMPAIGN
+ * CARDS ===" / "=== AD SET LEVEL (#B001) ===" / "=== AD LEVEL (#C001) ===" — subtle card per
+ * campaign with a left accent-color bar, an expand/collapse chevron, and an indented Ad Set → Ad
+ * hierarchy inside, all restyled from Tailwind utilities to `CampaignTree.module.css`). Every
+ * `stableId` shown is the real one `aaos-api` assigned (`@aos/meta-ads-connector`'s
+ * `StableIdAssigner`) — never resorted/reassigned here.
  *
  * Data logic and the `onExecute(targetId, targetType, verdict)` callback contract are UNCHANGED
- * from the pre-overhaul version (`aggregateVerdict`'s precedence, `filterCampaigns`'s search
- * semantics) — this pass only restyles the presentation and layers an expand/collapse interaction
- * on top. Every campaign starts EXPANDED (`expanded[id] ?? true`) so Ad Set/Ad rows — and their
- * Execute buttons — are present in the DOM without requiring an extra click, matching the
- * pre-overhaul component's behavior for callers/tests that don't interact with the toggle.
+ * from the pre-rebuild version (`aggregateVerdict`'s precedence, `filterCampaigns`'s search
+ * semantics) — this pass only restyles the presentation. Every campaign starts EXPANDED
+ * (`expanded[id] ?? true`) so Ad Set/Ad rows — and their Execute buttons — are present in the DOM
+ * without requiring an extra click, matching the pre-rebuild component's behavior for callers/
+ * tests that don't interact with the toggle.
  */
 export function CampaignTree({
   campaigns,
@@ -147,7 +152,7 @@ export function CampaignTree({
   }
 
   return (
-    <ul data-testid="campaign-tree" className="flex flex-col gap-3">
+    <ul data-testid="campaign-tree" className={styles.wrapper}>
       {filtered.map((campaign) => {
         const allAds = campaign.adSets.flatMap((adSet) => adSet.ads);
         const { conversations, d3 } = sumMetrics(allAds);
@@ -155,91 +160,83 @@ export function CampaignTree({
         const isExpanded = expanded[campaign.id] ?? true;
         const rphD3 = rphD3For(campaign.spend, d3);
         return (
-          <li
-            key={campaign.id}
-            className={`card-hover-lift rounded-card border border-l-4 border-hairline-card bg-surface-card shadow-card ${accentBorderColor(verdict)}`}
-          >
-            <div className="flex items-start justify-between gap-3 p-4">
+          <li key={campaign.id} className={styles.card}>
+            <span aria-hidden="true" className={`${styles.accent} ${accentClass(verdict)}`} />
+            <div className={styles.header}>
               <button
                 type="button"
                 onClick={() => toggle(campaign.id)}
                 aria-expanded={isExpanded}
-                className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                className={styles.headerButton}
               >
-                <span aria-hidden="true" className="mt-0.5 shrink-0 text-ink-muted">
-                  {isExpanded ? "▾" : "▸"}
+                <span
+                  aria-hidden="true"
+                  className={`${styles.expandChevron} ${isExpanded ? styles.expandChevronOpen : ""}`}
+                >
+                  ▸
                 </span>
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-ink">
-                    {campaign.stableId} {campaign.name}
-                  </p>
-                  <p className="text-sm text-ink-muted">
+                <div className={styles.nameBlock}>
+                  <span className={styles.idBadge}>{campaign.stableId}</span>{" "}
+                  <span className={styles.name}>{campaign.name}</span>
+                  <p className={styles.metrics}>
                     {formatIdr(campaign.spend)} · {formatNumber(conversations)} chat ·{" "}
                     {formatNumber(d3)} D3{rphD3 !== null ? ` · ${formatIdr(rphD3)}/D3` : ""} ·{" "}
                     {campaign.adSets.length} AS
                   </p>
                 </div>
               </button>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className={styles.rightSide}>
                 <VerdictBadge verdict={verdict} />
                 <button
                   type="button"
                   onClick={() => onExecute(campaign.id, "campaign", verdict)}
-                  className="btn-press rounded-button border border-hairline-card px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-page"
+                  className={styles.executeButton}
                 >
                   ⚡ Execute
                 </button>
               </div>
             </div>
             {isExpanded ? (
-              <ul className="flex flex-col gap-2 border-t border-hairline-subtle px-4 pb-4 pt-3">
+              <div className={styles.adSetContainer}>
                 {campaign.adSets.map((adSet) => {
                   const { conversations: setConversations, d3: setD3 } = sumMetrics(adSet.ads);
                   return (
-                    <li key={adSet.id} className="ml-6">
-                      <p className="text-sm font-medium text-ink">
-                        {adSet.stableId} {adSet.name}
-                      </p>
-                      <p className="text-xs text-ink-muted">
+                    <div key={adSet.id} className={styles.adSetRow}>
+                      <div className={styles.adSetHeader}>
+                        <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
+                          {adSet.stableId}
+                        </span>
+                        <span className={styles.adSetName}>{adSet.name}</span>
+                      </div>
+                      <p className={styles.adSetMetrics}>
                         {formatIdr(adSet.spend)} · {formatNumber(setConversations)} chat ·{" "}
                         {formatNumber(setD3)} D3
                       </p>
-                      <ul className="mt-2 flex flex-col gap-2">
+                      <div className={styles.adList}>
                         {adSet.ads.map((ad) => (
-                          <li key={ad.id} className="ml-12 flex flex-col gap-1">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-medium text-ink">
-                                  {ad.stableId} {stripAdNameSuffix(ad.name)}
-                                </p>
-                                <p className="text-xs text-ink-muted">
-                                  {formatIdr(ad.metrics.spend)} ·{" "}
-                                  {formatNumber(ad.metrics.conversations)} chat ·{" "}
-                                  {formatNumber(ad.metrics.d3)} D3
-                                  {ad.metrics.rphD3 !== null
-                                    ? ` · ${formatIdr(ad.metrics.rphD3)}/D3`
-                                    : ""}
-                                </p>
-                              </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <VerdictBadge verdict={ad.verdict} />
-                                <button
-                                  type="button"
-                                  onClick={() => onExecute(ad.id, "ad", ad.verdict)}
-                                  className="btn-press rounded-button border border-hairline-card px-2.5 py-1 text-xs font-medium text-ink hover:bg-surface-page"
-                                >
-                                  ⚡ Execute
-                                </button>
-                              </div>
+                          <div key={ad.id} className={styles.adRow}>
+                            <div className={styles.adTopRow}>
+                              <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
+                                {ad.stableId}
+                              </span>
+                              <span className={styles.adName}>{stripAdNameSuffix(ad.name)}</span>
+                              <VerdictBadge verdict={ad.verdict} />
+                              <button
+                                type="button"
+                                onClick={() => onExecute(ad.id, "ad", ad.verdict)}
+                                className={`${styles.executeButton} ${styles.executeButtonSmall}`}
+                              >
+                                ⚡ Execute
+                              </button>
                             </div>
                             <CampaignFunnelBar metrics={ad.metrics} />
-                          </li>
+                          </div>
                         ))}
-                      </ul>
-                    </li>
+                      </div>
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
             ) : null}
           </li>
         );

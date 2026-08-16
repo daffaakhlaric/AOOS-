@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import styles from "./ExcelUploader.module.css";
+
 export interface ExcelUploaderProps {
   readonly onFileSelected: (file: File) => void;
 }
@@ -58,23 +60,21 @@ export function ExcelUploader({ onFileSelected }: ExcelUploaderProps): React.Rea
           setIsDragging(false);
           handleFile(event.dataTransfer.files[0]);
         }}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-card border-2 border-dashed p-8 text-center text-sm ${
-          isDragging ? "border-brand-primary bg-brand-primary/5" : "border-hairline bg-surface-card"
-        }`}
+        className={`${styles.dropzone} ${isDragging ? styles.dropzoneActive : ""}`}
       >
-        <p className="text-ink">📎 Drop Excel file di sini</p>
-        <p className="text-ink-muted">atau klik untuk pilih file</p>
-        <p className="mt-1 text-xs text-ink-muted">Supported: .xlsx, .xls</p>
+        <p className={styles.primaryText}>📎 Drop Excel file di sini</p>
+        <p className={styles.secondaryText}>atau klik untuk pilih file</p>
+        <p className={styles.hint}>Supported: .xlsx, .xls</p>
       </div>
       <input
         ref={inputRef}
         type="file"
         accept=".xlsx,.xls"
-        className="hidden"
+        className={styles.hiddenInput}
         aria-label="Pilih file Excel"
         onChange={(event) => handleFile(event.target.files?.[0])}
       />
-      {error !== undefined ? <p className="mt-2 text-sm text-brand-danger">{error}</p> : null}
+      {error !== undefined ? <p className={styles.error}>{error}</p> : null}
     </div>
   );
 }

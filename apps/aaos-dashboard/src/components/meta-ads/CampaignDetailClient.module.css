@@ -1,0 +1,28 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.campaignName {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.spend {
+  font-size: 13px;
+  color: var(--gray-500);
+}

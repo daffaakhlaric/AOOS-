@@ -1,3 +1,5 @@
+import styles from "./TamaraRecommendationCard.module.css";
+
 export interface TamaraRecommendationData {
   readonly summary: string;
   readonly actions: readonly string[];
@@ -20,22 +22,15 @@ export function TamaraRecommendationCard({
   onUseRecommendation,
 }: TamaraRecommendationCardProps): React.ReactElement {
   return (
-    <section
-      data-testid="tamara-recommendation-card"
-      className="rounded-card border border-hairline bg-surface-card p-4 shadow-card"
-    >
-      <p className="text-sm font-semibold text-ink">💡 Rekomendasi Tamara</p>
-      <p className="mt-1 text-sm text-ink-muted">{data.summary}</p>
-      <ul className="mt-2 list-inside list-disc text-sm text-ink-muted">
+    <section data-testid="tamara-recommendation-card" className={styles.section}>
+      <p className={styles.title}>💡 Rekomendasi Tamara</p>
+      <p className={styles.summary}>{data.summary}</p>
+      <ul className={styles.actions}>
         {data.actions.map((action) => (
           <li key={action}>{action}</li>
         ))}
       </ul>
-      <button
-        type="button"
-        onClick={onUseRecommendation}
-        className="mt-3 rounded-button bg-brand-primary px-3 py-1.5 text-sm font-semibold text-white"
-      >
+      <button type="button" onClick={onUseRecommendation} className={styles.button}>
         Pakai Rekomendasi Ini
       </button>
     </section>

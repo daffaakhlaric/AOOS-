@@ -3,19 +3,26 @@ import { describe, expect, it } from "vitest";
 
 import { VerdictBadge } from "@/components/meta-ads/VerdictBadge";
 
-describe("VerdictBadge (UI-overhaul pass: exact per-verdict hex/icon values from docs/PROMPT-AAOS-DASHBOARD-UI-OVERHAUL.md — see VerdictBadge.tsx's docstring for why REVIEW/FIX and PAUSE/CUT are INTENTIONALLY the same color pair per the spec's own hex table)", () => {
+/**
+ * CSS Modules under this repo's Vitest config hash class names at transform time (confirmed via a
+ * throwaway smoke test before writing this file — e.g. `styles.scale` resolves to something like
+ * `_scale_16bbdb`, never the literal string `"scale"`), so assertions here use `data-verdict`
+ * (rendered by the component alongside its CSS-module class) and `className` EQUALITY across
+ * verdicts, never exact class-name string matches.
+ */
+describe("VerdictBadge (TOTAL UI REBUILD spec: exact per-verdict colors from docs/PROMPT-AAOS-DASHBOARD-TOTAL-REBUILD.md — see VerdictBadge.tsx's docstring for why REFRESH/CUT extend the spec's 5-verdict table)", () => {
   it.each([
-    ["SCALE", "text-[#1A9E5C]", "↑"],
-    ["KEEP", "text-[#2563EB]", "●"],
-    ["REVIEW", "text-[#D97706]", "◐"],
-    ["PAUSE", "text-[#DC2626]", "⏸"],
-    ["FIX", "text-[#D97706]", "⚠"],
-    ["CUT", "text-[#DC2626]", "✕"],
-    ["REFRESH", "text-purple-700", "↻"],
-  ])("shows the spec's exact color + icon for verdict %s", (verdict, expectedClass, icon) => {
+    ["SCALE", "↑"],
+    ["KEEP", "●"],
+    ["REVIEW", "◐"],
+    ["PAUSE", "⏸"],
+    ["FIX", "⚠"],
+    ["CUT", "✕"],
+    ["REFRESH", "↻"],
+  ])("shows the spec's icon for verdict %s and tags it with data-verdict", (verdict, icon) => {
     render(<VerdictBadge verdict={verdict} />);
     const badge = screen.getByTestId("verdict-badge");
-    expect(badge).toHaveClass(expectedClass);
+    expect(badge).toHaveAttribute("data-verdict", verdict);
     expect(badge.textContent).toBe(`${icon}${verdict}`);
   });
 
@@ -47,6 +54,10 @@ describe("VerdictBadge (UI-overhaul pass: exact per-verdict hex/icon values from
 
   it("falls back to neutral tone for an unrecognized verdict", () => {
     render(<VerdictBadge verdict="UNKNOWN" />);
-    expect(screen.getByTestId("verdict-badge")).toHaveClass("text-ink-muted");
+    const badge = screen.getByTestId("verdict-badge");
+    expect(badge).toHaveAttribute("data-verdict", "UNKNOWN");
+    render(<VerdictBadge verdict="SCALE" />);
+    const scaleClass = screen.getAllByTestId("verdict-badge")[1]!.className;
+    expect(badge.className).not.toBe(scaleClass);
   });
 });

@@ -1,0 +1,38 @@
+/* Spec "=== AD LEVEL (#C001) === Funnel row". */
+.row {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.step {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.label {
+  color: var(--gray-400);
+}
+
+.number {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gray-700);
+}
+
+.numberZero {
+  color: var(--gray-300);
+}
+
+.numberHighlight {
+  color: var(--blue);
+}
+
+.arrow {
+  color: var(--gray-300);
+  font-size: 10px;
+}

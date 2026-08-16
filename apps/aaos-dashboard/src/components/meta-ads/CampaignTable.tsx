@@ -6,6 +6,8 @@ import { stripAdNameSuffix } from "@/lib/adName";
 import { formatIdr, formatNumber } from "@/lib/formatters";
 import type { CampaignAdDto } from "@/types/dashboard.types";
 
+import styles from "./CampaignTable.module.css";
+
 export interface CampaignTableProps {
   readonly ads: readonly CampaignAdDto[];
   readonly onExecute?: (ad: CampaignAdDto) => void;
@@ -23,27 +25,24 @@ export function CampaignTable({ ads, onExecute }: CampaignTableProps): React.Rea
   }
 
   return (
-    <ul data-testid="campaign-table" className="flex flex-col gap-2">
+    <ul data-testid="campaign-table" className={styles.list}>
       {ads.map((ad) => (
-        <li
-          key={ad.id}
-          className="card-hover-lift rounded-card border border-hairline-card bg-surface-card p-4 shadow-card"
-        >
-          <div className="flex items-start justify-between gap-3">
+        <li key={ad.id} className={styles.row}>
+          <div className={styles.top}>
             <div>
-              <p className="font-semibold text-ink">{stripAdNameSuffix(ad.name)}</p>
-              <p className="text-sm text-ink-muted">
+              <p className={styles.name}>{stripAdNameSuffix(ad.name)}</p>
+              <p className={styles.metrics}>
                 {formatIdr(ad.metrics.spend)} · {formatNumber(ad.metrics.conversations)} chat ·{" "}
                 {formatNumber(ad.metrics.d3)} D3
                 {ad.metrics.rphD3 !== null ? ` · ${formatIdr(ad.metrics.rphD3)}/D3` : ""}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className={styles.actions}>
               <VerdictBadge verdict={ad.verdict} />
               <button
                 type="button"
                 onClick={() => onExecute?.(ad)}
-                className="rounded-button border border-hairline px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-page"
+                className={styles.executeButton}
               >
                 ⚡ Execute
               </button>

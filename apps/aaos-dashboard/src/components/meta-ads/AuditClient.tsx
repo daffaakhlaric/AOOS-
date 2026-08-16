@@ -7,6 +7,8 @@ import { formatDateTimeIdWib, formatIdr, formatIdrCompact, formatNumber } from "
 import { useCampaignsSnapshot } from "@/lib/useCampaignsSnapshot";
 import type { AdAccountSummaryDto, CampaignAdDto } from "@/types/dashboard.types";
 
+import styles from "./AuditClient.module.css";
+
 /** DSS Motor's real funnel labels — `Funnel` enum (`@aos/meta-ads-connector`), Indonesian display labels for this page's grouping (spec Section 2, adapted to coordinator note #1: group by the real `ad.funnel` field, never a second classifier). */
 const FUNNEL_LABELS: Readonly<Record<string, string>> = {
   BRAND_BOOST: "Brand/Boost",
@@ -114,7 +116,7 @@ export function AuditClient(): React.ReactElement {
 
   if (data === undefined) {
     return (
-      <div className="flex flex-col gap-4 p-6">
+      <div className={styles.page}>
         <Header onPull={() => void pull()} loading={loading} />
         {loading ? <LoadingSpinner /> : null}
         {!loading && error !== undefined ? <ErrorCard message={error} /> : null}
@@ -151,20 +153,17 @@ export function AuditClient(): React.ReactElement {
     .sort((a, b) => a.daysSinceCreation - b.daysSinceCreation);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className={styles.page}>
       <Header onPull={() => void pull()} loading={loading} />
       {fetchedAt !== undefined ? (
-        <p data-testid="audit-last-updated" className="text-xs text-ink-muted">
+        <p data-testid="audit-last-updated" className={styles.lastUpdated}>
           🕒 Data diambil: {formatDateTimeIdWib(new Date(fetchedAt).toISOString())} · periode{" "}
           {period}
         </p>
       ) : null}
       {error !== undefined ? <ErrorCard message={error} /> : null}
 
-      <section
-        data-testid="audit-kpi-bar"
-        className="grid grid-cols-3 gap-3 rounded-card border border-hairline bg-surface-card p-4 shadow-card sm:grid-cols-6"
-      >
+      <section data-testid="audit-kpi-bar" className={styles.kpiBar}>
         <Kpi label="Total Belanja" value={formatIdrCompact(data.totals.spend)} />
         <Kpi label="Total Chat" value={formatNumber(data.totals.conversations)} />
         <Kpi label="Rp/Chat" value={totalRpPerChat !== null ? formatIdr(totalRpPerChat) : "—"} />
@@ -173,23 +172,18 @@ export function AuditClient(): React.ReactElement {
         <Kpi label="Iklan" value={formatNumber(data.adCount)} />
       </section>
 
-      <section data-testid="audit-funnel-section" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">Belanja per Funnel</h3>
+      <section data-testid="audit-funnel-section" className={styles.section}>
+        <h3 className={styles.sectionTitle}>Belanja per Funnel</h3>
         {funnelGroups.length === 0 ? (
-          <p className="text-sm text-ink-muted">Tidak ada data funnel.</p>
+          <p className={styles.mutedText}>Tidak ada data funnel.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className={styles.groupList}>
             {funnelGroups.map((group) => {
               const perChat = rpPerChat(group.spend, group.conversations);
               return (
-                <li
-                  key={group.funnel}
-                  className="rounded-card border border-hairline bg-surface-card p-3"
-                >
-                  <p className="text-sm font-medium text-ink">
-                    {FUNNEL_LABELS[group.funnel] ?? group.funnel}
-                  </p>
-                  <p className="text-xs text-ink-muted">
+                <li key={group.funnel} className={styles.groupCard}>
+                  <p className={styles.groupName}>{FUNNEL_LABELS[group.funnel] ?? group.funnel}</p>
+                  <p className={styles.groupMeta}>
                     {formatIdr(group.spend)} · {formatNumber(group.conversations)} chat
                     {perChat !== null ? ` · ${formatIdr(perChat)}/chat` : ""}
                   </p>
@@ -200,19 +194,16 @@ export function AuditClient(): React.ReactElement {
         )}
       </section>
 
-      <section data-testid="audit-branch-section" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">Belanja per Cabang</h3>
+      <section data-testid="audit-branch-section" className={styles.section}>
+        <h3 className={styles.sectionTitle}>Belanja per Cabang</h3>
         {branchGroups.length === 0 ? (
-          <p className="text-sm text-ink-muted">Tidak ada data cabang.</p>
+          <p className={styles.mutedText}>Tidak ada data cabang.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className={styles.groupList}>
             {branchGroups.map((group) => (
-              <li
-                key={group.branch}
-                className="rounded-card border border-hairline bg-surface-card p-3"
-              >
-                <p className="text-sm font-medium text-ink">{group.branch}</p>
-                <p className="text-xs text-ink-muted">
+              <li key={group.branch} className={styles.groupCard}>
+                <p className={styles.groupName}>{group.branch}</p>
+                <p className={styles.groupMeta}>
                   {formatIdr(group.spend)} · {formatNumber(group.adCount)} iklan
                 </p>
               </li>
@@ -221,21 +212,19 @@ export function AuditClient(): React.ReactElement {
         )}
       </section>
 
-      <section data-testid="audit-waste-section" className="flex flex-col gap-4">
-        <h3 className="text-sm font-semibold text-ink">Deteksi Pemborosan</h3>
+      <section data-testid="audit-waste-section" className={styles.section}>
+        <h3 className={styles.sectionTitle}>Deteksi Pemborosan</h3>
 
-        <div>
-          <p className="text-xs font-semibold text-ink-muted">
-            🎯 Salah tujuan (objective ≠ OUTCOME_LEADS)
-          </p>
+        <div className={styles.wasteBlock}>
+          <p className={styles.wasteLabel}>🎯 Salah tujuan (objective ≠ OUTCOME_LEADS)</p>
           {salahTujuan.length === 0 ? (
-            <p className="text-sm text-ink-muted">Tidak ada.</p>
+            <p className={styles.mutedText}>Tidak ada.</p>
           ) : (
-            <ul className="mt-1 flex flex-col gap-1">
+            <ul className={styles.wasteList}>
               {salahTujuan.map((entry) => {
                 const perChat = rpPerChat(entry.ad.metrics.spend, entry.ad.metrics.conversations);
                 return (
-                  <li key={entry.ad.id} className="text-sm text-ink">
+                  <li key={entry.ad.id} className={styles.wasteItem}>
                     {entry.ad.stableId} {entry.ad.name} —{" "}
                     {perChat !== null ? formatIdr(perChat) : "—"}/chat
                   </li>
@@ -245,16 +234,14 @@ export function AuditClient(): React.ReactElement {
           )}
         </div>
 
-        <div>
-          <p className="text-xs font-semibold text-ink-muted">
-            🔁 Audiens jenuh (frequency ≥ {FREQUENCY_THRESHOLD})
-          </p>
+        <div className={styles.wasteBlock}>
+          <p className={styles.wasteLabel}>🔁 Audiens jenuh (frequency ≥ {FREQUENCY_THRESHOLD})</p>
           {audiensJenuh.length === 0 ? (
-            <p className="text-sm text-ink-muted">Tidak ada.</p>
+            <p className={styles.mutedText}>Tidak ada.</p>
           ) : (
-            <ul className="mt-1 flex flex-col gap-1">
+            <ul className={styles.wasteList}>
               {audiensJenuh.map((ad) => (
-                <li key={ad.id} className="text-sm text-ink">
+                <li key={ad.id} className={styles.wasteItem}>
                   {ad.stableId} {ad.name} — frequency {ad.metrics.frequency.toFixed(1)}
                 </li>
               ))}
@@ -262,16 +249,16 @@ export function AuditClient(): React.ReactElement {
           )}
         </div>
 
-        <div>
-          <p className="text-xs font-semibold text-ink-muted">
+        <div className={styles.wasteBlock}>
+          <p className={styles.wasteLabel}>
             💸 Rp/chat terlalu mahal (&gt; {formatIdr(RP_PER_CHAT_THRESHOLD)}/chat)
           </p>
           {rpChatMahal.length === 0 ? (
-            <p className="text-sm text-ink-muted">Tidak ada.</p>
+            <p className={styles.mutedText}>Tidak ada.</p>
           ) : (
-            <ul className="mt-1 flex flex-col gap-1">
+            <ul className={styles.wasteList}>
               {rpChatMahal.map(({ ad, rpChat }) => (
-                <li key={ad.id} className="text-sm text-ink">
+                <li key={ad.id} className={styles.wasteItem}>
                   {ad.stableId} {ad.name} — {formatIdr(rpChat)}/chat
                 </li>
               ))}
@@ -280,34 +267,34 @@ export function AuditClient(): React.ReactElement {
         </div>
       </section>
 
-      <section data-testid="audit-new-ads-section" className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">Iklan Baru (14 hari terakhir)</h3>
+      <section data-testid="audit-new-ads-section" className={styles.section}>
+        <h3 className={styles.sectionTitle}>Iklan Baru (14 hari terakhir)</h3>
         {iklanBaru.length === 0 ? (
-          <p className="text-sm text-ink-muted">Tidak ada iklan baru.</p>
+          <p className={styles.mutedText}>Tidak ada iklan baru.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
               <thead>
-                <tr className="text-xs text-ink-muted">
-                  <th className="py-1 pr-3">#</th>
-                  <th className="py-1 pr-3">Iklan</th>
-                  <th className="py-1 pr-3">Funnel</th>
-                  <th className="py-1 pr-3">Cabang</th>
-                  <th className="py-1 pr-3">Status</th>
-                  <th className="py-1 pr-3">Belanja</th>
-                  <th className="py-1 pr-3">Dibuat</th>
+                <tr className={styles.tableHeadRow}>
+                  <th>#</th>
+                  <th>Iklan</th>
+                  <th>Funnel</th>
+                  <th>Cabang</th>
+                  <th>Status</th>
+                  <th>Belanja</th>
+                  <th>Dibuat</th>
                 </tr>
               </thead>
               <tbody>
                 {iklanBaru.map((ad) => (
-                  <tr key={ad.id} className="border-t border-hairline">
-                    <td className="py-1 pr-3">{ad.stableId}</td>
-                    <td className="py-1 pr-3">{ad.name}</td>
-                    <td className="py-1 pr-3">{FUNNEL_LABELS[ad.funnel] ?? ad.funnel}</td>
-                    <td className="py-1 pr-3">{ad.branch}</td>
-                    <td className="py-1 pr-3">{ad.status}</td>
-                    <td className="py-1 pr-3">{formatIdr(ad.metrics.spend)}</td>
-                    <td className="py-1 pr-3">{ad.daysSinceCreation} hari lalu</td>
+                  <tr key={ad.id} className={styles.tableRow}>
+                    <td className={styles.tableCell}>{ad.stableId}</td>
+                    <td className={styles.tableCell}>{ad.name}</td>
+                    <td className={styles.tableCell}>{FUNNEL_LABELS[ad.funnel] ?? ad.funnel}</td>
+                    <td className={styles.tableCell}>{ad.branch}</td>
+                    <td className={styles.tableCell}>{ad.status}</td>
+                    <td className={styles.tableCell}>{formatIdr(ad.metrics.spend)}</td>
+                    <td className={styles.tableCell}>{ad.daysSinceCreation} hari lalu</td>
                   </tr>
                 ))}
               </tbody>
@@ -328,8 +315,8 @@ function Kpi({
 }): React.ReactElement {
   return (
     <div>
-      <p className="text-xs text-ink-muted">{label}</p>
-      <p className="text-sm font-semibold text-ink">{value}</p>
+      <p className={styles.kpiLabel}>{label}</p>
+      <p className={styles.kpiValue}>{value}</p>
     </div>
   );
 }
@@ -342,20 +329,15 @@ function Header({
   readonly loading: boolean;
 }): React.ReactElement {
   return (
-    <div className="flex items-center justify-between">
+    <div className={styles.headerRow}>
       <div>
-        <h2 className="text-base font-semibold text-ink">💰 Audit Biaya</h2>
-        <p className="text-xs text-ink-muted">
+        <h2 className={styles.title}>💰 Audit Biaya</h2>
+        <p className={styles.subtitle}>
           Belanja per funnel & cabang, Rp per percakapan, iklan baru, dan deteksi pemborosan ber-ID
           (#A/#B/#C).
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onPull}
-        disabled={loading}
-        className="rounded-button border border-hairline px-3 py-2 text-sm font-semibold text-ink disabled:opacity-50"
-      >
+      <button type="button" onClick={onPull} disabled={loading} className={styles.secondaryButton}>
         🔄 Tarik data baru
       </button>
     </div>

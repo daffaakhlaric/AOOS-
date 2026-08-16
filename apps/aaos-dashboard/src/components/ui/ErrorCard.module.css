@@ -1,0 +1,16 @@
+.card {
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(238, 0, 0, 0.3);
+  background: var(--red-light);
+  padding: 16px;
+  font-size: 13px;
+  color: var(--red);
+}
+
+.title {
+  font-weight: 600;
+}
+
+.message {
+  margin-top: 4px;
+}

@@ -9,6 +9,8 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { CreativePackageDto } from "@/types/dashboard.types";
 
+import styles from "./CreativeDetailClient.module.css";
+
 /** Creative detail + approve/reject (spec "creative/[packageId]/page.tsx"). `aaos-api` has no single-package lookup endpoint, so this finds `packageId` within the same `GET /api/v1/creative-packages` list `/creative` uses. */
 export function CreativeDetailClient({
   packageId,
@@ -70,7 +72,7 @@ export function CreativeDetailClient({
   }
 
   return (
-    <div className="p-6">
+    <div className={styles.page}>
       <CreativePackageCard
         pkg={pkg}
         busy={busy}

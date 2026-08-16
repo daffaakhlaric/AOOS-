@@ -10,6 +10,8 @@ import { formatIdr, formatNumber } from "@/lib/formatters";
 import { useCampaignsSnapshot } from "@/lib/useCampaignsSnapshot";
 import type { CampaignAdDto } from "@/types/dashboard.types";
 
+import styles from "./StrategiClient.module.css";
+
 type Decision = "approved" | "rejected";
 
 /** `localStorage` key for this snapshot's approve/reject decisions — namespaced by `fetchedAt` (spec "Track approved/rejected in localStorage per snapshot"): a fresh pull is a new snapshot with a clean decision slate, so decisions never leak across pulls. */
@@ -56,16 +58,18 @@ function actionFor(verdict: string): ActionInfo {
 }
 
 /** Left accent-bar color per verdict (spec "Strategi & Approve ... Card with left border color (red=pause, yellow=fix, green=scale)"). Local color map, same pattern as `VerdictBadge.tsx`/`CampaignTree.tsx`'s accent bars — not a shared token. */
+// `?? ""` resolves the `noUncheckedIndexedAccess` type-only gap on CSS Module property access —
+// see VerdictBadge.tsx's docstring for the full explanation.
 function accentBorderColor(verdict: string): string {
   switch (verdict) {
     case "PAUSE":
-      return "border-l-[#DC2626]";
+      return styles.accentPause ?? "";
     case "FIX":
-      return "border-l-[#D97706]";
+      return styles.accentFix ?? "";
     case "SCALE":
-      return "border-l-[#1A9E5C]";
+      return styles.accentScale ?? "";
     default:
-      return "border-l-[#2563EB]";
+      return styles.accentReview ?? "";
   }
 }
 
@@ -153,7 +157,7 @@ export function StrategiClient(): React.ReactElement {
 
   if (data === undefined) {
     return (
-      <div className="flex flex-col gap-4 p-6">
+      <div className={styles.page}>
         <Header />
         {loading ? <LoadingSpinner /> : null}
         {!loading && error !== undefined ? <ErrorCard message={error} /> : null}
@@ -177,7 +181,7 @@ export function StrategiClient(): React.ReactElement {
   return (
     // Bottom padding reserves room for the sticky approve-summary bar below so it never overlaps
     // the last card (spec "Bottom sticky bar").
-    <div className="flex animate-fade-in flex-col gap-4 p-8 pb-24 sm:p-10 sm:pb-24">
+    <div className={styles.page}>
       <Header />
       {error !== undefined ? <ErrorCard message={error} /> : null}
 
@@ -187,7 +191,7 @@ export function StrategiClient(): React.ReactElement {
           description="Tidak ada rekomendasi yang perlu dieksekusi saat ini."
         />
       ) : (
-        <ul data-testid="strategi-list" className="flex flex-col gap-3">
+        <ul data-testid="strategi-list" className={styles.list}>
           {actionable.map((ad) => {
             const action = actionFor(ad.verdict);
             const decision = decisions[ad.id];
@@ -195,40 +199,34 @@ export function StrategiClient(): React.ReactElement {
             return (
               <li
                 key={ad.id}
-                className={`card-hover-lift relative rounded-card border border-l-4 border-hairline-card p-4 shadow-card ${accentBorderColor(ad.verdict)} ${
-                  approved ? "bg-hairline-subtle" : "bg-surface-card"
-                }`}
+                className={`${styles.card} ${accentBorderColor(ad.verdict)} ${approved ? styles.cardApproved : ""}`}
               >
-                {approved ? (
-                  <span className="absolute right-4 top-4 text-xs font-semibold text-[#1A9E5C]">
-                    Disetujui ✓
-                  </span>
-                ) : null}
-                <div className="flex items-start justify-between gap-3">
+                {approved ? <span className={styles.approvedTag}>Disetujui ✓</span> : null}
+                <div className={styles.top}>
                   <div>
-                    <p className="text-sm font-semibold text-ink">
+                    <p className={styles.actionLabel}>
                       {action.icon} {action.label}
                     </p>
-                    <p className="text-sm text-ink">
+                    <p className={styles.adName}>
                       {ad.stableId} {stripAdNameSuffix(ad.name)}
                     </p>
-                    <p className="text-xs text-ink-muted">
+                    <p className={styles.reason}>
                       {reasonFor(ad)} · {estimateFor(ad)}
                     </p>
                   </div>
                   {!approved ? (
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className={styles.decisionButtons}>
                       <button
                         type="button"
                         onClick={() => decide(ad.id, "rejected")}
-                        className="btn-press rounded-button border border-hairline-card px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-page"
+                        className={styles.rejectButton}
                       >
                         Tolak
                       </button>
                       <button
                         type="button"
                         onClick={() => decide(ad.id, "approved")}
-                        className="btn-press rounded-button bg-brand-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0070E0]"
+                        className={styles.approveButton}
                       >
                         ✓ Setujui
                       </button>
@@ -238,7 +236,7 @@ export function StrategiClient(): React.ReactElement {
                       type="button"
                       onClick={() => decide(ad.id, "rejected")}
                       data-testid={`approved-badge-${ad.id}`}
-                      className="btn-press mt-6 shrink-0 rounded-button border border-hairline-card px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-page"
+                      className={styles.tolakApprovedButton}
                     >
                       Tolak
                     </button>
@@ -251,21 +249,21 @@ export function StrategiClient(): React.ReactElement {
       )}
 
       {actionable.length > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-10 flex items-center gap-3 border-t border-hairline-card bg-surface-card px-8 py-3 shadow-card md:left-[220px] md:px-10">
-          <p className="text-sm text-ink-muted">
+        <div className={styles.stickyBar}>
+          <p className={styles.stickyText}>
             {approvedCount} item disetujui · Total hemat est. {formatIdr(estimatedSavingsTotal)}
           </p>
           <button
             type="button"
             onClick={() => void executeApproved(actionable)}
             disabled={executing || approvedCount === 0}
-            className="btn-press ml-auto rounded-button bg-brand-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className={styles.executeAllButton}
           >
             ⚡ Execute Semua ({approvedCount})
           </button>
-          {executing ? <p className="text-sm text-ink-muted">Mengeksekusi…</p> : null}
+          {executing ? <p className={styles.stickyText}>Mengeksekusi…</p> : null}
           {!executing && results !== undefined ? (
-            <p data-testid="execute-summary" className="text-sm text-ink-muted">
+            <p data-testid="execute-summary" className={styles.stickyText}>
               {results.length - failedCount}/{results.length} berhasil dieksekusi
               {failedCount > 0 ? ` · ${failedCount} gagal` : ""}.
             </p>
@@ -279,10 +277,8 @@ export function StrategiClient(): React.ReactElement {
 function Header(): React.ReactElement {
   return (
     <div>
-      <h2 className="text-[26px] font-semibold -tracking-[0.5px] text-ink">Strategi & Approve</h2>
-      <p className="mt-0.5 text-[13px] text-ink-muted">
-        Eksekusi verdict — setujui atau tolak rekomendasi Tamara.
-      </p>
+      <h2 className={styles.title}>Strategi & Approve</h2>
+      <p className={styles.subtitle}>Eksekusi verdict — setujui atau tolak rekomendasi Tamara.</p>
     </div>
   );
 }

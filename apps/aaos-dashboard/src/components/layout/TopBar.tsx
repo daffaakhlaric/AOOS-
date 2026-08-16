@@ -1,26 +1,29 @@
 "use client";
 
+import styles from "./TopBar.module.css";
+
 export interface TopBarProps {
   readonly title: string;
   readonly userEmail?: string;
   readonly onSignOut?: () => void;
 }
 
-/** Page title + user menu (spec "components/layout/TopBar.tsx"). */
+/**
+ * Sticky page header (spec "components/layout/TopBar.tsx"; TOTAL UI REBUILD "=== PAGE HEADER ==="
+ * — sticky/blurred 56px bar, 24px/600-weight title, right-aligned actions). The spec's left slot
+ * is a full "AAOS / Tamara / Data Iklan"-style breadcrumb; this component only ever receives a
+ * single `title` string from its callers (every `page.tsx` passes one page name, never a
+ * breadcrumb trail), so it renders that title directly rather than fabricating breadcrumb
+ * segments no caller supplies.
+ */
 export function TopBar({ title, userEmail, onSignOut }: TopBarProps): React.ReactElement {
   return (
-    <header className="flex items-center justify-between border-b border-hairline-sidebar bg-surface-card px-6 py-4">
-      <h1 className="text-[26px] font-semibold -tracking-[0.5px] text-ink">{title}</h1>
-      <div className="flex items-center gap-3">
-        {userEmail !== undefined ? (
-          <span className="text-sm text-ink-muted">{userEmail}</span>
-        ) : null}
+    <header className={styles.header}>
+      <h1 className={styles.title}>{title}</h1>
+      <div className={styles.actions}>
+        {userEmail !== undefined ? <span className={styles.userEmail}>{userEmail}</span> : null}
         {onSignOut !== undefined ? (
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="btn-press rounded-button border border-hairline-card px-3 py-1.5 text-sm font-medium text-[#3A3A3C] hover:bg-surface-page"
-          >
+          <button type="button" onClick={onSignOut} className={styles.signOut}>
             Keluar
           </button>
         ) : null}

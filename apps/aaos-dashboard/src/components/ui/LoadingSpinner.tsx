@@ -1,12 +1,11 @@
-/** A simple accessible loading indicator (spec "components/ui/LoadingSpinner.tsx"). */
+import styles from "./LoadingSpinner.module.css";
+
+/** A simple accessible loading indicator (spec "components/ui/LoadingSpinner.tsx"; DO NOT use an animation library — CSS `@keyframes` only). */
 export function LoadingSpinner(): React.ReactElement {
   return (
-    <div role="status" aria-live="polite" className="flex items-center justify-center p-8">
-      <div
-        data-testid="loading-spinner"
-        className="h-6 w-6 animate-spin rounded-full border-2 border-hairline border-t-brand-primary"
-      />
-      <span className="sr-only">Memuat...</span>
+    <div role="status" aria-live="polite" className={styles.wrap}>
+      <div data-testid="loading-spinner" className={styles.spinner} />
+      <span className={styles.srOnly}>Memuat...</span>
     </div>
   );
 }
