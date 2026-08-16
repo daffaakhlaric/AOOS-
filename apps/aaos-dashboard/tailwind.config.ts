@@ -1,4 +1,36 @@
+import colors from "tailwindcss/colors";
 import type { Config } from "tailwindcss";
+
+/**
+ * TREMOR REBUILD ADDITIONS (this task): `@tremor/react@3.18.7` (the real version this task
+ * installed — verified via `node_modules/@tremor/react/package.json`) ships NO prebuilt CSS file
+ * at all — there is no `dist/esm/tremor.css` for `src/app/layout.tsx` to import, unlike what the
+ * spec's STEP 1 assumes. Tremor v3 components are plain Tailwind-utility-class markup (e.g.
+ * `className="tremor-Table-root w-full ..."`) with zero own styling — every visual property comes
+ * from Tailwind actually generating CSS for those class names at build time. Since this app's own
+ * `globals.css` dropped its `@tailwind base/components/utilities` directives in the prior CSS
+ * Modules migration, Tailwind currently generates nothing, so Tremor components would render
+ * completely unstyled (no borders, spacing, or color) without three real, verified additions:
+ *   1. `content` below now also scans `./node_modules/@tremor/react/**\/*.{js,ts,jsx,tsx}` so
+ *      Tailwind's JIT compiler can see the literal utility-class strings inside Tremor's own
+ *      compiled components (it cannot generate CSS for a class name it never scans).
+ *   2. `theme.extend.colors.tremor`/`"dark-tremor"` and the `boxShadow`/`borderRadius`/`fontSize`
+ *      "tremor-*" tokens below are Tremor's own documented, required theme extension (tremor's
+ *      components reference `bg-tremor-brand`, `shadow-tremor-card`, etc. — undefined utility
+ *      names otherwise). `brand.DEFAULT`/`emphasis` are retuned from Tremor's stock blue to this
+ *      app's own `--blue`/`--blue-light` (`#0070F3`/`#EEF4FF` — see `globals.css`) specifically so
+ *      Tremor's Table/Badge/Card/Metric components read as the SAME blue as the rest of the
+ *      hand-crafted CSS Modules design system, not a visually-clashing second blue.
+ *   3. `safelist` (Tremor's own documented pattern) covers the dynamically-composed
+ *      `bg-emerald-100 text-emerald-800`-style classes `Badge color="..."` / `BadgeDelta` build
+ *      from a runtime `color` prop — Tailwind's static scanner can't see those from Tremor's
+ *      source alone.
+ * `corePlugins.preflight: false`: Tailwind's own base reset (`@tailwind base`) duplicates and
+ * would fight with `globals.css`'s already-hand-written `* { box-sizing; margin; padding }` reset
+ * and default typography — disabling Tailwind's preflight keeps ONLY its utility-class generation
+ * active, so re-enabling Tailwind for Tremor's sake cannot silently change how any existing
+ * CSS-Modules-styled element (button/input/heading defaults, etc.) renders elsewhere in the app.
+ */
 
 /**
  * Design tokens for the premium-B2B-SaaS overhaul (Linear/Vercel/Apple-Settings inspired —
@@ -34,7 +66,17 @@ import type { Config } from "tailwindcss";
  * that a shared rename would incorrectly overwrite everywhere at once.
  */
 const config: Config = {
-  content: ["./src/**/*.{ts,tsx}"],
+  content: ["./src/**/*.{ts,tsx}", "./node_modules/@tremor/react/**/*.{js,ts,jsx,tsx}"],
+  corePlugins: {
+    preflight: false,
+  },
+  safelist: [
+    {
+      pattern:
+        /^(bg|text|border|ring|fill|stroke)-(?:tremor|dark-tremor)-(?:brand|background|border|ring|content)(?:-\w+)?$/,
+      variants: ["hover", "ui-selected"],
+    },
+  ],
   theme: {
     extend: {
       colors: {
@@ -59,14 +101,80 @@ const config: Config = {
           subtle: "#F2F2F7",
           table: "#F7F7F7",
         },
+        // Tremor's own required theme extension (see this file's top docstring), retuned to this
+        // app's real `--blue`/`--blue-light`/`--gray-*` tokens from `globals.css` instead of
+        // Tremor's stock blue/slate, so Tremor components read as one palette with the rest of
+        // the app rather than a visually-clashing second design system.
+        tremor: {
+          brand: {
+            faint: "#EEF4FF", // var(--blue-light)
+            muted: colors.blue[200],
+            subtle: colors.blue[400],
+            DEFAULT: "#0070F3", // var(--blue)
+            emphasis: "#0058C7",
+            inverted: colors.white,
+          },
+          background: {
+            muted: "#FAFAFA", // var(--gray-100)
+            subtle: "#EAEAEA", // var(--gray-200)
+            DEFAULT: colors.white,
+            emphasis: colors.gray[700],
+          },
+          border: { DEFAULT: "#EAEAEA" }, // var(--gray-200)
+          ring: { DEFAULT: "#EAEAEA" },
+          content: {
+            subtle: colors.gray[400],
+            DEFAULT: "#666666", // var(--gray-500)
+            emphasis: "#333333", // var(--gray-700)
+            strong: "#111111", // var(--gray-900)
+            inverted: colors.white,
+          },
+        },
+        "dark-tremor": {
+          brand: {
+            faint: colors.blue[900],
+            muted: colors.blue[800],
+            subtle: colors.blue[600],
+            DEFAULT: colors.blue[500],
+            emphasis: colors.blue[400],
+            inverted: colors.blue[950],
+          },
+          background: {
+            muted: colors.gray[950],
+            subtle: colors.gray[800],
+            DEFAULT: colors.gray[900],
+            emphasis: colors.gray[300],
+          },
+          border: { DEFAULT: colors.gray[700] },
+          ring: { DEFAULT: colors.gray[700] },
+          content: {
+            subtle: colors.gray[600],
+            DEFAULT: colors.gray[500],
+            emphasis: colors.gray[200],
+            strong: colors.gray[50],
+            inverted: colors.gray[950],
+          },
+        },
       },
       borderRadius: {
         card: "10px",
         kpi: "12px",
         button: "7px",
+        "tremor-small": "0.375rem",
+        "tremor-default": "0.5rem",
+        "tremor-full": "9999px",
       },
       boxShadow: {
         card: "0 1px 2px rgba(0,0,0,0.04)",
+        "tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        "tremor-card": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+        "tremor-dropdown": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+      },
+      fontSize: {
+        "tremor-label": "0.75rem",
+        "tremor-default": ["0.875rem", { lineHeight: "1.25rem" }],
+        "tremor-title": ["1.125rem", { lineHeight: "1.75rem" }],
+        "tremor-metric": ["1.875rem", { lineHeight: "2.25rem" }],
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],

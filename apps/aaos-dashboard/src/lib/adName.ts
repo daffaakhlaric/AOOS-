@@ -17,7 +17,9 @@
  * exactly (built two tasks ago) but adds two patterns this one didn't yet cover — rather than
  * create a second, parallel utility, this function's regex was broadened in place to cover all of:
  *   - " - Ad [uuid]" / " · [uuid]" (original two patterns, unchanged)
- *   - " - Boost/platinum/gold/silver [uuid]" (a Meta auto-boost naming variant)
+ *   - " - Boost/platinum/gold/silver/bronze/diamond [uuid]" (a Meta auto-boost naming variant —
+ *     `bronze`/`diamond` added by the TREMOR REBUILD spec's STEP 10, extending the same
+ *     keyword-tier alternation the TOTAL UI REBUILD task already built for `platinum/gold/silver`)
  *   - a broader generic " - [8-hex]-[4-hex]-[rest]" UUID-shaped fallback suffix, for names that
  *     don't fit either of the above but still end in a UUID-looking segment
  * All four are anchored to the END of the string only (never strip a UUID-looking segment that
@@ -26,7 +28,7 @@
 const UUID_PATTERN = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const GENERIC_UUID_SHAPED = "[0-9a-fA-F]{8}-[0-9a-fA-F-]+";
 const SUFFIX_PATTERN = new RegExp(
-  `(?:\\s*-\\s*(?:Boost|platinum|gold|silver)\\s+${UUID_PATTERN}` +
+  `(?:\\s*-\\s*(?:Boost|platinum|gold|silver|bronze|diamond)\\s+${UUID_PATTERN}` +
     `|\\s*-\\s*Ad\\s+${UUID_PATTERN}` +
     `|\\s*·\\s*${UUID_PATTERN}` +
     `|\\s*-\\s*${GENERIC_UUID_SHAPED})$`,

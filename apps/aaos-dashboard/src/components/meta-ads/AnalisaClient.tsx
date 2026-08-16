@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@tremor/react";
 
 import { VerdictBadge } from "@/components/meta-ads/VerdictBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -273,36 +274,37 @@ export function AnalisaClient(): React.ReactElement {
             );
           })}
         </div>
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr className={styles.tableHeadRow}>
-                <th>Nama</th>
-                <th>Spend</th>
-                <th>Lead</th>
-                <th>Rp/Lead</th>
-                <th>Vonis</th>
-              </tr>
-            </thead>
-            <tbody>
+        {/* TREMOR REBUILD spec STEP 14's "Per Cabang Table" — the one Analisa table the
+            coordinator note explicitly names for a real Tremor `Table` (unlike the "Per Iklan"
+            table below, which stays hand-crafted CSS Modules per the spec's own component list). */}
+        <div className={styles.tremorTableWrap}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Cabang</TableHeaderCell>
+                <TableHeaderCell>Spend</TableHeaderCell>
+                <TableHeaderCell>Lead</TableHeaderCell>
+                <TableHeaderCell>Rp/Lead</TableHeaderCell>
+                <TableHeaderCell>Vonis</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {branches.map((branch) => {
                 const verdict = branchVerdict(branch.rpLead);
                 return (
-                  <tr key={branch.branch} className={styles.tableRow}>
-                    <td className={styles.tableCell}>{branch.branch}</td>
-                    <td className={styles.tableCellNum}>{formatIdr(branch.spend)}</td>
-                    <td className={styles.tableCellNum}>{formatNumber(branch.leads)}</td>
-                    <td className={styles.tableCellNum}>
-                      {branch.rpLead !== null ? formatIdr(branch.rpLead) : "—"}
-                    </td>
-                    <td className={styles.tableCell}>
+                  <TableRow key={branch.branch}>
+                    <TableCell className={styles.tremorCellStrong}>{branch.branch}</TableCell>
+                    <TableCell>{formatIdr(branch.spend)}</TableCell>
+                    <TableCell>{formatNumber(branch.leads)}</TableCell>
+                    <TableCell>{branch.rpLead !== null ? formatIdr(branch.rpLead) : "—"}</TableCell>
+                    <TableCell>
                       <VerdictBadge verdict={verdict} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </section>
 

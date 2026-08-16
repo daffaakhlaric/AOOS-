@@ -44,8 +44,8 @@ describe("stripAdNameSuffix (best-effort pattern match, not verified against rea
     ).toBe("Xpander Creative 1");
   });
 
-  it.each(["platinum", "gold", "silver"])(
-    'strips a " - %s [uuid]" suffix, case-insensitively',
+  it.each(["platinum", "gold", "silver", "bronze", "diamond"])(
+    'strips a " - %s [uuid]" suffix, case-insensitively (TREMOR REBUILD spec STEP 10: adds bronze/diamond)',
     (tier) => {
       expect(
         stripAdNameSuffix(`Xpander Creative 1 - ${tier} 3fa85f64-5717-4562-b3fc-2c963f66afa6`),

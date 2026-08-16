@@ -1,3 +1,5 @@
+import { Grid } from "@tremor/react";
+
 import { MetricCard } from "@/components/ui/MetricCard";
 import { formatIdrCompact, formatNumber } from "@/lib/formatters";
 
@@ -22,10 +24,15 @@ export interface SummaryCardsData {
  * (it was auto-hitting Meta's rate limit on every dashboard visit), so `spend`/`d3Leads` are now
  * optional — Belanja/D3 Lead only render when a caller actually has that data to show (e.g. a
  * future page that already has fresh Meta data on hand), never as a fetched-then-shown value here.
+ *
+ * TREMOR REBUILD spec STEP 17 names a real `<Grid numItems={4}>` for this exact 4-card row — real
+ * Tremor `Grid` now provides the layout (`numItems={2}` / `numItemsMd={4}`, matching this app's
+ * existing 2-col-mobile/4-col-desktop breakpoint at Tailwind's default `md` = 768px, the same
+ * breakpoint `SummaryCards.module.css`'s old plain-CSS-Grid version used).
  */
 export function SummaryCards({ data }: { readonly data: SummaryCardsData }): React.ReactElement {
   return (
-    <div className={styles.grid}>
+    <Grid numItems={2} numItemsMd={4} className={styles.grid}>
       {data.spend !== undefined ? (
         <MetricCard
           label="Belanja"
@@ -50,6 +57,6 @@ export function SummaryCards({ data }: { readonly data: SummaryCardsData }): Rea
         value={formatNumber(data.closings)}
         changePercent={data.closingsChangePercent}
       />
-    </div>
+    </Grid>
   );
 }

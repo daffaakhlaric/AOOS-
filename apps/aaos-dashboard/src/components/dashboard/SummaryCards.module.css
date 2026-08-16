@@ -1,11 +1,8 @@
+/**
+ * `display: grid` and the 2-col/4-col column counts now come from Tremor's real `<Grid
+ * numItems={2} numItemsMd={4}>` (TREMOR REBUILD STEP 17 — see `SummaryCards.tsx`'s docstring);
+ * only `gap` (a property Tremor's `Grid` doesn't set at all) still needs to live here.
+ */
 .grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
-}
-
-@media (min-width: 768px) {
-  .grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
 }

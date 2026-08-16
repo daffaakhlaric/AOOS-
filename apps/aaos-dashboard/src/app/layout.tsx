@@ -2,6 +2,13 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 import "./globals.css";
+// TREMOR REBUILD: Tailwind utility-class generation Tremor's components need to render styled at
+// all — see `tremor.css`'s own docstring for why this replaces the spec's literal (nonexistent in
+// the real installed version) `@tremor/react/dist/esm/tremor.css` import. Imported after
+// `globals.css` so this app's hand-crafted tokens win any overlap; stays in the bare root layout
+// (not `(app)/layout.tsx`) so `(auth)/login` — which renders no Tremor components — is unaffected
+// either way, and every route (including `(auth)/login`) gets consistent global CSS regardless.
+import "./tremor.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 /**

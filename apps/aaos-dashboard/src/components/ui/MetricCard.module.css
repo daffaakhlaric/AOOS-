@@ -1,31 +1,42 @@
-/* Spec "=== KPI STRIP === Each cell" typography, reused for the standalone MetricCard primitive. */
+/**
+ * Spec "=== KPI STRIP === Each cell" typography, reused for the standalone MetricCard primitive —
+ * now layered on top of Tremor's real `Card`/`Text`/`Metric` (TREMOR REBUILD STEP 17). Tremor's own
+ * components ship their own Tailwind-utility defaults (padding/border/radius/shadow on `Card`, a
+ * ~14px content color on `Text`, a ~30px bold on `Metric`) that would otherwise show through/fight
+ * with this app's KPI-strip typography depending on CSS-chunk load order between this module and
+ * `tremor.css`'s generated utilities (both are single-class-selector specificity, so cascade order
+ * — not the more-specific selector — would decide the winner without `!important` here). The
+ * `!important`s below are a narrow, deliberate override of a third-party component library's own
+ * defaults, not a project-wide pattern.
+ */
 .card {
-  border-radius: var(--radius-lg);
-  border: var(--border);
-  background: var(--white);
-  padding: 20px 24px;
+  border-radius: var(--radius-lg) !important;
+  border: var(--border) !important;
+  background: var(--white) !important;
+  padding: 20px 24px !important;
+  box-shadow: none !important;
   transition: box-shadow 150ms;
 }
 
 .card:hover {
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow) !important;
 }
 
 .label {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 11px !important;
+  font-weight: 500 !important;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--gray-400);
+  color: var(--gray-400) !important;
   white-space: nowrap;
 }
 
 .value {
-  font-size: 26px;
-  font-weight: 700;
+  font-size: 26px !important;
+  font-weight: 700 !important;
   letter-spacing: -0.5px;
-  color: var(--black);
-  margin-top: 6px;
+  color: var(--black) !important;
+  margin-top: 6px !important;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }

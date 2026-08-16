@@ -1,0 +1,22 @@
+/**
+ * Tailwind utility-class generation for `@tremor/react` (TREMOR REBUILD task).
+ *
+ * The spec's STEP 1 says `import '@tremor/react/dist/esm/tremor.css'` — that file does not exist
+ * in the real installed version (`@tremor/react@3.18.7` ships no prebuilt CSS at all; verified via
+ * `node_modules/@tremor/react/package.json` + `find ... -iname "*.css"` returning nothing). Tremor
+ * v3 components are pure Tailwind-utility-class markup, so they need Tailwind to actually run and
+ * generate CSS for those class names — this file is that real entry point, imported once from the
+ * root `src/app/layout.tsx` (after `./globals.css`, so this app's own hand-crafted design tokens
+ * always take precedence for anything both define).
+ *
+ * `@tailwind base` is deliberately OMITTED (only `components`/`utilities` are included): `base` is
+ * Tailwind's own global element reset/typography defaults, which would double up on and could
+ * subtly change `globals.css`'s already-hand-written `* { box-sizing; margin; padding }` reset and
+ * default `body`/heading/link styling used by every non-Tremor CSS-Modules component in this app.
+ * `tailwind.config.ts`'s `corePlugins.preflight: false` is the belt-and-braces version of this same
+ * guarantee at the Tailwind-config level; omitting `@tailwind base` here is the CSS-file-level one.
+ * `components`/`utilities` are exactly what Tremor's own class names need (utility classes, plus
+ * the handful of Tailwind "component" layer classes headlessui/Tremor's own internals may rely on).
+ */
+@tailwind components;
+@tailwind utilities;

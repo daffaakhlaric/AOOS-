@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -89,6 +89,42 @@ function isActive(pathname: string | null, href: string): boolean {
 }
 
 /**
+ * TREMOR REBUILD spec STEP 3 ("Save state to localStorage: `sidebar_tamara`, `sidebar_ops`") — a
+ * genuine, net-new addition (coordinator note #10): the collapse state above already existed but
+ * was never persisted. One `localStorage` key per collapsible group, storing just `"true"`/
+ * `"false"` (not a single combined JSON blob) so the two keys match the spec's exact literal names.
+ */
+const STORAGE_KEY_BY_GROUP: Readonly<Record<string, string>> = {
+  tamara: "sidebar_tamara",
+  operasional: "sidebar_ops",
+};
+
+/** Defensive read — never throws on a missing/corrupt/foreign value, same pattern `campaignsCache.ts` already establishes. Returns `undefined` (meaning "no stored preference, use the default") rather than `false` for anything that isn't the literal string `"true"`/`"false"`. */
+function readStoredCollapsed(storageKey: string): boolean | undefined {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw === "true") {
+      return true;
+    }
+    if (raw === "false") {
+      return false;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Defensive write — best-effort only; a full/disabled `localStorage` (private browsing, quota) must never break the sidebar toggle itself. */
+function writeStoredCollapsed(storageKey: string, collapsed: boolean): void {
+  try {
+    localStorage.setItem(storageKey, String(collapsed));
+  } catch {
+    // Best-effort persistence only — the in-memory toggle above already applied.
+  }
+}
+
+/**
  * Desktop navigation sidebar (spec "components/layout/Sidebar.tsx") — hidden below `md`, where
  * `MobileNav` takes over (spec "Mobile responsive"). Grouped into 🤖 TAMARA (META ADS) / 📋
  * OPERASIONAL sections (AAOS-TAMARA-PAGES redesign).
@@ -112,8 +148,31 @@ export function Sidebar(): React.ReactElement {
   const pathname = usePathname();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
+  // Read persisted collapse state after mount only — `localStorage` doesn't exist during this
+  // "use client" component's SSR pass (same reasoning as `MetaAdsClient.tsx`'s initial-load
+  // effect); reading it inside a `useState` initializer would throw / cause a hydration mismatch.
+  useEffect(() => {
+    const restored: Record<string, boolean> = {};
+    for (const [groupKey, storageKey] of Object.entries(STORAGE_KEY_BY_GROUP)) {
+      const stored = readStoredCollapsed(storageKey);
+      if (stored !== undefined) {
+        restored[groupKey] = stored;
+      }
+    }
+    if (Object.keys(restored).length > 0) {
+      setCollapsedGroups((prev) => ({ ...prev, ...restored }));
+    }
+  }, []);
+
   function toggleGroup(key: string): void {
-    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+    setCollapsedGroups((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      const storageKey = STORAGE_KEY_BY_GROUP[key];
+      if (storageKey !== undefined) {
+        writeStoredCollapsed(storageKey, next[key] ?? false);
+      }
+      return next;
+    });
   }
 
   return (
