@@ -18,7 +18,16 @@ interface Item {
   readonly highlight?: boolean;
 }
 
-/** Belanja · Chat · D2 · D3 · D5 · Form · Total Lead (· Kampanye · Iklan, when counts are given) KPI strip (spec "components/meta-ads/MetricsSummaryBar.tsx"; TOTAL UI REBUILD "=== KPI STRIP ==="). */
+/**
+ * Belanja · Chat · D3 · Total Lead · Kampanye · Iklan KPI strip (spec "components/meta-ads/
+ * MetricsSummaryBar.tsx"; TOTAL UI REBUILD "=== KPI STRIP ===").
+ *
+ * Real bug fix (FINAL UI REBUILD, matching the reference screenshot's 6-cell strip exactly):
+ * trimmed from 9 cells (which also showed D2/D5/Form) down to these 6 — D2/D5/Form are real
+ * fields on `totals` and stay fully visible per-ad in `CampaignFunnelBar`'s funnel grid, just not
+ * duplicated up in this top-level summary strip. This only changes which already-real totals are
+ * surfaced here, not how any of them are computed.
+ */
 export function MetricsSummaryBar({
   totals,
   campaignCount,
@@ -31,10 +40,7 @@ export function MetricsSummaryBar({
       rawValue: totals.conversations,
       formatted: formatNumber(totals.conversations),
     },
-    { label: "D2", rawValue: totals.d2, formatted: formatNumber(totals.d2) },
     { label: "D3", rawValue: totals.d3, formatted: formatNumber(totals.d3), highlight: true },
-    { label: "D5", rawValue: totals.d5, formatted: formatNumber(totals.d5) },
-    { label: "Form", rawValue: totals.leadForm, formatted: formatNumber(totals.leadForm) },
     {
       label: "Total Lead",
       rawValue: totals.totalLead,

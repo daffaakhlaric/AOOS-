@@ -55,18 +55,17 @@ function accentClass(verdict: string): string {
   }
 }
 
-function sumMetrics(ads: readonly AdSummaryDto[]): Pick<AdMetricsDto, "conversations" | "d3"> {
+function sumMetrics(
+  ads: readonly AdSummaryDto[],
+): Pick<AdMetricsDto, "conversations" | "d3" | "totalLead"> {
   return ads.reduce(
     (acc, ad) => ({
       conversations: acc.conversations + ad.metrics.conversations,
       d3: acc.d3 + ad.metrics.d3,
+      totalLead: acc.totalLead + ad.metrics.totalLead,
     }),
-    { conversations: 0, d3: 0 },
+    { conversations: 0, d3: 0, totalLead: 0 },
   );
-}
-
-function rphD3For(spend: number, d3: number): number | null {
-  return d3 > 0 ? spend / d3 : null;
 }
 
 function matches(name: string, query: string): boolean {
@@ -101,6 +100,40 @@ function filterCampaigns(
     .filter((campaign): campaign is CampaignSummaryDto => campaign !== undefined);
 }
 
+/**
+ * One right-aligned "LABEL / value" column in a card/row header (spec's "BELANJA/CHAT/D3" trio).
+ * FIX 3 (campaign-card UI rebuild follow-up): each metric has its own FIXED width (Belanja 100px /
+ * Chat 50px / D3 40px, via `variant`) so the same column lines up vertically across campaign/
+ * ad-set/ad rows regardless of how many digits each row's own value happens to have — previously
+ * every column auto-sized to its own content, so columns drifted out of alignment row to row.
+ */
+function MetricColumn({
+  label,
+  value,
+  variant,
+  accent,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly variant: "belanja" | "chat" | "d3";
+  readonly accent?: boolean;
+}): React.ReactElement {
+  const widthClass =
+    variant === "belanja"
+      ? styles.metricColBelanja
+      : variant === "chat"
+        ? styles.metricColChat
+        : styles.metricColD3;
+  return (
+    <div className={`${styles.metricCol} ${widthClass ?? ""}`}>
+      <span className={styles.metricColLabel}>{label}</span>
+      <span className={`${styles.metricColValue} ${accent === true ? styles.metricColAccent : ""}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export interface CampaignTreeProps {
   readonly campaigns: readonly CampaignSummaryDto[];
   readonly search: string;
@@ -121,10 +154,18 @@ export interface CampaignTreeProps {
  *
  * Data logic and the `onExecute(targetId, targetType, verdict)` callback contract are UNCHANGED
  * from the pre-rebuild version (`aggregateVerdict`'s precedence, `filterCampaigns`'s search
- * semantics) — this pass only restyles the presentation. Every campaign starts EXPANDED
- * (`expanded[id] ?? true`) so Ad Set/Ad rows — and their Execute buttons — are present in the DOM
- * without requiring an extra click, matching the pre-rebuild component's behavior for callers/
- * tests that don't interact with the toggle.
+ * semantics) — this pass only restyles the presentation.
+ *
+ * THREE independent collapse levels (FIX 2, campaign-card UI rebuild follow-up):
+ *  - campaign → reveals its ad sets (row only, not their ads)
+ *  - ad set → reveals its individual ad rows
+ *  - ad → reveals ONLY its funnel strip (FIX 4) — the ad's own name/metrics/Execute button are
+ *    already visible as soon as its parent ad set is expanded, clicking the ad row just
+ *    shows/hides the funnel breakdown beneath it.
+ * All three default to COLLAPSED. While a search query is active, a filtered-in campaign/ad set
+ * auto-expands by default (`expanded[id] ?? searchActive`) so the row the user searched for is
+ * immediately visible instead of hidden behind a still-collapsed parent — manually toggling always
+ * wins over this default, since it's stored in the same `expanded`/`expandedAdSets` maps.
  */
 export function CampaignTree({
   campaigns,
@@ -132,7 +173,10 @@ export function CampaignTree({
   onExecute,
 }: CampaignTreeProps): React.ReactElement {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expandedAdSets, setExpandedAdSets] = useState<Record<string, boolean>>({});
+  const [expandedAds, setExpandedAds] = useState<Record<string, boolean>>({});
   const filtered = filterCampaigns(campaigns, search);
+  const searchActive = search.trim().length > 0;
 
   if (filtered.length === 0) {
     return (
@@ -147,46 +191,51 @@ export function CampaignTree({
     );
   }
 
-  function toggle(campaignId: string): void {
-    setExpanded((prev) => ({ ...prev, [campaignId]: !(prev[campaignId] ?? true) }));
+  function toggleCampaign(campaignId: string): void {
+    setExpanded((prev) => ({ ...prev, [campaignId]: !(prev[campaignId] ?? false) }));
+  }
+
+  function toggleAdSet(adSetId: string): void {
+    setExpandedAdSets((prev) => ({ ...prev, [adSetId]: !(prev[adSetId] ?? false) }));
+  }
+
+  function toggleAd(adId: string): void {
+    setExpandedAds((prev) => ({ ...prev, [adId]: !(prev[adId] ?? false) }));
   }
 
   return (
     <ul data-testid="campaign-tree" className={styles.wrapper}>
       {filtered.map((campaign) => {
         const allAds = campaign.adSets.flatMap((adSet) => adSet.ads);
-        const { conversations, d3 } = sumMetrics(allAds);
+        const { conversations, d3, totalLead } = sumMetrics(allAds);
         const verdict = aggregateVerdict(allAds.map((ad) => ad.verdict));
-        const isExpanded = expanded[campaign.id] ?? true;
-        const rphD3 = rphD3For(campaign.spend, d3);
+        const isExpanded = expanded[campaign.id] ?? searchActive;
         return (
           <li key={campaign.id} className={styles.card}>
             <span aria-hidden="true" className={`${styles.accent} ${accentClass(verdict)}`} />
             <div className={styles.header}>
               <button
                 type="button"
-                onClick={() => toggle(campaign.id)}
+                onClick={() => toggleCampaign(campaign.id)}
                 aria-expanded={isExpanded}
                 className={styles.headerButton}
               >
-                <span
-                  aria-hidden="true"
-                  className={`${styles.expandChevron} ${isExpanded ? styles.expandChevronOpen : ""}`}
-                >
-                  ▸
+                <span aria-hidden="true" className={styles.expandChevron}>
+                  {isExpanded ? "▼" : "▶"}
                 </span>
+                <span className={styles.idBadge}>{campaign.stableId}</span>
                 <div className={styles.nameBlock}>
-                  <span className={styles.idBadge}>{campaign.stableId}</span>{" "}
-                  <span className={styles.name}>{campaign.name}</span>
+                  <span className={styles.name}>{stripAdNameSuffix(campaign.name)}</span>
                   <p className={styles.metrics}>
-                    {formatIdr(campaign.spend)} · {formatNumber(conversations)} chat ·{" "}
-                    {formatNumber(d3)} D3{rphD3 !== null ? ` · ${formatIdr(rphD3)}/D3` : ""} ·{" "}
-                    {campaign.adSets.length} AS
+                    {campaign.adSets.length} ad set · {formatNumber(totalLead)} lead
                   </p>
                 </div>
               </button>
               <div className={styles.rightSide}>
                 <VerdictBadge verdict={verdict} />
+                <MetricColumn label="Belanja" value={formatIdr(campaign.spend)} variant="belanja" />
+                <MetricColumn label="Chat" value={formatNumber(conversations)} variant="chat" />
+                <MetricColumn label="D3" value={formatNumber(d3)} variant="d3" accent />
                 <button
                   type="button"
                   onClick={() => onExecute(campaign.id, "campaign", verdict)}
@@ -200,39 +249,105 @@ export function CampaignTree({
               <div className={styles.adSetContainer}>
                 {campaign.adSets.map((adSet) => {
                   const { conversations: setConversations, d3: setD3 } = sumMetrics(adSet.ads);
+                  const isAdSetExpanded = expandedAdSets[adSet.id] ?? searchActive;
                   return (
                     <div key={adSet.id} className={styles.adSetRow}>
+                      {/* Sibling button + rightSideSmall (not one big button wrapping everything)
+                          — same pattern as the campaign header above: a `<button>` can't validly
+                          contain another interactive element, and the ad row below needs its own
+                          Execute button nested inside its row, so the toggle target stays scoped
+                          to just the chevron/id/name/count. */}
                       <div className={styles.adSetHeader}>
-                        <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
-                          {adSet.stableId}
-                        </span>
-                        <span className={styles.adSetName}>{adSet.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleAdSet(adSet.id)}
+                          aria-expanded={isAdSetExpanded}
+                          className={styles.headerButton}
+                        >
+                          <span aria-hidden="true" className={styles.expandChevron}>
+                            {isAdSetExpanded ? "▼" : "▶"}
+                          </span>
+                          <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
+                            {adSet.stableId}
+                          </span>
+                          <span className={styles.adSetName}>{stripAdNameSuffix(adSet.name)}</span>
+                          <span className={styles.adSetCount}>{adSet.ads.length} iklan</span>
+                        </button>
+                        <div className={styles.rightSideSmall}>
+                          <MetricColumn
+                            label="Belanja"
+                            value={formatIdr(adSet.spend)}
+                            variant="belanja"
+                          />
+                          <MetricColumn
+                            label="Chat"
+                            value={formatNumber(setConversations)}
+                            variant="chat"
+                          />
+                          <MetricColumn
+                            label="D3"
+                            value={formatNumber(setD3)}
+                            variant="d3"
+                            accent
+                          />
+                        </div>
                       </div>
-                      <p className={styles.adSetMetrics}>
-                        {formatIdr(adSet.spend)} · {formatNumber(setConversations)} chat ·{" "}
-                        {formatNumber(setD3)} D3
-                      </p>
-                      <div className={styles.adList}>
-                        {adSet.ads.map((ad) => (
-                          <div key={ad.id} className={styles.adRow}>
-                            <div className={styles.adTopRow}>
-                              <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
-                                {ad.stableId}
-                              </span>
-                              <span className={styles.adName}>{stripAdNameSuffix(ad.name)}</span>
-                              <VerdictBadge verdict={ad.verdict} />
-                              <button
-                                type="button"
-                                onClick={() => onExecute(ad.id, "ad", ad.verdict)}
-                                className={`${styles.executeButton} ${styles.executeButtonSmall}`}
-                              >
-                                ⚡ Execute
-                              </button>
-                            </div>
-                            <CampaignFunnelBar metrics={ad.metrics} />
-                          </div>
-                        ))}
-                      </div>
+                      {isAdSetExpanded ? (
+                        <div className={styles.adList}>
+                          {adSet.ads.map((ad) => {
+                            const isAdExpanded = expandedAds[ad.id] ?? false;
+                            return (
+                              <div key={ad.id} className={styles.adRow}>
+                                <div className={styles.adTopRow}>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAd(ad.id)}
+                                    aria-expanded={isAdExpanded}
+                                    className={styles.headerButton}
+                                  >
+                                    <span aria-hidden="true" className={styles.expandChevron}>
+                                      {isAdExpanded ? "▼" : "▶"}
+                                    </span>
+                                    <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
+                                      {ad.stableId}
+                                    </span>
+                                    <span className={styles.adName}>
+                                      {stripAdNameSuffix(ad.name)}
+                                    </span>
+                                  </button>
+                                  <VerdictBadge verdict={ad.verdict} />
+                                  <div className={styles.rightSideSmall}>
+                                    <MetricColumn
+                                      label="Belanja"
+                                      value={formatIdr(ad.metrics.spend)}
+                                      variant="belanja"
+                                    />
+                                    <MetricColumn
+                                      label="Chat"
+                                      value={formatNumber(ad.metrics.conversations)}
+                                      variant="chat"
+                                    />
+                                    <MetricColumn
+                                      label="D3"
+                                      value={formatNumber(ad.metrics.d3)}
+                                      variant="d3"
+                                      accent
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => onExecute(ad.id, "ad", ad.verdict)}
+                                    className={`${styles.executeButton} ${styles.executeButtonSmall}`}
+                                  >
+                                    ⚡ Execute
+                                  </button>
+                                </div>
+                                {isAdExpanded ? <CampaignFunnelBar metrics={ad.metrics} /> : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

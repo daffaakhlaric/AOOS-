@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DashboardClient } from "@/components/dashboard/DashboardClient";
+import { CAMPAIGNS_CACHE_KEY } from "@/lib/campaignsCache";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
@@ -21,56 +22,88 @@ const LEADS_BODY = {
     },
   ],
 };
-const OBJECTIVE_BODY = {
-  objective: {
-    id: "obj-1",
-    tenantId: "dss-motor",
-    period: { month: 8, year: 2026 },
-    targetHotLeads: 50,
-    budgetAllocation: 30_000_000,
-    focusUnits: ["Xpander"],
-    areaPriorities: ["BINTARO"],
-    status: "DRAFT",
-    createdAt: "2026-08-01T00:00:00.000Z",
-  },
+const CLOSINGS_BODY = {
+  closings: [
+    {
+      id: "closing-1",
+      leadId: "lead-1",
+      salesHumanId: "sales-1",
+      branchId: "CINERE",
+      closingType: "SPK",
+      unitModel: "Xpander Cross AT 2019",
+      commissionIdr: 5_850_000,
+      createdAt: new Date().toISOString(),
+    },
+  ],
+};
+const BRANCHES_BODY = {
+  branches: [
+    {
+      id: "CINERE",
+      name: "cinere",
+      displayName: "Cinere",
+      wabaPhoneNumber: "+6281200000000",
+      assignmentMode: "SMART_ASSIGN",
+      maxLeadsPerSalesPerDay: 10,
+      active: true,
+      team: [
+        {
+          id: "sales-1",
+          name: "Ahmad Fauzi",
+          waNumber: "+6281200000002",
+          status: "ON",
+          maxLeadsPerDay: 10,
+          todayLeadCount: 1,
+          isAvailable: true,
+        },
+      ],
+      availableCount: 1,
+      queueSize: 0,
+      todayAssignedCount: 1,
+    },
+  ],
 };
 
-describe("DashboardClient (real bug fix: no longer fetches /api/campaigns — Meta Ads data, see DashboardClient.tsx's docstring)", () => {
+function mockFetchOk(): void {
+  global.fetch = vi.fn(async (input: string | URL) => {
+    const url = input.toString();
+    if (url.includes("/api/leads")) return jsonResponse(LEADS_BODY);
+    if (url.includes("/api/closings")) return jsonResponse(CLOSINGS_BODY);
+    if (url.includes("/api/branches")) return jsonResponse(BRANCHES_BODY);
+    throw new Error(`unexpected fetch: ${url}`);
+  }) as unknown as typeof fetch;
+}
+
+describe("DashboardClient (FINAL UI REBUILD: KPI strip + Tamara Digest + Hot Leads/Closing Terbaru + Ringkasan per Cabang)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders KPI cards (Hot Lead + Closing only, no Belanja/D3 Lead) + objective progress + hot leads once leads/objective fetches succeed", async () => {
-    const fetchMock = vi.fn(async (input: string | URL) => {
-      const url = input.toString();
-      if (url.includes("/api/leads")) return jsonResponse(LEADS_BODY);
-      if (url.includes("/api/objective")) return jsonResponse(OBJECTIVE_BODY);
-      throw new Error(`unexpected fetch: ${url}`);
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-
+  it("renders the KPI strip, hot leads, closing terbaru, and branch summary once leads/closings/branches fetches succeed", async () => {
+    mockFetchOk();
     render(<DashboardClient />);
 
     await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
-    expect(screen.getByTestId("objective-progress")).toBeInTheDocument();
-    expect(screen.queryByText(/Belanja/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/D3 Lead/)).not.toBeInTheDocument();
+    expect(screen.getByText("Hot Leads")).toBeInTheDocument();
+    expect(screen.getByText("Xpander Cross AT 2019")).toBeInTheDocument();
+    expect(screen.getByTestId("branch-summary")).toBeInTheDocument();
+    expect(screen.getByText("Cinere")).toBeInTheDocument();
+    // salesHumanId "sales-1" resolved to its real name via GET /api/branches's team roster.
+    expect(screen.getByText(/Ahmad Fauzi/)).toBeInTheDocument();
   });
 
-  it("never calls /api/campaigns (Meta Ads data) — the dashboard overview only reads Supabase-backed leads/objective data", async () => {
-    const fetchMock = vi.fn(async (input: string | URL) => {
-      const url = input.toString();
-      if (url.includes("/api/leads")) return jsonResponse(LEADS_BODY);
-      if (url.includes("/api/objective")) return jsonResponse(OBJECTIVE_BODY);
-      throw new Error(`unexpected fetch: ${url}`);
-    });
-    global.fetch = fetchMock as unknown as typeof fetch;
-
+  it("never calls /api/campaigns (Meta Ads data) — the Overview page only reads Supabase-backed leads/closings/branches data plus the localStorage Meta cache", async () => {
+    mockFetchOk();
     render(<DashboardClient />);
     await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
 
-    const calledCampaigns = fetchMock.mock.calls.some(([url]) =>
-      String(url).includes("/api/campaigns"),
+    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+    const calledCampaigns = fetchMock.mock.calls.some((args: readonly unknown[]) =>
+      String(args[0]).includes("/api/campaigns"),
     );
     expect(calledCampaigns).toBe(false);
   });
@@ -81,16 +114,72 @@ describe("DashboardClient (real bug fix: no longer fetches /api/campaigns — Me
     await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
   });
 
-  it("omits ObjectiveProgress when there is no current objective", async () => {
-    global.fetch = vi.fn(async (input: string | URL) => {
-      const url = input.toString();
-      if (url.includes("/api/leads")) return jsonResponse({ leads: [] });
-      if (url.includes("/api/objective")) return jsonResponse({ objective: null });
-      throw new Error(`unexpected fetch: ${url}`);
-    }) as unknown as typeof fetch;
-
+  it("omits Belanja Iklan and shows a 'belum ada data' digest when there is no cached Meta pull yet", async () => {
+    mockFetchOk();
     render(<DashboardClient />);
-    await waitFor(() => expect(screen.queryByTestId("loading-spinner")).not.toBeInTheDocument());
-    expect(screen.queryByTestId("objective-progress")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
+
+    expect(screen.queryByText("Belanja Iklan")).not.toBeInTheDocument();
+    expect(screen.getByText(/Belum ada data iklan tersimpan/)).toBeInTheDocument();
+  });
+
+  it("shows Belanja Iklan and PAUSE/SCALE/FIX tags from the cached Meta pull (localStorage), never fetching it", async () => {
+    localStorage.setItem(
+      CAMPAIGNS_CACHE_KEY,
+      JSON.stringify({
+        fetchedAt: Date.now(),
+        period: "last_30d",
+        data: {
+          id: "act-1",
+          name: "DSS Motor",
+          syncedAt: new Date().toISOString(),
+          campaigns: [],
+          ads: [
+            {
+              id: "ad-1",
+              stableId: "#C001",
+              name: "Ad 1",
+              campaignName: "Campaign 1",
+              status: "ACTIVE",
+              funnel: "DM",
+              branch: "CINERE",
+              verdict: "PAUSE",
+              metrics: {
+                spend: 500_000,
+                clicks: 10,
+                frequency: 1,
+                conversations: 2,
+                d2: 1,
+                d3: 0,
+                d5: 0,
+                leadForm: 0,
+                totalLead: 0,
+                rphD3: null,
+              },
+            },
+          ],
+          totals: {
+            spend: 500_000,
+            clicks: 10,
+            frequency: 1,
+            conversations: 2,
+            d2: 1,
+            d3: 0,
+            d5: 0,
+            leadForm: 0,
+            totalLead: 0,
+            rphD3: null,
+          },
+          campaignCount: 1,
+          adCount: 1,
+        },
+      }),
+    );
+    mockFetchOk();
+    render(<DashboardClient />);
+    await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
+
+    expect(screen.getByText("Belanja Iklan")).toBeInTheDocument();
+    expect(screen.getByText(/1 perlu PAUSE/)).toBeInTheDocument();
   });
 });

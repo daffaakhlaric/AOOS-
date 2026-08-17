@@ -1,8 +1,67 @@
-/**
- * `display: grid` and the 2-col/4-col column counts now come from Tremor's real `<Grid
- * numItems={2} numItemsMd={4}>` (TREMOR REBUILD STEP 17 — see `SummaryCards.tsx`'s docstring);
- * only `gap` (a property Tremor's `Grid` doesn't set at all) still needs to live here.
- */
-.grid {
-  gap: 12px;
+/* Flat bordered KPI strip — same visual pattern as `MetricsSummaryBar.module.css` (Kampanye
+   page's KPI strip), reused here for the Overview page's 5/6-cell strip. */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.cell {
+  padding: 16px 20px;
+  border-right: var(--border);
+  transition: background 100ms;
+}
+
+.cell:last-child {
+  border-right: none;
+}
+
+.cell:hover {
+  background: var(--gray-100);
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  white-space: nowrap;
+}
+
+.value {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--black);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.valueBlue {
+  color: var(--blue);
+}
+
+.valueGreen {
+  color: var(--green);
+}
+
+.valueZero {
+  color: var(--gray-300);
+}
+
+.period {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

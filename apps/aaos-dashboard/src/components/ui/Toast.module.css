@@ -1,0 +1,49 @@
+/* Spec "GLOBAL: TOAST NOTIFICATIONS" — top-right, slide-in, auto-dismiss. Positioning is on the
+   toast itself (not a separate viewport wrapper) since each page renders at most a handful of
+   toasts stacked via normal flex/gap in whatever container the caller chooses; `position: fixed`
+   here keeps every toast pinned to the viewport corner regardless of where it's mounted. */
+.toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  animation: slideIn 200ms ease;
+}
+
+.success {
+  background: var(--green-light);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.error {
+  background: var(--red-light);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.info {
+  background: var(--blue-light);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

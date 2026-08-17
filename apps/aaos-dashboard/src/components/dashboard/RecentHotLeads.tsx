@@ -1,10 +1,13 @@
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatRelativeTimeId } from "@/lib/formatters";
 import type { LeadDto } from "@/types/dashboard.types";
 
 import styles from "./RecentHotLeads.module.css";
 
-/** Last 5 hot leads (spec "dashboard/page.tsx" mockup: "Pak Andi · Xpander · Cinere · 14 menit lalu"). */
+/**
+ * Top 5 hot leads by score (FINAL UI REBUILD, matching the reference screenshot's "Hot Leads
+ * Terbaru" — nama · cabang · score, sorted score DESC, not by recency). `lead.score` is a real
+ * field on `LeadDto` (`aaos-api`'s real `GET /api/v1/leads` response), never fabricated here.
+ */
 export function RecentHotLeads({
   leads,
 }: {
@@ -13,7 +16,7 @@ export function RecentHotLeads({
   const hotLeads = leads
     .filter((lead) => lead.temperature === "HOT")
     .slice()
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 
   if (hotLeads.length === 0) {
@@ -27,8 +30,8 @@ export function RecentHotLeads({
       {hotLeads.map((lead) => (
         <li key={lead.id} className={styles.row}>
           <span className={styles.name}>{lead.leadName ?? lead.leadPhone}</span>
-          <span className={styles.meta}>{lead.branchId}</span>
-          <span className={styles.meta}>{formatRelativeTimeId(lead.createdAt)}</span>
+          <span className={styles.branch}>{lead.branchId}</span>
+          <span className={styles.score}>{lead.score}</span>
         </li>
       ))}
     </ul>

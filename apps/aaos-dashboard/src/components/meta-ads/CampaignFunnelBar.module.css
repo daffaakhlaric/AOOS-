@@ -1,25 +1,52 @@
-/* Spec "=== AD LEVEL (#C001) === Funnel row". */
-.row {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
+/* Spec "=== AD LEVEL (#C001) === Funnel row" (FINAL UI REBUILD reference: boxed 6-column grid with a mini progress bar per step, not the earlier arrow-separated inline text). */
+/* FIX 4 (campaign-card UI rebuild follow-up): more compact — #F9F9F9 background, a top border
+   only (not a full box border) since this now sits directly under the ad row it belongs to rather
+   than as its own separated card. */
+.grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0;
+  background: #f9f9f9;
+  border-top: 1px solid #f0f0f0;
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
-.step {
-  font-size: 11px;
+.cell {
+  padding: 8px 10px;
+  border-right: 1px solid var(--gray-200);
+}
+
+.cell:last-child {
+  border-right: none;
+}
+
+.cellHead {
   display: flex;
-  align-items: center;
-  gap: 3px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 4px;
 }
 
 .label {
+  font-size: 9px;
+  font-weight: 600;
   color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
+.pct {
+  font-size: 9px;
+  color: var(--gray-300);
+}
+
+/* FIX 4: 13px (was 16px) — more compact/scannable. */
 .number {
-  font-weight: 600;
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--gray-700);
 }
@@ -32,7 +59,23 @@
   color: var(--blue);
 }
 
-.arrow {
-  color: var(--gray-300);
-  font-size: 10px;
+.barTrack {
+  height: 2px;
+  background: var(--gray-200);
+  border-radius: 1px;
+  margin-top: 6px;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 1px;
+  transition: width 200ms ease-out;
+}
+
+.barFillDefault {
+  background: var(--black);
+}
+
+.barFillHighlight {
+  background: var(--blue);
 }

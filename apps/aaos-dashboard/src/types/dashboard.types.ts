@@ -151,6 +151,28 @@ export interface LeadDto {
   readonly createdAt: string;
 }
 
+/**
+ * Client-safe mirror of `aaos-api`'s `ClosingResponseDto` (`GET /api/v1/closings`, proxied via
+ * this app's own `/api/closings` route) — one test-drive/SPK/cancellation record from the real
+ * `closings` Supabase table (`@aos/lead-store`'s `Closing` entity). Powers the Overview page's
+ * KPI strip (Test Drive/SPK/Komisi Total counts) and "Closing Terbaru" list.
+ */
+export interface ClosingDto {
+  readonly id: string;
+  readonly leadId: string;
+  readonly salesHumanId: string;
+  readonly branchId: string;
+  readonly closingType: "TEST_DRIVE" | "SPK" | "CANCELLED";
+  readonly unitId?: string;
+  readonly unitModel?: string;
+  readonly unitPrice?: number;
+  readonly commissionIdr?: number;
+  readonly commissionPct?: number;
+  readonly testDriveAt?: string;
+  readonly spkAt?: string;
+  readonly createdAt: string;
+}
+
 export interface ApiErrorBody {
   readonly error: { readonly code?: string; readonly message: string };
 }

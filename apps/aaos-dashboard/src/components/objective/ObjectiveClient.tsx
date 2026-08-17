@@ -6,6 +6,7 @@ import { ObjectiveCard } from "@/components/objective/ObjectiveCard";
 import { ObjectiveForm, type ObjectiveFormValues } from "@/components/objective/ObjectiveForm";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Toast } from "@/components/ui/Toast";
 import type { ObjectiveDto } from "@/types/dashboard.types";
 
 import styles from "./ObjectiveClient.module.css";
@@ -15,6 +16,7 @@ export function ObjectiveClient(): React.ReactElement {
   const [objective, setObjective] = useState<ObjectiveDto | null | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
+  const [savedToast, setSavedToast] = useState(false);
 
   function load(): void {
     fetch("/api/objective")
@@ -47,7 +49,10 @@ export function ObjectiveClient(): React.ReactElement {
         }
         return (await res.json()) as { objective: ObjectiveDto };
       })
-      .then((body) => setObjective(body.objective))
+      .then((body) => {
+        setObjective(body.objective);
+        setSavedToast(true);
+      })
       .catch((caught: unknown) => {
         setError(caught instanceof Error ? caught.message : "Gagal menyimpan objective.");
       })
@@ -66,6 +71,13 @@ export function ObjectiveClient(): React.ReactElement {
         <ObjectiveCard objective={objective} />
       ) : null}
       <ObjectiveForm onSubmit={handleSubmit} submitting={submitting} />
+      {savedToast ? (
+        <Toast
+          message="Objective berhasil disimpan"
+          variant="success"
+          onDismiss={() => setSavedToast(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -24,21 +24,41 @@
  *     don't fit either of the above but still end in a UUID-looking segment
  * All four are anchored to the END of the string only (never strip a UUID-looking segment that
  * happens to appear mid-name) and are checked case-insensitively.
+ *
+ * FINAL UI REBUILD spec's STEP 6 `cleanName()` example restates the same four patterns but
+ * separates the "Boost/platinum/.../Ad" tier with any of `-`/`–`/`—`/`·` (hyphen, en dash, em
+ * dash, or middle dot) rather than just `-`/`·` — broadened the separator character class in
+ * place rather than adding a second parallel function, per the same "one canonical function"
+ * precedent noted above.
+ *
+ * FIX 1 (campaign-card UI rebuild follow-up): real names can chain MULTIPLE tier words before the
+ * UUID — e.g. "... - platinum - Boost 019f94fd-8841-7dd0-abf9-5d65888159bd" — which the previous
+ * single-tier pattern only partially stripped (it matched the trailing "- Boost [uuid]" but left
+ * "- platinum" dangling, since that segment isn't itself immediately followed by the UUID). The
+ * task's own suggested regex (`(Boost|platinum|...)?\s*[uuid]`, applied globally) has the exact
+ * same gap for this case — a lone "- platinum" with no UUID directly after it still can't match —
+ * so this uses a repeating group (`(?:SEP TIER)+`) instead, capturing however many tier segments
+ * are chained back-to-back right before the UUID. Every existing single-tier case above still
+ * matches (a chain of length 1 is still a valid match).
  */
 const UUID_PATTERN = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const GENERIC_UUID_SHAPED = "[0-9a-fA-F]{8}-[0-9a-fA-F-]+";
+const SEP = "[-–—·]";
+const TIER = "(?:Boost|platinum|gold|silver|bronze|diamond)";
+const TIER_CHAIN = `(?:\\s*${SEP}\\s*${TIER})+`;
 const SUFFIX_PATTERN = new RegExp(
-  `(?:\\s*-\\s*(?:Boost|platinum|gold|silver|bronze|diamond)\\s+${UUID_PATTERN}` +
-    `|\\s*-\\s*Ad\\s+${UUID_PATTERN}` +
+  `(?:${TIER_CHAIN}\\s+${UUID_PATTERN}` +
+    `|\\s*${SEP}\\s*Ad\\s+${UUID_PATTERN}` +
     `|\\s*·\\s*${UUID_PATTERN}` +
-    `|\\s*-\\s*${GENERIC_UUID_SHAPED})$`,
+    `|\\s*${SEP}\\s*${GENERIC_UUID_SHAPED})$`,
   "i",
 );
 
 /**
  * Returns `name` with a trailing UUID-looking suffix removed (several known Meta naming variants —
  * see this module's docstring), or `name` unchanged if none match. Never mutates its input; pure
- * display formatting.
+ * display formatting. Applied to every level's display name (campaign/ad-set/ad — FIX 1), not just
+ * ads, since the same Meta auto-naming quirk can appear at any level.
  */
 export function stripAdNameSuffix(name: string): string {
   return name.replace(SUFFIX_PATTERN, "");

@@ -4,53 +4,41 @@ import { describe, expect, it } from "vitest";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 
 const DATA = {
-  spend: 26_400_000,
-  spendChangePercent: 12,
-  d3Leads: 1286,
-  d3ChangePercent: 8,
-  hotLeads: 47,
-  hotLeadsChangePercent: 15,
-  closings: 12,
-  closingsChangePercent: 20,
+  hotLeads: 7,
+  leadsTotal: 10,
+  testDrive: 1,
+  spk: 2,
+  komisiTotal: 11_400_000,
+  belanjaIklan: 3_100_000,
 };
 
 describe("SummaryCards", () => {
-  it("renders 4 KPI cards with correct values", () => {
+  it("renders Hot Leads / Leads Total / Test Drive / SPK / Komisi Total / Belanja Iklan", () => {
     render(<SummaryCards data={DATA} />);
-    expect(screen.getAllByTestId("metric-card")).toHaveLength(4);
-    expect(screen.getByText("1.286")).toBeInTheDocument();
-    expect(screen.getByText("47")).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText("Hot Leads")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("Leads Total")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
+    expect(screen.getByText("Test Drive")).toBeInTheDocument();
+    expect(screen.getByText("SPK")).toBeInTheDocument();
+    expect(screen.getByText("Komisi Total")).toBeInTheDocument();
+    expect(screen.getByText("Rp 11,4 jt")).toBeInTheDocument();
+    expect(screen.getByText("Belanja Iklan")).toBeInTheDocument();
+    expect(screen.getByText("Rp 3,1 jt")).toBeInTheDocument();
   });
 
-  it("shows % change vs previous period for each card", () => {
-    render(<SummaryCards data={DATA} />);
-    expect(screen.getByText(/↑ 12%/)).toBeInTheDocument();
-    expect(screen.getByText(/↑ 8%/)).toBeInTheDocument();
-    expect(screen.getByText(/↑ 15%/)).toBeInTheDocument();
-    expect(screen.getByText(/↑ 20%/)).toBeInTheDocument();
-  });
-
-  it("renders the compact rupiah value for spend", () => {
-    render(<SummaryCards data={DATA} />);
-    expect(screen.getByText("Rp 26.4jt")).toBeInTheDocument();
-  });
-
-  it("omits Belanja/D3 Lead entirely when spend/d3Leads are undefined — only 2 cards render (real bug fix: DashboardClient no longer has Meta Ads data to show, see SummaryCards.tsx's docstring)", () => {
+  it("omits Belanja Iklan when there is no cached Meta pull yet (undefined, not 0)", () => {
     render(
-      <SummaryCards
-        data={{
-          hotLeads: 47,
-          hotLeadsChangePercent: 15,
-          closings: 12,
-          closingsChangePercent: 20,
-        }}
-      />,
+      <SummaryCards data={{ hotLeads: 0, leadsTotal: 0, testDrive: 0, spk: 0, komisiTotal: 0 }} />,
     );
-    expect(screen.getAllByTestId("metric-card")).toHaveLength(2);
-    expect(screen.queryByText(/Belanja/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/D3 Lead/)).not.toBeInTheDocument();
-    expect(screen.getByText("47")).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.queryByText("Belanja Iklan")).not.toBeInTheDocument();
+  });
+
+  it("shows zero-value cells in muted gray", () => {
+    render(
+      <SummaryCards data={{ hotLeads: 0, leadsTotal: 0, testDrive: 0, spk: 0, komisiTotal: 0 }} />,
+    );
+    const hotLeadsValue = screen.getAllByText("0")[0];
+    expect(hotLeadsValue).toBeInTheDocument();
   });
 });

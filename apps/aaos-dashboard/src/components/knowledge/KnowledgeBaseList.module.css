@@ -1,29 +1,18 @@
-.list {
-  display: flex;
-  flex-direction: column;
+/* Wraps Tremor's <Table> in the same card chrome every other Tremor-table page uses (see
+   `LeadsClient.module.css`'s `.tableWrap` docstring for the same reasoning). */
+.tableWrap {
   border-radius: var(--radius-lg);
   border: var(--border);
   background: var(--white);
   overflow: hidden;
 }
 
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  font-size: 13px;
-  border-top: 1px solid var(--gray-100);
-}
-
-.row:first-child {
-  border-top: none;
-}
-
 .name {
   color: var(--gray-900);
+  font-weight: 500;
 }
 
 .meta {
   color: var(--gray-500);
+  font-size: 12px;
 }

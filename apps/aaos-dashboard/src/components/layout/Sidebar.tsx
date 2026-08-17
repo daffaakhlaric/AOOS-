@@ -36,8 +36,8 @@ const SIMULATOR: NavItem = { href: "/simulator", label: "Simulator (Jessy)", ico
 
 /**
  * Flat list of every nav item — the order `MobileNav.tsx` slices `[0, 5)` from for its bottom tab
- * bar. Deliberately NOT the same order as the desktop `Sidebar`'s 🤖 TAMARA / 📋 OPERASIONAL
- * grouping below (`NAV_GROUPS`): the mobile bar only ever shows 5 items, and this order keeps the
+ * bar. Deliberately NOT the same order as the desktop `Sidebar`'s TAMARA / OPERASIONAL grouping
+ * below (`NAV_GROUPS`): the mobile bar only ever shows 5 items, and this order keeps the
  * same 5 highest-traffic pages visible there (Overview, Data Iklan, Objective, Creative Review,
  * Leads — unchanged from before this restructure) rather than letting the 4 new Tamara sub-pages
  * crowd out Objective/Leads/Creative Review on mobile. Desktop `Sidebar` renders from `NAV_GROUPS`
@@ -65,21 +65,27 @@ export interface NavGroup {
 }
 
 /**
- * Grouped sidebar structure (spec "SIDEBAR MENU RESTRUCTURE": 🤖 TAMARA (META ADS) / 📋
- * OPERASIONAL). "Overview" (`/dashboard`) predates both groups and isn't mentioned by either —
- * kept as its own ungrouped top entry rather than dropped, since removing a working, linked-to
- * route isn't part of this restructure's scope.
+ * Grouped sidebar structure (spec "SIDEBAR MENU RESTRUCTURE": TAMARA (META ADS) / OPERASIONAL).
+ * "Overview" (`/dashboard`) predates both groups and isn't mentioned by either — kept as its own
+ * ungrouped top entry rather than dropped, since removing a working, linked-to route isn't part
+ * of this restructure's scope.
+ *
+ * FINAL UI REBUILD (reference screenshot restyle): group labels dropped their leading 🤖/📋 emoji
+ * to match the reference's plain uppercase section headers — purely a label-text change, the real
+ * pages/routes grouped under each stayed exactly the same (the reference screenshot's own menu
+ * items — Ad Set, Performa Iklan, Belanja, Tim & Akses, Laporan, Pengaturan — don't correspond to
+ * real pages in this app, so only the visual style was carried over, not those item names).
  */
 const NAV_GROUPS: readonly NavGroup[] = [
   { key: "top", items: [OVERVIEW] },
   {
     key: "tamara",
-    label: "🤖 TAMARA (META ADS)",
+    label: "TAMARA (META ADS)",
     items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, STRATEGI, SIMULASI],
   },
   {
     key: "operasional",
-    label: "📋 OPERASIONAL",
+    label: "OPERASIONAL",
     items: [OBJECTIVE, LEADS, CREATIVE, BRANCHES, KNOWLEDGE, SIMULATOR],
   },
 ];
@@ -126,8 +132,8 @@ function writeStoredCollapsed(storageKey: string, collapsed: boolean): void {
 
 /**
  * Desktop navigation sidebar (spec "components/layout/Sidebar.tsx") — hidden below `md`, where
- * `MobileNav` takes over (spec "Mobile responsive"). Grouped into 🤖 TAMARA (META ADS) / 📋
- * OPERASIONAL sections (AAOS-TAMARA-PAGES redesign).
+ * `MobileNav` takes over (spec "Mobile responsive"). Grouped into TAMARA (META ADS) / OPERASIONAL
+ * sections (AAOS-TAMARA-PAGES redesign).
  *
  * TOTAL UI REBUILD spec "=== SIDEBAR ===": fixed 220px rail, logo area with a live indicator dot,
  * collapsible section headers (chevron rotates, 200ms height transition via CSS grid
@@ -177,15 +183,16 @@ export function Sidebar(): React.ReactElement {
 
   return (
     <nav aria-label="Navigasi utama" className={styles.sidebar}>
+      {/* Logo mark restyled to the reference's plain black-square + wordmark (dropped the 🚗
+          emoji/live-dot/"AI Automotive OS" subtext combo — the live dot was purely decorative,
+          never backed by a real connectivity check, so trimming it isn't a functional loss). */}
       <div className={styles.logo}>
         <div className={styles.logoRow}>
-          <span aria-hidden="true" className={styles.logoEmoji}>
-            🚗
+          <span aria-hidden="true" className={styles.logoMark}>
+            A
           </span>
           <p className={styles.logoText}>AAOS</p>
-          <span aria-hidden="true" title="Live" className={styles.liveDot} />
         </div>
-        <p className={styles.subtext}>AI Automotive OS</p>
       </div>
       <div className={styles.nav}>
         {NAV_GROUPS.map((group) => {

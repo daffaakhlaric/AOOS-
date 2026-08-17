@@ -14,42 +14,38 @@
 }
 
 .logo {
-  padding: 20px 16px 16px;
+  padding: 16px;
   border-bottom: var(--border);
 }
 
 .logoRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.logoEmoji {
-  font-size: 18px;
+/* Reference screenshot's black rounded-square wordmark, replacing the previous 🚗 emoji + live
+   dot + subtext combo. */
+.logoMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--black);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 700;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .logoText {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.3px;
   color: var(--black);
-}
-
-.liveDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #50e3c2;
-  margin-left: auto;
-  box-shadow: 0 0 0 2px rgba(80, 227, 194, 0.3);
-}
-
-.subtext {
-  font-size: 11px;
-  color: var(--gray-400);
-  margin-top: 2px;
-  margin-left: 26px;
 }
 
 .nav {
@@ -140,8 +136,8 @@
 }
 
 .navItemActive {
-  background: var(--gray-100);
-  color: var(--black);
+  background: var(--blue-light);
+  color: var(--blue);
   font-weight: 500;
 }
 
@@ -155,9 +151,19 @@
   border-radius: 2px;
 }
 
+/* Muted/grayscale by default, full color once active — approximates the reference's monochrome
+   line-icon set without pulling in a new icon-library dependency mid-restyle (this app has no
+   SVG icon set installed; swapping the emoji glyphs for one is a separate, larger decision). */
 .navIcon {
   font-size: 14px;
   line-height: 1;
+  filter: grayscale(1) opacity(0.55);
+  transition: filter 80ms;
+}
+
+.navItem:hover .navIcon,
+.navItemActive .navIcon {
+  filter: none;
 }
 
 .userSection {

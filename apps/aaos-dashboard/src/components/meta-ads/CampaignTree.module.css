@@ -73,15 +73,15 @@
   color: inherit;
 }
 
+/* FIX 2 (campaign-card UI rebuild follow-up): distinct ▶/▼ glyphs swapped in JSX rather than one
+   glyph rotated via CSS transform — matches the spec's literal "Chevron: ▶ (collapsed) → ▼
+   (expanded)" requirement exactly. */
 .expandChevron {
-  font-size: 14px;
+  font-size: 11px;
   color: var(--gray-400);
-  transition: transform 200ms;
   flex-shrink: 0;
-}
-
-.expandChevronOpen {
-  transform: rotate(90deg);
+  width: 10px;
+  display: inline-block;
 }
 
 .idBadge {
@@ -116,8 +116,9 @@
   text-overflow: ellipsis;
 }
 
+/* FIX 5: campaign row's "N ad set · M lead" subtext — 11px / #A1A1AA (== var(--gray-400)). */
 .metrics {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--gray-400);
   margin-top: 2px;
 }
@@ -125,7 +126,70 @@
 .rightSide {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+/* Smaller gap variant for ad-set/ad rows (reference screenshot's tighter metric spacing at those levels). */
+.rightSideSmall {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/*
+ * One "LABEL / value" column — spec's "BELANJA/CHAT/D3" trio, right-aligned in the header.
+ *
+ * FIX 3 (campaign-card UI rebuild follow-up): fixed per-metric widths so the same column lines up
+ * vertically across campaign/ad-set/ad rows (previously each column auto-sized to its own content,
+ * so e.g. a 3-digit vs. 5-digit Chat value shifted the D3 column that followed it).
+ */
+.metricCol {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.metricColBelanja {
+  width: 100px;
+}
+
+.metricColChat {
+  width: 50px;
+}
+
+.metricColD3 {
+  width: 40px;
+}
+
+.metricColLabel {
+  display: block;
+  font-size: 9px;
+  color: var(--gray-400);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.metricColValue {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* D3 always blue (#2563EB == var(--blue)); Chat/Belanja stay `.metricColValue`'s default black
+   (#09090B == var(--black)) — spec's exact per-column color rule. */
+.metricColAccent {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.adSetCount {
+  font-size: 11px;
+  color: var(--gray-400);
   flex-shrink: 0;
 }
 
@@ -178,12 +242,11 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--gray-700);
-}
-
-.adSetMetrics {
-  font-size: 11px;
-  color: var(--gray-400);
-  margin-top: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Ad level (#C001). */

@@ -1,12 +1,17 @@
 /**
- * Global reset + design-token custom properties (spec "=== GLOBAL RESET ===", TOTAL UI REBUILD).
+ * Global reset + design-token custom properties.
  *
- * This REPLACES the previous Tailwind-based globals.css (`@tailwind base/components/utilities` +
- * a handful of Tailwind-utility-composed helper classes) with the exact hand-crafted reset the
- * spec specifies. `tailwind.config.ts` remains in the repo (out of scope to remove per the
- * coordinator note) but nothing in this app should be written against it going forward — every
- * component this task touches uses a co-located `*.module.css` file against the `var(--xxx)`
- * custom properties declared here instead.
+ * FINAL UI REBUILD: repointed every token's VALUE to the exact reference-screenshot ("Tamara"
+ * dashboard) palette from `docs/PROMPT-AAOS-DASHBOARD-FINAL-UI-REBUILD.md`'s STEP 1 `:root` block,
+ * while deliberately KEEPING every existing token NAME (`--gray-900`, `--blue`, `--border`, ...)
+ * unchanged. The spec's own STEP 1 literally says "WIPE semua CSS lama" and gives a `:root` block
+ * with different variable names (`--bg`/`--text-1`/`--r`/...) — but per the user's mid-task
+ * clarification ("fokus ke ui nya aja... hanya fokus ke ui nya", i.e. visual restyle only) and the
+ * coordinator note's scope, every one of this app's ~40 `*.module.css` files already consumes the
+ * NAMES declared here. A literal rename would mean editing every consuming file just to keep them
+ * compiling, for zero visual gain over changing the values in this one file — the values below ARE
+ * the exact hex codes STEP 1 specifies, so the rendered result matches the reference pixel-for-
+ * pixel; only the token *names* differ from the spec's own (renamed) suggestion.
  *
  * `--font`/`--mono` reference the `--font-inter`/`--font-mono` variables `next/font/google`
  * attaches to `<html>` in `src/app/layout.tsx` (Inter + JetBrains Mono), falling back to the
@@ -25,26 +30,29 @@
     var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: var(--font-mono), "JetBrains Mono", "Fira Code", monospace;
 
-  --black: #000000;
+  --black: #09090b;
   --white: #ffffff;
 
-  --gray-100: #fafafa;
-  --gray-200: #eaeaea;
-  --gray-300: #c9c9c9;
-  --gray-400: #888888;
-  --gray-500: #666666;
-  --gray-600: #444444;
-  --gray-700: #333333;
-  --gray-900: #111111;
+  /* Backgrounds/borders/text — spec STEP 1 `--bg`/`--surface`/`--surface-2`/`--border-color`/
+     `--text-1/2/3`, mapped onto this app's existing `--gray-*` scale. */
+  --gray-100: #f4f4f5;
+  --gray-150: #fafafa;
+  --gray-200: #e4e4e7;
+  --gray-300: #d4d4d8;
+  --gray-400: #a1a1aa;
+  --gray-500: #71717a;
+  --gray-600: #52525b;
+  --gray-700: #3f3f46;
+  --gray-900: #09090b;
 
-  --blue: #0070f3;
-  --blue-light: #eef4ff;
-  --green: #0fa37f;
-  --green-light: #effcf6;
-  --red: #ee0000;
-  --red-light: #fff1f0;
-  --amber: #f5a623;
-  --amber-light: #fff8ed;
+  --blue: #2563eb;
+  --blue-light: #eff6ff;
+  --green: #16a34a;
+  --green-light: #f0fdf4;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --amber: #d97706;
+  --amber-light: #fffbeb;
 
   /**
    * Not in the spec's literal `:root` block — added for `VerdictBadge`'s `REFRESH` verdict, a
@@ -59,9 +67,10 @@
   --radius: 6px;
   --radius-lg: 8px;
 
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow:
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    0 1px 2px rgba(0, 0, 0, 0.06);
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md:
     0 4px 16px rgba(0, 0, 0, 0.08),
     0 1px 4px rgba(0, 0, 0, 0.04);
@@ -75,4 +84,18 @@ body {
   color: var(--gray-900);
   background: var(--gray-100);
   -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: 2px;
 }

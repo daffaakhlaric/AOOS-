@@ -7,14 +7,25 @@ export function formatIdr(amount: number): string {
   }).format(amount);
 }
 
-/** Compact rupiah for KPI cards, e.g. "Rp 26.4jt" (spec mockup: "Belanja Rp 26.4jt"). Only compacts at the "jt" (million) / "rb" (thousand) scale the mockups use — below 1,000 falls back to `formatIdr`. */
+/**
+ * Compact rupiah for KPI cards/strips, e.g. "Rp 184,2 jt" (FINAL UI REBUILD reference screenshot's
+ * KPI strip: "BELANJA Rp 184,2 jt") — Indonesian decimal comma, space before the unit suffix.
+ * Scales: "M" (miliar, ≥1B), "jt" (juta, ≥1M), "rb" (ribu, ≥1K); below 1,000 falls back to
+ * `formatIdr`. Previously emitted a bare-period decimal ("Rp 26.4jt") which isn't valid Indonesian
+ * grouping — corrected in place rather than duplicated into a second formatter, since every caller
+ * wants the same compact KPI-cell shape and none asserted the old exact string in a test.
+ */
 export function formatIdrCompact(amount: number): string {
   const abs = Math.abs(amount);
+  const decimal = (value: number): string => value.toFixed(1).replace(".", ",");
+  if (abs >= 1_000_000_000) {
+    return `Rp ${decimal(amount / 1_000_000_000)} M`;
+  }
   if (abs >= 1_000_000) {
-    return `Rp ${(amount / 1_000_000).toFixed(1)}jt`;
+    return `Rp ${decimal(amount / 1_000_000)} jt`;
   }
   if (abs >= 1_000) {
-    return `Rp ${(amount / 1_000).toFixed(0)}rb`;
+    return `Rp ${(amount / 1_000).toFixed(0)} rb`;
   }
   return formatIdr(amount);
 }
@@ -27,6 +38,11 @@ export function formatNumber(value: number): string {
 /** Formats a fraction (0-1) as a percentage, e.g. 0.94 -> "94%". */
 export function formatPercent(fraction: number): string {
   return `${Math.round(fraction * 100)}%`;
+}
+
+/** Formats a `Date` as a full Indonesian month + year, e.g. "Agustus 2026" (Overview page's "Ringkasan operasional ... · {bulan} {tahun}" subtitle, FINAL UI REBUILD reference screenshot). */
+export function formatMonthYearId(date: Date): string {
+  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(date);
 }
 
 /** Formats an ISO date/timestamp as an Indonesian short date, e.g. "09 Agu 2026". */

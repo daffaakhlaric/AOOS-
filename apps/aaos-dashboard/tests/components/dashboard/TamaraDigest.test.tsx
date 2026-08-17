@@ -29,4 +29,31 @@ describe("TamaraDigest", () => {
     render(<TamaraDigest text="Singkat." />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("renders PAUSE/SCALE/FIX tag pills when given", () => {
+    render(
+      <TamaraDigest
+        text="Ringkasan hari ini."
+        tags={[
+          { label: "3 perlu PAUSE", tone: "pause" },
+          { label: "1 perlu SCALE", tone: "scale" },
+          { label: "8 perlu FIX", tone: "fix" },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/3 perlu PAUSE/)).toBeInTheDocument();
+    expect(screen.getByText(/1 perlu SCALE/)).toBeInTheDocument();
+    expect(screen.getByText(/8 perlu FIX/)).toBeInTheDocument();
+  });
+
+  it("renders a link to Strategi & Approve when strategiHref is given", () => {
+    render(<TamaraDigest text="Ringkasan hari ini." strategiHref="/meta-ads/strategi" />);
+    const link = screen.getByRole("link", { name: /Strategi & Approve/ });
+    expect(link).toHaveAttribute("href", "/meta-ads/strategi");
+  });
+
+  it("omits the tags/link footer entirely when neither is given", () => {
+    render(<TamaraDigest text="Ringkasan hari ini." />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });

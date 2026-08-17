@@ -24,6 +24,10 @@
   overflow: hidden;
 }
 
+.skeletonPad {
+  padding: 16px;
+}
+
 .nameCell {
   font-weight: 500;
   color: var(--gray-900);
@@ -36,5 +40,56 @@
 
 .scoreCell {
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Client-side pagination bar (FINAL UI REBUILD spec: "Menampilkan 1-20 dari 48 leads" +
+   Prev/Next) — no backend page/limit params to page against, so this slices the already-fetched
+   `leads` array; see `LeadsClient.tsx`'s `PAGE_SIZE` docstring. */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.paginationInfo {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.paginationControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pageButton {
+  padding: 6px 12px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition:
+    background 100ms,
+    border-color 100ms;
+}
+
+.pageButton:hover:not(:disabled) {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
+.pageButton:disabled {
+  color: var(--gray-300);
+  cursor: not-allowed;
+}
+
+.pageIndicator {
+  font-size: 12px;
+  color: var(--gray-500);
   font-variant-numeric: tabular-nums;
 }

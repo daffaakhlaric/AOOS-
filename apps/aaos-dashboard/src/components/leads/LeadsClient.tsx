@@ -13,7 +13,7 @@ import {
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { SkeletonRows } from "@/components/ui/Skeleton";
 import { formatDateId } from "@/lib/formatters";
 import type { LeadDto } from "@/types/dashboard.types";
 
@@ -26,10 +26,21 @@ const TEMPERATURE_BADGE_COLOR: Readonly<Record<string, "red" | "amber" | "gray">
   COLD: "gray",
 };
 
+/**
+ * Leads shown per page, in a pure client-side slice of the already-fully-fetched array (FINAL UI
+ * REBUILD spec's "Menampilkan 1-20 dari 48 leads" pagination). `aaos-api`'s real `GET /api/v1/
+ * leads` has no `page`/`limit`/`offset` params (`src/app/api/leads/route.ts`'s own docstring
+ * confirms it fans out across all branches and concatenates everything in one response), so there
+ * is no backend to page against — this paginates the array this component already has in memory,
+ * not a new fetch per page.
+ */
+const PAGE_SIZE = 20;
+
 /** All leads overview across every branch (spec "leads/page.tsx" — manager view). Fetches `/api/leads`, which fans out across `aaos-api`'s per-branch `GET /api/v1/leads`. Table rendering restyled onto Tremor's `Table`/`Badge` (TREMOR REBUILD spec STEP 16) — data-fetching logic unchanged (coordinator note #9). */
 export function LeadsClient(): React.ReactElement {
   const [leads, setLeads] = useState<readonly LeadDto[] | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     fetch("/api/leads")
@@ -49,16 +60,29 @@ export function LeadsClient(): React.ReactElement {
     return <ErrorCard message={error} />;
   }
   if (leads === undefined) {
-    return <LoadingSpinner />;
+    return (
+      <div className={styles.page}>
+        <h2 className={styles.title}>Semua Leads</h2>
+        <div className={`${styles.tableWrap} ${styles.skeletonPad}`}>
+          <SkeletonRows count={6} height="20px" />
+        </div>
+      </div>
+    );
   }
   if (leads.length === 0) {
     return (
       <EmptyState
+        icon="🔥"
         title="Belum ada lead"
         description="Lead dari semua cabang akan muncul di sini."
       />
     );
   }
+
+  const pageCount = Math.max(1, Math.ceil(leads.length / PAGE_SIZE));
+  const clampedPage = Math.min(page, pageCount);
+  const start = (clampedPage - 1) * PAGE_SIZE;
+  const pageLeads = leads.slice(start, start + PAGE_SIZE);
 
   return (
     <div className={styles.page}>
@@ -75,7 +99,7 @@ export function LeadsClient(): React.ReactElement {
             </TableRow>
           </TableHead>
           <TableBody>
-            {leads.map((lead) => (
+            {pageLeads.map((lead) => (
               <TableRow key={lead.id}>
                 <TableCell className={styles.nameCell}>{lead.leadName ?? lead.leadPhone}</TableCell>
                 <TableCell className={styles.mutedCell}>{lead.branchId}</TableCell>
@@ -91,6 +115,35 @@ export function LeadsClient(): React.ReactElement {
           </TableBody>
         </Table>
       </div>
+      {pageCount > 1 ? (
+        <div className={styles.pagination}>
+          <span className={styles.paginationInfo}>
+            Menampilkan {start + 1}-{Math.min(start + PAGE_SIZE, leads.length)} dari {leads.length}{" "}
+            leads
+          </span>
+          <div className={styles.paginationControls}>
+            <button
+              type="button"
+              className={styles.pageButton}
+              disabled={clampedPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Prev
+            </button>
+            <span className={styles.pageIndicator}>
+              {clampedPage} / {pageCount}
+            </span>
+            <button
+              type="button"
+              className={styles.pageButton}
+              disabled={clampedPage >= pageCount}
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

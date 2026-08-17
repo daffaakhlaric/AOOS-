@@ -1,0 +1,101 @@
+.section {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--blue);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  padding: 12px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--gray-100);
+}
+
+.branchName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--gray-600);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotBlue {
+  background: var(--blue);
+}
+
+.dotGreen {
+  background: var(--green);
+}
+
+.dotAmber {
+  background: var(--amber);
+}
+
+.dotGray {
+  background: var(--gray-400);
+}
+
+.leadsTotal {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.hotCount {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--red);
+  font-variant-numeric: tabular-nums;
+}
+
+.hotCountZero {
+  color: var(--gray-300);
+}
+
+.spk {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--gray-400);
+}

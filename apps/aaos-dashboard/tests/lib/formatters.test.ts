@@ -17,12 +17,16 @@ describe("formatIdr", () => {
 });
 
 describe("formatIdrCompact", () => {
-  it("compacts millions to 'jt'", () => {
-    expect(formatIdrCompact(26_400_000)).toBe("Rp 26.4jt");
+  it("compacts millions to 'jt' with an Indonesian decimal comma (FINAL UI REBUILD reference screenshot: 'Rp 184,2 jt')", () => {
+    expect(formatIdrCompact(26_400_000)).toBe("Rp 26,4 jt");
+  });
+
+  it("compacts billions to 'M'", () => {
+    expect(formatIdrCompact(1_842_000_000)).toBe("Rp 1,8 M");
   });
 
   it("compacts thousands to 'rb'", () => {
-    expect(formatIdrCompact(1_500)).toBe("Rp 2rb");
+    expect(formatIdrCompact(1_500)).toBe("Rp 2 rb");
   });
 
   it("falls back to formatIdr below 1,000", () => {

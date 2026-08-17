@@ -1,62 +1,103 @@
-import { Grid } from "@tremor/react";
-
-import { MetricCard } from "@/components/ui/MetricCard";
 import { formatIdrCompact, formatNumber } from "@/lib/formatters";
 
 import styles from "./SummaryCards.module.css";
 
 export interface SummaryCardsData {
-  /** Meta Ads-sourced — undefined when the caller has none to show without hitting Meta's API (see `DashboardClient.tsx`'s docstring). Omitted from the card list, not shown as 0/blank, when undefined. */
-  readonly spend?: number;
-  readonly spendChangePercent?: number;
-  /** Meta Ads-sourced — same undefined-means-omitted contract as `spend` above. */
-  readonly d3Leads?: number;
-  readonly d3ChangePercent?: number;
   readonly hotLeads: number;
-  readonly hotLeadsChangePercent: number;
-  readonly closings: number;
-  readonly closingsChangePercent: number;
+  readonly leadsTotal: number;
+  readonly testDrive: number;
+  readonly spk: number;
+  readonly komisiTotal: number;
+  /** Meta Ads-sourced — undefined when there's no cached `/meta-ads` pull yet (see
+   * `DashboardClient.tsx`'s docstring: the Overview page reads Meta data from the SAME
+   * `localStorage` cache `/meta-ads` already writes to, via `readCampaignsCache()`, and never
+   * calls `/api/campaigns` itself — so this is genuinely absent, not merely loading, until the
+   * user has visited "Kampanye" and pulled data at least once). Omitted (not shown as 0/blank)
+   * when undefined, same contract the pre-rebuild `SummaryCards` already established for
+   * Meta-sourced fields. */
+  readonly belanjaIklan?: number;
+}
+
+interface Cell {
+  readonly label: string;
+  readonly rawValue: number;
+  readonly formatted: string;
+  readonly period: string;
+  /** Reference screenshot: Hot Leads is blue, Komisi Total is green, everything else stays black. */
+  readonly accent?: "blue" | "green";
 }
 
 /**
- * The "Overview Bulan Ini" KPI cards (spec "dashboard/page.tsx" mockup): Belanja, D3 Lead, Hot
- * Lead, Closing. Real bug fix: `DashboardClient` no longer fetches Meta Ads data automatically
- * (it was auto-hitting Meta's rate limit on every dashboard visit), so `spend`/`d3Leads` are now
- * optional — Belanja/D3 Lead only render when a caller actually has that data to show (e.g. a
- * future page that already has fresh Meta data on hand), never as a fetched-then-shown value here.
+ * Overview KPI strip (FINAL UI REBUILD, matching the reference screenshot's 6-cell strip exactly:
+ * HOT LEADS / LEADS TOTAL / TEST DRIVE / SPK / KOMISI TOTAL / BELANJA IKLAN, each with a small
+ * "bulan ini"/"30 hari terakhir" period caption). Restyled from the old 4-card Tremor `<Grid>` of
+ * `MetricCard`s to the same flat bordered-strip pattern `MetricsSummaryBar.tsx` already
+ * established for the Kampanye page, since the reference shows the exact same visual language on
+ * both pages.
  *
- * TREMOR REBUILD spec STEP 17 names a real `<Grid numItems={4}>` for this exact 4-card row — real
- * Tremor `Grid` now provides the layout (`numItems={2}` / `numItemsMd={4}`, matching this app's
- * existing 2-col-mobile/4-col-desktop breakpoint at Tailwind's default `md` = 768px, the same
- * breakpoint `SummaryCards.module.css`'s old plain-CSS-Grid version used).
+ * Every value here is real: Hot Leads/Leads Total come from `aaos-api`'s `GET /api/v1/leads`,
+ * Test Drive/SPK/Komisi Total from `GET /api/v1/closings` (`closingType` counts + `SUM
+ * commissionIdr`), Belanja Iklan from the cached `/meta-ads` pull's `totals.spend` — all computed
+ * by `DashboardClient.tsx`, never re-derived or invented here.
  */
 export function SummaryCards({ data }: { readonly data: SummaryCardsData }): React.ReactElement {
+  const cells: Cell[] = [
+    {
+      label: "Hot Leads",
+      rawValue: data.hotLeads,
+      formatted: formatNumber(data.hotLeads),
+      period: "bulan ini",
+      accent: "blue",
+    },
+    {
+      label: "Leads Total",
+      rawValue: data.leadsTotal,
+      formatted: formatNumber(data.leadsTotal),
+      period: "bulan ini",
+    },
+    {
+      label: "Test Drive",
+      rawValue: data.testDrive,
+      formatted: formatNumber(data.testDrive),
+      period: "bulan ini",
+    },
+    { label: "SPK", rawValue: data.spk, formatted: formatNumber(data.spk), period: "bulan ini" },
+    {
+      label: "Komisi Total",
+      rawValue: data.komisiTotal,
+      formatted: formatIdrCompact(data.komisiTotal),
+      period: "bulan ini",
+      accent: "green",
+    },
+  ];
+  if (data.belanjaIklan !== undefined) {
+    cells.push({
+      label: "Belanja Iklan",
+      rawValue: data.belanjaIklan,
+      formatted: formatIdrCompact(data.belanjaIklan),
+      period: "30 hari terakhir",
+    });
+  }
+
   return (
-    <Grid numItems={2} numItemsMd={4} className={styles.grid}>
-      {data.spend !== undefined ? (
-        <MetricCard
-          label="Belanja"
-          value={formatIdrCompact(data.spend)}
-          changePercent={data.spendChangePercent ?? 0}
-        />
-      ) : null}
-      {data.d3Leads !== undefined ? (
-        <MetricCard
-          label="D3 Lead"
-          value={formatNumber(data.d3Leads)}
-          changePercent={data.d3ChangePercent ?? 0}
-        />
-      ) : null}
-      <MetricCard
-        label="Hot Lead"
-        value={formatNumber(data.hotLeads)}
-        changePercent={data.hotLeadsChangePercent}
-      />
-      <MetricCard
-        label="Closing"
-        value={formatNumber(data.closings)}
-        changePercent={data.closingsChangePercent}
-      />
-    </Grid>
+    <div data-testid="summary-cards" className={styles.strip}>
+      {cells.map((cell) => {
+        const isZero = cell.rawValue === 0;
+        const valueClass = isZero
+          ? styles.valueZero
+          : cell.accent === "blue"
+            ? styles.valueBlue
+            : cell.accent === "green"
+              ? styles.valueGreen
+              : "";
+        return (
+          <div key={cell.label} className={styles.cell}>
+            <p className={styles.label}>{cell.label}</p>
+            <p className={`${styles.value} ${valueClass}`}>{cell.formatted}</p>
+            <p className={styles.period}>{cell.period}</p>
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -17,13 +17,23 @@ const TOTALS = {
 };
 
 describe("MetricsSummaryBar", () => {
-  it("renders Belanja · Chat · D2 · D3 · D5 · Form · Total Lead", () => {
+  it("renders Belanja · Chat · D3 · Total Lead", () => {
     render(<MetricsSummaryBar totals={TOTALS} />);
     expect(screen.getByText("Belanja")).toBeInTheDocument();
-    expect(screen.getByText("Rp 26.4jt")).toBeInTheDocument();
+    expect(screen.getByText("Rp 26,4 jt")).toBeInTheDocument();
+    expect(screen.getByText("Chat")).toBeInTheDocument();
     expect(screen.getByText("2.866")).toBeInTheDocument();
+    expect(screen.getByText("D3")).toBeInTheDocument();
     expect(screen.getByText("1.286")).toBeInTheDocument();
+    expect(screen.getByText("Total Lead")).toBeInTheDocument();
     expect(screen.getByText("2.798")).toBeInTheDocument();
+  });
+
+  it("does not render D2/D5/Form (FINAL UI REBUILD: trimmed to the reference's 6-cell strip)", () => {
+    render(<MetricsSummaryBar totals={TOTALS} />);
+    expect(screen.queryByText("D2")).not.toBeInTheDocument();
+    expect(screen.queryByText("D5")).not.toBeInTheDocument();
+    expect(screen.queryByText("Form")).not.toBeInTheDocument();
   });
 
   it("does not render Kampanye/Iklan when the counts are not given", () => {

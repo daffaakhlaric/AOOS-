@@ -58,4 +58,12 @@ describe("stripAdNameSuffix (best-effort pattern match, not verified against rea
       "Xpander Creative 1",
     );
   });
+
+  it('strips a chained "- platinum - Boost [uuid]" suffix (multiple tier words back-to-back)', () => {
+    expect(
+      stripAdNameSuffix(
+        "Dijual Tanah di BSD 500m² SHM! - platinum - Boost 019f94fd-8841-7dd0-abf9-5d65888159bd",
+      ),
+    ).toBe("Dijual Tanah di BSD 500m² SHM!");
+  });
 });

@@ -268,6 +268,38 @@ export function MetaAdsClient(): React.ReactElement {
             campaignCount={data.campaignCount}
             adCount={data.adCount}
           />
+          {/* "Kampanye (N)" section header + verdict color legend (reference screenshot's "Kampanye
+              (3)" row). FIX/PAUSE share the accent color (`accentPause` in CampaignTree.module.css,
+              same real-verdict-precedence judgment call as `aggregateVerdict`), so the legend shows
+              one dot per distinct color rather than one per verdict name. */}
+          <div className={styles.sectionHeader}>
+            <h3 className={styles.sectionTitle}>Kampanye ({data.campaigns.length})</h3>
+            <div className={styles.legend}>
+              <span className={styles.legendItem}>
+                <span aria-hidden="true" className={`${styles.legendDot} ${styles.legendPause}`} />
+                FIX / PAUSE
+              </span>
+              <span className={styles.legendItem}>
+                <span aria-hidden="true" className={`${styles.legendDot} ${styles.legendKeep}`} />
+                KEEP
+              </span>
+              <span className={styles.legendItem}>
+                <span aria-hidden="true" className={`${styles.legendDot} ${styles.legendScale}`} />
+                SCALE
+              </span>
+              <span className={styles.legendItem}>
+                <span aria-hidden="true" className={`${styles.legendDot} ${styles.legendReview}`} />
+                REVIEW
+              </span>
+              <span className={styles.legendItem}>
+                <span
+                  aria-hidden="true"
+                  className={`${styles.legendDot} ${styles.legendRefresh}`}
+                />
+                REFRESH
+              </span>
+            </div>
+          </div>
           <CampaignTree campaigns={data.campaigns} search={search} onExecute={handleExecute} />
         </>
       ) : null}

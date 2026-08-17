@@ -28,10 +28,10 @@ describe("Sidebar", () => {
     expect(screen.getByRole("navigation", { name: "Navigasi utama" })).toBeInTheDocument();
   });
 
-  it("renders the grouped 🤖 TAMARA (META ADS) / 📋 OPERASIONAL section headers", () => {
+  it("renders the grouped TAMARA (META ADS) / OPERASIONAL section headers", () => {
     render(<Sidebar />);
-    expect(screen.getByText("🤖 TAMARA (META ADS)")).toBeInTheDocument();
-    expect(screen.getByText("📋 OPERASIONAL")).toBeInTheDocument();
+    expect(screen.getByText("TAMARA (META ADS)")).toBeInTheDocument();
+    expect(screen.getByText("OPERASIONAL")).toBeInTheDocument();
   });
 
   it("renders all 4 new Tamara/Meta-Ads pages under the TAMARA group", () => {
