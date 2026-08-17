@@ -112,6 +112,20 @@ export const MetaCreateResponseSchema = z.object({
 });
 export type MetaCreateResponse = z.infer<typeof MetaCreateResponseSchema>;
 
+/**
+ * Response of `GET /{ad_account_id}?fields=name` — the lightweight account-name lookup added for
+ * the multi-account pill selector (`docs/PROMPT-AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE.md`
+ * coordinator note #6). Deliberately its own tiny schema/request, NOT a byproduct of the full
+ * `getCampaigns` pull — fetching the whole campaign tree just to read an account's display name
+ * would be wasteful and would count against the same Meta rate limit this app has repeatedly had
+ * trouble with.
+ */
+export const MetaAdAccountResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+export type MetaAdAccountResponse = z.infer<typeof MetaAdAccountResponseSchema>;
+
 export const MetaErrorResponseSchema = z.object({
   error: z.object({
     message: z.string(),

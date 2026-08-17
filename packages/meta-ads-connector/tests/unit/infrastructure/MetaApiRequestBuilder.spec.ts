@@ -47,6 +47,14 @@ describe("MetaApiRequestBuilder", () => {
     );
   });
 
+  it("builds the ad-account name-lookup URL requesting only the `name` field", () => {
+    const url = new URL(MetaApiRequestBuilder.adAccountUrl("act_999", "TOKEN"));
+    expect(url.origin + url.pathname).toBe(`${BASE}/act_999`);
+    expect(url.searchParams.get("fields")).toBe("name");
+    expect(url.searchParams.get("access_token")).toBe("TOKEN");
+    expect(url.searchParams.has("limit")).toBe(false);
+  });
+
   it("builds the pause-ad action URL as {base}/{version}/{ad-id}", () => {
     expect(MetaApiRequestBuilder.pauseAdUrl("ad-1")).toBe(`${BASE}/ad-1`);
   });

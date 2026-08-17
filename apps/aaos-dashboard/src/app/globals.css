@@ -63,6 +63,14 @@
   --purple: #7c3aed;
   --purple-light: #f5f3ff;
 
+  /* Strategi & Approve's "Tamara" brand orange (spec's exact `#E8580C` header/button color,
+     `#FEF3EE`/`#FDBA74` light-bg/border pair) — scoped tokens rather than reusing `--amber`,
+     since this is a distinct brand accent for one specific page's chat/arahan cards, not a
+     semantic status color like the rest of this file's palette. */
+  --tamara-orange: #e8580c;
+  --tamara-orange-light: #fef3ee;
+  --tamara-orange-border: #fdba74;
+
   --border: 1px solid var(--gray-200);
   --radius: 6px;
   --radius-lg: 8px;

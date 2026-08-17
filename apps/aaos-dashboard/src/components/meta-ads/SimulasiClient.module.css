@@ -1,9 +1,10 @@
+/* Real bug fix (same recurring issue as every other `/meta-ads/*` page's `.page` — see
+   `MetaAdsClient.module.css`/`AuditClient.module.css`): no `max-width` cap. */
 .page {
   display: flex;
   flex-direction: column;
   gap: 24px;
   padding: 32px;
-  max-width: 1200px;
 }
 
 .title {

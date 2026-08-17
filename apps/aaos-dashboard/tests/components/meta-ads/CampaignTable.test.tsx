@@ -26,6 +26,7 @@ function buildAd(overrides: Partial<CampaignAdDto> = {}): CampaignAdDto {
       leadForm: 20,
       totalLead: 320,
       rphD3: 19_541,
+      rphLead: 18_750,
     },
     ...overrides,
   };

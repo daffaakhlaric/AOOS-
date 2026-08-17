@@ -1,10 +1,17 @@
+/* Real bug fix (same recurring issue as every other `/meta-ads/*` page's `.page` — see
+   `MetaAdsClient.module.css`/`AuditClient.module.css`): no `max-width` cap. */
 .page {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 32px;
   padding-bottom: 96px;
-  max-width: 1200px;
+}
+
+.breadcrumb {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-bottom: 4px;
 }
 
 .title {
@@ -22,6 +29,314 @@
   line-height: 1.4;
 }
 
+.mutedText {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+/* === Arahan Tamara === */
+.arahanCard {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--tamara-orange-border, #fdba74);
+  background: var(--white);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.arahanHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arahanTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.arahanSubtitle {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.arahanButton {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background: var(--tamara-orange, #e8580c);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--white);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.arahanButton:hover {
+  opacity: 0.9;
+}
+
+.arahanButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.arahanResult {
+  border-radius: var(--radius);
+  background: var(--tamara-orange-light, #fef3ee);
+  padding: 12px;
+}
+
+.arahanText {
+  font-size: 13px;
+  color: var(--gray-900);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.arahanMeta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.temuanBlock {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tamara-orange-border, #fdba74);
+}
+
+.temuanTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.temuanList {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.temuanItem {
+  font-size: 12px;
+  color: var(--gray-700);
+  padding-left: 8px;
+  border-left: 2px solid var(--tamara-orange, #e8580c);
+}
+
+/* === KPI strip === */
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+@media (min-width: 640px) {
+  .kpiStrip {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.kpiLabel {
+  font-size: 11px;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.kpiValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiValueGreen {
+  color: var(--green);
+}
+
+.kpiValueRed {
+  color: var(--red);
+}
+
+.kpiHint {
+  font-size: 10px;
+  color: var(--green);
+  margin-top: 2px;
+}
+
+/* === Ngobrol dengan Tamara === */
+.chatCard {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.chatHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--tamara-orange, #e8580c);
+  color: var(--white);
+  padding: 12px 16px;
+}
+
+.chatHeaderTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.onlineDot {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.chatHeaderSubtitle {
+  font-size: 11px;
+  color: var(--gray-500);
+  padding: 8px 16px 0;
+}
+
+.chatIntro {
+  font-size: 13px;
+  color: var(--gray-600);
+  padding: 12px 16px 0;
+}
+
+.chatHistory {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 12px 16px 0;
+}
+
+.chatBubble {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.chatBubbleUser {
+  align-self: flex-end;
+  background: var(--tamara-orange, #e8580c);
+  color: var(--white);
+}
+
+.chatBubbleAssistant {
+  align-self: flex-start;
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.presetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 16px 0;
+  overflow-x: auto;
+}
+
+.presetChip {
+  flex-shrink: 0;
+  border: 1px solid var(--tamara-orange, #e8580c);
+  color: var(--tamara-orange, #e8580c);
+  background: var(--white);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.presetChip:hover {
+  background: var(--tamara-orange-light, #fef3ee);
+}
+
+.chatInputRow {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+
+.chatInput {
+  flex: 1;
+  padding: 8px 12px;
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--gray-900);
+  outline: none;
+}
+
+.chatInput:focus {
+  border-color: var(--tamara-orange, #e8580c);
+}
+
+.chatSendButton {
+  padding: 8px 14px;
+  background: var(--tamara-orange, #e8580c);
+  border: none;
+  border-radius: var(--radius);
+  color: var(--white);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chatSendButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* === Filter tabs === */
+.filterTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filterTab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: var(--border);
+  background: var(--white);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filterTab:hover {
+  background: var(--gray-100);
+}
+
+.filterTabActive {
+  background: var(--tamara-orange, #e8580c);
+  border-color: var(--tamara-orange, #e8580c);
+  color: var(--white);
+}
+
+/* === Verdict cards === */
 .list {
   display: flex;
   flex-direction: column;
@@ -32,18 +347,17 @@
   position: relative;
   border-radius: var(--radius-lg);
   border: var(--border);
-  border-left-width: 4px;
+  border-left-width: 3px;
   background: var(--white);
-  padding: 16px;
+  padding: 14px 16px;
   transition: box-shadow 150ms;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .card:hover {
   box-shadow: var(--shadow);
-}
-
-.cardApproved {
-  background: var(--gray-100);
 }
 
 .accentPause {
@@ -51,47 +365,129 @@
 }
 
 .accentFix {
-  border-left-color: var(--amber);
+  border-left-color: var(--gray-400);
 }
 
 .accentScale {
   border-left-color: var(--green);
 }
 
+.accentRefresh {
+  border-left-color: var(--amber);
+}
+
 .accentReview {
   border-left-color: var(--blue);
 }
 
-.approvedTag {
-  position: absolute;
-  right: 16px;
-  top: 16px;
+.cardHeaderRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.verdictBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badgePause {
+  background: #fecaca;
+  color: #dc2626;
+}
+
+.badgeFix {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+
+.badgeScale {
+  background: #bbf7d0;
+  color: #16a34a;
+}
+
+.badgeRefresh {
+  background: #fed7aa;
+  color: #ea580c;
+}
+
+.badgeReview {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.priorityBadge {
+  background: var(--purple);
+  color: var(--white);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.idBadgeC {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  background: var(--purple);
+  color: var(--white);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.idBadgeA {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  background: var(--tamara-orange, #e8580c);
+  color: var(--white);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.stateApproved {
+  margin-left: auto;
   font-size: 12px;
   font-weight: 600;
   color: var(--green);
 }
 
-.top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+.stateRejected {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--red);
 }
 
-.actionLabel {
+.cardTitle {
   font-size: 13px;
   font-weight: 600;
   color: var(--gray-900);
 }
 
-.adName {
-  font-size: 13px;
-  color: var(--gray-900);
-}
-
-.reason {
+.cardReason {
   font-size: 12px;
   color: var(--gray-500);
+}
+
+.cardFooter {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.savingText {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--green);
 }
 
 .decisionButtons {
@@ -102,48 +498,46 @@
 }
 
 .rejectButton {
-  padding: 6px 12px;
+  padding: 6px 16px;
   background: var(--white);
-  border: var(--border);
+  border: 1px solid var(--red);
   border-radius: var(--radius);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--gray-700);
+  color: var(--red);
   cursor: pointer;
 }
 
 .rejectButton:hover {
-  background: var(--gray-100);
+  background: var(--red-light);
 }
 
 .approveButton {
-  padding: 6px 12px;
-  background: var(--blue);
+  padding: 6px 16px;
+  background: var(--green);
   border: none;
   border-radius: var(--radius);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--white);
   cursor: pointer;
 }
 
 .approveButton:hover {
-  background: #0070e0;
+  opacity: 0.9;
 }
 
-.tolakApprovedButton {
-  margin-top: 24px;
+.undoButton {
   flex-shrink: 0;
-  padding: 6px 12px;
-  background: var(--white);
-  border: var(--border);
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--gray-700);
+  background: none;
+  border: none;
+  color: var(--gray-400);
+  font-size: 12px;
   cursor: pointer;
+  text-decoration: underline;
 }
 
+/* === Sticky bottom bar === */
 .stickyBar {
   position: fixed;
   right: 0;
@@ -172,7 +566,7 @@
 .executeAllButton {
   margin-left: auto;
   padding: 7px 16px;
-  background: var(--blue);
+  background: var(--tamara-orange, #e8580c);
   border: none;
   border-radius: var(--radius);
   font-size: 13px;
@@ -182,6 +576,6 @@
 }
 
 .executeAllButton:disabled {
-  opacity: 0.5;
+  background: var(--gray-300);
   cursor: not-allowed;
 }

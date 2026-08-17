@@ -16,6 +16,8 @@ import {
   RateLimitError,
 } from "../../domain/errors/index.js";
 import {
+  MetaAdAccountResponseSchema,
+  type MetaAdAccountResponse,
   MetaAdListResponseSchema,
   type MetaAdListResponse,
   MetaAdSetListResponseSchema,
@@ -82,6 +84,15 @@ export class MetaApiClient implements IMetaAdsClient {
   ): Promise<Result<MetaAdListResponse, MetaApiError>> {
     const url = MetaApiRequestBuilder.adsUrl(adSetId, accessToken, datePreset, cursor);
     return this.getJson(url, MetaAdListResponseSchema);
+  }
+
+  /** See `IMetaAdsClient.getAdAccount` docstring — a single lightweight `fields=name` lookup. */
+  async getAdAccount(
+    adAccountId: string,
+    accessToken: string,
+  ): Promise<Result<MetaAdAccountResponse, MetaApiError>> {
+    const url = MetaApiRequestBuilder.adAccountUrl(adAccountId, accessToken);
+    return this.getJson(url, MetaAdAccountResponseSchema);
   }
 
   async pauseAd(

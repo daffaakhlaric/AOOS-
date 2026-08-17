@@ -2,6 +2,7 @@ import type { Result } from "@aos/common";
 
 import type { MetaApiError } from "../domain/errors/index.js";
 import type {
+  MetaAdAccountResponse,
   MetaAdListResponse,
   MetaAdSetListResponse,
   MetaCampaignListResponse,
@@ -68,6 +69,16 @@ export interface IMetaAdsClient {
     datePreset: string,
     cursor?: PageCursor,
   ): Promise<Result<MetaAdListResponse, MetaApiError>>;
+
+  /**
+   * `GET /{ad_account_id}?fields=name` — resolves a single ad account's human-readable `name`,
+   * for the multi-account pill selector (coordinator note #6). Deliberately separate from
+   * `getCampaigns` — do NOT reuse the full campaign pull just to read a name.
+   */
+  getAdAccount(
+    adAccountId: string,
+    accessToken: string,
+  ): Promise<Result<MetaAdAccountResponse, MetaApiError>>;
 
   pauseAd(adId: string, accessToken: string): Promise<Result<MetaUpdateResponse, MetaApiError>>;
 

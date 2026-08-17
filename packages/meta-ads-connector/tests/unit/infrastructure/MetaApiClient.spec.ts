@@ -59,6 +59,29 @@ describe("MetaApiClient", () => {
     expect(unwrap(result).data[0]?.id).toBe("ad1");
   });
 
+  it("getAdAccount() parses a valid { id, name } response", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_555`, () => HttpResponse.json({ id: "act_555", name: "DSS Motor" })),
+    );
+    const client = new MetaApiClient();
+    const result = await client.getAdAccount("act_555", "TOKEN");
+    expect(unwrap(result)).toEqual({ id: "act_555", name: "DSS Motor" });
+  });
+
+  it("getAdAccount() returns an err Result when Meta rejects the lookup", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_bad`, () =>
+        HttpResponse.json(
+          { error: { message: "Invalid OAuth access token", type: "OAuthException", code: 190 } },
+          { status: 401 },
+        ),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.getAdAccount("act_bad", "TOKEN");
+    expect(unwrapErr(result)).toBeInstanceOf(AuthError);
+  });
+
   it("pauseAd() POSTs and parses a success response", async () => {
     mswServer.use(http.post(`${BASE}/ad-1`, () => HttpResponse.json({ success: true })));
     const client = new MetaApiClient();

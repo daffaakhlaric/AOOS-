@@ -29,6 +29,7 @@ const DATA: AdAccountSummaryDto = {
     leadForm: 0,
     totalLead: 0,
     rphD3: null,
+    rphLead: null,
   },
   campaignCount: 0,
   adCount: 0,

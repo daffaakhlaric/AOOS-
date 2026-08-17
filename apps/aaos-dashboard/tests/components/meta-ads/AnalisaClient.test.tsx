@@ -22,6 +22,7 @@ function metrics(overrides: Partial<AdAccountSummaryDto["totals"]> = {}) {
     leadForm: 2,
     totalLead: 20,
     rphD3: null,
+    rphLead: null,
     ...overrides,
   };
 }

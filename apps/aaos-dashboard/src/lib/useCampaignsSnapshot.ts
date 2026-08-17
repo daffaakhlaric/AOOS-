@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  CAMPAIGNS_CACHE_UPDATED_EVENT,
   readCampaignsCache,
   writeCampaignsCache,
   type CampaignsCacheEntry,
@@ -50,13 +51,24 @@ export function useCampaignsSnapshot(): CampaignsSnapshotState {
   }, []);
 
   useEffect(() => {
-    const cached = readCampaignsCache();
-    if (cached !== undefined) {
-      setData(cached.data);
-      setFetchedAt(cached.fetchedAt);
-      setPeriod(cached.period);
-      periodRef.current = cached.period;
+    function syncFromCache(): void {
+      const cached = readCampaignsCache();
+      if (cached !== undefined) {
+        setData(cached.data);
+        setFetchedAt(cached.fetchedAt);
+        setPeriod(cached.period);
+        periodRef.current = cached.period;
+      }
     }
+    syncFromCache();
+    // Real bug fix: without this, a `pull()` from a DIFFERENT `useCampaignsSnapshot()` instance
+    // on the same page (e.g. `CabangSourceClient` embedded at the top of `MetaAdsClient.tsx`)
+    // left this instance showing stale data until its own `pull()` was separately triggered — see
+    // `CAMPAIGNS_CACHE_UPDATED_EVENT`'s docstring in `campaignsCache.ts`.
+    window.addEventListener(CAMPAIGNS_CACHE_UPDATED_EVENT, syncFromCache);
+    return () => {
+      window.removeEventListener(CAMPAIGNS_CACHE_UPDATED_EVENT, syncFromCache);
+    };
   }, []);
 
   async function pull(datePreset?: string): Promise<void> {

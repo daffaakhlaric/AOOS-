@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,6 +22,7 @@ function metrics(overrides: Partial<AdAccountSummaryDto["totals"]> = {}) {
     leadForm: 2,
     totalLead: 8,
     rphD3: null,
+    rphLead: null,
     ...overrides,
   };
 }
@@ -210,8 +211,61 @@ describe("AuditClient", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
     render(<AuditClient />);
 
-    await userEvent.click(screen.getByRole("button", { name: /Tarik data baru/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Tarik Data Baru/i }));
     await waitFor(() => expect(screen.getByTestId("audit-kpi-bar")).toBeInTheDocument());
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/campaigns");
+  });
+
+  it("shows the real verdict badge (FIX) on a 'salah tujuan' row — never a hardcoded label", async () => {
+    writeCampaignsCache({ data: CAMPAIGNS_BODY, fetchedAt: Date.now(), period: "last_30d" });
+    render(<AuditClient />);
+
+    const wasteSection = await screen.findByTestId("audit-waste-section");
+    // "Ad Boost Cinere" carries the real verdict "FIX" in the fixture (objective !=
+    // OUTCOME_LEADS always produces FIX, VerdictEngine.ts's own top-priority rule).
+    const badges = within(wasteSection).getAllByTestId("verdict-badge");
+    expect(badges.some((badge) => badge.textContent?.includes("FIX"))).toBe(true);
+  });
+
+  it("colors the Rp/Chat KPI amber once the account-wide average crosses Rp 25.000", async () => {
+    const expensiveBody: AdAccountSummaryDto = {
+      ...CAMPAIGNS_BODY,
+      totals: metrics({ spend: 3_000_000, conversations: 10 }), // Rp 300.000/chat
+    };
+    writeCampaignsCache({ data: expensiveBody, fetchedAt: Date.now(), period: "last_30d" });
+    render(<AuditClient />);
+
+    const kpiBar = await screen.findByTestId("audit-kpi-bar");
+    expect(within(kpiBar).getByText("Rp 300.000").className).toContain("kpiValueAmber");
+  });
+
+  it("caps 'salah tujuan' rows at 5 shown, with a '+ N lainnya' row for the rest", async () => {
+    const manyAds = Array.from({ length: 7 }, (_, i) => ({
+      id: `ad-wrong-${i}`,
+      stableId: `#C10${i}`,
+      name: `Ad Salah Tujuan ${i}`,
+      campaignName: "Meta-Engagement-Boost",
+      status: "ACTIVE",
+      funnel: "BRAND_BOOST",
+      branch: "CINERE",
+      verdict: "FIX",
+      metrics: metrics({ spend: 100_000, conversations: 10 }),
+    }));
+    const manyBody: AdAccountSummaryDto = {
+      ...CAMPAIGNS_BODY,
+      campaigns: [
+        {
+          ...CAMPAIGNS_BODY.campaigns[1]!,
+          adSets: [{ ...CAMPAIGNS_BODY.campaigns[1]!.adSets[0]!, ads: manyAds }],
+        },
+      ],
+      ads: manyAds,
+    };
+    writeCampaignsCache({ data: manyBody, fetchedAt: Date.now(), period: "last_30d" });
+    render(<AuditClient />);
+
+    const wasteSection = await screen.findByTestId("audit-waste-section");
+    expect(wasteSection.textContent).toContain("+ 2 lainnya");
+    expect(wasteSection.textContent).not.toContain("Ad Salah Tujuan 6");
   });
 });

@@ -133,7 +133,9 @@ function writeStoredCollapsed(storageKey: string, collapsed: boolean): void {
 /**
  * Desktop navigation sidebar (spec "components/layout/Sidebar.tsx") — hidden below `md`, where
  * `MobileNav` takes over (spec "Mobile responsive"). Grouped into TAMARA (META ADS) / OPERASIONAL
- * sections (AAOS-TAMARA-PAGES redesign).
+ * sections (AAOS-TAMARA-PAGES redesign). "Lead & Spend per Cabang × Source" has no nav item of
+ * its own — it's embedded at the top of Data Iklan (`DATA_IKLAN`'s own page), not a separate
+ * route (user feedback: "itu data ada di halaman data iklan jadi di paling atas").
  *
  * TOTAL UI REBUILD spec "=== SIDEBAR ===": fixed 220px rail, logo area with a live indicator dot,
  * collapsible section headers (chevron rotates, 200ms height transition via CSS grid

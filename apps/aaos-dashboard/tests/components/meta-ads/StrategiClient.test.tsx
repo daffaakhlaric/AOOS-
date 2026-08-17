@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,6 +22,7 @@ function metrics(overrides: Partial<AdAccountSummaryDto["totals"]> = {}) {
     leadForm: 2,
     totalLead: 10,
     rphD3: null,
+    rphLead: null,
     ...overrides,
   };
 }
@@ -94,9 +95,9 @@ describe("StrategiClient", () => {
 
     const list = await screen.findByTestId("strategi-list");
     expect(list.textContent).toContain("Ad To Pause");
-    expect(list.textContent).toContain("🔴 Matikan");
+    expect(list.textContent).toContain("● Matikan");
     expect(list.textContent).toContain("Ad To Scale");
-    expect(list.textContent).toContain("📈 Naikkan budget");
+    expect(list.textContent).toContain("● Naikkan budget");
     expect(list.textContent).not.toContain("Ad Keep");
   });
 
@@ -191,5 +192,82 @@ describe("StrategiClient", () => {
     render(<StrategiClient />);
 
     expect(await screen.findByText(/Semua iklan sudah KEEP/)).toBeInTheDocument();
+  });
+
+  it("shows the real KPI strip counts (Total Usulan/Matikan/Scale) from real ad.verdict, never a recomputed threshold", async () => {
+    const fetchedAt = Date.now();
+    writeCampaignsCache({ data: buildData(fetchedAt), fetchedAt, period: "last_30d" });
+    render(<StrategiClient />);
+
+    const kpi = await screen.findByTestId("strategi-kpi-strip");
+    expect(kpi.textContent).toContain("Total Usulan");
+    expect(kpi.textContent).toContain("2"); // PAUSE + SCALE, KEEP excluded
+    expect(kpi.textContent).toContain("Potensi Hemat");
+    expect(kpi.textContent).toContain("Rp 800"); // the one PAUSE ad's real spend
+  });
+
+  it("requests Arahan Tamara via the real /api/llm/analyze shape ({temuan, rekomendasi, ringkasan}), not the spec's fictional {arahan, temuan:{summary,findings}}", async () => {
+    const fetchedAt = Date.now();
+    writeCampaignsCache({ data: buildData(fetchedAt), fetchedAt, period: "last_30d" });
+    global.fetch = vi.fn(async (input: string | URL) => {
+      if (String(input).includes("/api/llm/analyze")) {
+        return jsonResponse({
+          temuan: [{ icon: "🎯", judul: "Cabang termahal", detail: "Bandung Rp30rb/lead" }],
+          rekomendasi: [],
+          ringkasan: "Fokuskan budget ke Bintaro bulan ini.",
+        });
+      }
+      return jsonResponse({});
+    }) as unknown as typeof fetch;
+
+    render(<StrategiClient />);
+    await screen.findByTestId("strategi-arahan-card");
+    await userEvent.click(screen.getByRole("button", { name: /Minta Arahan Tamara/ }));
+
+    const result = await screen.findByTestId("strategi-arahan-result");
+    expect(result.textContent).toContain("Fokuskan budget ke Bintaro bulan ini.");
+    expect(result.textContent).toContain("Cabang termahal");
+  });
+
+  it("sends a chat message via /api/llm/chat and renders Tamara's reply", async () => {
+    const fetchedAt = Date.now();
+    writeCampaignsCache({ data: buildData(fetchedAt), fetchedAt, period: "last_30d" });
+    global.fetch = vi.fn(async (input: string | URL) => {
+      if (String(input).includes("/api/llm/chat")) {
+        return jsonResponse({ reply: "Fokuskan ke Bintaro dulu." });
+      }
+      return jsonResponse({});
+    }) as unknown as typeof fetch;
+
+    render(<StrategiClient />);
+    const chatWidget = await screen.findByTestId("tamara-chat-widget");
+    await userEvent.type(
+      screen.getByLabelText("Tanya Tamara"),
+      "Apa 3 langkah paling mendesak minggu ini?",
+    );
+    await userEvent.click(within(chatWidget).getByRole("button", { name: "Kirim" }));
+
+    await waitFor(() => expect(chatWidget.textContent).toContain("Fokuskan ke Bintaro dulu."));
+  });
+
+  it("filters the list by verdict via the filter tabs", async () => {
+    const fetchedAt = Date.now();
+    writeCampaignsCache({ data: buildData(fetchedAt), fetchedAt, period: "last_30d" });
+    render(<StrategiClient />);
+    await screen.findByTestId("strategi-list");
+
+    await userEvent.click(screen.getByRole("button", { name: "Scale" }));
+    const list = screen.getByTestId("strategi-list");
+    expect(list.textContent).toContain("Ad To Scale");
+    expect(list.textContent).not.toContain("Ad To Pause");
+  });
+
+  it("does not offer a 'Geser' filter tab or verdict — not a real Verdict enum member", async () => {
+    const fetchedAt = Date.now();
+    writeCampaignsCache({ data: buildData(fetchedAt), fetchedAt, period: "last_30d" });
+    render(<StrategiClient />);
+
+    const tabs = await screen.findByTestId("strategi-filter-tabs");
+    expect(tabs.textContent).not.toContain("Geser");
   });
 });

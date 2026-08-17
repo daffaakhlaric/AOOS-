@@ -1,0 +1,186 @@
+/*
+ * Real bug fix (embedded into the top of the Data Iklan page, not a standalone route — user
+ * feedback: "itu data ada di halaman data iklan jadi di paling atas"): no own `padding`/
+ * `max-width` here anymore — `MetaAdsClient.module.css`'s `.page` (the parent this now always
+ * renders inside) already provides both. A bottom border + margin separates this section from the
+ * existing "Data Iklan"/Kampanye content that follows it.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 24px;
+  margin-bottom: 8px;
+  border-bottom: var(--border);
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--black);
+  line-height: 1;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.secondaryButton {
+  padding: 7px 12px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.secondaryButton:hover {
+  background: var(--gray-100);
+}
+
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pillRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: var(--border);
+  background: var(--white);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.pill:hover {
+  background: var(--gray-100);
+}
+
+.pillActive {
+  background: var(--orange-50, #fff4e5);
+  border-color: var(--orange-500, #f5851f);
+  color: var(--orange-700, #b3560c);
+}
+
+.updating {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+@media (min-width: 640px) {
+  .kpiStrip {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+.kpiCell {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpiLabel {
+  font-size: 11px;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpiValue {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-top: 2px;
+}
+
+.kpiValueBlue {
+  color: var(--blue-600, #2563eb);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.mutedText {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.caption {
+  font-size: 11px;
+  color: var(--gray-400);
+  line-height: 1.4;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+}
+
+.table {
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+
+.tableHeadRow th {
+  font-size: 11px;
+  color: var(--gray-400);
+  padding: 8px 12px;
+  font-weight: 500;
+}
+
+.tableRow {
+  border-top: var(--border);
+}
+
+.tableCell {
+  padding: 6px 12px;
+}
+
+.footer {
+  font-size: 12px;
+  color: var(--gray-400);
+}

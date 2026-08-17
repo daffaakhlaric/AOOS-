@@ -18,6 +18,7 @@ describe("CampaignFunnelBar", () => {
           leadForm: 20,
           totalLead: 320,
           rphD3: null,
+          rphLead: null,
         }}
       />,
     );

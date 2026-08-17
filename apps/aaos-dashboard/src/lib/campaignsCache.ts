@@ -80,6 +80,18 @@ export function readCampaignsHistory(): readonly CampaignsCacheEntry[] {
 }
 
 /**
+ * Fired on `window` right after a successful `writeCampaignsCache()` (real bug fix: embedding
+ * `CabangSourceClient` at the top of `MetaAdsClient.tsx`'s own page means two independent readers
+ * of this SAME cache now render side by side on one page — without this, clicking "Tarik Data
+ * Baru" updated `MetaAdsClient`'s own tree below but left `CabangSourceClient`'s KPI/Per Cabang/
+ * Top Campaign numbers at the top stale until its own separate "Perbarui" button was also
+ * clicked, which looked broken). Every `useCampaignsSnapshot()` consumer listens for this and
+ * re-reads the cache, so any pull from any widget on the page refreshes all of them — same-tab
+ * only (a plain DOM event, not `storage`, which never fires in the tab that made the write).
+ */
+export const CAMPAIGNS_CACHE_UPDATED_EVENT = "aaos-campaigns-cache-updated";
+
+/**
  * Writes `entry` as the new current cache, pushing whatever was current before it onto the front
  * of the history list (capped at 3). A fresh pull that's identical in `period` to the outgoing one
  * still gets recorded — history is "the last 3 times data was pulled", not "the last 3 distinct
@@ -93,4 +105,5 @@ export function writeCampaignsCache(entry: CampaignsCacheEntry): void {
     const updated = [previous, ...history].slice(0, MAX_HISTORY_ENTRIES);
     localStorage.setItem(CAMPAIGNS_HISTORY_KEY, JSON.stringify(updated));
   }
+  window.dispatchEvent(new Event(CAMPAIGNS_CACHE_UPDATED_EVENT));
 }

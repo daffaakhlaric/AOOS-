@@ -105,6 +105,7 @@ export type {
   CreateAdSetParams,
   MetaCreateResponse,
 } from "./contracts/IMetaAdsClient.js";
+export type { MetaAdAccountResponse } from "./types/MetaApiTypes.js";
 export type { ILeadWebhookParser, RawLeadData } from "./contracts/ILeadWebhookParser.js";
 export type {
   ExecutionAction,

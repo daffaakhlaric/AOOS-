@@ -3,6 +3,7 @@ import "reflect-metadata";
 import type { ExecutionResult } from "@aos/meta-ads-connector";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import { ApiKeyGuard } from "./guards/api-key.guard.js";
 import { MetaAdsController } from "./meta-ads.controller.js";
@@ -13,6 +14,9 @@ function buildFakeService(): MetaAdsService {
     pullCampaigns: vi.fn(async () => ({ id: "act_1" }) as AdAccountResponseDto),
     executeVerdict: vi.fn(
       async () => ({ action: "PAUSED", targetId: "id", targetType: "ad" }) as ExecutionResult,
+    ),
+    getAdAccounts: vi.fn(
+      async () => [{ id: "act_1", name: "DSS Motor" }] as readonly AdAccountOptionDto[],
     ),
   } as unknown as MetaAdsService;
 }
@@ -39,6 +43,14 @@ describe("MetaAdsController", () => {
     const result = await controller.postVerdict(body, "corr-2");
     expect(service.executeVerdict).toHaveBeenCalledWith(body, "corr-2");
     expect(result).toEqual({ action: "PAUSED", targetId: "id", targetType: "ad" });
+  });
+
+  it("GET /api/v1/meta-ads/accounts delegates to MetaAdsService.getAdAccounts", async () => {
+    const service = buildFakeService();
+    const controller = new MetaAdsController(service);
+    const result = await controller.getAdAccounts();
+    expect(service.getAdAccounts).toHaveBeenCalledWith();
+    expect(result).toEqual([{ id: "act_1", name: "DSS Motor" }]);
   });
 
   it("guards the whole controller with ApiKeyGuard", () => {

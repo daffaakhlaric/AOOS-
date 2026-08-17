@@ -6,6 +6,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
 
+import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import { toAdAccountResponseDto, type AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import type { ExecuteVerdictBodyDto } from "./dto/execute-verdict.dto.js";
 import type { PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
@@ -52,6 +53,31 @@ export class MetaAdsService {
     }
 
     return toAdAccountResponseDto(result.value);
+  }
+
+  /**
+   * `GET /api/v1/meta-ads/accounts` — resolves the display `name` for every configured
+   * `META_AD_ACCOUNT_IDS` entry, backing the dashboard's multi-account pill selector
+   * (`docs/PROMPT-AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE.md` coordinator note #6). Deliberately
+   * one lightweight `getAdAccount` call per configured id, never the full `getCampaigns` pull.
+   *
+   * Judgment call: if Meta's name lookup fails for one particular account (bad token scope, that
+   * account temporarily unreachable, etc.), this falls back to using the raw id as the display
+   * name for THAT entry rather than failing the whole endpoint — a multi-account dealership
+   * losing the selector entirely because one of N accounts had a transient lookup failure would
+   * be a worse outcome than showing one pill labelled with its raw id instead of a friendly name.
+   * (Contrast with `pullCampaigns` above, which correctly propagates a single hard failure — that
+   * call is for one specific account the caller asked for, so there's nothing to gracefully
+   * degrade to.)
+   */
+  async getAdAccounts(): Promise<readonly AdAccountOptionDto[]> {
+    const results = await Promise.all(
+      this.config.META_AD_ACCOUNT_IDS.map(async (id) => {
+        const result = await this.connector.client.getAdAccount(id, this.config.META_ACCESS_TOKEN);
+        return { id, name: result.ok ? result.value.name : id };
+      }),
+    );
+    return results;
   }
 
   async executeVerdict(

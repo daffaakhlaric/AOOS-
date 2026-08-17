@@ -1,15 +1,32 @@
+/*
+ * Real bug fix (same recurring issue/fix as `MetaAdsClient.module.css`/`DashboardClient.module.css`'s
+ * `.page`): this page's content (KPI strip, funnel/branch bar cards, a data table) is wide,
+ * data-dense content, not prose — a `max-width` cap left a large empty gap on the right on wider
+ * viewports. No cap here; it fills its parent (`.main`, the app shell's content column).
+ */
 .page {
   display: flex;
   flex-direction: column;
   gap: 24px;
   padding: 32px;
-  max-width: 1200px;
+}
+
+.headerWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.breadcrumb {
+  font-size: 11px;
+  color: var(--gray-400);
 }
 
 .headerRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .title {
@@ -36,6 +53,7 @@
   font-weight: 500;
   color: var(--gray-700);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .secondaryButton:hover {
@@ -80,6 +98,13 @@
   font-weight: 600;
   color: var(--gray-900);
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* KPI strip's Rp/Chat cell turns amber once the account-wide average crosses the same
+   > Rp 25.000 threshold the waste-detection section uses. */
+.kpiValueAmber {
+  color: var(--amber);
 }
 
 .section {
@@ -99,51 +124,226 @@
   color: var(--gray-500);
 }
 
-.groupList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.groupCard {
+.card {
   border-radius: var(--radius-lg);
   border: var(--border);
   background: var(--white);
-  padding: 12px;
+  padding: 4px 16px;
 }
 
-.groupName {
+/* Belanja per Funnel / Belanja per Cabang shared row+bar layout. */
+.barList {
+  display: flex;
+  flex-direction: column;
+}
+
+.barRow {
+  padding: 12px 0;
+  border-top: 1px solid var(--gray-100);
+}
+
+.barRow:first-child {
+  border-top: none;
+}
+
+.barRowTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.barRowName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   font-weight: 500;
   color: var(--gray-900);
 }
 
-.groupMeta {
+.barRowCount {
+  font-size: 11px;
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
+
+.barTrack {
+  height: 3px;
+  background: var(--gray-100);
+  border-radius: 2px;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 200ms ease-out;
+}
+
+.barBlue {
+  background: var(--blue);
+}
+
+.barGreen {
+  background: var(--green);
+}
+
+.barAmber {
+  background: var(--amber);
+}
+
+.barRed {
+  background: var(--red);
+}
+
+.barGray {
+  background: var(--gray-300);
+}
+
+.barRowMeta {
+  margin-top: 6px;
   font-size: 12px;
   color: var(--gray-500);
 }
 
+.barRowSpend {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-900);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotBlue {
+  background: var(--blue);
+}
+
+.dotGreen {
+  background: var(--green);
+}
+
+.dotAmber {
+  background: var(--amber);
+}
+
+.dotGray {
+  background: var(--gray-400);
+}
+
+.textGreen {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.textAmber {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.textRed {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* Deteksi Pemborosan — 3 colored sub-blocks inside one card. */
 .wasteBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  padding: 12px 0;
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.wasteBlock:first-child {
+  border-top: none;
+}
+
+.wasteBlockAmber {
+  background: var(--amber-light);
+}
+
+.wasteBlockRed {
+  background: var(--red-light);
+}
+
+.wasteBlockGray {
+  background: var(--gray-100);
 }
 
 .wasteLabel {
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.wasteBlockAmber .wasteLabel {
+  color: var(--amber);
+}
+
+.wasteBlockRed .wasteLabel {
+  color: var(--red);
+}
+
+.wasteBlockGray .wasteLabel {
   color: var(--gray-500);
 }
 
 .wasteList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .wasteItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--gray-900);
+}
+
+.idBadge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: var(--white);
+  border: var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.wasteItemName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wasteItemValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+  flex-shrink: 0;
+}
+
+.wasteItemMore {
+  font-size: 12px;
+  color: var(--gray-400);
+  padding-top: 2px;
 }
 
 .tableWrap {
@@ -160,6 +360,10 @@
   border-collapse: collapse;
 }
 
+.tableHeadRow {
+  background: var(--gray-100);
+}
+
 .tableHeadRow th {
   font-size: 11px;
   color: var(--gray-400);
@@ -172,5 +376,21 @@
 }
 
 .tableCell {
-  padding: 4px 12px;
+  padding: 8px 12px;
+}
+
+.tableCellMono {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.tableCellStrong {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.tableCellMuted {
+  color: var(--gray-500);
 }

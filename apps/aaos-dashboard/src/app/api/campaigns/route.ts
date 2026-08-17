@@ -53,6 +53,7 @@ const ZERO_METRICS: CampaignAdDto["metrics"] = {
   leadForm: 0,
   totalLead: 0,
   rphD3: null,
+  rphLead: null,
 };
 
 function toAdSummary(
@@ -146,6 +147,10 @@ function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
       leadForm: acc.leadForm + ad.metrics.leadForm,
       totalLead: acc.totalLead + ad.metrics.totalLead,
       rphD3: null,
+      // Not summed — same non-additive-average judgment call as `rphD3` above (a group's real
+      // Rp/Lead is `groupSpend / groupTotalLead`, not a sum of per-ad ratios). Callers needing a
+      // group-level Rp/Lead (e.g. the KPI strip, "Per Cabang") derive it themselves from spend/lead.
+      rphLead: null,
     }),
     { ...ZERO_METRICS },
   );

@@ -61,6 +61,19 @@ export class MetaApiRequestBuilder {
     return MetaApiRequestBuilder.buildGetUrl(`${adSetId}/ads`, accessToken, fields, cursor);
   }
 
+  /**
+   * `GET /{ad_account_id}?fields=name` — the lightweight name lookup for the multi-account
+   * selector (coordinator note #6 on `docs/PROMPT-AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE.md`).
+   * Intentionally the ONLY field requested (no `insights` expansion, no campaign fields) — this
+   * is called once per configured ad account to build a picker, not to pull performance data.
+   */
+  static adAccountUrl(adAccountId: string, accessToken: string): string {
+    const url = new URL(`${BASE_URL}/${API_VERSION}/${adAccountId}`);
+    url.searchParams.set("fields", "name");
+    url.searchParams.set("access_token", accessToken);
+    return url.toString();
+  }
+
   static pauseAdUrl(adId: string): string {
     return `${BASE_URL}/${API_VERSION}/${adId}`;
   }

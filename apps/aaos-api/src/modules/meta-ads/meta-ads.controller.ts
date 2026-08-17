@@ -4,6 +4,7 @@ import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from "@nestjs
 import { CorrelationId } from "../../common/correlation.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 
+import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import { ExecuteVerdictBodySchema, type ExecuteVerdictBodyDto } from "./dto/execute-verdict.dto.js";
 import { PullCampaignsQuerySchema, type PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
@@ -22,6 +23,18 @@ export class MetaAdsController {
     @CorrelationId() correlationId: string,
   ): Promise<AdAccountResponseDto> {
     return this.metaAdsService.pullCampaigns(query, correlationId);
+  }
+
+  /**
+   * `GET /api/v1/meta-ads/accounts` — the configured ad accounts (id + resolved display name),
+   * backing the dashboard's multi-account pill selector (coordinator note #6 on
+   * `docs/PROMPT-AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE.md`). Always returns at least 1 entry
+   * (parseAaosApiConfig requires `META_AD_ACCOUNT_IDS` to be non-empty) — the dashboard only
+   * needs to render the "Semua Akun" pill when this array has more than 1 element.
+   */
+  @Get("meta-ads/accounts")
+  async getAdAccounts(): Promise<readonly AdAccountOptionDto[]> {
+    return this.metaAdsService.getAdAccounts();
   }
 
   @Post("verdicts")

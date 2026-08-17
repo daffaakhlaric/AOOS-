@@ -11,6 +11,7 @@ import { ExecuteVerdict } from "../application/use-cases/ExecuteVerdict.js";
 import { ProcessLeadWebhook } from "../application/use-cases/ProcessLeadWebhook.js";
 import { PullCampaignData, type Tracer } from "../application/use-cases/PullCampaignData.js";
 import type { MetaAdsConnectorConfig } from "../config/MetaAdsConnectorConfig.js";
+import type { IMetaAdsClient } from "../contracts/IMetaAdsClient.js";
 import { MetaAdsConnectorEvents } from "../domain/events/MetaAdsConnectorEvents.js";
 import { MetaApiClient } from "../infrastructure/meta-api/MetaApiClient.js";
 import { TokenBucketRateLimiter } from "../infrastructure/rate-limiter/TokenBucketRateLimiter.js";
@@ -41,6 +42,14 @@ export interface MetaAdsConnector {
   readonly processLeadWebhook: ProcessLeadWebhook;
   readonly registry: AdAccountRegistry;
   readonly rateLimiter: TokenBucketRateLimiter;
+  /**
+   * The raw `IMetaAdsClient` port — exposed (unlike other infra internals, which stay private to
+   * the use cases above) so `apps/aaos-api`'s `MetaAdsService` can call the small, standalone
+   * `getAdAccount` lookup (multi-account pill selector, coordinator note #6 on
+   * `docs/PROMPT-AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE.md`) without this package needing a
+   * whole new use-case class just to wrap one lightweight read.
+   */
+  readonly client: IMetaAdsClient;
 }
 
 /**
@@ -122,6 +131,7 @@ export class MetaAdsConnectorFactory {
       processLeadWebhook,
       registry,
       rateLimiter,
+      client,
     };
   }
 }

@@ -17,6 +17,8 @@ export interface AdMetricsDto {
   readonly leadForm: number;
   readonly totalLead: number;
   readonly rphD3: number | null;
+  /** AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE: mirrors `AdMetricsResponseDto.rphLead` on the real `aaos-api` response (`spend / totalLead`, division-by-zero safe — see `Rph`/`AdMetrics` in `@aos/meta-ads-connector`). Was already computed server-side but never plumbed through this app's DTOs; added so "Lead & Spend per Cabang × Source"'s "RP/LEAD" column can reuse the real per-ad value rather than re-deriving it, same discipline as `rphD3`. */
+  readonly rphLead: number | null;
 }
 
 export interface CampaignAdDto {
@@ -79,6 +81,12 @@ export interface AdAccountSummaryDto {
   readonly totals: AdMetricsDto;
   readonly campaignCount: number;
   readonly adCount: number;
+}
+
+/** `GET /api/v1/meta-ads/accounts` proxy response entry (AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE coordinator note #6) — powers the multi-account pill selector on "Lead & Spend per Cabang × Source". */
+export interface AdAccountOptionDto {
+  readonly id: string;
+  readonly name: string;
 }
 
 export interface ObjectiveDto {

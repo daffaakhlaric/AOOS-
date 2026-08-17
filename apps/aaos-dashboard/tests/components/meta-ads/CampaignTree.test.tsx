@@ -19,6 +19,7 @@ function metrics(
     leadForm: 2,
     totalLead: 12,
     rphD3: 100_000,
+    rphLead: 83_333,
     ...overrides,
   };
 }

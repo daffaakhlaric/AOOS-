@@ -103,6 +103,25 @@ export function registerHappyPathMetaApiHandlers(options: MetaFixtureOptions = {
   );
 }
 
+/** Registers `GET /{ad_account_id}?fields=name` -> `{ id, name }`, for `MetaAdsService.getAdAccounts` happy-path tests (coordinator note #6, multi-account pill selector). */
+export function registerAdAccountNameMswHandler(
+  accountsById: Readonly<Record<string, string>>,
+): void {
+  mswServer.use(
+    http.get(`${BASE}/:adAccountId`, ({ params }) => {
+      const id = String(params["adAccountId"]);
+      const name = accountsById[id];
+      if (name === undefined) {
+        return HttpResponse.json(
+          { error: { message: "Unknown ad account", type: "OAuthException", code: 100 } },
+          { status: 400 },
+        );
+      }
+      return HttpResponse.json({ id, name });
+    }),
+  );
+}
+
 export function registerMetaApiErrorHandler(status: number, code?: number): void {
   mswServer.use(
     http.get(`${BASE}/:adAccountId/campaigns`, () =>

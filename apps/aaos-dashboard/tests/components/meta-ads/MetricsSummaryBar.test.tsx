@@ -14,6 +14,7 @@ const TOTALS = {
   leadForm: 163,
   totalLead: 2798,
   rphD3: null,
+  rphLead: null,
 };
 
 describe("MetricsSummaryBar", () => {

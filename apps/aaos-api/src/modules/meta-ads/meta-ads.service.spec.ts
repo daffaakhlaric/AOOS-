@@ -7,6 +7,7 @@ import { createFakePublisher } from "../../test-support/fake-publisher.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import {
   mswServer,
+  registerAdAccountNameMswHandler,
   registerHappyPathMetaApiHandlers,
   registerMetaApiErrorHandler,
   registerMetaApiPostErrorHandler,
@@ -85,6 +86,53 @@ describe("MetaAdsService", () => {
       await expect(
         service.pullCampaigns({ datePreset: "last_30d" }, "corr-5"),
       ).rejects.toBeInstanceOf(ValidationError);
+    });
+  });
+
+  describe("getAdAccounts", () => {
+    it("resolves the real name for every configured account id", async () => {
+      registerAdAccountNameMswHandler({
+        act_752604553578354: "DSS Motor",
+        act_999999999999999: "Pusat Grosir Mobil",
+      });
+      const config = buildTestConfig({
+        META_AD_ACCOUNT_IDS: ["act_752604553578354", "act_999999999999999"],
+      });
+      const connectorConfig = toConnectorConfig(config);
+      if (!connectorConfig.ok) {
+        throw new Error("test setup failed");
+      }
+      const connector = MetaAdsConnectorFactory.create({
+        config: connectorConfig.value,
+        publisher: createFakePublisher(),
+      });
+      const service = new MetaAdsService(config, connector);
+      const accounts = await service.getAdAccounts();
+      expect(accounts).toEqual([
+        { id: "act_752604553578354", name: "DSS Motor" },
+        { id: "act_999999999999999", name: "Pusat Grosir Mobil" },
+      ]);
+    });
+
+    it("falls back to the raw id when Meta's name lookup fails for one account, without failing the others", async () => {
+      registerAdAccountNameMswHandler({ act_752604553578354: "DSS Motor" });
+      const config = buildTestConfig({
+        META_AD_ACCOUNT_IDS: ["act_752604553578354", "act_000000000000000"],
+      });
+      const connectorConfig = toConnectorConfig(config);
+      if (!connectorConfig.ok) {
+        throw new Error("test setup failed");
+      }
+      const connector = MetaAdsConnectorFactory.create({
+        config: connectorConfig.value,
+        publisher: createFakePublisher(),
+      });
+      const service = new MetaAdsService(config, connector);
+      const accounts = await service.getAdAccounts();
+      expect(accounts).toEqual([
+        { id: "act_752604553578354", name: "DSS Motor" },
+        { id: "act_000000000000000", name: "act_000000000000000" },
+      ]);
     });
   });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { CabangSourceClient } from "@/components/meta-ads/CabangSourceClient";
 import { CampaignTree } from "@/components/meta-ads/CampaignTree";
 import { DateRangeSelector } from "@/components/meta-ads/DateRangeSelector";
 import { MetricsSummaryBar } from "@/components/meta-ads/MetricsSummaryBar";
@@ -10,6 +11,7 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import {
   CAMPAIGNS_CACHE_TTL_MS,
+  CAMPAIGNS_CACHE_UPDATED_EVENT,
   readCampaignsCache,
   readCampaignsHistory,
   writeCampaignsCache,
@@ -90,13 +92,25 @@ export function MetaAdsClient(): React.ReactElement {
   // initializer) because `localStorage` doesn't exist during this "use client" component's SSR
   // pass; touching it outside an effect would throw / cause a hydration mismatch.
   useEffect(() => {
-    const cached = readCampaignsCache();
-    if (cached !== undefined) {
-      setData(cached.data);
-      setFetchedAt(cached.fetchedAt);
-      setDatePreset(cached.period);
+    function syncFromCache(): void {
+      const cached = readCampaignsCache();
+      if (cached !== undefined) {
+        setData(cached.data);
+        setFetchedAt(cached.fetchedAt);
+        setDatePreset(cached.period);
+      }
+      setHistory(readCampaignsHistory());
     }
-    setHistory(readCampaignsHistory());
+    syncFromCache();
+    // Real bug fix: `CabangSourceClient` is now embedded at the top of this same page and reads
+    // the SAME cache via its own `useCampaignsSnapshot()` instance — without this listener, a
+    // pull triggered from ITS "↻ Perbarui" button (rather than this page's own "Tarik Data Baru")
+    // would update the cache but leave this component's own tree/KPI strip stale below it. See
+    // `CAMPAIGNS_CACHE_UPDATED_EVENT`'s docstring in `campaignsCache.ts`.
+    window.addEventListener(CAMPAIGNS_CACHE_UPDATED_EVENT, syncFromCache);
+    return () => {
+      window.removeEventListener(CAMPAIGNS_CACHE_UPDATED_EVENT, syncFromCache);
+    };
   }, []);
 
   async function pullData(): Promise<void> {
@@ -177,6 +191,11 @@ export function MetaAdsClient(): React.ReactElement {
 
   return (
     <div className={styles.page}>
+      {/* "Lead & Spend per Cabang × Source" (user feedback: "itu data ada di halaman data iklan
+          jadi di paling atas" — belongs at the very top of Data Iklan, not a separate sub-tab).
+          Reads the SAME cache this page's own tree reads below (`useCampaignsSnapshot()`), so
+          nothing here triggers an extra Meta API call. */}
+      <CabangSourceClient />
       <div>
         <h2 className={styles.pageTitle}>Data Iklan</h2>
         <p className={styles.pageSubtitle}>
