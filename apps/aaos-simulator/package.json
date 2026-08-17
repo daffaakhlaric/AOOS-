@@ -5,9 +5,9 @@
   "description": "AAOS Simulator — internal Next.js tool for DSS Motor to run Jessy conversation simulations and review AI Judge scores before production WhatsApp deployment.",
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4100",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 4100",
     "lint": "next lint",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

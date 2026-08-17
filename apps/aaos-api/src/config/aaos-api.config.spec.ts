@@ -158,4 +158,24 @@ describe("parseAaosApiConfig", () => {
       expect(result.value.OPENAI_API_KEY).toBe("sk-real-key");
     }
   });
+
+  it("defaults AAOS_SIMULATOR_BASE_URL to an empty string when omitted (Jessy/Judge stage degrades gracefully, config never fails to boot)", () => {
+    const env = buildTestEnv();
+    delete env.AAOS_SIMULATOR_BASE_URL;
+    const result = parseAaosApiConfig(env);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.AAOS_SIMULATOR_BASE_URL).toBe("");
+    }
+  });
+
+  it("accepts a configured AAOS_SIMULATOR_BASE_URL", () => {
+    const result = parseAaosApiConfig(
+      buildTestEnv({ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.AAOS_SIMULATOR_BASE_URL).toBe("http://localhost:4100");
+    }
+  });
 });

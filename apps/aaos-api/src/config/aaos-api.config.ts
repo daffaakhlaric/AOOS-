@@ -58,6 +58,17 @@ export interface AaosApiConfig {
    * at all. See coordinator note #1 on `docs/PROMPT-AAOS-API-LLM-TAMARA.md`.
    */
   readonly OPENAI_API_KEY: string;
+
+  /**
+   * AAOS-DASHBOARD-SIMULASI — base URL of the real, already-deployed sibling app
+   * `apps/aaos-simulator` (its `POST /api/simulate` runs Jessy conversation simulations + AI
+   * Judge scoring). Deliberately allowed to be an empty string, same rationale as
+   * `OPENAI_API_KEY`: this app must boot and serve every other endpoint even when
+   * `apps/aaos-simulator` isn't reachable from this environment yet. `SimulationService` treats an
+   * empty value as "Jessy/Judge stage unavailable" and records that honestly on the simulation
+   * record instead of throwing or fabricating a result.
+   */
+  readonly AAOS_SIMULATOR_BASE_URL: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -105,6 +116,10 @@ export const AaosApiConfigSchema = z.object({
   // Intentionally NOT `.min(1, ...)` — an empty/unset OPENAI_API_KEY is a valid, expected runtime
   // state (see the `AaosApiConfig.OPENAI_API_KEY` doc comment above).
   OPENAI_API_KEY: z.string().default(""),
+
+  // Intentionally NOT `.min(1, ...)`/`.url(...)` — see the `AaosApiConfig.AAOS_SIMULATOR_BASE_URL`
+  // doc comment above.
+  AAOS_SIMULATOR_BASE_URL: z.string().default(""),
 });
 
 /**

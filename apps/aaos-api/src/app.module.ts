@@ -31,6 +31,7 @@ import {
   LEAD_STORE_MESSAGE_REPOSITORY,
   META_ADS_CONNECTOR,
   OBJECTIVE_ENGINE,
+  SUPABASE_CLIENT,
   WHATSAPP_CONNECTOR,
 } from "./di-tokens.js";
 import { AaosExceptionFilter } from "./filters/aaos-exception.filter.js";
@@ -46,6 +47,7 @@ import { LlmModule } from "./modules/llm/llm.module.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
+import { SimulationModule } from "./modules/simulation/simulation.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
 import { WhatsAppWebhookModule } from "./modules/whatsapp-webhook/whatsapp-webhook.module.js";
 
@@ -140,6 +142,7 @@ export class AppModule {
         CampaignsModule,
         ClosingsModule,
         SalesModule,
+        SimulationModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },
@@ -151,6 +154,7 @@ export class AppModule {
         { provide: BRANCH_MANAGER, useValue: branchManager },
         { provide: LEAD_STORE_MESSAGE_REPOSITORY, useValue: messageRepository },
         { provide: LEAD_STORE_CLOSING_REPOSITORY, useValue: closingRepository },
+        { provide: SUPABASE_CLIENT, useValue: leadStoreSupabaseClient },
         { provide: APP_FILTER, useValue: new AaosExceptionFilter() },
         { provide: APP_INTERCEPTOR, useValue: new LoggingInterceptor() },
         { provide: APP_INTERCEPTOR, useValue: new TracingInterceptor() },
@@ -165,6 +169,7 @@ export class AppModule {
         BRANCH_MANAGER,
         LEAD_STORE_MESSAGE_REPOSITORY,
         LEAD_STORE_CLOSING_REPOSITORY,
+        SUPABASE_CLIENT,
       ],
     };
   }

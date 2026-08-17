@@ -2,10 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import { AnalyzeLlmPayloadSchema, AnalyzeRequestSchema } from "./analyze.dto.js";
 
-const validAd = {
+/**
+ * Real bug fix regression fixture: this is the ACTUAL shape `apps/aaos-dashboard`'s
+ * `AnalisaClient.tsx`/`SimulationWizardClient.tsx` send — the dashboard's own client-safe,
+ * TRIMMED `CampaignSummaryDto`/`AdSetSummaryDto`/`AdSummaryDto`/`AdMetricsDto`
+ * (`apps/aaos-dashboard/src/types/dashboard.types.ts`), never the backend-internal
+ * `CampaignResponseDto` family (no `metaId` anywhere, no campaign-level `funnel`/`branch`/
+ * `createdAt`, no ad-set-level `branch`/`dailyBudget`, no ad-level `createdAt`, no
+ * `impressions`/`reach`/`rphChat` on metrics). Before this fix, `AnalyzeRequestSchema` required
+ * all of those, so every real call from the dashboard failed `ZodValidationPipe` with a "Request
+ * validation failed" error the first time either caller was actually exercised against real data.
+ */
+const dashboardShapedAd = {
   id: "ad-1",
   stableId: "stable-1",
-  metaId: "meta-1",
   name: "Ad 1",
   status: "ACTIVE",
   funnel: "MAAO2",
@@ -13,8 +23,6 @@ const validAd = {
   verdict: "SCALE",
   metrics: {
     spend: 100,
-    impressions: 1000,
-    reach: 900,
     frequency: 1.1,
     clicks: 20,
     conversations: 10,
@@ -23,49 +31,65 @@ const validAd = {
     d5: 3,
     leadForm: 1,
     totalLead: 2,
-    rphChat: 10,
     rphD3: null,
     rphLead: null,
   },
-  createdAt: "2026-01-01T00:00:00.000Z",
-  daysSinceCreation: 30,
+  // Optional on the real dashboard type — omitted here on purpose to also cover that case.
 };
 
-const validAdSet = {
+const dashboardShapedAdSet = {
   id: "adset-1",
   stableId: "stable-adset-1",
-  metaId: "meta-adset-1",
   name: "AdSet 1",
   status: "ACTIVE",
-  branch: "BINTARO",
-  dailyBudget: 100000,
   spend: 50000,
-  ads: [validAd],
+  ads: [dashboardShapedAd],
 };
 
-const validCampaign = {
+const dashboardShapedCampaign = {
   id: "campaign-1",
   stableId: "stable-campaign-1",
-  metaId: "meta-campaign-1",
   name: "Campaign 1",
   objective: "OUTCOME_LEADS",
   status: "ACTIVE",
-  funnel: "MAAO2",
-  branch: "BINTARO",
   spend: 500000,
-  createdAt: "2026-01-01T00:00:00.000Z",
-  adSets: [validAdSet],
+  adSets: [dashboardShapedAdSet],
 };
 
 describe("AnalyzeRequestSchema", () => {
-  it("accepts a real AdAccountResponseDto-shaped campaigns array", () => {
-    const result = AnalyzeRequestSchema.safeParse({ campaigns: [validCampaign] });
+  it("accepts the REAL trimmed dashboard-sent campaigns shape (regression guard for the real bug fix)", () => {
+    const result = AnalyzeRequestSchema.safeParse({ campaigns: [dashboardShapedCampaign] });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts daysSinceCreation when present (still optional either way)", () => {
+    const result = AnalyzeRequestSchema.safeParse({
+      campaigns: [
+        {
+          ...dashboardShapedCampaign,
+          adSets: [
+            {
+              ...dashboardShapedAdSet,
+              ads: [{ ...dashboardShapedAd, daysSinceCreation: 5 }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a totals bag whose values include null (real AdMetricsDto.rphD3/rphLead shape — regression guard)", () => {
+    const result = AnalyzeRequestSchema.safeParse({
+      campaigns: [dashboardShapedCampaign],
+      totals: { spend: 500000, totalLead: 12, rphD3: null, rphLead: null },
+    });
     expect(result.success).toBe(true);
   });
 
   it("accepts an optional numeric totals bag", () => {
     const result = AnalyzeRequestSchema.safeParse({
-      campaigns: [validCampaign],
+      campaigns: [dashboardShapedCampaign],
       totals: { totalSpend: 500000, totalLeads: 12 },
     });
     expect(result.success).toBe(true);
@@ -77,15 +101,18 @@ describe("AnalyzeRequestSchema", () => {
   });
 
   it("rejects a campaign missing required fields", () => {
-    const { spend: _spend, ...campaignWithoutSpend } = validCampaign;
+    const { spend: _spend, ...campaignWithoutSpend } = dashboardShapedCampaign;
     const result = AnalyzeRequestSchema.safeParse({ campaigns: [campaignWithoutSpend] });
     expect(result.success).toBe(false);
   });
 
   it("rejects a non-numeric metric field", () => {
-    const badAd = { ...validAd, metrics: { ...validAd.metrics, spend: "not-a-number" } };
-    const badAdSet = { ...validAdSet, ads: [badAd] };
-    const badCampaign = { ...validCampaign, adSets: [badAdSet] };
+    const badAd = {
+      ...dashboardShapedAd,
+      metrics: { ...dashboardShapedAd.metrics, spend: "not-a-number" },
+    };
+    const badAdSet = { ...dashboardShapedAdSet, ads: [badAd] };
+    const badCampaign = { ...dashboardShapedCampaign, adSets: [badAdSet] };
     const result = AnalyzeRequestSchema.safeParse({ campaigns: [badCampaign] });
     expect(result.success).toBe(false);
   });

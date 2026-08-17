@@ -24,7 +24,7 @@ const ANALISA: NavItem = {
 const STRATEGI: NavItem = { href: "/meta-ads/strategi", label: "Strategi & Approve", icon: "🧭" };
 const SIMULASI: NavItem = {
   href: "/meta-ads/simulasi",
-  label: "Simulasi Tamara × Kai",
+  label: "Simulasi Tamara × Kai × Jessy",
   icon: "🎬",
 };
 const OBJECTIVE: NavItem = { href: "/objective", label: "Objective", icon: "🎯" };

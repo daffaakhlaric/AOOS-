@@ -231,3 +231,130 @@ export interface LlmChatMessageDto {
 export interface LlmChatResponseDto {
   readonly reply: string;
 }
+
+/**
+ * AAOS-DASHBOARD-SIMULASI — client-safe mirrors of `aaos-api`'s new `modules/simulation` DTOs
+ * (`GET/POST /api/v1/simulation/*`, proxied via this app's own `/api/simulation/*` routes). Same
+ * "plain hand-written interface, never import a backend DTO" convention as this file's other
+ * `Llm*Dto` types.
+ */
+export interface SimulationTamaraStageDto {
+  readonly available: boolean;
+  readonly reason?: string;
+  readonly temuan?: readonly LlmTemuanDto[];
+  readonly rekomendasi?: readonly LlmRekomendasiDto[];
+  readonly ringkasan?: string;
+  readonly elapsedMs: number;
+  readonly coverageScore: number;
+}
+
+export interface SimulationKaiBriefDto {
+  readonly unit: string;
+  readonly angle: string;
+  readonly branch: string;
+  readonly primaryMessage: string;
+  readonly tone: string;
+  readonly formats: readonly string[];
+  readonly avoid: readonly string[];
+  readonly urgency: string;
+}
+
+export interface SimulationKaiStageDto {
+  readonly available: boolean;
+  readonly reason?: string;
+  readonly brief?: SimulationKaiBriefDto;
+  readonly elapsedMs: number;
+  readonly videoGenerated: false;
+  readonly note: string;
+}
+
+export interface SimulationJessyPersonaRunDto {
+  readonly personaId: string;
+  readonly ok: boolean;
+  readonly error?: string;
+  readonly finalScore?: number;
+  readonly finalTemperature?: string;
+  readonly handoffTriggered?: boolean;
+  readonly totalTurns?: number;
+  readonly overallScore?: number;
+  readonly grade?: string;
+  readonly verdict?: string;
+  readonly feedbackItems?: ReadonlyArray<{ readonly dimension: string; readonly message: string }>;
+}
+
+export interface SimulationJessyStageDto {
+  readonly available: boolean;
+  readonly reason?: string;
+  readonly runs: readonly SimulationJessyPersonaRunDto[];
+  readonly elapsedMs: number;
+}
+
+export interface SimulationScoringDto {
+  readonly tamaraCoverageScore: number;
+  readonly kaiScore: number;
+  readonly jessyScore: number;
+  readonly overallScore: number;
+  readonly grade: "A" | "B" | "C" | "D" | "F";
+  readonly verdict: "GO" | "CONDITIONAL" | "NO-GO" | "INCOMPLETE";
+}
+
+export interface SimulationResultDto {
+  readonly tamara: SimulationTamaraStageDto;
+  readonly kai: SimulationKaiStageDto;
+  readonly jessy: SimulationJessyStageDto;
+  readonly scoring: SimulationScoringDto;
+}
+
+export interface SimulationLogEntryDto {
+  readonly step: string;
+  readonly level: string;
+  readonly message: string;
+  readonly createdAt: string;
+}
+
+export interface SimulationStatusDto {
+  readonly id: string;
+  readonly status: "RUNNING" | "DONE" | "ERROR";
+  readonly currentStep: string;
+  readonly campaignDataSource: "cache" | "fresh";
+  readonly personaIds: readonly string[];
+  readonly branch?: string;
+  readonly result?: SimulationResultDto;
+  readonly errorMessage?: string;
+  readonly decision?: "APPROVED" | "REJECTED";
+  readonly decidedBy?: string;
+  readonly decisionNotes?: string;
+  readonly decidedAt?: string;
+  readonly logs: readonly SimulationLogEntryDto[];
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface SimulationHistoryEntryDto {
+  readonly id: string;
+  readonly status: "RUNNING" | "DONE" | "ERROR";
+  readonly overallScore?: number;
+  readonly grade?: string;
+  readonly verdict?: string;
+  readonly decision?: "APPROVED" | "REJECTED";
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/**
+ * Client-safe mirror of `apps/aaos-simulator`'s `POST /api/simulate` response (proxied via this
+ * app's own `/api/simulator-run` route) — used by Step 4's standalone "coba satu persona" preview,
+ * independent of the full orchestrated `/api/simulation/*` pipeline. Prefixed `Jessy*` (not
+ * `Simulation*`) to avoid clashing with the `Simulation*Dto` family above, which describes THIS
+ * app's own `aaos-api`-backed pipeline record, not `aaos-simulator`'s raw response.
+ */
+export interface JessySimulationRunDto {
+  readonly finalScore: number;
+  readonly finalTemperature: string;
+  readonly handoffTriggered: boolean;
+  readonly totalTurns: number;
+  readonly overallScore: number;
+  readonly grade: string;
+  readonly verdict: string;
+  readonly feedbackItems: ReadonlyArray<{ readonly dimension: string; readonly message: string }>;
+}

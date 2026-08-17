@@ -11,6 +11,7 @@ import {
   LEAD_STORE_MESSAGE_REPOSITORY,
   META_ADS_CONNECTOR,
   OBJECTIVE_ENGINE,
+  SUPABASE_CLIENT,
   WHATSAPP_CONNECTOR,
 } from "./di-tokens.js";
 import { buildTestConfig } from "./test-support/fixtures.js";
@@ -39,8 +40,10 @@ describe("AppModule.forRoot", () => {
     // (LEAD_STORE_MESSAGE_REPOSITORY, LEAD_STORE_CLOSING_REPOSITORY).
     // AAOS-LLM-TAMARA: +1 import (LlmModule) — no new global provider (LlmModule composes its
     // own OpenAI client/rate limiter/cache locally, see llm.module.ts's class doc).
-    expect(dynamicModule.imports).toHaveLength(12);
-    expect(dynamicModule.providers).toHaveLength(12);
+    // AAOS-DASHBOARD-SIMULASI: +1 import (SimulationModule) and +1 provider (SUPABASE_CLIENT,
+    // the shared client SimulationRepository reuses — see di-tokens.ts's class doc).
+    expect(dynamicModule.imports).toHaveLength(13);
+    expect(dynamicModule.providers).toHaveLength(13);
   });
 
   it("throws the raw ConnectorConfigError when META_API_VERSION is not the literal v21.0", () => {
@@ -61,7 +64,7 @@ describe("AppModule.forRoot", () => {
     );
   });
 
-  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY tokens", () => {
+  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/SUPABASE_CLIENT tokens", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.exports).toEqual([
       AAOS_API_CONFIG,
@@ -73,6 +76,7 @@ describe("AppModule.forRoot", () => {
       BRANCH_MANAGER,
       LEAD_STORE_MESSAGE_REPOSITORY,
       LEAD_STORE_CLOSING_REPOSITORY,
+      SUPABASE_CLIENT,
     ]);
   });
 

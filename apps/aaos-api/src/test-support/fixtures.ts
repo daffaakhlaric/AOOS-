@@ -38,6 +38,10 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     // Empty by default — most tests exercise the "no OpenAI key configured" fallback path;
     // llm module tests that need a configured key pass `{ OPENAI_API_KEY: "test-openai-key" }`.
     OPENAI_API_KEY: "",
+    // Empty by default — most tests exercise the "aaos-simulator unavailable" fallback path;
+    // simulation module tests that need it reachable pass
+    // `{ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }`.
+    AAOS_SIMULATOR_BASE_URL: "",
     ...overrides,
   };
 }

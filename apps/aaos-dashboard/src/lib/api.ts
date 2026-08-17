@@ -77,3 +77,44 @@ export async function callAaosApi<T>(
 
   return data as T;
 }
+
+export class AaosSimulatorError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AaosSimulatorError";
+  }
+}
+
+/**
+ * Calls the real, already-deployed sibling app `apps/aaos-simulator`'s `POST /api/simulate` (AAOS-
+ * DASHBOARD-SIMULASI coordinator note #3) — runs one `PersonaId`'s Jessy conversation simulation +
+ * AI Judge scoring. Server-only by construction, same discipline as `callAaosApi` above: only ever
+ * called from `src/app/api/*` route handlers, never a `"use client"` component. Unlike
+ * `callAaosApi`, no `x-api-key` header is sent — `apps/aaos-simulator`'s `/api/simulate` route has
+ * no auth guard (verified against its real route handler).
+ */
+export async function callAaosSimulator<T>(personaId: string): Promise<T> {
+  const baseUrl = requireEnv("AAOS_SIMULATOR_BASE_URL");
+  const response = await fetch(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ personaId }),
+    cache: "no-store",
+  });
+
+  const text = await response.text();
+  const data: unknown = text.length > 0 ? JSON.parse(text) : undefined;
+
+  if (!response.ok) {
+    const message =
+      typeof data === "object" && data !== null && "error" in data
+        ? String((data as { error: { message?: unknown } }).error.message ?? "unknown error")
+        : `aaos-simulator request failed with status ${response.status}`;
+    throw new AaosSimulatorError(response.status, message);
+  }
+
+  return data as T;
+}

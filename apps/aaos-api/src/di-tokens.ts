@@ -41,3 +41,9 @@ export const LEAD_STORE_CLOSING_REPOSITORY = Symbol("LEAD_STORE_CLOSING_REPOSITO
 export const LLM_OPENAI_CLIENT = Symbol("LLM_OPENAI_CLIENT");
 export const LLM_RATE_LIMITER = Symbol("LLM_RATE_LIMITER");
 export const LLM_RESPONSE_CACHE = Symbol("LLM_RESPONSE_CACHE");
+/**
+ * AAOS-DASHBOARD-SIMULASI addition — the shared Supabase client `app.module.ts` already builds
+ * for `@aos/lead-store` (same project/connection, new tables: `simulations`/`simulation_logs`),
+ * exported so `SimulationModule`'s repository can reuse it instead of opening a second connection.
+ */
+export const SUPABASE_CLIENT = Symbol("SUPABASE_CLIENT");
