@@ -5,6 +5,7 @@ import type { ScrapeSession } from "../../domain/entities/ScrapeSession.js";
 import type { ParseError } from "../../domain/errors/ParseError.js";
 import type { ScrapeError } from "../../domain/errors/ScrapeError.js";
 import type { MobixScraperEvents } from "../../domain/events/MobixScraperEvents.js";
+import type { ScrapeWarningListener } from "../../domain/events/ScrapeWarning.js";
 
 /** Runs one inventory scrape and publishes `ScrapeCompleted`/`ScrapeFailed`. */
 export class ScrapeInventory {
@@ -14,9 +15,12 @@ export class ScrapeInventory {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  async execute(): Promise<Result<ScrapeSession, ScrapeError | ParseError>> {
+  /** @param onWarning Forwarded to the scraper — see `IInventoryScraper.scrape`. */
+  async execute(
+    onWarning?: ScrapeWarningListener,
+  ): Promise<Result<ScrapeSession, ScrapeError | ParseError>> {
     const startedAt = this.now();
-    const result = await this.scraper.scrape();
+    const result = await this.scraper.scrape(onWarning);
     if (!result.ok) {
       await this.events.publishScrapeFailed({
         sourceUrl: "",

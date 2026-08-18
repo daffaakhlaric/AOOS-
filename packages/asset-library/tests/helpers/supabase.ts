@@ -2,18 +2,24 @@ import type {
   SupabaseClientLike,
   SupabaseFilterBuilderLike,
   SupabaseResult,
+  SupabaseSelectOptions,
   SupabaseTableClientLike,
 } from "../../src/infrastructure/supabase/SupabaseTypes.js";
 
 type Row = Record<string, unknown>;
-type Filter = readonly [column: string, value: unknown];
+/** `eq`/`in`/`ilike` all reduce to one predicate over a single column. */
+interface Filter {
+  readonly column: string;
+  readonly predicate: (value: unknown) => boolean;
+}
 
 /**
  * A minimal, in-memory, hand-rolled `SupabaseClientLike` test double for the `assets` Postgrest
  * table — the mock strategy the spec requires ("mock `@supabase/supabase-js`... zero real network
  * calls"). Supports the exact subset of the fluent query builder `AssetRepository` uses
- * (`select/insert/update/eq/order/single/maybeSingle`). Mirrors `@aos/lead-store`'s
- * `tests/helpers/supabase.ts`, redefined locally per Constitution §4.3.
+ * (`select/insert/update/eq/in/ilike/order/limit/range/single/maybeSingle`, plus `select`'s
+ * `{ count: "exact" }` option). Mirrors `@aos/lead-store`'s `tests/helpers/supabase.ts`, redefined
+ * locally per Constitution §4.3.
  */
 export class FakeSupabaseClient implements SupabaseClientLike {
   readonly tables = new Map<string, Row[]>();
@@ -89,8 +95,10 @@ class FakeTableClient<R extends object> {
     private readonly client: FakeSupabaseClient,
   ) {}
 
-  select(): FakeQueryBuilder<R> {
-    return new FakeQueryBuilder<R>(this.table, this.client, "select");
+  select(_columns?: string, options?: SupabaseSelectOptions): FakeQueryBuilder<R> {
+    const builder = new FakeQueryBuilder<R>(this.table, this.client, "select");
+    builder.setCountRequested(options?.count !== undefined);
+    return builder;
   }
 
   insert(values: Partial<R> | ReadonlyArray<Partial<R>>): FakeQueryBuilder<R> {
@@ -111,6 +119,9 @@ class FakeQueryBuilder<R extends object> implements SupabaseFilterBuilderLike<R>
   private insertValues: Row[] = [];
   private updateValues: Row = {};
   private orderSpec: { column: string; ascending: boolean } | undefined;
+  private countRequested = false;
+  private limitCount: number | undefined;
+  private rangeSpec: { from: number; to: number } | undefined;
 
   constructor(
     private readonly table: string,
@@ -126,17 +137,52 @@ class FakeQueryBuilder<R extends object> implements SupabaseFilterBuilderLike<R>
     this.updateValues = values;
   }
 
-  select(): FakeQueryBuilder<R> {
+  setCountRequested(requested: boolean): void {
+    this.countRequested = requested;
+  }
+
+  select(_columns?: string, options?: SupabaseSelectOptions): FakeQueryBuilder<R> {
+    if (options?.count !== undefined) {
+      this.countRequested = true;
+    }
     return this;
   }
 
   eq(column: string, value: unknown): FakeQueryBuilder<R> {
-    this.filters.push([column, value]);
+    this.filters.push({ column, predicate: (actual) => actual === value });
+    return this;
+  }
+
+  in(column: string, values: readonly unknown[]): FakeQueryBuilder<R> {
+    this.filters.push({ column, predicate: (actual) => values.includes(actual) });
+    return this;
+  }
+
+  /** Mirrors Postgrest `ilike`: `%` is the only wildcard, matching is case-insensitive. */
+  ilike(column: string, pattern: string): FakeQueryBuilder<R> {
+    const needle = pattern.replaceAll("%", "").toLowerCase();
+    this.filters.push({
+      column,
+      predicate: (actual) =>
+        String(actual ?? "")
+          .toLowerCase()
+          .includes(needle),
+    });
     return this;
   }
 
   order(column: string, options?: { readonly ascending?: boolean }): FakeQueryBuilder<R> {
     this.orderSpec = { column, ascending: options?.ascending ?? true };
+    return this;
+  }
+
+  limit(count: number): FakeQueryBuilder<R> {
+    this.limitCount = count;
+    return this;
+  }
+
+  range(from: number, to: number): FakeQueryBuilder<R> {
+    this.rangeSpec = { from, to };
     return this;
   }
 
@@ -203,12 +249,25 @@ class FakeQueryBuilder<R extends object> implements SupabaseFilterBuilderLike<R>
         return ascending ? cmp : -cmp;
       });
     }
-    return Promise.resolve({ data: matching as unknown as R[], error: null });
+    // Postgrest's `count` reflects the filtered total BEFORE `range`/`limit` windowing — the whole
+    // point of asking for it alongside a paged query.
+    const total = matching.length;
+    if (this.rangeSpec !== undefined) {
+      matching = matching.slice(this.rangeSpec.from, this.rangeSpec.to + 1);
+    }
+    if (this.limitCount !== undefined) {
+      matching = matching.slice(0, this.limitCount);
+    }
+    return Promise.resolve({
+      data: matching as unknown as R[],
+      error: null,
+      ...(this.countRequested ? { count: total } : {}),
+    });
   }
 }
 
 function matchesFilters(row: Row, filters: readonly Filter[]): boolean {
-  return filters.every(([column, value]) => row[column] === value);
+  return filters.every(({ column, predicate }) => predicate(row[column]));
 }
 
 export function createFakeSupabaseClient(): FakeSupabaseClient {

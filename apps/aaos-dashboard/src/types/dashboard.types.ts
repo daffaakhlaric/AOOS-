@@ -358,3 +358,133 @@ export interface JessySimulationRunDto {
   readonly verdict: string;
   readonly feedbackItems: ReadonlyArray<{ readonly dimension: string; readonly message: string }>;
 }
+
+/**
+ * AAOS-SCRAPER-ASSET-LIBRARY — client-safe mirrors of the new `aaos-api` `/api/v1/scraper/*` and
+ * `/api/v1/assets/*` response DTOs, reached exclusively through this app's own server-only
+ * `/api/scraper/*` / `/api/assets/*` proxy routes (a `"use client"` component must NEVER call
+ * `aaos-api` directly — see `src/lib/api.ts`'s module doc).
+ *
+ * Deliberately NO `width`/`height`/`durationSeconds`/`isMainPhoto`/`usedInPackages`/`source` fields:
+ * nothing in the backend produces any of them, so the UI omits them rather than rendering a
+ * fabricated value.
+ */
+export type AssetTypeDto =
+  "UNIT_PHOTO" | "BRAND" | "TESTIMONIAL" | "AI_VIDEO" | "AI_IMAGE" | "OVERLAY";
+
+/** The real `AssetStatus` union — there is no `REJECTED` state anywhere in this domain. */
+export type AssetStatusDto = "ACTIVE" | "ARCHIVED" | "PENDING";
+
+export interface AssetDto {
+  readonly id: string;
+  readonly type: AssetTypeDto;
+  readonly status: AssetStatusDto;
+  readonly storagePath: string;
+  readonly publicUrl: string;
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly fileSize: number;
+  readonly tags: readonly string[];
+  readonly unitId?: string;
+  readonly unitModel?: string;
+  readonly unitYear?: number;
+  readonly branch?: string;
+  readonly aiPrompt?: string;
+  readonly aiModel?: string;
+  readonly creativeBriefId?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface AssetListDto {
+  readonly assets: readonly AssetDto[];
+  readonly total: number;
+  readonly page: number;
+  readonly limit: number;
+}
+
+export interface AssetStatsDto {
+  readonly totalAssets: number;
+  readonly byType: Readonly<Record<string, number>>;
+  readonly byBranch: Readonly<Record<string, number>>;
+  readonly byStatus: Readonly<Record<string, number>>;
+  readonly totalSizeBytes: number;
+}
+
+export interface AssetDownloadDto {
+  readonly url: string;
+  readonly expiresInSeconds: number;
+}
+
+export interface ScrapedUnitDto {
+  readonly unitId: string;
+  readonly url: string;
+  readonly brand: string;
+  readonly model: string;
+  readonly year: number;
+  readonly transmission: "AT" | "MT";
+  readonly color: string;
+  readonly kilometer: number;
+  readonly priceIdr: number;
+  readonly branch: string;
+  /** SOURCE listing photo URLs. The GCS-stored copies are assets — fetched via `/api/assets?unitId=`. */
+  readonly photos: readonly string[];
+  readonly photoCount: number;
+  readonly available: boolean;
+  readonly scrapedAt: string;
+}
+
+export interface StockListDto {
+  readonly units: readonly ScrapedUnitDto[];
+  readonly total: number;
+  readonly page: number;
+  readonly limit: number;
+}
+
+export interface ScrapeJobResultDto {
+  readonly unitsScraped: number;
+  readonly newUnits: number;
+  readonly soldUnits: number;
+  readonly photosStored: number;
+  readonly photosFailed: number;
+  readonly unitsPersisted?: number;
+  readonly unitId?: string;
+}
+
+export interface ScrapeJobLogEntryDto {
+  readonly level: "INFO" | "WARN" | "ERROR";
+  readonly message: string;
+  readonly createdAt: string;
+}
+
+export interface ScrapeJobDto {
+  readonly id: string;
+  readonly kind: "FULL" | "UNIT";
+  readonly status: "RUNNING" | "DONE" | "ERROR";
+  readonly unitUrl?: string;
+  readonly branch?: string;
+  readonly progressCurrent: number;
+  /** Absent until the listing has really been parsed — the progress bar stays indeterminate until then. */
+  readonly progressTotal?: number;
+  readonly result?: ScrapeJobResultDto;
+  readonly errorMessage?: string;
+  readonly logs: readonly ScrapeJobLogEntryDto[];
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ScraperStatusDto {
+  readonly totalUnits: number;
+  readonly availableUnits: number;
+  readonly totalPhotos: number;
+  readonly byBranch: Readonly<Record<string, number>>;
+  /** Absent when nothing has ever been scraped — never a fabricated timestamp. */
+  readonly lastScrapedAt?: string;
+  readonly lastJob?: ScrapeJobDto;
+}
+
+export interface RunScrapeResponseDto {
+  readonly jobId: string;
+  readonly status: "RUNNING";
+  readonly kind: "FULL" | "UNIT";
+}

@@ -2,6 +2,13 @@ import { HttpResponse, http } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { MobixScraperFactory } from "../../../src/factories/MobixScraperFactory.js";
+import {
+  detailHandler,
+  listingHandler,
+  listingResponse,
+  photoHandler,
+  REAL_ITEM_XPANDER_GLS,
+} from "../../helpers/mobixApi.js";
 import { mswServer } from "../../helpers/msw.js";
 import { createFakePublisher } from "../../helpers/publisher.js";
 import { asUploadAsset, createFakeUploadAsset } from "../../helpers/uploadAsset.js";
@@ -10,44 +17,33 @@ beforeAll(() => mswServer.listen({ onUnhandledRequest: "error" }));
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
-const clock = () => new Date("2026-08-07T00:00:00.000Z");
+const clock = () => new Date("2026-08-17T13:03:09.000Z");
 
-const LISTING_HTML = `<article class="unit-card" data-branch="CINERE" data-available="true">
-  <a class="unit-card__link" href="https://mobixbydss.id/unit/brio-1">
-    <h3 class="unit-card__title">Honda Brio 2020</h3>
-    <span class="unit-card__price">Rp 150.000.000</span>
-    <span class="unit-card__km">10.000 km</span>
-    <span class="unit-card__transmission">AT</span>
-    <span class="unit-card__color">Merah</span>
-  </a>
-</article>`;
-
-const LISTING_HTML_WITH_PHOTO = `<article class="unit-card" data-branch="CINERE" data-available="true">
-  <a class="unit-card__link" href="https://mobixbydss.id/unit/brio-1">
-    <img src="https://mobixbydss.id/photos/brio-1.jpg" />
-    <h3 class="unit-card__title">Honda Brio 2020</h3>
-    <span class="unit-card__price">Rp 150.000.000</span>
-    <span class="unit-card__km">10.000 km</span>
-    <span class="unit-card__transmission">AT</span>
-    <span class="unit-card__color">Merah</span>
-  </a>
-</article>`;
-const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+/** Serves the real listing API at the DEFAULT origin the factory derives from DEFAULT_LISTING_URL. */
+function serveDefaults() {
+  const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
+  const detail = detailHandler();
+  mswServer.use(listing.handler, detail.handler, photoHandler());
+  return { listing, detail };
+}
 
 describe("MobixScraperFactory", () => {
-  it("wires a working MobixScraperService with default URLs", async () => {
-    mswServer.use(http.get("https://mobixbydss.id/unit", () => HttpResponse.html(LISTING_HTML)));
+  it("wires a working MobixScraperService against the real API derived from the default listing URL", async () => {
+    serveDefaults();
     const publisher = createFakePublisher();
 
     const service = MobixScraperFactory.create({ publisher, now: clock });
     const result = await service.scrapeInventoryUnits();
 
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value).toHaveLength(1);
+    if (result.ok) {
+      expect(result.value).toHaveLength(1);
+      expect(result.value[0]?.model).toBe("Xpander GLS MT");
+    }
   });
 
   it("defaults to the wall clock when now is not provided", async () => {
-    mswServer.use(http.get("https://mobixbydss.id/unit", () => HttpResponse.html(LISTING_HTML)));
+    serveDefaults();
     const publisher = createFakePublisher();
 
     const service = MobixScraperFactory.create({ publisher });
@@ -56,30 +52,58 @@ describe("MobixScraperFactory", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("honors custom listingUrl/promoUrl overrides", async () => {
+  it("honors a custom listingUrl, deriving the API base from ITS origin", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
+    const customPages: number[] = [];
     mswServer.use(
-      http.get("https://example.test/custom-unit", () => HttpResponse.html(LISTING_HTML)),
+      listing.handler,
+      // Registered on the CUSTOM origin. Only this handler should see traffic — proving the API base
+      // really follows listingUrl's origin rather than staying pinned to mobixbydss.id.
+      http.post("https://example.test/api/get-all-produk", async ({ request }) => {
+        const body = (await request.json()) as { page?: number };
+        customPages.push(body.page ?? 1);
+        return HttpResponse.json(
+          listingResponse({ page: 1, totalPages: 1, items: [REAL_ITEM_XPANDER_GLS] }),
+        );
+      }),
     );
     const publisher = createFakePublisher();
 
     const service = MobixScraperFactory.create({
       publisher,
-      listingUrl: "https://example.test/custom-unit",
-      promoUrl: "https://example.test/custom-promo",
+      listingUrl: "https://example.test/produk",
       now: clock,
     });
     const result = await service.scrapeInventoryUnits();
 
     expect(result.ok).toBe(true);
+    expect(customPages).toEqual([1]);
+    expect(listing.requestedPages).toEqual([]);
   });
 
-  it("wires DownloadAndStorePhotos/RunFullScrape end-to-end when uploadAsset + tenantId are supplied", async () => {
-    mswServer.use(
-      http.get("https://mobixbydss.id/unit", () => HttpResponse.html(LISTING_HTML_WITH_PHOTO)),
-      http.get("https://mobixbydss.id/photos/brio-1.jpg", () =>
-        HttpResponse.arrayBuffer(JPEG_BYTES.buffer, { headers: { "content-type": "image/jpeg" } }),
-      ),
-    );
+  it("honors an explicit apiBaseUrl override for both the listing and detail endpoints", async () => {
+    const { listing, detail } = serveDefaults();
+    const publisher = createFakePublisher();
+    const fakeUploadAsset = createFakeUploadAsset();
+
+    const service = MobixScraperFactory.create({
+      publisher,
+      now: clock,
+      // A listing URL on a different origin, with the API pinned back to the real one.
+      listingUrl: "https://example.test/produk",
+      apiBaseUrl: "https://mobixbydss.id",
+      uploadAsset: asUploadAsset(fakeUploadAsset),
+      tenantId: "dss-motor",
+    });
+    const result = await service.runFullScrape();
+
+    expect(result.ok).toBe(true);
+    expect(listing.requestedPages).toEqual([1]);
+    expect(detail.requestedSlugs).toEqual([REAL_ITEM_XPANDER_GLS.slug]);
+  });
+
+  it("wires the detail fetcher through, so RunFullScrape ingests each new unit's FULL gallery", async () => {
+    const { detail } = serveDefaults();
     const publisher = createFakePublisher();
     const fakeUploadAsset = createFakeUploadAsset();
 
@@ -95,14 +119,36 @@ describe("MobixScraperFactory", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.photoResults).toHaveLength(1);
-      expect(result.value.photoResults[0]?.succeeded).toHaveLength(1);
+      // 3 gallery photos, not 1 thumbnail — the factory really passed the detail fetcher down.
+      expect(result.value.photoResults[0]?.succeeded).toHaveLength(3);
     }
-    expect(fakeUploadAsset.calls).toHaveLength(1);
+    expect(fakeUploadAsset.calls).toHaveLength(3);
     expect(fakeUploadAsset.calls[0]?.tenantId).toBe("dss-motor");
+    expect(detail.requestedSlugs).toEqual([REAL_ITEM_XPANDER_GLS.slug]);
+  });
+
+  it("wires the detail fetcher through to scrapeUnit() as well", async () => {
+    const { detail } = serveDefaults();
+    const publisher = createFakePublisher();
+    const fakeUploadAsset = createFakeUploadAsset();
+
+    const service = MobixScraperFactory.create({
+      publisher,
+      now: clock,
+      uploadAsset: asUploadAsset(fakeUploadAsset),
+      tenantId: "dss-motor",
+    });
+    const result = await service.scrapeUnit(
+      `https://mobixbydss.id/produk/${REAL_ITEM_XPANDER_GLS.slug}`,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.photoResult?.succeeded).toHaveLength(3);
+    expect(detail.requestedSlugs).toEqual([REAL_ITEM_XPANDER_GLS.slug]);
   });
 
   it("runFullScrape() skips photo ingestion (empty photoResults) when uploadAsset is not supplied", async () => {
-    mswServer.use(http.get("https://mobixbydss.id/unit", () => HttpResponse.html(LISTING_HTML)));
+    const { detail } = serveDefaults();
     const publisher = createFakePublisher();
 
     const service = MobixScraperFactory.create({ publisher, now: clock });
@@ -110,15 +156,12 @@ describe("MobixScraperFactory", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.photoResults).toHaveLength(0);
+    // No photo step ⇒ no detail requests either.
+    expect(detail.requestedSlugs).toEqual([]);
   });
 
   it("defaults tenantId to 'default' when uploadAsset is supplied without an explicit tenantId", async () => {
-    mswServer.use(
-      http.get("https://mobixbydss.id/unit", () => HttpResponse.html(LISTING_HTML_WITH_PHOTO)),
-      http.get("https://mobixbydss.id/photos/brio-1.jpg", () =>
-        HttpResponse.arrayBuffer(JPEG_BYTES.buffer, { headers: { "content-type": "image/jpeg" } }),
-      ),
-    );
+    serveDefaults();
     const publisher = createFakePublisher();
     const fakeUploadAsset = createFakeUploadAsset();
 

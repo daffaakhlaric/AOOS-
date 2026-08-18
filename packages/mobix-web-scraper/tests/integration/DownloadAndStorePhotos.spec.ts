@@ -4,12 +4,23 @@ import { HttpResponse, http } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { DownloadAndStorePhotos } from "../../src/application/use-cases/DownloadAndStorePhotos.js";
+import type { IUnitDetailFetcher } from "../../src/contracts/IUnitDetailFetcher.js";
 import { ScrapedUnit } from "../../src/domain/entities/ScrapedUnit.js";
+import { ScrapeError } from "../../src/domain/errors/ScrapeError.js";
 import { MobixScraperEvents } from "../../src/domain/events/MobixScraperEvents.js";
 import { ScrapedKilometer } from "../../src/domain/value-objects/ScrapedKilometer.js";
 import { ScrapedPrice } from "../../src/domain/value-objects/ScrapedPrice.js";
 import { ScrapeTimestamp } from "../../src/domain/value-objects/ScrapeTimestamp.js";
 import { UnitUrl } from "../../src/domain/value-objects/UnitUrl.js";
+import { MobixUnitDetailFetcher } from "../../src/infrastructure/scrapers/MobixUnitDetailFetcher.js";
+import {
+  LISTING_PAGE_URL,
+  PHOTO_CDN_ORIGIN,
+  detailHandler,
+  photoHandler,
+  REAL_DETAIL_PHOTO_URLS,
+  REAL_ITEM_XPANDER_GLS,
+} from "../helpers/mobixApi.js";
 import { mswServer } from "../helpers/msw.js";
 import { createFakePublisher } from "../helpers/publisher.js";
 import { asUploadAsset, createFakeUploadAsset } from "../helpers/uploadAsset.js";
@@ -498,6 +509,114 @@ describe("DownloadAndStorePhotos (integration, MSW-mocked photo hosts + mocked U
     if (result.ok) {
       expect(result.value.failed).toHaveLength(1);
       expect(result.value.succeeded).toHaveLength(0);
+    }
+  });
+});
+
+describe("DownloadAndStorePhotos — full-gallery resolution via IUnitDetailFetcher", () => {
+  /** A fake detail fetcher recording the slugs it was asked for. */
+  function fakeDetailFetcher(photos: readonly string[]): {
+    fetcher: IUnitDetailFetcher;
+    requestedSlugs: string[];
+  } {
+    const requestedSlugs: string[] = [];
+    const fetcher: IUnitDetailFetcher = {
+      fetchDetail: async (slug: string) => {
+        requestedSlugs.push(slug);
+        return { ok: true as const, value: { slug, photos } };
+      },
+    };
+    return { fetcher, requestedSlugs };
+  }
+
+  function useCaseWith(fetcher: IUnitDetailFetcher | undefined, upload = createFakeUploadAsset()) {
+    const events = new MobixScraperEvents(createFakePublisher());
+    const useCase = new DownloadAndStorePhotos(
+      asUploadAsset(upload),
+      events,
+      TENANT_ID,
+      clock,
+      fetch,
+      undefined,
+      fetcher,
+    );
+    return { useCase, upload };
+  }
+
+  it("downloads EVERY gallery photo from the detail fetcher, not just the listing thumbnail", async () => {
+    mswServer.use(photoHandler());
+    const { fetcher, requestedSlugs } = fakeDetailFetcher(REAL_DETAIL_PHOTO_URLS);
+    const { useCase, upload } = useCaseWith(fetcher);
+    const scrapedUnit = unit([`${PHOTO_CDN_ORIGIN}${REAL_ITEM_XPANDER_GLS.thumbnail}`]);
+
+    const result = await useCase.execute(scrapedUnit);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.succeeded).toHaveLength(3);
+    expect(result.value.resolvedPhotos).toEqual(REAL_DETAIL_PHOTO_URLS);
+    expect(upload.calls).toHaveLength(3);
+    // Looked up by identityKey — which IS the API's own slug.
+    expect(requestedSlugs).toEqual([scrapedUnit.identityKey]);
+  });
+
+  it("uses the real MobixUnitDetailFetcher end-to-end over MSW", async () => {
+    const detail = detailHandler();
+    mswServer.use(detail.handler, photoHandler());
+    const { useCase, upload } = useCaseWith(
+      new MobixUnitDetailFetcher({ listingUrl: LISTING_PAGE_URL }),
+    );
+
+    const result = await useCase.execute(
+      unit([`${PHOTO_CDN_ORIGIN}${REAL_ITEM_XPANDER_GLS.thumbnail}`]),
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.resolvedPhotos).toEqual(REAL_DETAIL_PHOTO_URLS);
+    expect(upload.calls).toHaveLength(3);
+  });
+
+  it("falls back to the listing thumbnail and records why when the detail fetch fails", async () => {
+    mswServer.use(photoHandler());
+    const failing: IUnitDetailFetcher = {
+      fetchDetail: async () => ({ ok: false as const, error: new ScrapeError("detail api down") }),
+    };
+    const { useCase, upload } = useCaseWith(failing);
+    const thumbnail = `${PHOTO_CDN_ORIGIN}${REAL_ITEM_XPANDER_GLS.thumbnail}`;
+
+    const result = await useCase.execute(unit([thumbnail]));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.detailFetchFailed).toContain("detail api down");
+    expect(result.value.resolvedPhotos).toEqual([thumbnail]);
+    expect(upload.calls).toHaveLength(1);
+  });
+
+  it("keeps the listing thumbnail when the gallery comes back empty", async () => {
+    mswServer.use(photoHandler());
+    const { fetcher } = fakeDetailFetcher([]);
+    const { useCase, upload } = useCaseWith(fetcher);
+    const thumbnail = `${PHOTO_CDN_ORIGIN}${REAL_ITEM_XPANDER_GLS.thumbnail}`;
+
+    const result = await useCase.execute(unit([thumbnail]));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.resolvedPhotos).toEqual([thumbnail]);
+    expect(upload.calls).toHaveLength(1);
+  });
+
+  it("reports resolvedPhotos as the unit's own photos when no detail fetcher is wired", async () => {
+    mswServer.use(photoHandler());
+    const thumbnail = `${PHOTO_CDN_ORIGIN}${REAL_ITEM_XPANDER_GLS.thumbnail}`;
+    const { useCase } = useCaseWith(undefined);
+
+    const result = await useCase.execute(unit([thumbnail]));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.resolvedPhotos).toEqual([thumbnail]);
+      expect(result.value.detailFetchFailed).toBeUndefined();
     }
   });
 });

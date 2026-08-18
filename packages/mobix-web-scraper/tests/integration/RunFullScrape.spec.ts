@@ -4,7 +4,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { DetectInventoryChanges } from "../../src/application/use-cases/DetectInventoryChanges.js";
 import { DownloadAndStorePhotos } from "../../src/application/use-cases/DownloadAndStorePhotos.js";
-import { RunFullScrape } from "../../src/application/use-cases/RunFullScrape.js";
+import {
+  RunFullScrape,
+  type ScrapeProgressEvent,
+} from "../../src/application/use-cases/RunFullScrape.js";
 import { ScrapeInventory } from "../../src/application/use-cases/ScrapeInventory.js";
 import { ScrapedUnit } from "../../src/domain/entities/ScrapedUnit.js";
 import { ScrapeSession } from "../../src/domain/entities/ScrapeSession.js";
@@ -13,7 +16,23 @@ import { ScrapedKilometer } from "../../src/domain/value-objects/ScrapedKilomete
 import { ScrapedPrice } from "../../src/domain/value-objects/ScrapedPrice.js";
 import { ScrapeTimestamp } from "../../src/domain/value-objects/ScrapeTimestamp.js";
 import { UnitUrl } from "../../src/domain/value-objects/UnitUrl.js";
+import { absolutePhotoUrl } from "../../src/infrastructure/api/MobixUnitMapper.js";
 import { MobixInventoryScraper } from "../../src/infrastructure/scrapers/MobixInventoryScraper.js";
+import { MobixUnitDetailFetcher } from "../../src/infrastructure/scrapers/MobixUnitDetailFetcher.js";
+import {
+  API_ORIGIN,
+  DETAIL_API_URL,
+  LISTING_API_URL,
+  LISTING_PAGE_URL,
+  PHOTO_CDN_ORIGIN,
+  detailHandler,
+  listingHandler,
+  photoHandler,
+  REAL_DETAIL_PHOTO_URLS,
+  REAL_DETAIL_RESPONSE,
+  REAL_ITEM_XPANDER_CROSS,
+  REAL_ITEM_XPANDER_GLS,
+} from "../helpers/mobixApi.js";
 import { mswServer } from "../helpers/msw.js";
 import { createFakePublisher } from "../helpers/publisher.js";
 import { asUploadAsset, createFakeUploadAsset } from "../helpers/uploadAsset.js";
@@ -22,28 +41,13 @@ beforeAll(() => mswServer.listen({ onUnhandledRequest: "error" }));
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
-const LISTING_URL = "https://mobixbydss.id/unit";
 const TENANT_ID = "dss-motor";
-const clock = () => new Date("2026-08-07T00:00:00.000Z");
-const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+const clock = () => new Date("2026-08-17T13:03:09.000Z");
 
-function cardHtml(slug: string, model: string, withPhoto: boolean): string {
-  const img = withPhoto ? `<img src="https://mobixbydss.id/photos/${slug}.jpg" />` : "";
-  return `<article class="unit-card" data-branch="BINTARO" data-available="true">
-  <a class="unit-card__link" href="https://mobixbydss.id/unit/${slug}">
-    ${img}
-    <h3 class="unit-card__title">Mitsubishi ${model} 2019</h3>
-    <span class="unit-card__price">Rp 195.000.000</span>
-    <span class="unit-card__km">45.000 km</span>
-    <span class="unit-card__transmission">AT</span>
-    <span class="unit-card__color">Putih</span>
-  </a>
-</article>`;
-}
-
+/** A previous session containing the given slugs, so `DetectInventoryChanges` sees them as known. */
 function session(sessionId: string, slugs: string[]): ScrapeSession {
   const units = slugs.map((slug) => {
-    const url = UnitUrl.create(`https://mobixbydss.id/unit/${slug}`);
+    const url = UnitUrl.create(`${API_ORIGIN}/produk/${slug}`);
     const km = ScrapedKilometer.create(1000);
     const price = ScrapedPrice.create(150_000_000);
     if (!url.ok || !km.ok || !price.ok) throw new Error("fixture setup failed");
@@ -69,20 +73,35 @@ function session(sessionId: string, slugs: string[]): ScrapeSession {
     units,
     startedAt: clock(),
     completedAt: clock(),
-    sourceUrl: LISTING_URL,
+    sourceUrl: LISTING_API_URL,
   });
   if (!result.ok) throw new Error("fixture setup failed");
   return result.value;
 }
 
-function makeParts(uploadAssetFake?: ReturnType<typeof createFakeUploadAsset>) {
+function makeParts(
+  uploadAssetFake?: ReturnType<typeof createFakeUploadAsset>,
+  options: { readonly withDetailFetcher?: boolean } = {},
+) {
   const publisher = createFakePublisher();
   const events = new MobixScraperEvents(publisher);
-  const inventoryScraper = new MobixInventoryScraper({ listingUrl: LISTING_URL, clock });
+  const inventoryScraper = new MobixInventoryScraper({ listingUrl: LISTING_PAGE_URL, clock });
   const scrapeInventory = new ScrapeInventory(inventoryScraper, events, clock);
   const detectInventoryChanges = new DetectInventoryChanges(events, clock);
+  const detailFetcher =
+    options.withDetailFetcher === false
+      ? undefined
+      : new MobixUnitDetailFetcher({ listingUrl: LISTING_PAGE_URL });
   const downloadAndStorePhotos = uploadAssetFake
-    ? new DownloadAndStorePhotos(asUploadAsset(uploadAssetFake), events, TENANT_ID, clock)
+    ? new DownloadAndStorePhotos(
+        asUploadAsset(uploadAssetFake),
+        events,
+        TENANT_ID,
+        clock,
+        fetch,
+        undefined,
+        detailFetcher,
+      )
     : undefined;
   const runFullScrape = new RunFullScrape(
     scrapeInventory,
@@ -92,69 +111,70 @@ function makeParts(uploadAssetFake?: ReturnType<typeof createFakeUploadAsset>) {
   return { runFullScrape, publisher };
 }
 
-describe("RunFullScrape (integration, MSW-mocked mobixbydss.id + mocked UploadAsset)", () => {
-  it("scrapes, diffs against undefined previous session (cold start), and uploads photos for every unit", async () => {
-    mswServer.use(
-      http.get(LISTING_URL, () =>
-        HttpResponse.html(`<html><body>${cardHtml("xpander-1", "Xpander", true)}</body></html>`),
-      ),
-      http.get("https://mobixbydss.id/photos/xpander-1.jpg", () =>
-        HttpResponse.arrayBuffer(JPEG_BYTES.buffer, { headers: { "content-type": "image/jpeg" } }),
-      ),
-    );
+describe("RunFullScrape (integration, MSW-mocked mobixbydss.id JSON API + mocked UploadAsset)", () => {
+  it("cold start: scrapes, diffs, and ingests each new unit's FULL gallery from the detail endpoint", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
+    const detail = detailHandler();
+    mswServer.use(listing.handler, detail.handler, photoHandler());
     const fakeUploadAsset = createFakeUploadAsset();
     const { runFullScrape } = makeParts(fakeUploadAsset);
 
     const result = await runFullScrape.execute(undefined);
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.session.unitCount).toBe(1);
-      expect(result.value.diff.newUnits).toHaveLength(1);
-      expect(result.value.diff.soldUnits).toHaveLength(0);
-      expect(result.value.photoResults).toHaveLength(1);
-      expect(result.value.photoResults[0]?.succeeded).toHaveLength(1);
-    }
-    expect(fakeUploadAsset.calls).toHaveLength(1);
+    if (!result.ok) return;
+    expect(result.value.session.unitCount).toBe(1);
+    expect(result.value.diff.newUnits).toHaveLength(1);
+    // The listing only carried ONE thumbnail — the detail endpoint supplied all 3 gallery photos.
+    expect(result.value.session.units[0]?.photos).toHaveLength(1);
+    expect(result.value.photoResults[0]?.resolvedPhotos).toEqual(REAL_DETAIL_PHOTO_URLS);
+    expect(result.value.photoResults[0]?.succeeded).toHaveLength(3);
+    expect(fakeUploadAsset.calls).toHaveLength(3);
+    expect(detail.requestedSlugs).toEqual([REAL_ITEM_XPANDER_GLS.slug]);
   });
 
-  it("only downloads photos for newly-detected units, not units unchanged from the previous session", async () => {
-    mswServer.use(
-      http.get(LISTING_URL, () =>
-        HttpResponse.html(
-          `<html><body>${cardHtml("xpander-1", "Xpander", true)}${cardHtml("brio-1", "Brio", true)}</body></html>`,
-        ),
-      ),
-      http.get("https://mobixbydss.id/photos/xpander-1.jpg", () =>
-        HttpResponse.arrayBuffer(JPEG_BYTES.buffer, { headers: { "content-type": "image/jpeg" } }),
-      ),
-      http.get("https://mobixbydss.id/photos/brio-1.jpg", () =>
-        HttpResponse.arrayBuffer(JPEG_BYTES.buffer, { headers: { "content-type": "image/jpeg" } }),
-      ),
-    );
-    const previous = session("s0", ["xpander-1"]);
+  it("fetches the detail gallery ONLY for newly-detected units, never for already-known ones", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS, REAL_ITEM_XPANDER_CROSS]]);
+    const detail = detailHandler();
+    mswServer.use(listing.handler, detail.handler, photoHandler());
+    const previous = session("s0", [REAL_ITEM_XPANDER_GLS.slug]);
     const fakeUploadAsset = createFakeUploadAsset();
     const { runFullScrape } = makeParts(fakeUploadAsset);
 
     const result = await runFullScrape.execute(previous);
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.diff.newUnits.map((u) => u.identityKey)).toEqual(["brio-1"]);
-      expect(result.value.diff.unchangedCount).toBe(1);
-      // Only the newly-detected unit's photo batch is present.
-      expect(result.value.photoResults).toHaveLength(1);
-      expect(result.value.photoResults[0]?.unitIdentityKey).toBe("brio-1");
-    }
-    expect(fakeUploadAsset.calls).toHaveLength(1);
+    if (!result.ok) return;
+    expect(result.value.diff.newUnits.map((u) => u.identityKey)).toEqual([
+      REAL_ITEM_XPANDER_CROSS.slug,
+    ]);
+    expect(result.value.diff.unchangedCount).toBe(1);
+    expect(result.value.photoResults).toHaveLength(1);
+    // The already-known GLS unit's detail endpoint was never called — the no-re-download rule holds.
+    expect(detail.requestedSlugs).toEqual([REAL_ITEM_XPANDER_CROSS.slug]);
   });
 
-  it("skips photo ingestion entirely when no DownloadAndStorePhotos was wired (no asset-library dependency configured)", async () => {
-    mswServer.use(
-      http.get(LISTING_URL, () =>
-        HttpResponse.html(`<html><body>${cardHtml("xpander-1", "Xpander", true)}</body></html>`),
-      ),
-    );
+  it("emits a branch_fallback progress event for the real PONDOK BAMBU unit", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_CROSS]]);
+    mswServer.use(listing.handler);
+    const { runFullScrape } = makeParts(undefined);
+    const events: ScrapeProgressEvent[] = [];
+
+    const result = await runFullScrape.execute(undefined, undefined, (event) => events.push(event));
+
+    expect(result.ok).toBe(true);
+    const fallback = events.find((event) => event.type === "branch_fallback");
+    expect(fallback).toEqual({
+      type: "branch_fallback",
+      rawCabang: "PONDOK BAMBU",
+      slug: REAL_ITEM_XPANDER_CROSS.slug,
+      fallback: Branch.UMUM,
+    });
+  });
+
+  it("skips photo ingestion entirely when no DownloadAndStorePhotos was wired", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
+    mswServer.use(listing.handler);
     const { runFullScrape } = makeParts(undefined);
 
     const result = await runFullScrape.execute(undefined);
@@ -167,7 +187,7 @@ describe("RunFullScrape (integration, MSW-mocked mobixbydss.id + mocked UploadAs
   });
 
   it("propagates a ScrapeInventory failure without attempting diff or photo ingestion", async () => {
-    mswServer.use(http.get(LISTING_URL, () => new HttpResponse(null, { status: 503 })));
+    mswServer.use(http.post(LISTING_API_URL, () => new HttpResponse(null, { status: 503 })));
     const fakeUploadAsset = createFakeUploadAsset();
     const { runFullScrape, publisher } = makeParts(fakeUploadAsset);
 
@@ -180,13 +200,14 @@ describe("RunFullScrape (integration, MSW-mocked mobixbydss.id + mocked UploadAs
     );
   });
 
-  it("a unit with a failing photo still completes the full scrape (partial-failure tolerant)", async () => {
+  it("a unit with one failing photo still completes the full scrape (partial-failure tolerant)", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
+    const detail = detailHandler();
     mswServer.use(
-      http.get(LISTING_URL, () =>
-        HttpResponse.html(`<html><body>${cardHtml("xpander-1", "Xpander", true)}</body></html>`),
-      ),
+      listing.handler,
+      detail.handler,
       http.get(
-        "https://mobixbydss.id/photos/xpander-1.jpg",
+        `${PHOTO_CDN_ORIGIN}/unit-file-serve`,
         () => new HttpResponse(null, { status: 403 }),
       ),
     );
@@ -196,18 +217,18 @@ describe("RunFullScrape (integration, MSW-mocked mobixbydss.id + mocked UploadAs
     const result = await runFullScrape.execute(undefined);
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.session.unitCount).toBe(1);
-      expect(result.value.photoResults[0]?.failed).toHaveLength(1);
-      expect(result.value.photoResults[0]?.succeeded).toHaveLength(0);
-    }
+    if (!result.ok) return;
+    expect(result.value.session.unitCount).toBe(1);
+    expect(result.value.photoResults[0]?.failed).toHaveLength(3);
+    expect(result.value.photoResults[0]?.succeeded).toHaveLength(0);
   });
 
-  it("a unit with no photos still produces a photo batch with empty succeeded/failed when it is newly-detected", async () => {
+  it("falls back to the listing thumbnail (and reports why) when the detail fetch fails", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
     mswServer.use(
-      http.get(LISTING_URL, () =>
-        HttpResponse.html(`<html><body>${cardHtml("xpander-1", "Xpander", false)}</body></html>`),
-      ),
+      listing.handler,
+      http.post(DETAIL_API_URL, () => new HttpResponse(null, { status: 500 })),
+      photoHandler(),
     );
     const fakeUploadAsset = createFakeUploadAsset();
     const { runFullScrape } = makeParts(fakeUploadAsset);
@@ -215,28 +236,56 @@ describe("RunFullScrape (integration, MSW-mocked mobixbydss.id + mocked UploadAs
     const result = await runFullScrape.execute(undefined);
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.photoResults).toHaveLength(1);
-      expect(result.value.photoResults[0]?.succeeded).toHaveLength(0);
-      expect(result.value.photoResults[0]?.failed).toHaveLength(0);
-    }
-    expect(fakeUploadAsset.calls).toHaveLength(0);
+    if (!result.ok) return;
+    const batch = result.value.photoResults[0];
+    expect(batch?.detailFetchFailed).toContain("500");
+    // The thumbnail still got ingested — a detail failure must not mean zero photos for the unit.
+    expect(batch?.resolvedPhotos).toEqual([absolutePhotoUrl(REAL_ITEM_XPANDER_GLS.thumbnail)]);
+    expect(batch?.succeeded).toHaveLength(1);
   });
 
-  it("forwards a correlationId to every unit's photo batch", async () => {
-    mswServer.use(
-      http.get(LISTING_URL, () =>
-        HttpResponse.html(`<html><body>${cardHtml("xpander-1", "Xpander", true)}</body></html>`),
-      ),
-      http.get("https://mobixbydss.id/photos/xpander-1.jpg", () =>
-        HttpResponse.arrayBuffer(JPEG_BYTES.buffer, { headers: { "content-type": "image/jpeg" } }),
-      ),
-    );
+  it("keeps the listing thumbnail when the real detail response has an empty galeri", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
+    const detail = detailHandler({
+      ...REAL_DETAIL_RESPONSE,
+      data: { ...REAL_DETAIL_RESPONSE.data, galeri: [] },
+    });
+    mswServer.use(listing.handler, detail.handler, photoHandler());
+    const fakeUploadAsset = createFakeUploadAsset();
+    const { runFullScrape } = makeParts(fakeUploadAsset);
+
+    const result = await runFullScrape.execute(undefined);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.photoResults[0]?.resolvedPhotos).toHaveLength(1);
+    }
+  });
+
+  it("forwards a correlationId to every uploaded photo", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
+    const detail = detailHandler();
+    mswServer.use(listing.handler, detail.handler, photoHandler());
     const fakeUploadAsset = createFakeUploadAsset();
     const { runFullScrape } = makeParts(fakeUploadAsset);
 
     await runFullScrape.execute(undefined, "batch-corr-1");
 
-    expect(fakeUploadAsset.calls[0]?.correlationId).toBe("batch-corr-1");
+    expect(fakeUploadAsset.calls).toHaveLength(3);
+    for (const call of fakeUploadAsset.calls) {
+      expect(call.correlationId).toBe("batch-corr-1");
+    }
+  });
+
+  it("ingests only the listing thumbnail when no detail fetcher is wired at all", async () => {
+    const listing = listingHandler([[REAL_ITEM_XPANDER_GLS]]);
+    mswServer.use(listing.handler, photoHandler());
+    const fakeUploadAsset = createFakeUploadAsset();
+    const { runFullScrape } = makeParts(fakeUploadAsset, { withDetailFetcher: false });
+
+    const result = await runFullScrape.execute(undefined);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.photoResults[0]?.succeeded).toHaveLength(1);
   });
 });

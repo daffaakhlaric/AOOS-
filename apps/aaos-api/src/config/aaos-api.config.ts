@@ -69,6 +69,26 @@ export interface AaosApiConfig {
    * record instead of throwing or fabricating a result.
    */
   readonly AAOS_SIMULATOR_BASE_URL: string;
+
+  /**
+   * AAOS-SCRAPER-ASSET-LIBRARY — Google Cloud Storage settings for `@aos/asset-library`'s
+   * `GcsStorageClient` (the `assets`/`scraper` modules' file-byte backend).
+   *
+   * Every one of these is deliberately allowed to be an empty string, exactly like
+   * `OPENAI_API_KEY`/`AAOS_SIMULATOR_BASE_URL` above: `GcsStorageClient`'s constructor THROWS when
+   * given neither credentials nor a key-file path, so requiring them here would make this whole app
+   * fail to boot on a deployment that has no GCS configured yet. `app.module.ts` composes
+   * `@aos/asset-library` only when `GCS_PROJECT_ID` plus one of
+   * `GCS_CREDENTIALS`/`GCS_KEY_FILE_PATH` are present, and `AssetsService`/`ScraperService` report
+   * "asset library not configured" honestly when it isn't — never a fabricated empty asset list.
+   */
+  readonly GCS_BUCKET_NAME: string;
+  readonly GCS_PROJECT_ID: string;
+  readonly GCS_CREDENTIALS: string;
+  readonly GCS_KEY_FILE_PATH: string;
+
+  /** AAOS-SCRAPER-ASSET-LIBRARY — mobixbydss.id listing URL the scraper fetches. Defaults to the real production listing. */
+  readonly MOBIX_LISTING_URL: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -120,6 +140,16 @@ export const AaosApiConfigSchema = z.object({
   // Intentionally NOT `.min(1, ...)`/`.url(...)` — see the `AaosApiConfig.AAOS_SIMULATOR_BASE_URL`
   // doc comment above.
   AAOS_SIMULATOR_BASE_URL: z.string().default(""),
+
+  // AAOS-SCRAPER-ASSET-LIBRARY. All intentionally optional/defaulted — see the corresponding
+  // `AaosApiConfig` doc comment for why requiring them would break boot on a GCS-less deployment.
+  // `GCS_BUCKET_NAME` defaults to the same "aoos" bucket `AssetLibraryConfigSchema` itself defaults
+  // to, so the two never disagree.
+  GCS_BUCKET_NAME: z.string().default("aoos"),
+  GCS_PROJECT_ID: z.string().default(""),
+  GCS_CREDENTIALS: z.string().default(""),
+  GCS_KEY_FILE_PATH: z.string().default(""),
+  MOBIX_LISTING_URL: z.string().default("https://mobixbydss.id/produk"),
 });
 
 /**

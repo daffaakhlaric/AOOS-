@@ -98,6 +98,40 @@ export class GcsStorageClient implements IAssetStorage {
     }
   }
 
+  /**
+   * Real V4 signed read URL via `@google-cloud/storage`'s own `file.getSignedUrl(...)`
+   * (AAOS-SCRAPER-ASSET-LIBRARY). `expires` is an absolute epoch-ms deadline, computed here from
+   * the caller's relative `expirySeconds` — the SDK accepts either, and a relative-seconds
+   * argument would be silently misread as an epoch timestamp in 1970. Requires the configured
+   * service account to have a private key (it signs locally); a metadata-server-only credential
+   * would make the SDK throw, which is caught and wrapped as `StorageError` like every other
+   * failure in this class.
+   */
+  async getSignedUrl(path: string, expirySeconds: number): Promise<Result<string, StorageError>> {
+    if (!Number.isFinite(expirySeconds) || expirySeconds <= 0) {
+      return err(
+        new StorageError(
+          `GcsStorageClient.getSignedUrl: expirySeconds must be a positive number, received: ${String(expirySeconds)}`,
+        ),
+      );
+    }
+    try {
+      const [url] = await this.storage
+        .bucket(this.bucketName)
+        .file(path)
+        .getSignedUrl({
+          version: "v4",
+          action: "read",
+          expires: Date.now() + expirySeconds * 1000,
+        });
+      return ok(url);
+    } catch (error) {
+      return err(
+        new StorageError(`GcsStorageClient.getSignedUrl failed: ${toErrorMessage(error)}`),
+      );
+    }
+  }
+
   /** GCS public URL for a publicly-readable object (bucket-level IAM `allUsers` → Storage Object Viewer — see README). */
   getPublicUrl(path: string): string {
     return `https://storage.googleapis.com/${this.bucketName}/${path}`;

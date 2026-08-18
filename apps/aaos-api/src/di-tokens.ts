@@ -47,3 +47,20 @@ export const LLM_RESPONSE_CACHE = Symbol("LLM_RESPONSE_CACHE");
  * exported so `SimulationModule`'s repository can reuse it instead of opening a second connection.
  */
 export const SUPABASE_CLIENT = Symbol("SUPABASE_CLIENT");
+/**
+ * AAOS-SCRAPER-ASSET-LIBRARY additions — the first real `aaos-api` wiring of `@aos/asset-library`
+ * and `@aos/mobix-web-scraper` (neither was composed anywhere in this app before).
+ *
+ * `ASSET_LIBRARY` is provided as `AssetLibrary | undefined`: `GcsStorageClient`'s constructor throws
+ * when no GCS credentials are configured, so `app.module.ts` composes the library only when
+ * `isAssetLibraryConfigured(config)` holds and provides `undefined` otherwise — letting the whole
+ * app still boot and serve every other endpoint (same graceful-degradation discipline as
+ * `OPENAI_API_KEY`/`AAOS_SIMULATOR_BASE_URL`). `AssetsService`/`ScraperService` surface that as an
+ * honest 503-style error, never an empty asset list.
+ *
+ * `MOBIX_SCRAPER_SERVICE` is always provided (its only hard dependency is the shared `IPublisher`);
+ * photo ingestion is wired only when `ASSET_LIBRARY` exists, and `scraped_units` persistence only
+ * when Supabase is configured — both degrade per-feature inside the package itself.
+ */
+export const ASSET_LIBRARY = Symbol("ASSET_LIBRARY");
+export const MOBIX_SCRAPER_SERVICE = Symbol("MOBIX_SCRAPER_SERVICE");

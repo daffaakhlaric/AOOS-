@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aos/asset-library": "workspace:*",
     "@aos/branch-manager": "workspace:*",
     "@aos/common": "workspace:*",
     "@aos/config": "workspace:*",
@@ -26,6 +27,7 @@
     "@aos/logger": "workspace:*",
     "@aos/meta-ads-agent": "workspace:*",
     "@aos/meta-ads-connector": "workspace:*",
+    "@aos/mobix-web-scraper": "workspace:*",
     "@aos/objective-engine": "workspace:*",
     "@aos/telemetry": "workspace:*",
     "@aos/whatsapp-connector": "workspace:*",

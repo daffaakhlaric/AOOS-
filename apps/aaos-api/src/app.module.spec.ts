@@ -4,12 +4,14 @@ import { describe, expect, it } from "vitest";
 import { AppModule } from "./app.module.js";
 import {
   AAOS_API_CONFIG,
+  ASSET_LIBRARY,
   BRANCH_MANAGER,
   EVENT_PUBLISHER,
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
   LEAD_STORE_MESSAGE_REPOSITORY,
   META_ADS_CONNECTOR,
+  MOBIX_SCRAPER_SERVICE,
   OBJECTIVE_ENGINE,
   SUPABASE_CLIENT,
   WHATSAPP_CONNECTOR,
@@ -42,8 +44,25 @@ describe("AppModule.forRoot", () => {
     // own OpenAI client/rate limiter/cache locally, see llm.module.ts's class doc).
     // AAOS-DASHBOARD-SIMULASI: +1 import (SimulationModule) and +1 provider (SUPABASE_CLIENT,
     // the shared client SimulationRepository reuses — see di-tokens.ts's class doc).
-    expect(dynamicModule.imports).toHaveLength(13);
-    expect(dynamicModule.providers).toHaveLength(13);
+    // AAOS-SCRAPER-ASSET-LIBRARY: +2 imports (ScraperModule, AssetsModule) and +2 providers
+    // (ASSET_LIBRARY, MOBIX_SCRAPER_SERVICE).
+    expect(dynamicModule.imports).toHaveLength(15);
+    expect(dynamicModule.providers).toHaveLength(15);
+  });
+
+  it("provides ASSET_LIBRARY as undefined when no GCS credentials are configured, so the app still boots", () => {
+    const dynamicModule = AppModule.forRoot(buildTestConfig());
+    const provider = findValueProvider(dynamicModule.providers, ASSET_LIBRARY);
+    // The token must EXIST (otherwise Nest fails dependency resolution for AssetsService) but
+    // resolve to `undefined` — see di-tokens.ts's ASSET_LIBRARY doc.
+    expect(provider).toBeDefined();
+    expect(provider?.useValue).toBeUndefined();
+  });
+
+  it("always provides a composed MOBIX_SCRAPER_SERVICE (its only hard dependency is the shared publisher)", () => {
+    const dynamicModule = AppModule.forRoot(buildTestConfig());
+    const provider = findValueProvider(dynamicModule.providers, MOBIX_SCRAPER_SERVICE);
+    expect(provider?.useValue).toBeDefined();
   });
 
   it("throws the raw ConnectorConfigError when META_API_VERSION is not the literal v21.0", () => {
@@ -77,6 +96,8 @@ describe("AppModule.forRoot", () => {
       LEAD_STORE_MESSAGE_REPOSITORY,
       LEAD_STORE_CLOSING_REPOSITORY,
       SUPABASE_CLIENT,
+      ASSET_LIBRARY,
+      MOBIX_SCRAPER_SERVICE,
     ]);
   });
 

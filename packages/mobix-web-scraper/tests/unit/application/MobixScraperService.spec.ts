@@ -159,7 +159,9 @@ describe("MobixScraperService", () => {
     await service.scrapeInventoryUnits();
     const result = await service.runFullScrape("corr-99");
 
-    expect(fullScrapeExecute).toHaveBeenCalledWith(first, "corr-99");
+    // Third argument is the AAOS-SCRAPER-ASSET-LIBRARY `onProgress` listener — `undefined` here
+    // because this caller didn't pass one.
+    expect(fullScrapeExecute).toHaveBeenCalledWith(first, "corr-99", undefined);
     expect(result.ok).toBe(true);
     expect(service.lastScrapedSession?.sessionId).toBe("s2");
   });

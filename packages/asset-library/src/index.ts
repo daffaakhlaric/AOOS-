@@ -13,6 +13,10 @@ export type { GetAssetsByBranchInput } from "./application/use-cases/GetAssetsBy
 export { GetAssetsByType } from "./application/use-cases/GetAssetsByType.js";
 export type { GetAssetsByTypeInput } from "./application/use-cases/GetAssetsByType.js";
 export { GetBrandAssets } from "./application/use-cases/GetBrandAssets.js";
+export { ListAssets } from "./application/use-cases/ListAssets.js";
+export type { ListAssetsInput } from "./application/use-cases/ListAssets.js";
+export { GetAssetStats } from "./application/use-cases/GetAssetStats.js";
+export type { GetAssetStatsInput } from "./application/use-cases/GetAssetStats.js";
 export { SaveAiCreative } from "./application/use-cases/SaveAiCreative.js";
 export type { SaveAiCreativeInput } from "./application/use-cases/SaveAiCreative.js";
 export { ArchiveAsset } from "./application/use-cases/ArchiveAsset.js";
@@ -67,7 +71,12 @@ export type { AssetLibraryConfig, AssetLibraryConfigInput } from "./config/Asset
 export { AssetLibraryConfigSchema, parseAssetLibraryConfig } from "./config/AssetLibraryConfig.js";
 
 // Contracts
-export type { IAssetRepository } from "./contracts/IAssetRepository.js";
+export type {
+  IAssetRepository,
+  AssetListFilter,
+  AssetPage,
+  AssetStats,
+} from "./contracts/IAssetRepository.js";
 export type { IAssetStorage, UploadFileInput, UploadedFile } from "./contracts/IAssetStorage.js";
 export type { IAssetTagger, DeriveTagsInput } from "./contracts/IAssetTagger.js";
 

@@ -1,3 +1,4 @@
+import { AssetLibraryFactory, type AssetLibrary } from "@aos/asset-library";
 import type { BranchManager } from "@aos/branch-manager";
 import { BranchManagerFactory } from "@aos/branch-manager";
 import { EventBroker, type IPublisher } from "@aos/event-bus";
@@ -9,6 +10,7 @@ import {
   type LeadStore,
 } from "@aos/lead-store";
 import { MetaAdsConnectorFactory, type MetaAdsConnector } from "@aos/meta-ads-connector";
+import { MobixScraperFactory, type MobixScraperService } from "@aos/mobix-web-scraper";
 import type { ObjectiveEngine } from "@aos/objective-engine";
 import { ObjectiveEngineFactory } from "@aos/objective-engine";
 import { WhatsAppConnectorFactory, type WhatsAppConnector } from "@aos/whatsapp-connector";
@@ -17,6 +19,10 @@ import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 
 import type { AaosApiConfig } from "./config/aaos-api.config.js";
+import {
+  isAssetLibraryConfigured,
+  toAssetLibraryConfig,
+} from "./config/to-asset-library-config.js";
 import { toBranchManagerConfig } from "./config/to-branch-manager-config.js";
 import { toConnectorConfig } from "./config/to-connector-config.js";
 import { toLeadStoreConfig } from "./config/to-lead-store-config.js";
@@ -24,12 +30,14 @@ import { toObjectiveEngineConfig } from "./config/to-objective-engine-config.js"
 import { toWhatsAppConnectorConfig } from "./config/to-whatsapp-connector-config.js";
 import {
   AAOS_API_CONFIG,
+  ASSET_LIBRARY,
   BRANCH_MANAGER,
   EVENT_PUBLISHER,
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
   LEAD_STORE_MESSAGE_REPOSITORY,
   META_ADS_CONNECTOR,
+  MOBIX_SCRAPER_SERVICE,
   OBJECTIVE_ENGINE,
   SUPABASE_CLIENT,
   WHATSAPP_CONNECTOR,
@@ -37,6 +45,7 @@ import {
 import { AaosExceptionFilter } from "./filters/aaos-exception.filter.js";
 import { LoggingInterceptor } from "./interceptors/logging.interceptor.js";
 import { TracingInterceptor } from "./interceptors/tracing.interceptor.js";
+import { AssetsModule } from "./modules/assets/assets.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { ClosingsModule } from "./modules/closings/closings.module.js";
@@ -47,6 +56,7 @@ import { LlmModule } from "./modules/llm/llm.module.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
+import { ScraperModule } from "./modules/scraper/scraper.module.js";
 import { SimulationModule } from "./modules/simulation/simulation.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
 import { WhatsAppWebhookModule } from "./modules/whatsapp-webhook/whatsapp-webhook.module.js";
@@ -126,6 +136,45 @@ export class AppModule {
       publisher,
     });
 
+    // AAOS-SCRAPER-ASSET-LIBRARY: the first real composition of `@aos/asset-library` and
+    // `@aos/mobix-web-scraper` in this app.
+    //
+    // The asset library is composed ONLY when GCS is actually configured — `GcsStorageClient`'s
+    // constructor throws (by design) without credentials, so composing unconditionally would take
+    // the entire API down on a deployment that hasn't set `GCS_*` yet. When it's absent, the
+    // `assets` module's endpoints return an honest "not configured" error and the scraper still
+    // runs its listing scrape + `scraped_units` persistence, just without photo ingestion.
+    //
+    // It builds its own Supabase client from `AssetLibraryConfig` (the package's documented default
+    // path) rather than reusing `leadStoreSupabaseClient`: the two packages define their own
+    // structurally-distinct `SupabaseClientLike` ports (per Constitution §4.3, no package imports
+    // another's internal types), and `@aos/asset-library`'s now requires `ilike`/`range`/count
+    // support that `@aos/lead-store`'s port doesn't declare. Same Supabase PROJECT and credentials
+    // either way — `@supabase/supabase-js` is a stateless HTTP client, so this is a second client
+    // object, not a second database connection.
+    let assetLibrary: AssetLibrary | undefined;
+    if (isAssetLibraryConfigured(config)) {
+      const assetLibraryConfigResult = toAssetLibraryConfig(config);
+      if (!assetLibraryConfigResult.ok) {
+        throw assetLibraryConfigResult.error;
+      }
+      assetLibrary = AssetLibraryFactory.create({
+        config: assetLibraryConfigResult.value,
+        publisher,
+      });
+    }
+
+    const mobixScraper: MobixScraperService = MobixScraperFactory.create({
+      publisher,
+      listingUrl: config.MOBIX_LISTING_URL,
+      tenantId: config.AAOS_TENANT_ID,
+      // Real photo ingestion into GCS — only available when the asset library was composed.
+      ...(assetLibrary !== undefined ? { uploadAsset: assetLibrary.uploadAsset } : {}),
+      // Durable `scraped_units` persistence against the SAME Supabase project as everything else.
+      supabaseUrl: config.SUPABASE_URL,
+      supabaseServiceKey: config.SUPABASE_SERVICE_KEY,
+    });
+
     return {
       module: AppModule,
       global: true,
@@ -143,6 +192,8 @@ export class AppModule {
         ClosingsModule,
         SalesModule,
         SimulationModule,
+        ScraperModule,
+        AssetsModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },
@@ -155,6 +206,11 @@ export class AppModule {
         { provide: LEAD_STORE_MESSAGE_REPOSITORY, useValue: messageRepository },
         { provide: LEAD_STORE_CLOSING_REPOSITORY, useValue: closingRepository },
         { provide: SUPABASE_CLIENT, useValue: leadStoreSupabaseClient },
+        // `useValue: undefined` is intentional and load-bearing: it makes `ASSET_LIBRARY` an
+        // injectable token that resolves to `undefined` on a GCS-less deployment, rather than a
+        // missing provider that would fail Nest's dependency resolution at boot.
+        { provide: ASSET_LIBRARY, useValue: assetLibrary },
+        { provide: MOBIX_SCRAPER_SERVICE, useValue: mobixScraper },
         { provide: APP_FILTER, useValue: new AaosExceptionFilter() },
         { provide: APP_INTERCEPTOR, useValue: new LoggingInterceptor() },
         { provide: APP_INTERCEPTOR, useValue: new TracingInterceptor() },
@@ -170,6 +226,8 @@ export class AppModule {
         LEAD_STORE_MESSAGE_REPOSITORY,
         LEAD_STORE_CLOSING_REPOSITORY,
         SUPABASE_CLIENT,
+        ASSET_LIBRARY,
+        MOBIX_SCRAPER_SERVICE,
       ],
     };
   }

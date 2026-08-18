@@ -11,14 +11,18 @@ import { unwrap, unwrapErr } from "../../../helpers/result.js";
  * (`gcsCredentials` JSON string vs. `gcsKeyFilePath` vs. neither) without ever constructing a real
  * `Storage` client.
  */
-const { storageCtorSpy, bucketSpy, fileSpy, saveSpy, downloadSpy, deleteSpy } = vi.hoisted(() => ({
-  storageCtorSpy: vi.fn(),
-  bucketSpy: vi.fn(),
-  fileSpy: vi.fn(),
-  saveSpy: vi.fn().mockResolvedValue(undefined),
-  downloadSpy: vi.fn().mockResolvedValue([Buffer.from("fake-downloaded-bytes")]),
-  deleteSpy: vi.fn().mockResolvedValue([{}]),
-}));
+const { storageCtorSpy, bucketSpy, fileSpy, saveSpy, downloadSpy, deleteSpy, getSignedUrlSpy } =
+  vi.hoisted(() => ({
+    storageCtorSpy: vi.fn(),
+    bucketSpy: vi.fn(),
+    fileSpy: vi.fn(),
+    saveSpy: vi.fn().mockResolvedValue(undefined),
+    downloadSpy: vi.fn().mockResolvedValue([Buffer.from("fake-downloaded-bytes")]),
+    deleteSpy: vi.fn().mockResolvedValue([{}]),
+    getSignedUrlSpy: vi
+      .fn()
+      .mockResolvedValue(["https://storage.googleapis.com/aoos/signed?X-Goog-Signature=fake"]),
+  }));
 
 vi.mock("@google-cloud/storage", () => {
   class FakeStorage {
@@ -31,7 +35,12 @@ vi.mock("@google-cloud/storage", () => {
       return {
         file: (path: string) => {
           fileSpy(path);
-          return { save: saveSpy, download: downloadSpy, delete: deleteSpy };
+          return {
+            save: saveSpy,
+            download: downloadSpy,
+            delete: deleteSpy,
+            getSignedUrl: getSignedUrlSpy,
+          };
         },
       };
     }
@@ -61,6 +70,9 @@ beforeEach(() => {
   saveSpy.mockResolvedValue(undefined);
   downloadSpy.mockResolvedValue([Buffer.from("fake-downloaded-bytes")]);
   deleteSpy.mockResolvedValue([{}]);
+  getSignedUrlSpy.mockResolvedValue([
+    "https://storage.googleapis.com/aoos/signed?X-Goog-Signature=fake",
+  ]);
 });
 
 describe("GcsStorageClient — construction / auth resolution", () => {
@@ -294,6 +306,54 @@ describe("GcsStorageClient — delete()", () => {
     expect(error).toBeInstanceOf(StorageError);
     expect(error.message).toContain("GcsStorageClient.delete failed");
     expect(error.message).toContain("permission denied");
+  });
+});
+
+describe("GcsStorageClient — getSignedUrl()", () => {
+  function makeClient() {
+    return new GcsStorageClient({ ...baseConfig, gcsCredentials: FAKE_CREDENTIALS_JSON });
+  }
+
+  it("calls the real SDK's file.getSignedUrl with a v4 read action", async () => {
+    const client = makeClient();
+    await client.getSignedUrl("units/unit-1/photo-1.jpg", 3600);
+    expect(bucketSpy).toHaveBeenCalledWith("aoos");
+    expect(fileSpy).toHaveBeenCalledWith("units/unit-1/photo-1.jpg");
+    expect(getSignedUrlSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ version: "v4", action: "read" }),
+    );
+  });
+
+  it("passes `expires` as an ABSOLUTE epoch-ms deadline derived from the relative expirySeconds", async () => {
+    vi.setSystemTime(new Date("2026-08-13T00:00:00.000Z"));
+    const client = makeClient();
+    await client.getSignedUrl("units/unit-1/photo-1.jpg", 3600);
+    const options = getSignedUrlSpy.mock.calls[0]?.[0] as { expires: number };
+    expect(options.expires).toBe(Date.parse("2026-08-13T01:00:00.000Z"));
+    vi.useRealTimers();
+  });
+
+  it("resolves the signed URL the SDK returned", async () => {
+    const client = makeClient();
+    const url = unwrap(await client.getSignedUrl("units/unit-1/photo-1.jpg", 3600));
+    expect(url).toBe("https://storage.googleapis.com/aoos/signed?X-Goog-Signature=fake");
+  });
+
+  it("rejects a non-positive expirySeconds without calling the SDK", async () => {
+    const client = makeClient();
+    const error = unwrapErr(await client.getSignedUrl("units/unit-1/photo-1.jpg", 0));
+    expect(error).toBeInstanceOf(StorageError);
+    expect(error.message).toContain("expirySeconds must be a positive number");
+    expect(getSignedUrlSpy).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a StorageError when the SDK rejects (e.g. a credential that cannot sign)", async () => {
+    getSignedUrlSpy.mockRejectedValueOnce(new Error("cannot sign data without a private key"));
+    const client = makeClient();
+    const error = unwrapErr(await client.getSignedUrl("units/unit-1/photo-1.jpg", 3600));
+    expect(error).toBeInstanceOf(StorageError);
+    expect(error.message).toContain("GcsStorageClient.getSignedUrl failed");
+    expect(error.message).toContain("cannot sign data without a private key");
   });
 });
 

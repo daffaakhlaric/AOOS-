@@ -42,6 +42,14 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     // simulation module tests that need it reachable pass
     // `{ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }`.
     AAOS_SIMULATOR_BASE_URL: "",
+    // AAOS-SCRAPER-ASSET-LIBRARY — empty by default so most tests exercise the "GCS/asset library
+    // not configured" path. Tests needing a composed asset library pass `GCS_PROJECT_ID` +
+    // `GCS_CREDENTIALS`.
+    GCS_BUCKET_NAME: "aoos",
+    GCS_PROJECT_ID: "",
+    GCS_CREDENTIALS: "",
+    GCS_KEY_FILE_PATH: "",
+    MOBIX_LISTING_URL: "https://mobixbydss.id/unit",
     ...overrides,
   };
 }

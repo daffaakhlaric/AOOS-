@@ -1,6 +1,7 @@
 import { AssetType, type UploadAsset } from "@aos/asset-library";
 import { err, ok, type Result } from "@aos/common";
 
+import type { IUnitDetailFetcher } from "../../contracts/IUnitDetailFetcher.js";
 import type { ScrapedUnit } from "../../domain/entities/ScrapedUnit.js";
 import { PhotoDownloadError } from "../../domain/errors/PhotoDownloadError.js";
 import type { MobixScraperEvents } from "../../domain/events/MobixScraperEvents.js";
@@ -20,6 +21,15 @@ export interface PhotoBatchResult {
   readonly unitIdentityKey: string;
   readonly succeeded: ReadonlyArray<PhotoUploadResult>;
   readonly failed: ReadonlyArray<PhotoUploadFailure>;
+  /**
+   * The photo URLs this batch actually worked from — the unit's FULL gallery when an
+   * `IUnitDetailFetcher` was wired in and its fetch succeeded, otherwise the listing thumbnail the
+   * unit arrived with. Exposed so callers can persist the same complete set they downloaded (see
+   * `RunFullScrape`/`ScrapeUnit`, which feed it back through `ScrapedUnit.withPhotos`).
+   */
+  readonly resolvedPhotos: ReadonlyArray<string>;
+  /** Why the full-gallery fetch was skipped, when it failed and the batch fell back to the thumbnail. */
+  readonly detailFetchFailed?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -33,15 +43,24 @@ const EXTENSION_TO_MIME: Readonly<Record<string, string>> = {
 };
 
 /**
- * Downloads every photo URL already extracted onto a `ScrapedUnit` (by `UnitListingParser` — see
- * that file's `PHOTO_PATTERN`) and uploads each one to `@aos/asset-library` via the real
- * `UploadAsset` use case (`type: AssetType.UNIT_PHOTO`), tagged with the unit's identity key,
- * model, year, and branch.
+ * Resolves a unit's FULL photo gallery, then downloads every photo and uploads each one to
+ * `@aos/asset-library` via the real `UploadAsset` use case (`type: AssetType.UNIT_PHOTO`), tagged
+ * with the unit's identity key, model, year, and branch.
+ *
+ * GALLERY RESOLUTION (post-API-migration): mobixbydss.id's listing endpoint
+ * (`/api/get-all-produk`) carries only ONE `thumbnail` per unit, so a `ScrapedUnit` straight off the
+ * listing has a single photo. When an `IUnitDetailFetcher` is wired in, this use case first calls
+ * `/api/get-detail-produk` for the unit's slug and downloads that unit's complete `galeri` (~11
+ * photos on real units) instead — which is what keeps the "all of a unit's photos get ingested"
+ * behavior real after dropping HTML scraping. Both callers get this automatically:
+ * `RunFullScrape` (for each newly-detected unit only) and `ScrapeUnit` (for the one re-scraped unit).
  *
  * Partial-failure-tolerant by design: a download or upload failure for ONE photo (network error,
  * timeout, CORS/403, non-2xx status, `UploadAsset` rejecting the input) is collected into
  * `PhotoBatchResult.failed` rather than thrown or short-circuiting the rest of the batch — the
- * spec's "one failed photo must not fail the whole unit's photo batch" requirement. This is why
+ * spec's "one failed photo must not fail the whole unit's photo batch" requirement. A failed
+ * DETAIL fetch is tolerated the same way: it falls back to the listing thumbnail and reports why via
+ * `PhotoBatchResult.detailFetchFailed`, rather than ingesting nothing for that unit. This is why
  * `execute()` returns `Result<PhotoBatchResult, never>` (mirrors `DetectInventoryChanges`'s
  * `Result<InventoryDiff, never>`): the use case itself never fails, only individual photos do.
  */
@@ -56,6 +75,7 @@ export class DownloadAndStorePhotos {
     private readonly now: () => Date = () => new Date(),
     fetchImpl: typeof fetch = fetch,
     timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    private readonly unitDetailFetcher?: IUnitDetailFetcher,
   ) {
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
@@ -69,7 +89,22 @@ export class DownloadAndStorePhotos {
     const failed: PhotoUploadFailure[] = [];
     const effectiveCorrelationId = correlationId ?? unit.identityKey;
 
-    for (const photoUrl of unit.photos) {
+    let resolvedPhotos: ReadonlyArray<string> = unit.photos;
+    let detailFetchFailed: string | undefined;
+    if (this.unitDetailFetcher) {
+      const detail = await this.unitDetailFetcher.fetchDetail(unit.identityKey);
+      if (detail.ok) {
+        // An empty `galeri` is not an error — but neither is it a reason to throw away the thumbnail
+        // we already have, so the thumbnail is kept in that case.
+        if (detail.value.photos.length > 0) {
+          resolvedPhotos = detail.value.photos;
+        }
+      } else {
+        detailFetchFailed = detail.error.message;
+      }
+    }
+
+    for (const photoUrl of resolvedPhotos) {
       const downloaded = await this.download(photoUrl);
       if (!downloaded.ok) {
         failed.push({ photoUrl, reason: downloaded.error.message });
@@ -109,7 +144,13 @@ export class DownloadAndStorePhotos {
       );
     }
 
-    return ok({ unitIdentityKey: unit.identityKey, succeeded, failed });
+    return ok({
+      unitIdentityKey: unit.identityKey,
+      succeeded,
+      failed,
+      resolvedPhotos,
+      ...(detailFetchFailed !== undefined ? { detailFetchFailed } : {}),
+    });
   }
 
   private async download(

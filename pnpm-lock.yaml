@@ -44,6 +44,9 @@ importers:
 
   apps/aaos-api:
     dependencies:
+      '@aos/asset-library':
+        specifier: workspace:*
+        version: link:../../packages/asset-library
       '@aos/branch-manager':
         specifier: workspace:*
         version: link:../../packages/branch-manager
@@ -71,6 +74,9 @@ importers:
       '@aos/meta-ads-connector':
         specifier: workspace:*
         version: link:../../packages/meta-ads-connector
+      '@aos/mobix-web-scraper':
+        specifier: workspace:*
+        version: link:../../packages/mobix-web-scraper
       '@aos/objective-engine':
         specifier: workspace:*
         version: link:../../packages/objective-engine
@@ -2187,6 +2193,9 @@ importers:
       '@aos/telemetry':
         specifier: workspace:*
         version: link:../telemetry
+      '@supabase/supabase-js':
+        specifier: ^2.45.0
+        version: 2.112.2(@opentelemetry/api@1.9.1)
       zod:
         specifier: ^3.23.8
         version: 3.25.76

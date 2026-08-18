@@ -20,12 +20,19 @@ import { StorageError } from "../../src/domain/errors/StorageError.js";
 export class FakeAssetStorage implements IAssetStorage {
   readonly uploadSpy = vi.fn();
   readonly uploadedPaths: string[] = [];
+  readonly getSignedUrlSpy = vi.fn();
   private forcedError: string | undefined;
+  private forcedSignedUrlError: string | undefined;
   private baseUrl = "https://storage.googleapis.com/fake-bucket";
 
   /** Forces the NEXT `upload()` call to resolve with a `StorageError`. Consumed once. */
   forceErrorOnce(message: string): void {
     this.forcedError = message;
+  }
+
+  /** Forces the NEXT `getSignedUrl()` call to resolve with a `StorageError`. Consumed once. */
+  forceSignedUrlErrorOnce(message: string): void {
+    this.forcedSignedUrlError = message;
   }
 
   withBaseUrl(baseUrl: string): this {
@@ -45,6 +52,16 @@ export class FakeAssetStorage implements IAssetStorage {
     }
     this.uploadedPaths.push(input.path);
     return ok({ path: input.path, publicUrl: `${this.baseUrl}/${input.path}` });
+  }
+
+  async getSignedUrl(path: string, expirySeconds: number): Promise<Result<string, StorageError>> {
+    this.getSignedUrlSpy(path, expirySeconds);
+    if (this.forcedSignedUrlError !== undefined) {
+      const message = this.forcedSignedUrlError;
+      this.forcedSignedUrlError = undefined;
+      return err(new StorageError(`FakeAssetStorage.getSignedUrl failed: ${message}`));
+    }
+    return ok(`${this.baseUrl}/${path}?signed=1&expires=${expirySeconds}`);
   }
 }
 

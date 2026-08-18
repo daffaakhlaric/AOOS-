@@ -5,7 +5,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
 }));
 
-import { Sidebar } from "@/components/layout/Sidebar";
+import { NAV_ITEMS, Sidebar } from "@/components/layout/Sidebar";
 
 describe("Sidebar", () => {
   it("renders every nav item's label", () => {
@@ -60,5 +60,31 @@ describe("Sidebar", () => {
       "href",
       "/simulator",
     );
+  });
+
+  it("renders the two new AAOS-SCRAPER-ASSET-LIBRARY pages under the OPERASIONAL group", () => {
+    render(<Sidebar />);
+    expect(screen.getByRole("link", { name: /Scraper Mobix/ })).toHaveAttribute(
+      "href",
+      "/assets/scraper",
+    );
+    expect(screen.getByRole("link", { name: /Asset Library/ })).toHaveAttribute(
+      "href",
+      "/assets/library",
+    );
+  });
+
+  it("places them after Creative Review and before Branch Settings", () => {
+    render(<Sidebar />);
+    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href") ?? "");
+    expect(hrefs.indexOf("/assets/scraper")).toBeGreaterThan(hrefs.indexOf("/creative"));
+    expect(hrefs.indexOf("/assets/library")).toBeGreaterThan(hrefs.indexOf("/assets/scraper"));
+    expect(hrefs.indexOf("/branches")).toBeGreaterThan(hrefs.indexOf("/assets/library"));
+  });
+
+  it("does NOT add them to the mobile NAV_ITEMS list (same precedent as SIMULASI/SIMULATOR)", () => {
+    const hrefs = NAV_ITEMS.map((item) => item.href);
+    expect(hrefs).not.toContain("/assets/scraper");
+    expect(hrefs).not.toContain("/assets/library");
   });
 });

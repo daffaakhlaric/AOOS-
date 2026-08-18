@@ -11,7 +11,9 @@ import { GetAsset } from "../application/use-cases/GetAsset.js";
 import { GetAssetsByBranch } from "../application/use-cases/GetAssetsByBranch.js";
 import { GetAssetsByType } from "../application/use-cases/GetAssetsByType.js";
 import { GetAssetsByUnit } from "../application/use-cases/GetAssetsByUnit.js";
+import { GetAssetStats } from "../application/use-cases/GetAssetStats.js";
 import { GetBrandAssets } from "../application/use-cases/GetBrandAssets.js";
+import { ListAssets } from "../application/use-cases/ListAssets.js";
 import { SaveAiCreative } from "../application/use-cases/SaveAiCreative.js";
 import { TagAsset } from "../application/use-cases/TagAsset.js";
 import { UploadAsset } from "../application/use-cases/UploadAsset.js";
@@ -45,6 +47,9 @@ export interface AssetLibrary {
   readonly getAssetsByBranch: GetAssetsByBranch;
   readonly getAssetsByType: GetAssetsByType;
   readonly getBrandAssets: GetBrandAssets;
+  /** AAOS-SCRAPER-ASSET-LIBRARY additions. */
+  readonly listAssets: ListAssets;
+  readonly getAssetStats: GetAssetStats;
   readonly saveAiCreative: SaveAiCreative;
   readonly archiveAsset: ArchiveAsset;
   readonly archiveUnitAssets: ArchiveUnitAssets;
@@ -75,6 +80,8 @@ export class AssetLibraryFactory {
     const getAssetsByBranch = new GetAssetsByBranch(assetRepository);
     const getAssetsByType = new GetAssetsByType(assetRepository);
     const getBrandAssets = new GetBrandAssets(assetRepository);
+    const listAssets = new ListAssets(assetRepository);
+    const getAssetStats = new GetAssetStats(assetRepository);
     const saveAiCreative = new SaveAiCreative(assetRepository, storageService, tagger, events, now);
     const archiveAsset = new ArchiveAsset(assetRepository, events, now);
     const archiveUnitAssets = new ArchiveUnitAssets(assetRepository, events, now);
@@ -89,6 +96,8 @@ export class AssetLibraryFactory {
       getAssetsByBranch,
       getAssetsByType,
       getBrandAssets,
+      listAssets,
+      getAssetStats,
       saveAiCreative,
       archiveAsset,
       archiveUnitAssets,
@@ -106,6 +115,8 @@ export class AssetLibraryFactory {
         getAssetsByBranch,
         getAssetsByType,
         getBrandAssets,
+        listAssets,
+        getAssetStats,
       ),
       assetRepository,
       assetStorage,

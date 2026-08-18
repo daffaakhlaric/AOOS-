@@ -101,6 +101,16 @@ export class ScrapedUnit {
     return this.props.url.slug;
   }
 
+  /**
+   * A copy of this unit carrying a different photo set — used to replace the listing's single
+   * thumbnail with the unit's FULL gallery once `IUnitDetailFetcher` has fetched it, so the photos
+   * that get downloaded AND the photos that get persisted are the same complete set. Returns a new
+   * instance; `ScrapedUnit` stays immutable.
+   */
+  withPhotos(photos: ReadonlyArray<string>): ScrapedUnit {
+    return new ScrapedUnit({ ...this.props, photos: [...photos] });
+  }
+
   matchesModel(query: string): boolean {
     return this.props.model.toLowerCase().includes(query.toLowerCase());
   }

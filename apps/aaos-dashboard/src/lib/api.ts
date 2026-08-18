@@ -65,7 +65,24 @@ export async function callAaosApi<T>(
   });
 
   const text = await response.text();
-  const data: unknown = text.length > 0 ? JSON.parse(text) : undefined;
+  // REAL BUG FIX: this used to be a bare `JSON.parse(text)` — on a malformed/non-JSON body it threw
+  // a raw `SyntaxError` that bypassed the `AaosApiError` wrapping entirely, breaking this function's
+  // own documented contract ("never a raw fetch rejection") and surfacing as every caller's generic
+  // catch-all `{ error: { message: "Unexpected error" } }` — observed live: a scrape job's status
+  // poll right after completion hit this path and showed the literal English string "Unexpected
+  // error" to the user, even though the scrape itself had already finished successfully. Now a
+  // parse failure is a real `AaosApiError` too, carrying the response status and a preview of the
+  // actual body, instead of an opaque, undiagnosable message.
+  let data: unknown;
+  try {
+    data = text.length > 0 ? JSON.parse(text) : undefined;
+  } catch {
+    throw new AaosApiError(
+      response.status,
+      `aaos-api request to "${path}" returned a non-JSON body (status ${String(response.status)}): ` +
+        text.slice(0, 200),
+    );
+  }
 
   if (!response.ok) {
     const message =
@@ -76,6 +93,47 @@ export async function callAaosApi<T>(
   }
 
   return data as T;
+}
+
+/**
+ * Opens a raw streaming GET against `apps/aaos-api` and returns the live `Response` WITHOUT reading
+ * or parsing its body (AAOS-SCRAPER-ASSET-LIBRARY) — for `aaos-api`'s `@Sse()` progress stream,
+ * whose `text/event-stream` body must be piped straight through to the browser rather than buffered
+ * as JSON like `callAaosApi` does.
+ *
+ * Server-only, same as `callAaosApi`: this is what lets the dashboard expose the SSE stream to a
+ * `"use client"` component at all. The browser's native `EventSource` cannot set the `x-api-key`
+ * header `aaos-api`'s `ApiKeyGuard` requires, so the browser points at this app's own
+ * `/api/scraper/jobs/:jobId/stream` route, which holds the real key and forwards the frames.
+ *
+ * Throws `AaosApiError` on a non-2xx upstream response (its body IS read in that case, to surface
+ * the real upstream message).
+ */
+export async function streamAaosApi(path: string): Promise<Response> {
+  const baseUrl = requireEnv("AAOS_API_BASE_URL");
+  const apiKey = requireEnv("AAOS_API_KEY");
+
+  const response = await fetch(new URL(path, baseUrl), {
+    method: "GET",
+    headers: { "x-api-key": apiKey, accept: "text/event-stream" },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    let message = `aaos-api stream request to "${path}" failed with status ${response.status}`;
+    try {
+      const data: unknown = text.length > 0 ? JSON.parse(text) : undefined;
+      if (typeof data === "object" && data !== null && "message" in data) {
+        message = String((data as { message: unknown }).message);
+      }
+    } catch {
+      // Non-JSON error body — keep the generic message above.
+    }
+    throw new AaosApiError(response.status, message);
+  }
+
+  return response;
 }
 
 export class AaosSimulatorError extends Error {

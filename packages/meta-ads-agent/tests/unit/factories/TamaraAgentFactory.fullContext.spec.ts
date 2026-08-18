@@ -47,12 +47,14 @@ function pullFailure(): PullCampaignDataPort {
 }
 
 /**
- * A `fetch`-shaped stub returning a 200-OK page with NO `unit-card`/`promo-card` markup.
- * `UnitListingParser`/`PromoParser` both treat "zero cards found" as a `ParseError` (see those
- * files) — so despite the 200 status, this deterministically drives the S2 FAILURE path (real
- * network success, real parse failure — a realistic "page layout changed" scenario). A fresh
- * `Response` is constructed per call since `scrapeInventoryUnits()`/`scrapePromosList()` each
- * call `fetchImpl` once and `Response.text()` can only be read once per instance.
+ * A `fetch`-shaped stub returning a 200-OK HTML page for every request.
+ *
+ * Inventory now comes from mobixbydss.id's real JSON API (`POST /api/get-all-produk`), so an HTML
+ * body makes `MobixInventoryScraper` fail at JSON decoding; the promo page is still real HTML, and
+ * `PromoParser` treats "zero promo-card blocks" as a `ParseError`. Either way this deterministically
+ * drives the S2 FAILURE path (real network success, real decode/parse failure — a realistic "the
+ * endpoint is serving an error page" scenario). A fresh `Response` is constructed per call since the
+ * body of a given instance can only be read once.
  */
 function fetchOkButUnparseable(): typeof fetch {
   return vi.fn(
@@ -60,19 +62,33 @@ function fetchOkButUnparseable(): typeof fetch {
   ) as never;
 }
 
-/** A `fetch`-shaped stub returning real, parseable `unit-card`/`promo-card` HTML — drives a genuine S2 SUCCESS with one real unit and one real promo. */
+/**
+ * A `fetch`-shaped stub returning REAL data on both S2 paths — a genuine `/api/get-all-produk` JSON
+ * response (shaped exactly like the live API, including `meta.total_pages`) for inventory, and real
+ * `promo-card` HTML for promos. Drives a genuine S2 SUCCESS with one real unit and one real promo.
+ */
 function fetchOkWithRealData(): typeof fetch {
-  const unitHtml = `<html><body><div class="unit-listing">
-  <article class="unit-card" data-branch="BINTARO" data-available="true">
-    <a class="unit-card__link" href="https://mobixbydss.id/unit/xpander-cross-2019-abc123">
-      <h3 class="unit-card__title">Mitsubishi Xpander Cross 2019</h3>
-      <span class="unit-card__price">Rp 195.000.000</span>
-      <span class="unit-card__km">45.000 km</span>
-      <span class="unit-card__transmission">AT</span>
-      <span class="unit-card__color">Putih</span>
-    </a>
-  </article>
-</div></body></html>`;
+  const listingJson = {
+    status: "success",
+    code: 200,
+    error: "",
+    message: "Data berhasil ditemukan",
+    data: [
+      {
+        cabang: "BINTARO",
+        color: "Putih",
+        harga: 195000000,
+        merek: "Mitsubishi",
+        nama: "Mitsubishi Xpander Cross 2019 Putih",
+        odometer: 45000,
+        slug: "xpander-cross-2019-abc123",
+        transmisi: "AUTOMATIC",
+        type: "Xpander Cross",
+        year: 2019,
+      },
+    ],
+    meta: { limit: 12, page: 1, total_data: 1, total_pages: 1 },
+  };
   const promoHtml = `<html><body><div class="promo-listing">
   <section class="promo-card">
     <h3 class="promo-card__title">DP Ringan Mulai 10 Juta</h3>
@@ -80,8 +96,13 @@ function fetchOkWithRealData(): typeof fetch {
   </section>
 </div></body></html>`;
   return vi.fn(async (url: RequestInfo | URL) => {
-    const html = String(url).includes("promo") ? promoHtml : unitHtml;
-    return new Response(html, { status: 200 });
+    if (String(url).includes("promo")) {
+      return new Response(promoHtml, { status: 200 });
+    }
+    return new Response(JSON.stringify(listingJson), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   }) as never;
 }
 
@@ -241,8 +262,9 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
   });
 
   it("forwards mobixScraperOptions (e.g. a custom listingUrl) to MobixScraperFactory.create", async () => {
+    const requestedUrls: string[] = [];
     const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
-      expect(String(url)).toBe("https://custom.example/units");
+      requestedUrls.push(String(url));
       return new Response("<html></html>", { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -252,7 +274,8 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
       mobixScraperOptions: { fetchImpl, listingUrl: "https://custom.example/units" },
     });
     expect(result.ok).toBe(true);
-    expect(fetchImpl).toHaveBeenCalled();
+    // The inventory scraper derives the real JSON API endpoint from the custom listingUrl's ORIGIN.
+    expect(requestedUrls).toContain("https://custom.example/api/get-all-produk");
   });
 
   it("historicalDays: 30 does not trigger HistoricalLearningService's non-30-days warning", async () => {

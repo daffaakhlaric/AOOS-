@@ -5,7 +5,7 @@
   "description": "AAOS CRM — the mobile-first PWA sales humans at DSS Motor use to claim hot leads (realtime), follow up, and input closing/SPK records. Proxies all data mutations/reads to apps/aaos-api; subscribes to Supabase Realtime directly from the browser (the one deliberate exception — RLS enforces access control client-side).",
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "next dev -p 3002",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",

@@ -1,0 +1,364 @@
+/*
+ * Same "no max-width cap" discipline as every other data-dense page's `.page` in this app
+ * (`MetaAdsClient.module.css`, `SimulationWizardClient.module.css`, `ScraperClient.module.css`):
+ * a 48-tile asset grid must fill `.main`, not be capped at 1200px with dead space beside it.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  padding-bottom: 96px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--black);
+  line-height: 1;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.mutedText {
+  font-size: 12px;
+  color: var(--gray-500);
+  line-height: 1.5;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+/* === KPI strip === */
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 900px) {
+  .kpiStrip {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 12px 14px;
+}
+
+.kpiLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--gray-500);
+}
+
+.kpiValue {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+/* === Toolbar === */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.search {
+  flex: 1 1 220px;
+  padding: 6px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  font-size: 13px;
+  font-family: var(--font);
+}
+
+.inlineLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+.select {
+  padding: 6px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  font-size: 13px;
+  font-family: var(--font);
+}
+
+/* === Filter tabs === */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tab {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: var(--border);
+  background: var(--white);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+}
+
+.tabActive {
+  background: var(--black);
+  border-color: var(--black);
+  color: var(--white);
+}
+
+/* === Asset grid === */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 10px;
+}
+
+.thumbButton {
+  display: block;
+  padding: 0;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--gray-100);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+}
+
+.videoPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 110px;
+  font-size: 28px;
+}
+
+.typeBadge {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  background: var(--gray-100);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--gray-700);
+}
+
+.cardTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-900);
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+.cardMeta {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.statusBadge {
+  align-self: flex-start;
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  background: var(--gray-100);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* === Pager === */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* === Buttons === */
+.secondaryButton {
+  padding: 6px 12px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.secondaryButton:hover {
+  background: var(--gray-100);
+}
+
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.primaryButton {
+  padding: 8px 16px;
+  background: var(--black);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--white);
+  cursor: pointer;
+}
+
+.primaryButton:hover {
+  background: var(--gray-700);
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dangerButton {
+  padding: 6px 12px;
+  background: #991b1b;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--white);
+  cursor: pointer;
+}
+
+.dangerButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* === Detail modal === */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 45%);
+  overflow-y: auto;
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 20px;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.preview {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--gray-100);
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+@media (min-width: 640px) {
+  .detailGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.detailRow {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.detailLabel {
+  flex: 0 0 96px;
+  font-weight: 500;
+  color: var(--gray-500);
+}
+
+.detailValue {
+  color: var(--gray-900);
+  word-break: break-all;
+}

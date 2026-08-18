@@ -32,6 +32,7 @@
     "@aos/logger": "workspace:*",
     "@aos/meta-ads-connector": "workspace:*",
     "@aos/telemetry": "workspace:*",
+    "@supabase/supabase-js": "^2.45.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

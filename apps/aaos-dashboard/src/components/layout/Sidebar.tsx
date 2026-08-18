@@ -30,6 +30,14 @@ const SIMULASI: NavItem = {
 const OBJECTIVE: NavItem = { href: "/objective", label: "Objective", icon: "🎯" };
 const LEADS: NavItem = { href: "/leads", label: "Leads", icon: "🔥" };
 const CREATIVE: NavItem = { href: "/creative", label: "Creative Review", icon: "🎨" };
+/**
+ * AAOS-SCRAPER-ASSET-LIBRARY. Placed in the OPERASIONAL group after `CREATIVE` and before
+ * `BRANCHES` (matching the spec's proposed ordering). Deliberately NOT added to the mobile
+ * `NAV_ITEMS` list below — same precedent as `SIMULASI`/`SIMULATOR`, whose 5-slot bottom bar must
+ * stay focused on the highest-traffic pages.
+ */
+const SCRAPER_MOBIX: NavItem = { href: "/assets/scraper", label: "Scraper Mobix", icon: "📸" };
+const ASSET_LIBRARY: NavItem = { href: "/assets/library", label: "Asset Library", icon: "🗂" };
 const BRANCHES: NavItem = { href: "/branches", label: "Branch Settings", icon: "⚙️" };
 const KNOWLEDGE: NavItem = { href: "/knowledge", label: "Knowledge Base", icon: "📚" };
 const SIMULATOR: NavItem = { href: "/simulator", label: "Simulator (Jessy)", icon: "🎮" };
@@ -86,7 +94,16 @@ const NAV_GROUPS: readonly NavGroup[] = [
   {
     key: "operasional",
     label: "OPERASIONAL",
-    items: [OBJECTIVE, LEADS, CREATIVE, BRANCHES, KNOWLEDGE, SIMULATOR],
+    items: [
+      OBJECTIVE,
+      LEADS,
+      CREATIVE,
+      SCRAPER_MOBIX,
+      ASSET_LIBRARY,
+      BRANCHES,
+      KNOWLEDGE,
+      SIMULATOR,
+    ],
   },
 ];
 
