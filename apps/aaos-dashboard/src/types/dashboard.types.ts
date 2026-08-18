@@ -301,6 +301,44 @@ export interface SimulationTamaraStageDto {
   readonly ringkasan?: string;
   readonly elapsedMs: number;
   readonly coverageScore: number;
+  readonly audienceTargeting?: SimulationAudienceTargetingDto;
+}
+
+/**
+ * One REAL Meta interest Tamara selected (AAOS-SIMULASI-TARGETING). Every value here — including
+ * both audience-size bounds — is Meta's own, originally fetched by a live
+ * `GET /search?type=adinterest` call and stored in `meta_interests`. The dashboard never computes,
+ * rounds, or estimates an audience size.
+ */
+export interface SimulationSelectedInterestDto {
+  readonly id: string;
+  readonly name: string;
+  readonly audienceSizeLower: number;
+  readonly audienceSizeUpper: number;
+  readonly topic?: string;
+}
+
+/**
+ * The display-only "Campaign yang Akan Dibuat (Preview)" audience block. Mirrors aaos-api's
+ * `AudienceTargetingPreview`.
+ *
+ * `geo`/`radiusKm`/`ageMin`/`ageMax` are an UNREVIEWED initial default derived from the branch's
+ * real physical location — `geoNote` carries the Indonesian caveat and MUST be rendered alongside
+ * them. `interests` are real Meta interests. Nothing in this block is ever sent to Meta: real
+ * campaign creation (`/meta-ads/strategi`) constructs no targeting at all and is untouched by
+ * this feature.
+ */
+export interface SimulationAudienceTargetingDto {
+  readonly branch: string;
+  readonly geo: readonly string[];
+  readonly radiusKm: number;
+  readonly ageMin: number;
+  readonly ageMax: number;
+  readonly geoNote: string;
+  readonly candidateCount: number;
+  readonly interests: readonly SimulationSelectedInterestDto[];
+  readonly reasoning?: string;
+  readonly interestsUnavailableReason?: string;
 }
 
 export interface SimulationKaiBriefDto {
@@ -364,6 +402,12 @@ export interface SimulationLogEntryDto {
   readonly step: string;
   readonly level: string;
   readonly message: string;
+  /**
+   * Real structured data attached to a log line (`simulation_logs.payload`). Only the audience-
+   * targeting step writes it today — every other line omits it, so the log panel's "Lihat data"
+   * toggle appears only where there is genuinely something to show.
+   */
+  readonly payload?: Record<string, unknown>;
   readonly createdAt: string;
 }
 

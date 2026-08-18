@@ -10,6 +10,7 @@ import { CreateCampaign } from "../application/use-cases/CreateCampaign.js";
 import { ExecuteVerdict } from "../application/use-cases/ExecuteVerdict.js";
 import { ProcessLeadWebhook } from "../application/use-cases/ProcessLeadWebhook.js";
 import { PullCampaignData, type Tracer } from "../application/use-cases/PullCampaignData.js";
+import { SearchAdInterests } from "../application/use-cases/SearchAdInterests.js";
 import type { MetaAdsConnectorConfig } from "../config/MetaAdsConnectorConfig.js";
 import type { IMetaAdsClient } from "../contracts/IMetaAdsClient.js";
 import { MetaAdsConnectorEvents } from "../domain/events/MetaAdsConnectorEvents.js";
@@ -39,6 +40,12 @@ export interface MetaAdsConnector {
   readonly pullCampaignData: PullCampaignData;
   readonly executeVerdict: ExecuteVerdict;
   readonly createCampaign: CreateCampaign;
+  /**
+   * AAOS-SIMULASI-TARGETING: read-only Meta ad-interest discovery
+   * (`GET /search?type=adinterest`). Deliberately NOT connected to `createCampaign` — see
+   * `SearchAdInterests`'s scope-boundary docstring.
+   */
+  readonly searchAdInterests: SearchAdInterests;
   readonly processLeadWebhook: ProcessLeadWebhook;
   readonly registry: AdAccountRegistry;
   readonly rateLimiter: TokenBucketRateLimiter;
@@ -99,6 +106,8 @@ export class MetaAdsConnectorFactory {
       now,
     );
 
+    const searchAdInterests = new SearchAdInterests(client, rateLimiter, retry, logger, tracer);
+
     const webhookVerifier = new WebhookVerifier();
     const webhookParser = new WebhookParser({ now });
     const resolveAd: AdResolver = (metaAdId) => {
@@ -128,6 +137,7 @@ export class MetaAdsConnectorFactory {
       pullCampaignData,
       executeVerdict,
       createCampaign,
+      searchAdInterests,
       processLeadWebhook,
       registry,
       rateLimiter,

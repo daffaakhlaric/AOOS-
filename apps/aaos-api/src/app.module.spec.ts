@@ -49,7 +49,10 @@ describe("AppModule.forRoot", () => {
     // (ASSET_LIBRARY, MOBIX_SCRAPER_SERVICE).
     // AAOS-CREATIVE-REVIEW: +1 provider (KAI_AGENT_RUNTIME, the composed @aos/creative-agent
     // pipeline) — no new import (the existing CreativePackagesModule now backs it).
-    expect(dynamicModule.imports).toHaveLength(15);
+    // AAOS-SIMULASI-TARGETING: +1 import (MetaInterestsModule, for POST /api/v1/meta-interests/sync
+    // and the Simulasi audience preview's real interest candidates) — no new global provider (it
+    // composes its repository locally from the existing SUPABASE_CLIENT).
+    expect(dynamicModule.imports).toHaveLength(16);
     expect(dynamicModule.providers).toHaveLength(16);
   });
 

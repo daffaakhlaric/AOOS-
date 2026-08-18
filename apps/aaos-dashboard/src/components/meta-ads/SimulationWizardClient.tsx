@@ -10,6 +10,7 @@ import type {
   CampaignAdDto,
   ObjectiveDto,
   SimulationHistoryEntryDto,
+  SimulationLogEntryDto,
   SimulationStatusDto,
 } from "@/types/dashboard.types";
 
@@ -47,6 +48,41 @@ const BRANCHES = ["CINERE", "BINTARO", "BANDUNG", "JABODETABEK", "BOOST", "MULTI
 
 const STEPS = ["SETUP", "TAMARA", "KAI", "JESSY", "JUDGE", "REVIEW"] as const;
 type WizardStep = (typeof STEPS)[number];
+
+/** Days used to derive a daily budget from the objective's real monthly `budgetAllocation` — the same /30 convention already used elsewhere this session. */
+const DAYS_PER_MONTH = 30;
+
+/**
+ * Log-line presentation per real `simulation_logs.step` value. `step` is NOT literally an agent
+ * name for three of the six: `SETUP` is the pipeline bootstrap, `JUDGE` is the AI Judge scoring
+ * pass and `REVIEW` is the human manager's stage — so those are labelled "Sistem"/"AI Judge"/
+ * "Manager" rather than pretending each step is a named agent. `DONE` also reaches this map (the
+ * pipeline's catch-all failure line logs with `step: "DONE"`), so it is included.
+ *
+ * Colors are inline hex rather than CSS-module classes because they key off runtime data; they
+ * match the log panel's existing dark-surface palette (`.logLineWarn`/`.logLineError`).
+ */
+const LOG_STEP_META: Readonly<
+  Record<string, { readonly label: string; readonly icon: string; readonly color: string }>
+> = {
+  SETUP: { label: "Sistem", icon: "⚙", color: "#9ca3af" },
+  TAMARA: { label: "Tamara", icon: "📊", color: "#60a5fa" },
+  KAI: { label: "Kai", icon: "🎨", color: "#c084fc" },
+  JESSY: { label: "Jessy", icon: "💬", color: "#34d399" },
+  JUDGE: { label: "AI Judge", icon: "⚖", color: "#fbbf24" },
+  REVIEW: { label: "Manager", icon: "🧑‍💼", color: "#f472b6" },
+  DONE: { label: "Selesai", icon: "✅", color: "#9ca3af" },
+};
+
+/** Unknown steps keep the raw value rather than being hidden or relabelled — an honest fallback. */
+function logStepMeta(step: string): { label: string; icon: string; color: string } {
+  return LOG_STEP_META[step] ?? { label: step, icon: "•", color: "#d1d5db" };
+}
+
+/** The filter dropdown's options, derived from the real steps that actually appear in this run's logs — never a hardcoded list that could offer an empty filter. */
+function logStepOptions(logs: readonly SimulationLogEntryDto[]): readonly string[] {
+  return [...new Set(logs.map((entry) => entry.step))];
+}
 
 function needsRefresh(ad: CampaignAdDto): boolean {
   return ad.verdict === "REFRESH" || ad.metrics.frequency >= FREQUENCY_THRESHOLD;
@@ -499,31 +535,13 @@ export function SimulationWizardClient(): React.ReactElement {
 
           {status !== undefined ? (
             <div className={styles.stageGrid}>
-              <TamaraStageCard status={status} />
+              <TamaraStageCard status={status} objective={objective} />
               <KaiStageCard status={status} />
               <JessyStageCard status={status} />
             </div>
           ) : null}
 
-          {status !== undefined && status.logs.length > 0 ? (
-            <div className={styles.logPanel}>
-              {status.logs.map((entry, index) => (
-                <p
-                  key={`${entry.createdAt}-${index}`}
-                  className={`${styles.logLine} ${
-                    entry.level === "WARN"
-                      ? styles.logLineWarn
-                      : entry.level === "ERROR"
-                        ? styles.logLineError
-                        : ""
-                  }`}
-                >
-                  [{new Date(entry.createdAt).toLocaleTimeString("id-ID")}] {entry.step}:{" "}
-                  {entry.message}
-                </p>
-              ))}
-            </div>
-          ) : null}
+          {status !== undefined && status.logs.length > 0 ? <LogPanel logs={status.logs} /> : null}
         </section>
       ) : null}
 
@@ -598,9 +616,109 @@ export function SimulationWizardClient(): React.ReactElement {
   );
 }
 
-function TamaraStageCard({ status }: { readonly status: SimulationStatusDto }): React.ReactElement {
+/**
+ * The pipeline log panel. Reads the SAME polled `status.logs` array the wizard already fetches
+ * every 3s from `GET /api/simulation/:id/status` — deliberately NOT a Supabase Realtime
+ * subscription: this codebase has no Realtime precedent, and a direct browser→Supabase channel
+ * would bypass the "dashboard proxies everything through aaos-api" rule. Filtering and coloring
+ * are pure client-side presentation over data that was already being fetched.
+ *
+ * "Lihat data" appears only on lines that really carry a `payload` (today: the audience-targeting
+ * step, the sole writer of `simulation_logs.payload`) — never an empty expander.
+ */
+function LogPanel({
+  logs,
+}: {
+  readonly logs: readonly SimulationLogEntryDto[];
+}): React.ReactElement {
+  const [stepFilter, setStepFilter] = useState<string>("ALL");
+  const [expanded, setExpanded] = useState<readonly string[]>([]);
+
+  const options = logStepOptions(logs);
+  const visible = stepFilter === "ALL" ? logs : logs.filter((entry) => entry.step === stepFilter);
+
+  function toggle(key: string): void {
+    setExpanded((current) =>
+      current.includes(key) ? current.filter((k) => k !== key) : [...current, key],
+    );
+  }
+
+  return (
+    <div data-testid="simulation-log-panel">
+      <div className={styles.formRow}>
+        <label className={styles.formLabel}>Filter log per agent/tahap</label>
+        <select
+          data-testid="log-step-filter"
+          value={stepFilter}
+          onChange={(event) => setStepFilter(event.target.value)}
+          className={styles.select}
+        >
+          <option value="ALL">Semua ({logs.length})</option>
+          {options.map((step) => (
+            <option key={step} value={step}>
+              {logStepMeta(step).icon} {logStepMeta(step).label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className={styles.logPanel}>
+        {visible.length === 0 ? (
+          <p className={styles.logLine}>Tidak ada log untuk filter ini.</p>
+        ) : null}
+        {visible.map((entry, index) => {
+          const key = `${entry.createdAt}-${index}`;
+          const meta = logStepMeta(entry.step);
+          const isOpen = expanded.includes(key);
+          return (
+            <div key={key}>
+              <p
+                className={`${styles.logLine} ${
+                  entry.level === "WARN"
+                    ? styles.logLineWarn
+                    : entry.level === "ERROR"
+                      ? styles.logLineError
+                      : ""
+                }`}
+              >
+                [{new Date(entry.createdAt).toLocaleTimeString("id-ID")}]{" "}
+                <span style={{ color: meta.color, fontWeight: 600 }}>
+                  {meta.icon} {meta.label}
+                </span>
+                : {entry.message}
+                {entry.payload !== undefined ? (
+                  <button
+                    type="button"
+                    onClick={() => toggle(key)}
+                    className={styles.logDataToggle}
+                  >
+                    {isOpen ? "Sembunyikan data" : "Lihat data"}
+                  </button>
+                ) : null}
+              </p>
+              {entry.payload !== undefined && isOpen ? (
+                <pre className={styles.logPayload}>{JSON.stringify(entry.payload, null, 2)}</pre>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TamaraStageCard({
+  status,
+  objective,
+}: {
+  readonly status: SimulationStatusDto;
+  readonly objective: ObjectiveDto | null | undefined;
+}): React.ReactElement {
   const tamara = status.result?.tamara;
   const pending = tamara === undefined;
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const targeting = tamara?.audienceTargeting;
+
   return (
     <div className={styles.stageCard}>
       <div className={styles.stageHeader}>
@@ -620,6 +738,100 @@ function TamaraStageCard({ status }: { readonly status: SimulationStatusDto }): 
         </>
       ) : null}
       {!pending && !tamara.available ? <p className={styles.mutedText}>{tamara.reason}</p> : null}
+
+      {targeting !== undefined ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setPreviewOpen((open) => !open)}
+            className={styles.secondaryButton}
+          >
+            {previewOpen ? "Tutup" : "Lihat"} Campaign yang Akan Dibuat (Preview)
+          </button>
+          {previewOpen ? <CampaignPreview targeting={targeting} objective={objective} /> : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * "Campaign yang Akan Dibuat (Preview)" — display only. Nothing here is ever submitted to Meta:
+ * real campaign creation lives on `/meta-ads/strategi` and constructs no targeting at all.
+ *
+ * Every value shown is either real or explicitly labelled as an unreviewed default:
+ * - Geo/age come from the branch defaults, rendered together with their verbatim `geoNote` caveat.
+ * - Interests are real Meta interests (Meta's own ids and audience-size bounds).
+ * - Daily budget is the objective's real monthly `budgetAllocation` divided by 30.
+ *
+ * Deliberately ABSENT: buying type, special ad categories, placement lists, bid strategy, and
+ * frequency caps. None of those exist anywhere real in this system, so they are omitted rather
+ * than filled with plausible-looking invented numbers.
+ */
+function CampaignPreview({
+  targeting,
+  objective,
+}: {
+  readonly targeting: NonNullable<SimulationStatusDto["result"]>["tamara"]["audienceTargeting"];
+  readonly objective: ObjectiveDto | null | undefined;
+}): React.ReactElement | null {
+  if (targeting === undefined) {
+    return null;
+  }
+  const dailyBudget =
+    objective !== null && objective !== undefined
+      ? Math.round(objective.budgetAllocation / DAYS_PER_MONTH)
+      : undefined;
+
+  return (
+    <div data-testid="campaign-preview" className={styles.previewBox}>
+      <p className={styles.previewHeading}>Budget &amp; Jadwal</p>
+      <p className={styles.mutedText}>
+        {dailyBudget !== undefined
+          ? `Budget harian ≈ Rp ${dailyBudget.toLocaleString("id-ID")} (dari budget objective bulan ini ÷ ${DAYS_PER_MONTH} hari)`
+          : "Belum ada objective bulan ini — budget harian belum bisa dihitung."}
+      </p>
+
+      <p className={styles.previewHeading}>Audience — Lokasi &amp; Usia</p>
+      <p className={styles.mutedText}>
+        Cabang {targeting.branch} · {targeting.geo.join(", ")}
+        {targeting.radiusKm > 0 ? ` · radius ${targeting.radiusKm} km` : ""} · usia{" "}
+        {targeting.ageMin}–{targeting.ageMax}
+      </p>
+      <p className={styles.previewWarning}>{targeting.geoNote}</p>
+
+      <p className={styles.previewHeading}>
+        Audience — Interest Meta ({targeting.interests.length} dipilih dari{" "}
+        {targeting.candidateCount} kandidat)
+      </p>
+      {targeting.interests.length === 0 ? (
+        <p className={styles.mutedText}>
+          {targeting.interestsUnavailableReason === "NO_CANDIDATES"
+            ? "Belum ada interest tersimpan — jalankan sync interest Meta dulu (POST /api/v1/meta-interests/sync)."
+            : `Interest belum bisa dipilih: ${targeting.interestsUnavailableReason ?? "unknown"}.`}
+        </p>
+      ) : (
+        <div className={styles.list}>
+          {targeting.interests.map((interest) => (
+            <div key={interest.id} className={styles.row}>
+              <span className={styles.rowText}>
+                {interest.name}
+                {interest.topic !== undefined ? ` · ${interest.topic}` : ""}
+              </span>
+              <span className={styles.mutedText}>
+                {interest.audienceSizeLower.toLocaleString("id-ID")}–
+                {interest.audienceSizeUpper.toLocaleString("id-ID")} orang (data Meta)
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {targeting.reasoning !== undefined ? (
+        <p className={styles.mutedText}>Alasan Tamara: {targeting.reasoning}</p>
+      ) : null}
+      <p className={styles.mutedText}>
+        Preview saja — simulasi ini tidak membuat campaign Meta apa pun.
+      </p>
     </div>
   );
 }

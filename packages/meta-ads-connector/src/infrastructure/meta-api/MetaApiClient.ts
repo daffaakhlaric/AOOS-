@@ -18,6 +18,8 @@ import {
 import {
   MetaAdAccountResponseSchema,
   type MetaAdAccountResponse,
+  MetaAdInterestSearchResponseSchema,
+  type MetaAdInterestSearchResponse,
   MetaAdListResponseSchema,
   type MetaAdListResponse,
   MetaAdSetListResponseSchema,
@@ -158,6 +160,15 @@ export class MetaApiClient implements IMetaAdsClient {
       status: params.status,
       access_token: accessToken,
     });
+  }
+
+  /** AAOS-SIMULASI-TARGETING: `GET /search?type=adinterest&q=<term>` — see `IMetaAdsClient.searchAdInterests`. */
+  async searchAdInterests(
+    term: string,
+    accessToken: string,
+  ): Promise<Result<MetaAdInterestSearchResponse, MetaApiError>> {
+    const url = MetaApiRequestBuilder.adInterestSearchUrl(term, accessToken);
+    return this.getJson(url, MetaAdInterestSearchResponseSchema);
   }
 
   private async getJson<T>(

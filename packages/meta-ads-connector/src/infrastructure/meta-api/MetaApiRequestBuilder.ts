@@ -96,6 +96,22 @@ export class MetaApiRequestBuilder {
     return `${BASE_URL}/${API_VERSION}/${adAccountId}/adsets`;
   }
 
+  /**
+   * AAOS-SIMULASI-TARGETING: `GET /search?type=adinterest&q=<term>` — Meta's real ad-interest
+   * targeting-search endpoint (confirmed live 2026-08-18). Deliberately built with the EXACT
+   * three params the confirmed-live call used (`type`, `q`, `access_token`) and no `limit`/`fields`
+   * of its own: this endpoint is not documented to accept the same paging params the
+   * `/{node}/edge` reads above use, and the result set is already small. Capping how many rows
+   * AAOS keeps is `SearchAdInterests`'s job, not this URL's.
+   */
+  static adInterestSearchUrl(term: string, accessToken: string): string {
+    const url = new URL(`${BASE_URL}/${API_VERSION}/search`);
+    url.searchParams.set("type", "adinterest");
+    url.searchParams.set("q", term);
+    url.searchParams.set("access_token", accessToken);
+    return url.toString();
+  }
+
   private static buildGetUrl(
     path: string,
     accessToken: string,

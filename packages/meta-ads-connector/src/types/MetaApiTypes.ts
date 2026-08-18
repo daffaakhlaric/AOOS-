@@ -126,6 +126,47 @@ export const MetaAdAccountResponseSchema = z.object({
 });
 export type MetaAdAccountResponse = z.infer<typeof MetaAdAccountResponseSchema>;
 
+/**
+ * One row of `GET /search?type=adinterest&q=<term>` (AAOS-SIMULASI-TARGETING). Built against a
+ * REAL, live response captured 2026-08-18 (`q=automotive`):
+ *
+ * ```json
+ * {"id":"6003304550260","name":"Automotive industry (industry)",
+ *  "audience_size_lower_bound":386766403,"audience_size_upper_bound":454837290,
+ *  "path":["Interests","Additional interests","Automotive industry (industry)"],
+ *  "description":null,"topic":"Hobbies and activities"}
+ * ```
+ *
+ * Deliberate nullability/optionality choices, each grounded in the real captured payloads:
+ * - `description` really does come back `null` for some interests and `""` for others, so it is
+ *   `.nullable()` (and `.optional()`, since Meta omits it entirely on some rows) — never required.
+ * - `topic` is present on every captured row but is NOT documented as guaranteed, so it stays
+ *   optional rather than failing an otherwise-usable row closed.
+ * - `disambiguation_category` appears on some rows only (e.g. brand-vs-concept disambiguation) and
+ *   AAOS has no use for it; it is accepted-but-ignored rather than required.
+ *
+ * Unlike the metric fields above, the two `audience_size_*` bounds really are JSON *numbers* in
+ * Meta's search response (not numeric strings), so they are `z.number()`.
+ */
+export const MetaAdInterestSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  audience_size_lower_bound: z.number(),
+  audience_size_upper_bound: z.number(),
+  path: z.array(z.string()),
+  description: z.string().nullable().optional(),
+  topic: z.string().optional(),
+  disambiguation_category: z.string().optional(),
+});
+export type MetaAdInterest = z.infer<typeof MetaAdInterestSchema>;
+
+/** Response of `GET /search?type=adinterest&q=<term>` — a plain `{ data: [...] }` edge. */
+export const MetaAdInterestSearchResponseSchema = z.object({
+  data: z.array(MetaAdInterestSchema),
+  paging: MetaPagingSchema.optional(),
+});
+export type MetaAdInterestSearchResponse = z.infer<typeof MetaAdInterestSearchResponseSchema>;
+
 export const MetaErrorResponseSchema = z.object({
   error: z.object({
     message: z.string(),

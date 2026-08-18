@@ -1,23 +1,30 @@
 import { randomUUID } from "node:crypto";
 
 import { NotFoundError } from "@aos/errors";
+import { Branch, branchAudienceDefault } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG } from "../../di-tokens.js";
+import type { TargetingCandidateDto } from "../llm/dto/select-targeting.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
 
 import { computeSimulationScoring } from "./domain/scoring.js";
 import type {
+  AudienceTargetingPreview,
   JessyPersonaRun,
   JessyStageResult,
   KaiStageResult,
+  SelectedAudienceInterest,
   SimulationLogEntry,
+  SimulationLogPayload,
   SimulationResult,
   SimulationStep,
   StoredSimulation,
   TamaraStageResult,
 } from "./domain/simulation-record.js";
+import { selectTargetingCandidates } from "./domain/targeting-candidates.js";
 import type { ReviewSimulationBodyDto } from "./dto/review-simulation.dto.js";
 import {
   toSimulationHistoryEntryDto,
@@ -59,6 +66,7 @@ export class SimulationService {
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     private readonly repository: SimulationRepository,
     private readonly llmService: LlmService,
+    private readonly metaInterestRepository: MetaInterestRepository,
   ) {}
 
   async start(body: StartSimulationBodyDto): Promise<{ id: string; status: "RUNNING" }> {
@@ -83,8 +91,15 @@ export class SimulationService {
     step: SimulationStep,
     level: "INFO" | "WARN" | "ERROR",
     message: string,
+    payload?: SimulationLogPayload,
   ): Promise<void> {
-    const entry: SimulationLogEntry = { step, level, message, createdAt: new Date().toISOString() };
+    const entry: SimulationLogEntry = {
+      step,
+      level,
+      message,
+      ...(payload !== undefined ? { payload } : {}),
+      createdAt: new Date().toISOString(),
+    };
     try {
       await this.repository.appendLog(id, entry);
     } catch (caught) {
@@ -110,7 +125,7 @@ export class SimulationService {
         campaigns: body.campaigns,
         totals: body.totals,
       });
-      const tamara: TamaraStageResult = analyzeResult.available
+      const baseTamara: TamaraStageResult = analyzeResult.available
         ? {
             available: true,
             temuan: analyzeResult.temuan,
@@ -128,11 +143,15 @@ export class SimulationService {
       await this.log(
         id,
         "TAMARA",
-        tamara.available ? "INFO" : "WARN",
-        tamara.available
-          ? `Tamara selesai menganalisa dalam ${tamara.elapsedMs}ms.`
-          : `Tamara tidak tersedia: ${tamara.reason ?? "unknown"}.`,
+        baseTamara.available ? "INFO" : "WARN",
+        baseTamara.available
+          ? `Tamara selesai menganalisa dalam ${baseTamara.elapsedMs}ms.`
+          : `Tamara tidak tersedia: ${baseTamara.reason ?? "unknown"}.`,
       );
+
+      // --- Step 2b: audience targeting preview (display only — never sent to Meta) ---
+      const audienceTargeting = await this.computeAudienceTargeting(id, body);
+      const tamara: TamaraStageResult = { ...baseTamara, audienceTargeting };
 
       // --- Step 3: Kai (real /api/v1/llm/creative-brief; real Kie AI generation NOT invoked) ---
       await this.repository.updateStep(id, "KAI");
@@ -203,6 +222,142 @@ export class SimulationService {
       this.logger.error(`SimulationService.runPipeline(${id}) failed: ${message}`);
       await this.log(id, "DONE", "ERROR", `Simulasi gagal: ${message}`);
       await this.repository.fail(id, message);
+    }
+  }
+
+  /**
+   * AAOS-SIMULASI-TARGETING — computes the display-only "Campaign yang Akan Dibuat (Preview)"
+   * audience block, as a new step inside the TAMARA stage after the real `LlmService.analyze` call.
+   *
+   * Two real sources, kept clearly distinguishable in the output:
+   *  1. The branch's geo/age default from `@aos/meta-ads-connector`'s `BRANCH_AUDIENCE_DEFAULTS` —
+   *     an UNREVIEWED judgment call, carried with its Indonesian caveat (`geoNote`) so the UI can
+   *     never present it as confirmed DSS Motor data.
+   *  2. Real Meta interests: the stored `meta_interests` catalogue (populated only by real live
+   *     Graph API calls via `POST /api/v1/meta-interests/sync`), narrowed to a focused candidate
+   *     set, then handed to the real `LlmService.selectTargeting` — whose response is intersected
+   *     server-side against the candidate ids before anything reaches this preview.
+   *
+   * NEVER FAILS THE RUN: an empty catalogue, an unavailable LLM, or even a thrown repository error
+   * degrades to a preview with zero interests and an honest `interestsUnavailableReason` — this is
+   * a display nicety, not a gate, and a fabricated interest would be far worse than a missing one.
+   */
+  private async computeAudienceTargeting(
+    id: string,
+    body: StartSimulationBodyDto,
+  ): Promise<AudienceTargetingPreview> {
+    const branch = isBranch(body.branch) ? body.branch : body.kaiBranch;
+    const geoDefault = branchAudienceDefault(branch);
+    const base = {
+      branch,
+      geo: geoDefault.cities,
+      radiusKm: geoDefault.radiusKm,
+      ageMin: geoDefault.ageMin,
+      ageMax: geoDefault.ageMax,
+      geoNote: geoDefault.note,
+    };
+
+    try {
+      const stored = await this.metaInterestRepository.listByTenant(this.config.AAOS_TENANT_ID);
+      const candidates = selectTargetingCandidates(stored, {
+        unit: body.kaiAd.name,
+        ...(body.kaiAngle !== undefined ? { angle: body.kaiAngle } : {}),
+      });
+
+      if (candidates.length === 0) {
+        await this.log(
+          id,
+          "TAMARA",
+          "WARN",
+          "Belum ada kandidat interest Meta tersimpan — jalankan POST /api/v1/meta-interests/sync dulu. Targeting interest dilewati (bukan hasil palsu).",
+          { candidateIds: [], selectedIds: [], rejectedIds: [] },
+        );
+        return {
+          ...base,
+          candidateCount: 0,
+          interests: [],
+          interestsUnavailableReason: "NO_CANDIDATES",
+        };
+      }
+
+      const candidateDtos: TargetingCandidateDto[] = candidates.map((candidate) => ({
+        id: candidate.id,
+        name: candidate.name,
+        audienceSizeLower: candidate.audienceSizeLower,
+        audienceSizeUpper: candidate.audienceSizeUpper,
+        ...(candidate.topic !== undefined ? { topic: candidate.topic } : {}),
+      }));
+
+      const selection = await this.llmService.selectTargeting({
+        unit: body.kaiAd.name,
+        ...(body.kaiAngle !== undefined ? { angle: body.kaiAngle } : {}),
+        branch,
+        candidates: candidateDtos,
+      });
+
+      if (!selection.available) {
+        await this.log(
+          id,
+          "TAMARA",
+          "WARN",
+          `Tamara tidak bisa memilih interest: ${selection.reason}. Menampilkan geo/usia default saja.`,
+          { candidateIds: candidates.map((c) => c.id), selectedIds: [], rejectedIds: [] },
+        );
+        return {
+          ...base,
+          candidateCount: candidates.length,
+          interests: [],
+          interestsUnavailableReason: selection.reason,
+        };
+      }
+
+      const selectedIds = new Set(selection.interestIds);
+      const interests: SelectedAudienceInterest[] = candidates
+        .filter((candidate) => selectedIds.has(candidate.id))
+        .map((candidate) => ({
+          id: candidate.id,
+          name: candidate.name,
+          audienceSizeLower: candidate.audienceSizeLower,
+          audienceSizeUpper: candidate.audienceSizeUpper,
+          ...(candidate.topic !== undefined ? { topic: candidate.topic } : {}),
+        }));
+
+      await this.log(
+        id,
+        "TAMARA",
+        selection.rejectedIds.length > 0 ? "WARN" : "INFO",
+        `Tamara memilih ${interests.length} dari ${candidates.length} kandidat interest Meta` +
+          (selection.rejectedIds.length > 0
+            ? `; ${selection.rejectedIds.length} id karangan ditolak server.`
+            : "."),
+        {
+          candidateIds: candidates.map((candidate) => candidate.id),
+          selectedIds: selection.interestIds,
+          rejectedIds: selection.rejectedIds,
+        },
+      );
+
+      return {
+        ...base,
+        candidateCount: candidates.length,
+        interests,
+        reasoning: selection.reasoning,
+      };
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      this.logger.warn(`SimulationService.computeAudienceTargeting(${id}) failed: ${message}`);
+      await this.log(
+        id,
+        "TAMARA",
+        "WARN",
+        `Preview targeting gagal dihitung: ${message}. Simulasi tetap dilanjutkan.`,
+      );
+      return {
+        ...base,
+        candidateCount: 0,
+        interests: [],
+        interestsUnavailableReason: "TARGETING_ERROR",
+      };
     }
   }
 
@@ -307,4 +462,9 @@ export class SimulationService {
     }
     return simulation;
   }
+}
+
+/** `StartSimulationBodyDto.branch` is free text (see its schema doc); this narrows it to a real `Branch` member, or `false` so the caller falls back to the validated `kaiBranch`. */
+function isBranch(value: string | undefined): value is Branch {
+  return value !== undefined && (Object.values(Branch) as string[]).includes(value);
 }

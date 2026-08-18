@@ -1,5 +1,6 @@
 import type {
   SimulationLogEntry,
+  SimulationLogPayload,
   SimulationResult,
   StoredSimulation,
 } from "../domain/simulation-record.js";
@@ -18,10 +19,18 @@ export interface SimulationStatusResponseDto {
   readonly decidedBy?: string;
   readonly decisionNotes?: string;
   readonly decidedAt?: string;
+  /**
+   * `result.tamara.audienceTargeting` (AAOS-SIMULASI-TARGETING) rides along inside `result` — no
+   * separate top-level field, exactly like `tamara`/`kai` already do.
+   *
+   * `logs[].payload` is populated only for the targeting step (the sole writer of
+   * `simulation_logs.payload`); every other line omits it.
+   */
   readonly logs: ReadonlyArray<{
     readonly step: string;
     readonly level: string;
     readonly message: string;
+    readonly payload?: SimulationLogPayload;
     readonly createdAt: string;
   }>;
   readonly createdAt: string;

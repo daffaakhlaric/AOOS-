@@ -11,6 +11,52 @@ export type SimulationStatus = "RUNNING" | "DONE" | "ERROR";
 
 export type SimulationDecision = "APPROVED" | "REJECTED";
 
+/**
+ * One REAL Meta interest Tamara selected for the audience preview (AAOS-SIMULASI-TARGETING).
+ * `id`/`name`/`audienceSize*` are Meta's own values, read back out of `meta_interests` (which is
+ * only ever populated by real live `GET /search?type=adinterest` calls) — never invented here.
+ */
+export interface SelectedAudienceInterest {
+  readonly id: string;
+  readonly name: string;
+  readonly audienceSizeLower: number;
+  readonly audienceSizeUpper: number;
+  readonly topic?: string;
+}
+
+/**
+ * The display-only "Campaign yang Akan Dibuat (Preview)" audience block
+ * (AAOS-SIMULASI-TARGETING). Two very different kinds of value live here, and the distinction is
+ * the whole point:
+ *
+ * - `geo`/`ageMin`/`ageMax`/`geoNote` are an UNREVIEWED INITIAL DEFAULT derived from the branch's
+ *   real physical location (`@aos/meta-ads-connector`'s `BRANCH_AUDIENCE_DEFAULTS`). `geoNote`
+ *   carries the Indonesian caveat string the UI must render verbatim. These are NOT confirmed DSS
+ *   Motor targeting data.
+ * - `interests` are REAL Meta interests, with Meta's own ids and audience-size bounds, chosen by a
+ *   real `LlmService.selectTargeting` call from a real stored candidate set.
+ *
+ * HARD SCOPE BOUNDARY: nothing here is ever sent to Meta. It is computed for display in the
+ * Simulasi wizard only; `CreateCampaign`/`CreateAdSet` construct no `targeting` field and were not
+ * changed by this feature.
+ */
+export interface AudienceTargetingPreview {
+  readonly branch: string;
+  readonly geo: readonly string[];
+  readonly radiusKm: number;
+  readonly ageMin: number;
+  readonly ageMax: number;
+  /** Verbatim "⚠ Perkiraan awal, perlu direview…" caveat — the UI must show it. */
+  readonly geoNote: string;
+  /** How many real candidates were queried out of `meta_interests` and shown to Tamara. */
+  readonly candidateCount: number;
+  readonly interests: readonly SelectedAudienceInterest[];
+  /** Tamara's real Indonesian rationale, when the selection succeeded. */
+  readonly reasoning?: string;
+  /** Why `interests` is empty, when it is (e.g. `NO_CANDIDATES`, or the real LLM unavailable reason). Never a fabricated selection. */
+  readonly interestsUnavailableReason?: string;
+}
+
 /** Step 2 (Tamara) result — the REAL `AnalyzeLlmPayload` shape from `POST /api/v1/llm/analyze`, or `undefined` when Tamara was unavailable (never fabricated). */
 export interface TamaraStageResult {
   readonly available: boolean;
@@ -36,6 +82,13 @@ export interface TamaraStageResult {
    * formula.
    */
   readonly coverageScore: number;
+  /**
+   * AAOS-SIMULASI-TARGETING — the display-only audience preview computed as a new step after the
+   * real `LlmService.analyze` call. Optional: absent on every simulation recorded before this
+   * feature existed, and absent on a run where the targeting step itself threw (a targeting
+   * failure must never fail the whole simulation). See `AudienceTargetingPreview`.
+   */
+  readonly audienceTargeting?: AudienceTargetingPreview;
 }
 
 /** Step 3 (Kai) result. `videoGenerated`/`imageGenerated` are honestly `false` in this pass — see this module's class docs for why real Kie AI video generation is not invoked here. */
@@ -101,10 +154,24 @@ export interface SimulationResult {
   readonly scoring: SimulationScoring;
 }
 
+/**
+ * Structured data attached to a log line. JSON-shaped by construction — this is persisted straight
+ * into `simulation_logs.payload` (JSONB) and returned verbatim to the dashboard's log panel.
+ */
+export type SimulationLogPayload = Record<string, unknown>;
+
 export interface SimulationLogEntry {
   readonly step: SimulationStep;
   readonly level: "INFO" | "WARN" | "ERROR";
   readonly message: string;
+  /**
+   * AAOS-SIMULASI-TARGETING: the previously-unused `simulation_logs.payload` JSONB column is now
+   * really written — but ONLY by the targeting step, which has genuinely structured output worth
+   * inspecting (the real candidate interest ids it queried, the ids Tamara selected, and any ids
+   * Tamara invented and the server rejected). Every other log line still writes message-only, so
+   * this stays `undefined` for them rather than being padded with an empty object.
+   */
+  readonly payload?: SimulationLogPayload;
   readonly createdAt: string;
 }
 

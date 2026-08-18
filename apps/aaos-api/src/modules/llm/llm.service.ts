@@ -22,6 +22,11 @@ import {
   type CreativeBriefResponseDto,
 } from "./dto/creative-brief.dto.js";
 import { unavailable, type LlmUnavailableResponseDto } from "./dto/llm-unavailable.dto.js";
+import {
+  SelectTargetingLlmPayloadSchema,
+  type SelectTargetingRequestDto,
+  type SelectTargetingResponseDto,
+} from "./dto/select-targeting.dto.js";
 import type { OpenAiChatMessage, OpenAiClient } from "./infrastructure/OpenAiClient.js";
 
 /** Verbatim system prompt from the spec's `POST /api/v1/llm/analyze` section. */
@@ -59,13 +64,40 @@ Berikan brief dalam format JSON:
   "urgency": "HIGH/MEDIUM/LOW"
 }`;
 
+/**
+ * AAOS-SIMULASI-TARGETING. Not a spec quote — this capability did not exist before this task.
+ * Written in the same "Kamu adalah Tamara…" persona as the two prompts above, and worded to make
+ * the candidate constraint explicit in the prompt itself (belt) on top of the server-side
+ * candidate-set intersection in `selectTargeting` (braces — the prompt is a request, the
+ * intersection is the guarantee).
+ */
+const SELECT_TARGETING_SYSTEM_PROMPT = `Kamu adalah Tamara, AI Marketing Manager untuk DSS Motor (Mobix) — dealer mobil bekas di Indonesia.
+
+Kamu diberi DAFTAR KANDIDAT interest Meta Ads yang nyata (hasil pencarian langsung ke Meta Graph API).
+Tugasmu: pilih 2-5 interest dari daftar itu yang paling relevan untuk menjual unit yang disebutkan.
+
+ATURAN KERAS:
+- HANYA boleh memilih "id" yang ADA di daftar kandidat. Dilarang mengarang id baru.
+- Jangan memilih semua kandidat — pilih yang benar-benar relevan saja.
+- "reasoning" ditulis dalam Bahasa Indonesia, satu atau dua kalimat.
+
+Format response JSON:
+{
+  "interestIds": ["<id dari daftar kandidat>", "..."],
+  "reasoning": "alasan singkat dalam Bahasa Indonesia"
+}`;
+
 /** Not a literal spec quote (the spec's `/llm/chat` section has no system-prompt block of its own) — derived from the same "Kamu adalah Tamara..." persona used by the other two prompts, for general free-text conversation. */
 const CHAT_SYSTEM_PROMPT =
   "Kamu adalah Tamara, AI Marketing Manager untuk DSS Motor (Mobix) — dealer mobil bekas di Indonesia. Jawab pertanyaan dengan jelas, actionable, dan dalam Bahasa Indonesia.";
 
 /**
  * OpenAI-backed implementation of Tamara's `analyze`/`creativeBrief`/`chat` capabilities
- * (`src/modules/llm/llm.controller.ts`'s three endpoints). Every method follows the same shape:
+ * (`src/modules/llm/llm.controller.ts`'s three endpoints), plus `selectTargeting`
+ * (AAOS-SIMULASI-TARGETING) which is deliberately IN-PROCESS ONLY — it is called by
+ * `SimulationService`'s TAMARA stage and has no HTTP endpoint of its own, because its input
+ * (the real candidate interest set) must be assembled server-side from `meta_interests`, never
+ * accepted from a client. Every method follows the same shape:
  *
  * 1. Serve from `ResponseCache` if an identical request body was already answered within the last
  *    30 minutes (spec Section 6 — cache hits never touch the rate limiter or OpenAI).
@@ -147,6 +179,64 @@ export class LlmService {
 
     const response: CreativeBriefResponseDto = { available: true, ...validated.data };
     this.cache.set("creative-brief", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS-SIMULASI-TARGETING: Tamara picks a relevant subset of REAL Meta interests from the real
+   * candidates the caller queried out of `meta_interests`. Same cache/gate/validate shape as
+   * `analyze`/`creativeBrief` above, plus one extra, load-bearing step:
+   *
+   * **The response is intersected against the real candidate id set server-side.** Any id the model
+   * returns that it was not shown is dropped into `rejectedIds` and never reaches the caller — an
+   * LLM is not trusted to only pick from what it was given, no matter what the prompt says. If
+   * NOTHING survives the intersection, the whole response is treated as `INVALID_RESPONSE` rather
+   * than returning an empty, meaningless "selection".
+   */
+  async selectTargeting(body: SelectTargetingRequestDto): Promise<SelectTargetingResponseDto> {
+    const cached = this.cache.get("select-targeting", body) as
+      SelectTargetingResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: SELECT_TARGETING_SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : SelectTargetingLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const candidateIds = new Set(body.candidates.map((candidate) => candidate.id));
+    const interestIds = validated.data.interestIds.filter((id) => candidateIds.has(id));
+    const rejectedIds = validated.data.interestIds.filter((id) => !candidateIds.has(id));
+    if (interestIds.length === 0) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: SelectTargetingResponseDto = {
+      available: true,
+      interestIds,
+      reasoning: validated.data.reasoning,
+      rejectedIds,
+    };
+    this.cache.set("select-targeting", body, response);
     return response;
   }
 

@@ -356,3 +356,56 @@
   font-size: 12px;
   color: var(--gray-700);
 }
+
+/* === Log panel: per-line structured payload (AAOS-SIMULASI-TARGETING) === */
+.logDataToggle {
+  margin-left: 8px;
+  border: none;
+  background: transparent;
+  color: #93c5fd;
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.logPayload {
+  margin: 2px 0 6px 16px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e5e7eb;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* === Campaign yang Akan Dibuat (Preview) === */
+.previewBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 12px;
+}
+
+.previewHeading {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+}
+
+.previewWarning {
+  margin: 0;
+  border-radius: var(--radius);
+  background: #fef3c7;
+  color: #92400e;
+  padding: 6px 8px;
+  font-size: 11px;
+}

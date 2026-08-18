@@ -21,6 +21,11 @@ export type {
   CreateCampaignInput,
   CreateCampaignOutput,
 } from "./application/use-cases/CreateCampaign.js";
+export {
+  SearchAdInterests,
+  MAX_INTERESTS_PER_TERM,
+} from "./application/use-cases/SearchAdInterests.js";
+export type { SearchAdInterestsInput } from "./application/use-cases/SearchAdInterests.js";
 export { ProcessLeadWebhook } from "./application/use-cases/ProcessLeadWebhook.js";
 export type { ProcessLeadWebhookInput } from "./application/use-cases/ProcessLeadWebhook.js";
 
@@ -34,6 +39,7 @@ export type { Campaign } from "./domain/entities/Campaign.js";
 export type { AdSet } from "./domain/entities/AdSet.js";
 export type { Ad } from "./domain/entities/Ad.js";
 export type { Lead } from "./domain/entities/Lead.js";
+export type { AdInterest } from "./domain/entities/AdInterest.js";
 
 // Domain — Value Objects
 export { AdAccountId } from "./domain/value-objects/AdAccountId.js";
@@ -93,6 +99,11 @@ export {
   MetaAdsConnectorConfigSchema,
   parseMetaAdsConnectorConfig,
 } from "./config/MetaAdsConnectorConfig.js";
+export {
+  BRANCH_AUDIENCE_DEFAULTS,
+  branchAudienceDefault,
+} from "./config/BranchAudienceDefaults.js";
+export type { BranchAudienceDefault } from "./config/BranchAudienceDefaults.js";
 
 // Registry
 export { AdAccountRegistry } from "./registry/AdAccountRegistry.js";
@@ -105,7 +116,12 @@ export type {
   CreateAdSetParams,
   MetaCreateResponse,
 } from "./contracts/IMetaAdsClient.js";
-export type { MetaAdAccountResponse } from "./types/MetaApiTypes.js";
+export type {
+  MetaAdAccountResponse,
+  MetaAdInterest,
+  MetaAdInterestSearchResponse,
+} from "./types/MetaApiTypes.js";
+export { MetaAdInterestSchema, MetaAdInterestSearchResponseSchema } from "./types/MetaApiTypes.js";
 export type { ILeadWebhookParser, RawLeadData } from "./contracts/ILeadWebhookParser.js";
 export type {
   ExecutionAction,
@@ -152,4 +168,5 @@ export { mapAdSet } from "./mappers/AdSetMapper.js";
 export { mapAd } from "./mappers/AdMapper.js";
 export { mapInsightRowToMetrics } from "./mappers/MetricsMapper.js";
 export { mapLead, mapLeads, derivePublisherPlatform } from "./mappers/LeadMapper.js";
+export { mapAdInterest } from "./mappers/AdInterestMapper.js";
 export type { AdIdentifiers, AdResolver } from "./mappers/LeadMapper.js";

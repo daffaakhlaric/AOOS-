@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { MetaInterestsModule } from "../meta-interests/meta-interests.module.js";
 
 import { SimulationRepository } from "./infrastructure/simulation.repository.js";
 import { SimulationController } from "./simulation.controller.js";
@@ -21,6 +22,11 @@ describe("SimulationModule", () => {
   it("imports LlmModule (so SimulationService can inject the real LlmService)", () => {
     const metadata = Reflect.getMetadata("imports", SimulationModule) as unknown[];
     expect(metadata).toContain(LlmModule);
+  });
+
+  it("imports MetaInterestsModule (so the TAMARA stage reads the SAME real MetaInterestRepository the sync endpoint writes through)", () => {
+    const metadata = Reflect.getMetadata("imports", SimulationModule) as unknown[];
+    expect(metadata).toContain(MetaInterestsModule);
   });
 
   it("registers SimulationController as its controller", () => {

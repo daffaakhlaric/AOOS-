@@ -3,6 +3,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import type {
   SimulationDecision,
   SimulationLogEntry,
+  SimulationLogPayload,
   SimulationResult,
   SimulationStatus,
   SimulationStep,
@@ -37,6 +38,13 @@ interface SimulationLogRow {
   readonly step: string;
   readonly level: string;
   readonly message: string;
+  /**
+   * AAOS-SIMULASI-TARGETING: `simulation_logs.payload` has existed in
+   * `supabase/migrations/001_simulations.sql` since the table was created but was never written
+   * until now. The targeting step writes its real candidate/selected/rejected interest ids here;
+   * every other log line leaves it `null`.
+   */
+  readonly payload: SimulationLogPayload | null;
   readonly created_at: string;
 }
 
@@ -202,6 +210,7 @@ export class SimulationRepository {
       step: entry.step,
       level: entry.level,
       message: entry.message,
+      payload: entry.payload ?? null,
       created_at: entry.createdAt,
     });
     if (error !== null) {
@@ -224,6 +233,9 @@ export class SimulationRepository {
       step: row.step as SimulationStep,
       level: row.level as "INFO" | "WARN" | "ERROR",
       message: row.message,
+      // `?? null` guards rows written before `payload` was ever populated, where Supabase returns
+      // the column as `null` — omitted rather than surfaced as an empty object.
+      ...((row.payload ?? null) !== null ? { payload: row.payload as SimulationLogPayload } : {}),
       createdAt: row.created_at,
     }));
   }

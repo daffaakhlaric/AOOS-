@@ -61,6 +61,7 @@ import { HealthModule } from "./modules/health/health.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
 import { LlmModule } from "./modules/llm/llm.module.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
+import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
 import { ScraperModule } from "./modules/scraper/scraper.module.js";
@@ -227,6 +228,7 @@ export class AppModule {
         LeadsModule,
         LlmModule,
         MetaAdsModule,
+        MetaInterestsModule,
         WebhookModule,
         WhatsAppWebhookModule,
         ObjectiveModule,

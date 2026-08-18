@@ -3,6 +3,7 @@ import type { Result } from "@aos/common";
 import type { MetaApiError } from "../domain/errors/index.js";
 import type {
   MetaAdAccountResponse,
+  MetaAdInterestSearchResponse,
   MetaAdListResponse,
   MetaAdSetListResponse,
   MetaCampaignListResponse,
@@ -107,4 +108,15 @@ export interface IMetaAdsClient {
     params: CreateAdSetParams,
     accessToken: string,
   ): Promise<Result<MetaCreateResponse, MetaApiError>>;
+
+  /**
+   * AAOS-SIMULASI-TARGETING: `GET /search?type=adinterest&q=<term>` — Meta's real ad-interest
+   * targeting search. A pure READ against an ad-account-independent search node (no ad account id
+   * involved), used by `SearchAdInterests` to discover real interest ids/names/audience sizes.
+   * Nothing about this call creates, modifies, or targets a real campaign.
+   */
+  searchAdInterests(
+    term: string,
+    accessToken: string,
+  ): Promise<Result<MetaAdInterestSearchResponse, MetaApiError>>;
 }

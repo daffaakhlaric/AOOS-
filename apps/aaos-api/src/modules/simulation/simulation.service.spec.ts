@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { LlmService } from "../llm/llm.service.js";
+import type { StoredMetaInterest } from "../meta-interests/domain/meta-interest.js";
+import type { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
 
 import type { StoredSimulation } from "./domain/simulation-record.js";
 import type { StartSimulationBodyDto } from "./dto/start-simulation.dto.js";
@@ -54,8 +56,43 @@ function buildFakeRepository(stored: StoredSimulation): SimulationRepository {
   } as unknown as SimulationRepository;
 }
 
+/**
+ * AAOS-SIMULASI-TARGETING: the TAMARA stage now also reads the real `meta_interests` catalogue.
+ * The default fake returns an EMPTY catalogue — that is the honest state of a deployment where
+ * `POST /api/v1/meta-interests/sync` has never been run, and it keeps every pre-existing test
+ * exercising exactly the pipeline it did before (targeting degrades to geo/age defaults only).
+ */
+function buildFakeInterestRepository(
+  stored: readonly StoredMetaInterest[] = [],
+): MetaInterestRepository {
+  return {
+    listByTenant: vi.fn(async () => stored),
+    findById: vi.fn(async () => undefined),
+    save: vi.fn(async () => "inserted" as const),
+  } as unknown as MetaInterestRepository;
+}
+
+const REAL_STORED_INTEREST: StoredMetaInterest = {
+  // Verbatim from a real live Meta `GET /search?type=adinterest&q=used car` response, 2026-08-18.
+  id: "6003257869482",
+  tenantId: "dss-motor",
+  name: "Used car (vehicle)",
+  audienceSizeLower: 61362891,
+  audienceSizeUpper: 72162760,
+  path: ["Interests", "Additional interests", "Used car (vehicle)"],
+  topic: "Business and industry",
+  searchTerm: "used car",
+  fetchedAt: "2026-08-18T00:00:00.000Z",
+};
+
 function buildFakeLlmService(overrides: Partial<LlmService> = {}): LlmService {
   return {
+    selectTargeting: vi.fn(async () => ({
+      available: true,
+      interestIds: ["6003257869482"],
+      reasoning: "Interest mobil bekas paling relevan untuk unit ini.",
+      rejectedIds: [],
+    })),
     analyze: vi.fn(async () => ({
       available: true,
       temuan: [
@@ -97,7 +134,12 @@ describe("SimulationService", () => {
   it("start persists a RUNNING record and returns its id immediately", async () => {
     const stored = buildStored();
     const repository = buildFakeRepository(stored);
-    const service = new SimulationService(buildTestConfig(), repository, buildFakeLlmService());
+    const service = new SimulationService(
+      buildTestConfig(),
+      repository,
+      buildFakeLlmService(),
+      buildFakeInterestRepository(),
+    );
 
     const result = await service.start(BODY);
     expect(result).toEqual({ id: "sim-1", status: "RUNNING" });
@@ -123,6 +165,7 @@ describe("SimulationService", () => {
       buildTestConfig({ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }),
       repository,
       buildFakeLlmService(),
+      buildFakeInterestRepository(),
     );
 
     await service.start(BODY);
@@ -145,6 +188,7 @@ describe("SimulationService", () => {
       buildTestConfig({ AAOS_SIMULATOR_BASE_URL: "" }),
       repository,
       buildFakeLlmService(),
+      buildFakeInterestRepository(),
     );
 
     await service.start(BODY);
@@ -168,6 +212,7 @@ describe("SimulationService", () => {
       buildTestConfig({ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }),
       repository,
       buildFakeLlmService(),
+      buildFakeInterestRepository(),
     );
 
     await service.start(BODY);
@@ -193,6 +238,7 @@ describe("SimulationService", () => {
           throw new Error("boom");
         }),
       }),
+      buildFakeInterestRepository(),
     );
 
     await service.start(BODY);
@@ -204,14 +250,24 @@ describe("SimulationService", () => {
 
   it("getStatus throws NotFoundError for an unknown id", async () => {
     const repository = buildFakeRepository(buildStored());
-    const service = new SimulationService(buildTestConfig(), repository, buildFakeLlmService());
+    const service = new SimulationService(
+      buildTestConfig(),
+      repository,
+      buildFakeLlmService(),
+      buildFakeInterestRepository(),
+    );
     await expect(service.getStatus("missing")).rejects.toThrow(NotFoundError);
   });
 
   it("approve/reject record the decision only — never anything else", async () => {
     const stored = buildStored({ status: "DONE" });
     const repository = buildFakeRepository(stored);
-    const service = new SimulationService(buildTestConfig(), repository, buildFakeLlmService());
+    const service = new SimulationService(
+      buildTestConfig(),
+      repository,
+      buildFakeLlmService(),
+      buildFakeInterestRepository(),
+    );
 
     await service.approve("sim-1", { decidedBy: "manager-1", notes: "looks good" });
     expect(repository.recordDecision).toHaveBeenCalledWith(
@@ -232,9 +288,136 @@ describe("SimulationService", () => {
     );
   });
 
+  describe("audience targeting preview (AAOS-SIMULASI-TARGETING)", () => {
+    async function runPipeline(
+      interestRepository: MetaInterestRepository,
+      llm: LlmService = buildFakeLlmService(),
+    ) {
+      const repository = buildFakeRepository(buildStored());
+      const service = new SimulationService(buildTestConfig(), repository, llm, interestRepository);
+      await service.start(BODY);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { tamara: { audienceTargeting?: Record<string, unknown> } },
+      ];
+      return { repository, targeting: result.tamara.audienceTargeting };
+    }
+
+    it("attaches the branch's geo/age default with its unreviewed caveat, even with no stored interests", async () => {
+      const { targeting } = await runPipeline(buildFakeInterestRepository([]));
+      expect(targeting).toMatchObject({
+        branch: "CINERE",
+        ageMin: 25,
+        ageMax: 50,
+        candidateCount: 0,
+        interests: [],
+        interestsUnavailableReason: "NO_CANDIDATES",
+      });
+      // Cinere is really in the Depok area — and the caveat is always carried.
+      expect(targeting?.geo).toContain("Depok");
+      expect(String(targeting?.geoNote)).toContain("Perkiraan awal");
+    });
+
+    it("carries the REAL selected Meta interest (Meta's own id and audience bounds), not just an id", async () => {
+      const { targeting } = await runPipeline(buildFakeInterestRepository([REAL_STORED_INTEREST]));
+      expect(targeting?.candidateCount).toBe(1);
+      expect(targeting?.interests).toEqual([
+        {
+          id: "6003257869482",
+          name: "Used car (vehicle)",
+          audienceSizeLower: 61362891,
+          audienceSizeUpper: 72162760,
+          topic: "Business and industry",
+        },
+      ]);
+      expect(targeting?.reasoning).toContain("mobil bekas");
+    });
+
+    it("never shows an interest Tamara invented — only ids that survived the server-side candidate check", async () => {
+      const llm = buildFakeLlmService({
+        // The real `LlmService.selectTargeting` already drops invented ids; this asserts the
+        // simulation layer additionally only renders interests it can resolve from the real
+        // candidate rows, so a leaked id can never become a displayed "interest".
+        selectTargeting: vi.fn(async () => ({
+          available: true,
+          interestIds: ["6003257869482", "9999999999999"],
+          reasoning: "alasan",
+          rejectedIds: [],
+        })),
+      } as unknown as Partial<LlmService>);
+      const { targeting } = await runPipeline(
+        buildFakeInterestRepository([REAL_STORED_INTEREST]),
+        llm,
+      );
+      expect(targeting?.interests).toHaveLength(1);
+      expect((targeting?.interests as ReadonlyArray<{ id: string }>)[0]?.id).toBe("6003257869482");
+    });
+
+    it("degrades honestly (no fabricated interests) when Tamara's selection is unavailable", async () => {
+      const llm = buildFakeLlmService({
+        selectTargeting: vi.fn(async () => ({
+          available: false,
+          reason: "NO_API_KEY",
+          message: "…",
+        })),
+      } as unknown as Partial<LlmService>);
+      const { targeting } = await runPipeline(
+        buildFakeInterestRepository([REAL_STORED_INTEREST]),
+        llm,
+      );
+      expect(targeting?.interests).toEqual([]);
+      expect(targeting?.interestsUnavailableReason).toBe("NO_API_KEY");
+    });
+
+    it("never fails the whole simulation when the interest repository throws", async () => {
+      const throwing = {
+        listByTenant: vi.fn(async () => {
+          throw new Error("meta_interests table missing");
+        }),
+      } as unknown as MetaInterestRepository;
+      const { repository, targeting } = await runPipeline(throwing);
+      expect(repository.fail).not.toHaveBeenCalled();
+      expect(targeting?.interestsUnavailableReason).toBe("TARGETING_ERROR");
+    });
+
+    it("writes the real candidate/selected/rejected ids into the previously-unused log payload column", async () => {
+      const repository = buildFakeRepository(buildStored());
+      const service = new SimulationService(
+        buildTestConfig(),
+        repository,
+        buildFakeLlmService(),
+        buildFakeInterestRepository([REAL_STORED_INTEREST]),
+      );
+      await service.start(BODY);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const logs = await repository.listLogs("sim-1");
+      const withPayload = logs.filter(
+        (entry): entry is (typeof logs)[number] & { payload: Record<string, unknown> } =>
+          entry.payload !== undefined,
+      );
+      expect(withPayload).toHaveLength(1);
+      expect(withPayload[0]?.payload).toEqual({
+        candidateIds: ["6003257869482"],
+        selectedIds: ["6003257869482"],
+        rejectedIds: [],
+      });
+      // Only the targeting step writes a payload — every other line stays message-only.
+      expect(logs.length).toBeGreaterThan(1);
+    });
+  });
+
   it("history maps stored simulations to history entries", async () => {
     const repository = buildFakeRepository(buildStored());
-    const service = new SimulationService(buildTestConfig(), repository, buildFakeLlmService());
+    const service = new SimulationService(
+      buildTestConfig(),
+      repository,
+      buildFakeLlmService(),
+      buildFakeInterestRepository(),
+    );
     const history = await service.history();
     expect(history).toHaveLength(1);
     expect(history[0]?.id).toBe("sim-1");

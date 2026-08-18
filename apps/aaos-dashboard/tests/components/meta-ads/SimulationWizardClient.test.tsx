@@ -265,6 +265,175 @@ describe("SimulationWizardClient", () => {
     expect(setup.textContent).toContain("Xpander Cross 2019");
   });
 
+  describe("log panel + Campaign yang Akan Dibuat preview (AAOS-SIMULASI-TARGETING)", () => {
+    /**
+     * Same DONE status, plus a multi-step log (one line carrying a real `payload`) and a real
+     * audience-targeting block — the interest is verbatim from a live Meta
+     * `GET /search?type=adinterest` response (2026-08-18).
+     */
+    const STATUS_WITH_TARGETING: SimulationStatusDto = {
+      ...DONE_STATUS,
+      logs: [
+        {
+          step: "SETUP",
+          level: "INFO",
+          message: "Simulasi dimulai.",
+          createdAt: "2026-08-18T00:00:00.000Z",
+        },
+        {
+          step: "TAMARA",
+          level: "INFO",
+          message: "Tamara memilih 1 dari 2 kandidat interest Meta.",
+          payload: {
+            candidateIds: ["6003257869482", "6003739713691"],
+            selectedIds: ["6003257869482"],
+            rejectedIds: [],
+          },
+          createdAt: "2026-08-18T00:00:01.000Z",
+        },
+        {
+          step: "JESSY",
+          level: "INFO",
+          message: "Persona ready_buyer selesai.",
+          createdAt: "2026-08-18T00:00:02.000Z",
+        },
+      ],
+      result: {
+        ...DONE_STATUS.result!,
+        tamara: {
+          ...DONE_STATUS.result!.tamara,
+          audienceTargeting: {
+            branch: "CINERE",
+            geo: ["Depok", "Jakarta Selatan", "Tangerang Selatan"],
+            radiusKm: 25,
+            ageMin: 25,
+            ageMax: 50,
+            geoNote: "⚠ Perkiraan awal, perlu direview — bukan data targeting resmi DSS Motor.",
+            candidateCount: 2,
+            interests: [
+              {
+                id: "6003257869482",
+                name: "Used car (vehicle)",
+                audienceSizeLower: 61362891,
+                audienceSizeUpper: 72162760,
+                topic: "Business and industry",
+              },
+            ],
+            reasoning: "Paling relevan untuk pembeli mobil bekas.",
+          },
+        },
+      },
+    };
+
+    async function runToPipeline(status: SimulationStatusDto): Promise<void> {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockFetch({
+        "/api/objective": () =>
+          jsonResponse({
+            objective: {
+              targetHotLeads: 100,
+              budgetAllocation: 30_000_000,
+              focusUnits: ["Xpander"],
+            },
+          }),
+        "/api/simulation/start": () => jsonResponse({ id: "sim-1", status: "RUNNING" }, 202),
+        "/api/simulation/sim-1/status": () => jsonResponse(status),
+      });
+      render(<SimulationWizardClient />);
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Ready Buyer" }));
+      await userEvent.click(screen.getByRole("button", { name: /Mulai Simulasi Dry-Run/ }));
+      await waitFor(() => expect(screen.getByTestId("simulation-log-panel")).toBeInTheDocument());
+    }
+
+    it("labels each real step with an agent-appropriate name (SETUP/JUDGE/REVIEW are not agents)", async () => {
+      await runToPipeline(STATUS_WITH_TARGETING);
+      const panel = screen.getByTestId("simulation-log-panel");
+      expect(panel.textContent).toContain("Sistem");
+      expect(panel.textContent).toContain("Tamara");
+      expect(panel.textContent).toContain("Jessy");
+    });
+
+    it("filters the polled logs by step without any new network transport", async () => {
+      await runToPipeline(STATUS_WITH_TARGETING);
+      const panel = screen.getByTestId("simulation-log-panel");
+      expect(panel.textContent).toContain("Simulasi dimulai.");
+
+      await userEvent.selectOptions(screen.getByTestId("log-step-filter"), "JESSY");
+
+      await waitFor(() =>
+        expect(screen.getByTestId("simulation-log-panel").textContent).not.toContain(
+          "Simulasi dimulai.",
+        ),
+      );
+      expect(screen.getByTestId("simulation-log-panel").textContent).toContain(
+        "Persona ready_buyer selesai.",
+      );
+    });
+
+    it("shows 'Lihat data' only on the line that really carries a payload, and expands the real JSON", async () => {
+      await runToPipeline(STATUS_WITH_TARGETING);
+      const toggles = screen.getAllByRole("button", { name: "Lihat data" });
+      expect(toggles).toHaveLength(1);
+
+      await userEvent.click(toggles[0]!);
+      expect(screen.getByText(/6003739713691/)).toBeInTheDocument();
+    });
+
+    it("renders the campaign preview with the real interest and the unreviewed-default caveat", async () => {
+      await runToPipeline(STATUS_WITH_TARGETING);
+      await userEvent.click(
+        screen.getByRole("button", { name: /Campaign yang Akan Dibuat \(Preview\)/ }),
+      );
+
+      const preview = screen.getByTestId("campaign-preview");
+      // Real Meta interest, with Meta's own audience bounds.
+      expect(preview.textContent).toContain("Used car (vehicle)");
+      expect(preview.textContent).toContain("61.362.891");
+      // Branch geo/age default, always accompanied by its caveat.
+      expect(preview.textContent).toContain("Depok");
+      expect(preview.textContent).toContain("usia 25–50");
+      expect(preview.textContent).toContain("Perkiraan awal");
+      // Daily budget = the objective's real monthly allocation / 30.
+      expect(preview.textContent).toContain("1.000.000");
+      // Deliberately absent — no real source exists for any of these.
+      expect(preview.textContent).not.toContain("Frequency cap");
+      expect(preview.textContent).not.toContain("Buying type");
+    });
+
+    it("says so honestly when no interests could be selected, rather than showing an invented one", async () => {
+      await runToPipeline({
+        ...STATUS_WITH_TARGETING,
+        result: {
+          ...STATUS_WITH_TARGETING.result!,
+          tamara: {
+            ...STATUS_WITH_TARGETING.result!.tamara,
+            audienceTargeting: {
+              ...STATUS_WITH_TARGETING.result!.tamara.audienceTargeting!,
+              candidateCount: 0,
+              interests: [],
+              reasoning: undefined,
+              interestsUnavailableReason: "NO_CANDIDATES",
+            },
+          },
+        },
+      });
+      await userEvent.click(
+        screen.getByRole("button", { name: /Campaign yang Akan Dibuat \(Preview\)/ }),
+      );
+      expect(screen.getByTestId("campaign-preview").textContent).toContain(
+        "Belum ada interest tersimpan",
+      );
+    });
+
+    it("does not offer the preview at all on a simulation with no targeting block (pre-feature runs)", async () => {
+      await runToPipeline(DONE_STATUS);
+      expect(
+        screen.queryByRole("button", { name: /Campaign yang Akan Dibuat \(Preview\)/ }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("history toggle loads /api/simulation/history", async () => {
     mockFetch({
       "/api/simulation/history": () =>

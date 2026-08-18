@@ -18,6 +18,7 @@ import {
 import { ResponseCache } from "./cache/ResponseCache.js";
 import type { AnalyzeRequestDto } from "./dto/analyze.dto.js";
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
+import type { SelectTargetingRequestDto } from "./dto/select-targeting.dto.js";
 import {
   CHAT_COMPLETIONS_PATH,
   OPENAI_BASE_URL,
@@ -336,6 +337,169 @@ describe("LlmService", () => {
         reason: "RATE_LIMITED",
         message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
       });
+    });
+  });
+
+  describe("selectTargeting (AAOS-SIMULASI-TARGETING)", () => {
+    /** Real candidates, verbatim from live Meta `GET /search?type=adinterest` responses (2026-08-18). */
+    const validSelectTargetingBody: SelectTargetingRequestDto = {
+      unit: "Xpander Ultimate",
+      angle: "DP_RINGAN",
+      branch: "BINTARO" as SelectTargetingRequestDto["branch"],
+      candidates: [
+        {
+          id: "6003257869482",
+          name: "Used car (vehicle)",
+          audienceSizeLower: 61362891,
+          audienceSizeUpper: 72162760,
+          topic: "Business and industry",
+        },
+        {
+          id: "6003739713691",
+          name: "car finance (credit and lending)",
+          audienceSizeLower: 8039557,
+          audienceSizeUpper: 9454520,
+          topic: "Business and industry",
+        },
+      ],
+    };
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.selectTargeting(validSelectTargetingBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.selectTargeting(validSelectTargetingBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns the selected real interest ids on a well-formed response, and caches it", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          interestIds: ["6003257869482", "6003739713691"],
+          reasoning: "Keduanya relevan untuk pembeli mobil bekas dengan skema kredit.",
+        }),
+      );
+      const cache = new ResponseCache<unknown>();
+      const service = buildService({ cache });
+
+      const first = await service.selectTargeting(validSelectTargetingBody);
+      expect(first).toEqual({
+        available: true,
+        interestIds: ["6003257869482", "6003739713691"],
+        reasoning: "Keduanya relevan untuk pembeli mobil bekas dengan skema kredit.",
+        rejectedIds: [],
+      });
+
+      mswServer.resetHandlers();
+      const second = await service.selectTargeting(validSelectTargetingBody);
+      expect(second).toEqual(first);
+    });
+
+    it("DROPS an id the model invented that was not in the candidate set it was shown", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          // The second id is a plausible-looking Meta interest id that was NEVER in `candidates`.
+          interestIds: ["6003257869482", "6003107902433"],
+          reasoning: "alasan",
+        }),
+      );
+      const service = buildService();
+      const result = await service.selectTargeting(validSelectTargetingBody);
+      expect(result).toEqual({
+        available: true,
+        interestIds: ["6003257869482"],
+        reasoning: "alasan",
+        rejectedIds: ["6003107902433"],
+      });
+    });
+
+    it("fails closed with INVALID_RESPONSE when EVERY returned id was invented", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({ interestIds: ["1111111111111"], reasoning: "alasan" }),
+      );
+      const service = buildService();
+      const result = await service.selectTargeting(validSelectTargetingBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE for an empty selection or a missing reasoning field", async () => {
+      registerOpenAiChatHandler(JSON.stringify({ interestIds: [], reasoning: "alasan" }));
+      const service = buildService();
+      expect((await service.selectTargeting(validSelectTargetingBody)).available).toBe(false);
+
+      registerOpenAiChatHandler(JSON.stringify({ interestIds: ["6003257869482"] }));
+      expect((await buildService().selectTargeting(validSelectTargetingBody)).available).toBe(
+        false,
+      );
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
+      registerOpenAiChatHandler("not json {{{");
+      const service = buildService();
+      expect((await service.selectTargeting(validSelectTargetingBody)).available).toBe(false);
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(500);
+      const service = buildService();
+      const result = await service.selectTargeting(validSelectTargetingBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("sends the real candidate list to the model and states the candidate-only rule in the prompt", async () => {
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    interestIds: ["6003257869482"],
+                    reasoning: "ok",
+                  }),
+                },
+              },
+            ],
+          });
+        }),
+      );
+      await buildService().selectTargeting(validSelectTargetingBody);
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      expect(messages[0]?.content).toContain("HANYA boleh memilih");
+      expect(messages[1]?.content).toContain("6003739713691");
+    });
+
+    it("does not cache a rejected (INVALID_RESPONSE) selection", async () => {
+      const cache = new ResponseCache<unknown>();
+      registerOpenAiChatHandler(
+        JSON.stringify({ interestIds: ["1111111111111"], reasoning: "alasan" }),
+      );
+      const service = buildService({ cache });
+      await service.selectTargeting(validSelectTargetingBody);
+      expect(cache.get("select-targeting", validSelectTargetingBody)).toBeUndefined();
     });
   });
 
