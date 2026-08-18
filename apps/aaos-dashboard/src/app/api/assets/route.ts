@@ -16,6 +16,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     status: url.searchParams.get("status") ?? undefined,
     branch: url.searchParams.get("branch") ?? undefined,
     unitId: url.searchParams.get("unitId") ?? undefined,
+    // AAOS-CREATIVE-REVIEW — case-insensitive `unit_model` filter (the creative photo picker's
+    // "xpander"/"hrv"/"avanza" chips). Free text, re-validated upstream by `GetAssetsQuerySchema`.
+    model: url.searchParams.get("model") ?? undefined,
     search: url.searchParams.get("search") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,

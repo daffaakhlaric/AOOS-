@@ -1,6 +1,6 @@
 /**
  * Domain shapes for one dry-run simulation record (AAOS-DASHBOARD-SIMULASI). Kept in one file,
- * mirroring `creative-package.store.ts`'s precedent of a small, self-contained domain shape for a
+ * mirroring `modules/creative-packages`'s precedent of a small, self-contained domain shape for a
  * module with no upstream `@aos/*` package of its own.
  */
 

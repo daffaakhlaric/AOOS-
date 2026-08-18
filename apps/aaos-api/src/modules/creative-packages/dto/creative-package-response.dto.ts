@@ -1,12 +1,37 @@
-import type { StoredCreativePackage } from "../creative-package.store.js";
+import type { CreativeLogEntry } from "../domain/creative-log.js";
+import type {
+  CreativePackageFormat,
+  CreativePackageOrigin,
+  CreativePackageStatus,
+  CreativePackageUrgency,
+  StoredCreativePackage,
+} from "../domain/creative-package.js";
 
-/** JSON-serializable projection of a `StoredCreativePackage` — already flat, but kept as a distinct DTO (mirrors `LeadResponseDto`'s convention) so the HTTP contract doesn't silently change shape if the store's internal type evolves. */
+/**
+ * JSON-serializable projection of a `StoredCreativePackage` — kept as a distinct DTO (mirrors
+ * `LeadResponseDto`'s convention) so the HTTP contract doesn't silently change shape if the
+ * persisted type evolves. `tenantId` is deliberately NOT exposed: it is a server-side scoping
+ * concern, not something the dashboard should see or send back.
+ */
 export interface CreativePackageResponseDto {
   readonly id: string;
   readonly briefId: string;
+  readonly adId?: string;
+  readonly stableId?: string;
   readonly branch: string;
   readonly unit: string;
+  readonly unitModel?: string;
   readonly title: string;
+  readonly angle: string;
+  readonly targetPersona: string;
+  readonly reason: string;
+  readonly requestedFormat: CreativePackageFormat;
+  readonly decidedFormat?: CreativePackageFormat;
+  readonly primaryMessage: string;
+  readonly urgency: CreativePackageUrgency;
+  readonly origin: CreativePackageOrigin;
+  readonly status: CreativePackageStatus;
+  readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;
   readonly imageUrls: readonly string[];
   readonly copyVariants: readonly {
@@ -16,14 +41,47 @@ export interface CreativePackageResponseDto {
     readonly headline: string;
     readonly callToAction: string;
   }[];
-  readonly status: "PENDING" | "APPROVED" | "REJECTED";
+  readonly aiModel?: string;
+  readonly confidenceScore?: number;
+  readonly generationMs?: number;
   readonly selectedCopyVariantId?: string;
-  readonly createdAt: string;
+  readonly errorMessage?: string;
+  readonly generatedAt?: string;
   readonly reviewedAt?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** `GET /api/v1/creative-packages/:id` — the package plus its real, already-persisted event log. */
+export interface CreativePackageDetailResponseDto {
+  readonly package: CreativePackageResponseDto;
+  readonly logs: readonly CreativeLogResponseDto[];
+}
+
+export interface CreativeLogResponseDto {
+  readonly id: string;
+  readonly packageId?: string;
+  readonly fromAgent: string;
+  readonly toAgent?: string;
+  readonly eventType: string;
+  readonly message: string;
+  readonly brief?: unknown;
+  readonly result?: unknown;
+  readonly error?: string;
+  readonly metadata?: unknown;
+  readonly adId?: string;
+  readonly stableId?: string;
+  readonly createdAt: string;
 }
 
 export function toCreativePackageResponseDto(
   pkg: StoredCreativePackage,
 ): CreativePackageResponseDto {
-  return { ...pkg };
+  const { tenantId: _tenantId, ...rest } = pkg;
+  return rest;
+}
+
+export function toCreativeLogResponseDto(entry: CreativeLogEntry): CreativeLogResponseDto {
+  const { tenantId: _tenantId, ...rest } = entry;
+  return rest;
 }

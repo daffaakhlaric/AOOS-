@@ -6,7 +6,8 @@ import type { RateLimitError } from "../domain/errors/RateLimitError.js";
 import type { AspectRatio } from "../domain/value-objects/AspectRatio.js";
 
 export interface GenerateImageParams {
-  readonly sourceImageUrl?: string;
+  /** Up to 2 real reference photos — see `NanoBananaProGeneratePayload.input.image_urls`'s docstring for why this is plural. */
+  readonly sourceImageUrls?: readonly string[];
   readonly prompt: string;
   readonly aspectRatio: AspectRatio;
   readonly outputFormat?: "jpg" | "png";

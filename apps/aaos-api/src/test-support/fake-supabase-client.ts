@@ -8,6 +8,11 @@ import type { SupabaseClientLike } from "@aos/lead-store";
  * it never exercises an `.update(...)` call), this one actually PERSISTS `.update(...)` writes by
  * mutating the stored row in place, so a `getLead` call made after a `claimLead`/`updateStatus`
  * call observes the real, updated row — required for AAOS-W4B's claim/status/closing tests.
+ *
+ * AAOS-CREATIVE-REVIEW extended it (additively) with the three behaviours
+ * `modules/creative-packages`' repositories exercise and no earlier caller did: a real `order(...)`
+ * sort, `limit(...)`, and applying an `.update(...)` payload on the AWAITED (non-`.single()`) path,
+ * which is how `CreativePackageRepository.patch` writes.
  */
 export type Row = Record<string, unknown>;
 
@@ -53,6 +58,21 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
 
   function builder(table: string, mode: "select" | "insert" | "update", payload?: Row) {
     const filters: Filter[] = [];
+    let orderBy: { readonly column: string; readonly ascending: boolean } | undefined;
+    let maxRows: number | undefined;
+
+    function query(): Row[] {
+      let rows = tableRows(table).filter((row) => matches(row, filters));
+      if (orderBy !== undefined) {
+        const { column, ascending } = orderBy;
+        rows = [...rows].sort((a, b) => {
+          const comparison = String(a[column] ?? "").localeCompare(String(b[column] ?? ""));
+          return ascending ? comparison : -comparison;
+        });
+      }
+      return maxRows === undefined ? rows : rows.slice(0, maxRows);
+    }
+
     const api = {
       select: () => api,
       eq: (column: string, value: unknown) => {
@@ -67,7 +87,14 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
         filters.push({ column, op: "lte", value });
         return api;
       },
-      order: () => api,
+      order: (column: string, options?: { readonly ascending?: boolean }) => {
+        orderBy = { column, ascending: options?.ascending ?? true };
+        return api;
+      },
+      limit: (count: number) => {
+        maxRows = count;
+        return api;
+      },
       then: (
         resolve: (result: { data: Row[] | null; error: { message: string } | null }) => void,
       ) => {
@@ -83,7 +110,12 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
           resolve({ data: [row], error: null });
           return;
         }
-        const rows = tableRows(table).filter((row) => matches(row, filters));
+        const rows = query();
+        if (mode === "update" && payload !== undefined) {
+          for (const row of rows) {
+            Object.assign(row, payload);
+          }
+        }
         resolve({ data: rows, error: null });
       },
       maybeSingle: async () => {
@@ -92,8 +124,7 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
           forcedErrors.delete(table);
           return { data: null, error: { message: forced } };
         }
-        const rows = tableRows(table).filter((row) => matches(row, filters));
-        return { data: rows[0] ?? null, error: null };
+        return { data: query()[0] ?? null, error: null };
       },
       single: async () => {
         const forced = forcedErrors.get(table);
@@ -106,8 +137,7 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
           tableRows(table).push(row);
           return { data: row, error: null };
         }
-        const rows = tableRows(table).filter((row) => matches(row, filters));
-        const target = rows[0];
+        const target = query()[0];
         if (target === undefined) {
           return { data: null, error: null };
         }

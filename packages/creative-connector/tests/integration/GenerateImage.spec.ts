@@ -44,7 +44,7 @@ describe("GenerateImage (integration, MSW-mocked api.kie.ai)", () => {
     const { useCase } = makeUseCase();
     const image = unwrap(
       await useCase.execute({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "Professional car photography",
         aspectRatio: AspectRatio.SQUARE,
       }),
@@ -52,7 +52,7 @@ describe("GenerateImage (integration, MSW-mocked api.kie.ai)", () => {
     expect(image.imageUrl.toString()).toBe("https://cdn.kie.ai/i.jpg");
   });
 
-  it("model = google/nano-banana-pro in the request body", async () => {
+  it("model = nano-banana-pro in the request body", async () => {
     let receivedBody: unknown;
     mswServer.use(
       http.post(CREATE_TASK_URL, async ({ request }) => {
@@ -68,7 +68,7 @@ describe("GenerateImage (integration, MSW-mocked api.kie.ai)", () => {
     );
     const { useCase } = makeUseCase();
     await useCase.execute({ prompt: "x", aspectRatio: AspectRatio.SQUARE });
-    expect((receivedBody as { model: string }).model).toBe("google/nano-banana-pro");
+    expect((receivedBody as { model: string }).model).toBe("nano-banana-pro");
   });
 
   it("ImageGenerationCompleted event emitted", async () => {

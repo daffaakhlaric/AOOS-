@@ -1,4 +1,33 @@
+/* No `max-width` cap — same convention as `CreativeClient.module.css`'s `.page`. */
 .page {
   padding: 32px;
-  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.logs {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.logsHeading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: 4px;
+}
+
+.logLine {
+  font-size: 13px;
+  color: var(--gray-700, #374151);
+}
+
+.logTime {
+  color: var(--gray-500);
 }

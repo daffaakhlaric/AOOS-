@@ -37,15 +37,34 @@ export class ScrapedUnitRepository implements IScrapedUnitRepository {
    * each unit's row in place (fresh price/km/availability/`scraped_at`) rather than accumulating
    * duplicates — which is exactly what "Scrape Semua Ulang" needs, since `RunFullScrape` re-parses
    * the entire listing every run even though it only re-downloads NEW units' photos.
+   *
+   * REAL BUG FIX (found via a live scrape's `scrape_job_logs`, 2026-08-18): mobixbydss.id's own
+   * paginated listing can return the SAME unit (same `identityKey`) on more than one page — its
+   * `page`-based API has no guaranteed-stable ordering across requests, so an item can shift across
+   * the page boundary mid-scrape and get fetched twice. When that happened, `units` carried two
+   * entries with the same `(tenant_id, identity_key)`, and Postgres's `ON CONFLICT DO UPDATE`
+   * rejects the WHOLE batch with "ON CONFLICT DO UPDATE command cannot affect row a second time" —
+   * a single duplicate silently zeroed out every unit's persisted metadata for that entire scrape,
+   * while photo ingestion (per-unit, not batched) kept working, masking the failure. Deduplicated
+   * here, keeping the LAST occurrence (closer to the current, therefore freshest, listing page) —
+   * never silently dropped: `onDuplicate` reports every collapsed identityKey so it stays visible.
    */
   async upsertMany(
     units: readonly ScrapedUnit[],
     tenantId: string,
+    onDuplicate?: (identityKey: string) => void,
   ): Promise<Result<number, ScrapeError>> {
     if (units.length === 0) {
       return ok(0);
     }
-    const rows = units.map((unit) => ScrapedUnitMapper.toRow(unit, tenantId));
+    const byIdentityKey = new Map<string, ScrapedUnit>();
+    for (const unit of units) {
+      if (onDuplicate && byIdentityKey.has(unit.identityKey)) {
+        onDuplicate(unit.identityKey);
+      }
+      byIdentityKey.set(unit.identityKey, unit);
+    }
+    const rows = [...byIdentityKey.values()].map((unit) => ScrapedUnitMapper.toRow(unit, tenantId));
     const { error } = await this.client
       .from<ScrapedUnitRow>(TABLE)
       .upsert(rows, { onConflict: CONFLICT_TARGET })

@@ -20,6 +20,16 @@ export interface AssetListFilter {
   readonly unitId?: string;
   /** Free-text substring match (case-insensitive) against `file_name` — the toolbar's "Cari asset…" box. */
   readonly search?: string;
+  /**
+   * AAOS-CREATIVE-REVIEW — case-insensitive substring match against `unit_model`, the column
+   * `AssetMapper`/`AssetRepository` already persist and the scraper's photo-ingestion pipeline
+   * already populates (`UploadAsset({ unitModel: unit.model })`). Distinct from `unitId` (an exact
+   * match on the unit's `identityKey`) and from `search` (which matches `file_name` only, and is
+   * useless for scraped photos whose file names are all `unit-file-serve`-style):
+   * `model=xpander` matches `unit_model: "Xpander GLS 2022"`, which is what the creative photo
+   * picker needs.
+   */
+  readonly model?: string;
   /** 1-based page number. */
   readonly page: number;
   readonly limit: number;

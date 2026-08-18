@@ -1,19 +1,25 @@
+import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
-import { CREATIVE_PACKAGE_STORE } from "../../di-tokens.js";
+import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
-import { CREATIVE_PACKAGE_SEED } from "./creative-package.seed.js";
-import { CreativePackageStore } from "./creative-package.store.js";
 import { CreativePackagesController } from "./creative-packages.controller.js";
 import { CreativePackagesService } from "./creative-packages.service.js";
+import { CreativeLogRepository } from "./infrastructure/creative-log.repository.js";
+import { CreativePackageRepository } from "./infrastructure/creative-package.repository.js";
 
 /**
- * `CREATIVE_PACKAGE_STORE` is provided HERE (module-local), not in `AppModule.forRoot`'s global
- * providers — unlike `LEAD_STORE`/`META_ADS_CONNECTOR` (real external integrations composed once
- * at the app's composition root), this store is a self-contained MVP implementation detail of
- * this one module (AAOS-W4A coordinator note #3), so it doesn't need to be injectable from
- * anywhere else. `useFactory` seeds it once, at module construction, not per-request.
+ * `modules/creative-packages` (AAOS-CREATIVE-REVIEW) — mirrors `ScraperModule`'s wiring exactly.
+ *
+ * The old module-local `CREATIVE_PACKAGE_STORE` provider (a process-local in-memory `Map` seeded
+ * with 2 fake `cdn.example.com` packages) is GONE: package state now lives in real Supabase tables
+ * (`creative_packages`/`creative_logs`, migrations 003/004) reached through the SAME shared
+ * `SUPABASE_CLIENT` every other module uses.
+ *
+ * `KAI_AGENT_RUNTIME`, `ASSET_LIBRARY` and `AAOS_API_CONFIG` are injected from `AppModule.forRoot`'s
+ * global provider set — one composed Kai/Kie AI pipeline for the whole app, sharing the same real
+ * `IPublisher` as every other package.
  */
 @Module({
   controllers: [CreativePackagesController],
@@ -21,12 +27,16 @@ import { CreativePackagesService } from "./creative-packages.service.js";
     CreativePackagesService,
     ApiKeyGuard,
     {
-      provide: CREATIVE_PACKAGE_STORE,
-      useFactory: (): CreativePackageStore => {
-        const store = new CreativePackageStore();
-        store.seed(CREATIVE_PACKAGE_SEED);
-        return store;
-      },
+      provide: CreativePackageRepository,
+      useFactory: (client: SupabaseClientLike): CreativePackageRepository =>
+        new CreativePackageRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: CreativeLogRepository,
+      useFactory: (client: SupabaseClientLike): CreativeLogRepository =>
+        new CreativeLogRepository(client),
+      inject: [SUPABASE_CLIENT],
     },
   ],
 })

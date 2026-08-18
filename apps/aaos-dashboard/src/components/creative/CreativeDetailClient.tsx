@@ -1,36 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { CreativePackageCard } from "@/components/creative/CreativePackageCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import type { CreativePackageDto } from "@/types/dashboard.types";
+import { formatDateTimeIdWib } from "@/lib/formatters";
+import type { CreativePackageDetailDto } from "@/types/dashboard.types";
 
 import styles from "./CreativeDetailClient.module.css";
 
-/** Creative detail + approve/reject (spec "creative/[packageId]/page.tsx"). `aaos-api` has no single-package lookup endpoint, so this finds `packageId` within the same `GET /api/v1/creative-packages` list `/creative` uses. */
+/**
+ * Creative detail + approve/reject.
+ *
+ * Now reads the REAL single-item endpoint (`GET /api/creative/:id` → `aaos-api`'s
+ * `GET /api/v1/creative-packages/:id`), which also returns the package's own real `creative_logs`
+ * trail. It previously had to fetch the entire package list and `.find()` the id client-side,
+ * purely because no single-item endpoint existed.
+ */
 export function CreativeDetailClient({
   packageId,
 }: {
   readonly packageId: string;
 }): React.ReactElement {
   const router = useRouter();
-  const [pkg, setPkg] = useState<CreativePackageDto | null | undefined>(undefined);
+  const [detail, setDetail] = useState<CreativePackageDetailDto | null | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    fetch("/api/creative")
+    fetch(`/api/creative/${encodeURIComponent(packageId)}`)
       .then(async (res) => {
+        if (res.status === 404) {
+          return null;
+        }
         if (!res.ok) {
           throw new Error("Gagal memuat package.");
         }
-        return (await res.json()) as { packages: readonly CreativePackageDto[] };
+        return (await res.json()) as CreativePackageDetailDto;
       })
-      .then((body) => setPkg(body.packages.find((candidate) => candidate.id === packageId) ?? null))
+      .then((body) => setDetail(body))
       .catch((caught: unknown) => {
         setError(caught instanceof Error ? caught.message : "Gagal memuat package.");
       });
@@ -47,7 +58,7 @@ export function CreativeDetailClient({
         if (!res.ok) {
           throw new Error(`Gagal ${action === "approve" ? "menyetujui" : "menolak"} package.`);
         }
-        return (await res.json()) as { package: CreativePackageDto };
+        return res.json();
       })
       .then(() => router.push("/creative"))
       .catch((caught: unknown) => {
@@ -59,10 +70,10 @@ export function CreativeDetailClient({
   if (error !== undefined) {
     return <ErrorCard message={error} />;
   }
-  if (pkg === undefined) {
+  if (detail === undefined) {
     return <LoadingSpinner />;
   }
-  if (pkg === null) {
+  if (detail === null) {
     return (
       <EmptyState
         title="Package tidak ditemukan"
@@ -74,11 +85,23 @@ export function CreativeDetailClient({
   return (
     <div className={styles.page}>
       <CreativePackageCard
-        pkg={pkg}
+        pkg={detail.package}
         busy={busy}
         onApprove={(selectedCopyVariantId) => review("approve", selectedCopyVariantId)}
         onReject={() => review("reject")}
       />
+      {detail.logs.length > 0 ? (
+        <section data-testid="creative-detail-logs" className={styles.logs}>
+          <h3 className={styles.logsHeading}>Log koordinasi package ini</h3>
+          {detail.logs.map((entry) => (
+            <p key={entry.id} className={styles.logLine}>
+              <span className={styles.logTime}>{formatDateTimeIdWib(entry.createdAt)}</span>{" "}
+              {entry.fromAgent}
+              {entry.toAgent !== undefined ? ` → ${entry.toAgent}` : ""} · {entry.message}
+            </p>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

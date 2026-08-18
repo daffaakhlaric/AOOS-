@@ -20,6 +20,19 @@ export interface CreativeBriefProps {
   readonly id: CreativeBriefId;
   readonly adId: string;
   readonly unit: string;
+  /**
+   * REAL BUG FIX (AAOS-CREATIVE-REVIEW, found via a live generation whose prompt read "...toyota-
+   * avanza-g-2023-66e041ab in modern Indonesian car showroom..." instead of a real model name):
+   * `unit` is the scraped unit's `identityKey` (URL slug) when a brief originates from real scraped
+   * stock — it MUST stay that exact value, since `@aos/creative-agent`'s `KaiAgentService` looks up
+   * source photos by `GetAssetsByUnit({ unitId: brief.unit })`, which matches `assets.unit_id`
+   * exactly. But `AutomotivePromptBuilder` was ALSO interpolating `brief.unit` directly into the
+   * English Kie AI prompt as if it were a human-readable model name — the two never had a separate
+   * field. `unitModel` is that separate, optional, human-readable name (e.g. "Toyota Avanza G
+   * 2023"); prompt-building now prefers it and falls back to `unit` only when it's absent (e.g. a
+   * Tamara-generated brief with no scraped stock match, or a caller built before this fix).
+   */
+  readonly unitModel?: string;
   readonly branch: Branch;
   readonly angle: AdAngle;
   readonly targetPersona: TargetPersona;
@@ -117,6 +130,10 @@ export class CreativeBrief {
 
   get unit(): string {
     return this.props.unit;
+  }
+
+  get unitModel(): string | undefined {
+    return this.props.unitModel;
   }
 
   get branch(): Branch {

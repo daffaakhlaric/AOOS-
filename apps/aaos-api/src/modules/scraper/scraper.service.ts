@@ -200,6 +200,18 @@ export class ScraperService {
             `${event.fallback}. Perlu keputusan produk: tambahkan cabang ini ke daftar Branch.`,
         );
         return;
+      case "duplicate_unit":
+        // REAL BUG FIX regression signal: mobixbydss.id's own listing returned this unit on more
+        // than one page of this scrape. Deduplicated automatically (ScrapedUnitRepository keeps the
+        // last/freshest occurrence) rather than failing the whole persist step, but logged so the
+        // site's own pagination quirk stays visible.
+        await this.log(
+          id,
+          "WARN",
+          `Unit ${event.identityKey} muncul lebih dari sekali di listing — hanya versi terakhir ` +
+            `yang disimpan.`,
+        );
+        return;
       /* v8 ignore next 2 -- exhaustive over ScrapeProgressEvent's union; kept for future variants. */
       default:
         return;

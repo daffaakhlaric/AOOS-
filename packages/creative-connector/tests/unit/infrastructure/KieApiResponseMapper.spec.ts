@@ -58,6 +58,24 @@ describe("KieApiResponseMapper", () => {
       const error = unwrapErr(KieApiResponseMapper.mapTaskCreatedResponse("not an object"));
       expect(error.message).toMatch(/schema validation/);
     });
+
+    it(
+      "REAL BUG FIX regression guard: an explicit data:null (the real api.kie.ai error shape, " +
+        'confirmed live 2026-08-18 — e.g. {"code":422,"msg":"The model name you specified is ' +
+        'not supported...","data":null}) surfaces the real msg, not a generic schema-validation ' +
+        "failure",
+      () => {
+        const error = unwrapErr(
+          KieApiResponseMapper.mapTaskCreatedResponse({
+            code: 422,
+            msg: "The model name you specified is not supported.",
+            data: null,
+          }),
+        );
+        expect(error.message).toMatch(/model name you specified is not supported/);
+        expect(error.message).not.toMatch(/schema validation/);
+      },
+    );
   });
 
   describe("mapTaskStatusResponse", () => {

@@ -10,7 +10,7 @@ export interface CreativeConnectorConfig {
   readonly generationBaseUrl: "https://api.kie.ai";
   readonly uploadBaseUrl: "https://kieai.redpandaai.co";
   readonly defaultVideoModel: "veo3" | "veo3_fast";
-  readonly defaultImageModel: "google/nano-banana-pro";
+  readonly defaultImageModel: "nano-banana-pro";
   readonly defaultAspectRatio: "16:9" | "9:16" | "1:1";
   readonly callbackUrl?: string;
   readonly pollIntervalMs: number;
@@ -31,7 +31,10 @@ export const CreativeConnectorConfigSchema = z.object({
   generationBaseUrl: z.literal("https://api.kie.ai").default("https://api.kie.ai"),
   uploadBaseUrl: z.literal("https://kieai.redpandaai.co").default("https://kieai.redpandaai.co"),
   defaultVideoModel: z.enum(["veo3", "veo3_fast"]).default("veo3_fast"),
-  defaultImageModel: z.literal("google/nano-banana-pro").default("google/nano-banana-pro"),
+  // REAL BUG FIX (confirmed live against api.kie.ai, 2026-08-18): "google/nano-banana-pro" is
+  // rejected by the real API (422 "model name ... not supported"); the real, working model string
+  // is "nano-banana-pro" with no prefix.
+  defaultImageModel: z.literal("nano-banana-pro").default("nano-banana-pro"),
   defaultAspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
   callbackUrl: z.string().url().optional(),
   pollIntervalMs: z.number().int().positive().default(5000),

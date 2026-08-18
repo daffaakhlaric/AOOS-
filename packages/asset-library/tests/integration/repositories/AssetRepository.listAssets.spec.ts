@@ -116,6 +116,52 @@ describe("AssetRepository.listAssets", () => {
     expect(found.assets[0]?.fileName).toBe("Xpander-Cross-Depan.jpg");
   });
 
+  it("model matches unit_model case-insensitively (AAOS-CREATIVE-REVIEW photo picker)", async () => {
+    const { repo } = build();
+    await seed(repo, 1, () =>
+      new AssetBuilder().withUnitModel("Xpander GLS 2022").withFileName("unit-file-serve"),
+    );
+    await seed(repo, 1, () =>
+      new AssetBuilder()
+        .withUnitModel("HRV SE AT PANORAMIC 2022")
+        .withFileName("unit-file-serve")
+        .withStoragePath("units/hrv/photo.jpg"),
+    );
+
+    const found = unwrap(
+      await repo.listAssets({ tenantId: "dss-motor", model: "xpander", page: 1, limit: 50 }),
+    );
+    expect(found.total).toBe(1);
+    expect(found.assets[0]?.unitModel).toBe("Xpander GLS 2022");
+  });
+
+  it("model is independent of search — scraped photos all share the same uninformative file_name", async () => {
+    const { repo } = build();
+    await seed(repo, 1, () =>
+      new AssetBuilder().withUnitModel("Avanza G 2022").withFileName("unit-file-serve"),
+    );
+    // `search` looks at file_name only, so it cannot find this asset by its model...
+    expect(
+      unwrap(await repo.listAssets({ tenantId: "dss-motor", search: "avanza", page: 1, limit: 50 }))
+        .total,
+    ).toBe(0);
+    // ...but `model` can.
+    expect(
+      unwrap(await repo.listAssets({ tenantId: "dss-motor", model: "avanza", page: 1, limit: 50 }))
+        .total,
+    ).toBe(1);
+  });
+
+  it("a blank/whitespace-only model is ignored rather than matching nothing", async () => {
+    const { repo } = build();
+    await seed(repo, 2, () => new AssetBuilder().withUnitModel("Xpander GLS 2022"));
+
+    const found = unwrap(
+      await repo.listAssets({ tenantId: "dss-motor", model: "  ", page: 1, limit: 50 }),
+    );
+    expect(found.total).toBe(2);
+  });
+
   it("a blank/whitespace-only search is ignored rather than matching nothing", async () => {
     const { repo } = build();
     await seed(repo, 2, () => new AssetBuilder());

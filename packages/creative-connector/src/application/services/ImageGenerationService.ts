@@ -15,7 +15,8 @@ const DEFAULT_OUTPUT_FORMAT = "jpg";
 /**
  * Implements `IImageGenerator` against the real Kie AI Nano Banana Pro API (Part 3 of the spec).
  * Builds the exact `POST /api/v1/jobs/createTask` payload shape shown in the spec
- * (`model: "google/nano-banana-pro"`), never the Veo video path — Part 3 vs. Part 2 use different
+ * (`model: "nano-banana-pro"` — see `ImageModel`'s docstring for why it has no `google/` prefix,
+ * despite the spec's own example), never the Veo video path — Part 3 vs. Part 2 use different
  * hosts' *paths* on the same `api.kie.ai` host, which is the exact confusion the spec calls out
  * ("NOT /api/v1/jobs/createTask (that's for market models)" for video).
  */
@@ -35,7 +36,9 @@ export class ImageGenerationService implements IImageGenerator {
       callBackUrl: params.callbackUrl ?? this.defaultCallbackUrl,
       input: {
         prompt: params.prompt,
-        ...(params.sourceImageUrl ? { image_url: params.sourceImageUrl } : {}),
+        ...(params.sourceImageUrls && params.sourceImageUrls.length > 0
+          ? { image_urls: [...params.sourceImageUrls] }
+          : {}),
         output_format: params.outputFormat ?? DEFAULT_OUTPUT_FORMAT,
         aspect_ratio: params.aspectRatio,
       },

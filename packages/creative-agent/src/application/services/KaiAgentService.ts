@@ -24,6 +24,9 @@ import type { CreativeOrchestratorService } from "./CreativeOrchestratorService.
 import type { FormatDecisionService } from "./FormatDecisionService.js";
 import type { PromptBuildingService } from "./PromptBuildingService.js";
 
+/** Kie AI's real, confirmed-live reference-image limit for both image-to-video and image-to-image generation. */
+const MAX_SOURCE_PHOTOS = 2;
+
 /**
  * Orchestrates Kai's full creative pipeline (spec "application/services/KaiAgentService.ts" —
  * "orchestrate full creative pipeline"), implementing every step of "Full Pipeline:
@@ -85,15 +88,18 @@ export class KaiAgentService implements ICreativeAgent {
     });
 
     // Step 4a: build prompts.
-    const topPhoto = availablePhotos >= 1 ? photos.assets[0] : undefined;
+    // REAL BUG FIX: Kie AI's real reference-image limit is 2 (confirmed live, 2026-08-18) — this
+    // used to send only `photos.assets[0]`, a single photo, when Kie AI could genuinely make use
+    // of more.
+    const topPhotos = photos.assets.slice(0, MAX_SOURCE_PHOTOS);
     const needsVideo = decision.format === CreativeFormat.VIDEO_AND_IMAGES;
-    const prompts = this.promptBuildingService.build(brief, needsVideo, topPhoto !== undefined);
+    const prompts = this.promptBuildingService.build(brief, needsVideo, topPhotos.length > 0);
 
     // Step 4b-6: orchestrate generation via @aos/creative-connector, then download results.
     const orchestrationResult = await this.orchestratorService.orchestrate({
-      sourcePhotoUrl: topPhoto?.publicUrl.toString(),
-      sourcePhotoFileName: topPhoto?.fileName,
-      sourcePhotoMimeType: topPhoto?.mimeType.toString(),
+      sourcePhotoUrls: topPhotos.map((photo) => photo.publicUrl.toString()),
+      sourcePhotoFileNames: topPhotos.map((photo) => photo.fileName),
+      sourcePhotoMimeTypes: topPhotos.map((photo) => photo.mimeType.toString()),
       videoPrompt: prompts.videoPrompt,
       videoSpec: decision.videoSpec,
       imagePrompts: prompts.imagePrompts,
@@ -159,6 +165,7 @@ export class KaiAgentService implements ICreativeAgent {
       generatedAt: completedAt,
       totalGenerationMs: completedAt.getTime() - startedAt.getTime(),
       confidenceScore,
+      sourcePhotoSkippedReason: generated.sourcePhotoSkippedReason,
     });
     /* v8 ignore next 3 -- unreachable: every field passed to `CreativePackageBuilder.build` above is either sourced from an already-validated `brief`/`decision`, or Zod-validated `saveResult` output, so `CreativePackage.create`'s failure modes can never trigger here. */
     if (!packageResult.ok) {

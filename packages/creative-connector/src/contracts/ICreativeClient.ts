@@ -41,7 +41,13 @@ export interface NanoBananaProGeneratePayload {
   readonly callBackUrl?: string;
   readonly input: {
     readonly prompt: string;
-    readonly image_url?: string;
+    /**
+     * REAL BUG FIX (confirmed live against api.kie.ai, 2026-08-18): the real nano-banana-pro
+     * endpoint accepts multiple reference images via this plural, array field — a real live call
+     * with 2 real scraped unit photos returned a real `taskId` (200). The old singular `image_url`
+     * was never verified against the real API.
+     */
+    readonly image_urls?: readonly string[];
     readonly output_format: string;
     readonly aspect_ratio: string;
   };

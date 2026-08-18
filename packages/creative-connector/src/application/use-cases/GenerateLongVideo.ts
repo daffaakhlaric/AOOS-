@@ -12,7 +12,7 @@ import type { TaskPollingService } from "../services/TaskPollingService.js";
 import type { VideoGenerationService } from "../services/VideoGenerationService.js";
 
 export interface GenerateLongVideoInput {
-  readonly sourceImageUrl?: string;
+  readonly sourceImageUrls?: readonly string[];
   readonly prompt: string;
   /** e.g. 15, 30 — Kie AI clips are 8s max, so anything above 8s requires one or more `extendVideo` calls. */
   readonly targetDurationSeconds: number;
@@ -30,7 +30,7 @@ const MAX_CLIP_SECONDS = 8;
 
 /**
  * Implements the Long Video Flow (spec section of the same name): generate an initial clip (8s
- * max, image-to-video if `sourceImageUrl` is given, else text-to-video), then repeatedly
+ * max, image-to-video if `sourceImageUrls` is non-empty, else text-to-video), then repeatedly
  * `extendVideo` by `min(remaining, 8)` seconds — polling to completion after every single call,
  * generate or extend — until `remaining <= 0`. Returns the final extend's `videoUrl`.
  *
@@ -54,20 +54,21 @@ export class GenerateLongVideo {
   ): Promise<Result<GeneratedVideo, GenerateLongVideoError>> {
     const model = input.model ?? VideoModel.VEO3_FAST;
 
-    const generateResult = input.sourceImageUrl
-      ? await this.videoService.generateFromImage({
-          sourceImageUrl: input.sourceImageUrl,
-          prompt: input.prompt,
-          model,
-          aspectRatio: input.aspectRatio,
-          callbackUrl: input.callbackUrl,
-        })
-      : await this.videoService.generateFromText({
-          prompt: input.prompt,
-          model,
-          aspectRatio: input.aspectRatio,
-          callbackUrl: input.callbackUrl,
-        });
+    const generateResult =
+      input.sourceImageUrls && input.sourceImageUrls.length > 0
+        ? await this.videoService.generateFromImage({
+            sourceImageUrls: input.sourceImageUrls,
+            prompt: input.prompt,
+            model,
+            aspectRatio: input.aspectRatio,
+            callbackUrl: input.callbackUrl,
+          })
+        : await this.videoService.generateFromText({
+            prompt: input.prompt,
+            model,
+            aspectRatio: input.aspectRatio,
+            callbackUrl: input.callbackUrl,
+          });
     if (!generateResult.ok) {
       return generateResult;
     }

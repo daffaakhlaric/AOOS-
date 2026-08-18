@@ -89,6 +89,18 @@ export interface AaosApiConfig {
 
   /** AAOS-SCRAPER-ASSET-LIBRARY — mobixbydss.id listing URL the scraper fetches. Defaults to the real production listing. */
   readonly MOBIX_LISTING_URL: string;
+
+  /**
+   * AAOS-CREATIVE-REVIEW — Kie AI API key for `@aos/creative-connector` (real video/image
+   * generation that costs real credits).
+   *
+   * Deliberately allowed to be an empty string, exactly like `OPENAI_API_KEY`/`GCS_*` above:
+   * `app.module.ts` composes the Kai pipeline (`KaiAgentFactory`) only when this key AND the GCS
+   * asset library are both configured, and `CreativePackagesService` reports "Kai not configured"
+   * honestly (503) when it isn't — never a fabricated queued job. Every other endpoint still boots
+   * and serves normally with no Kie AI key at all.
+   */
+  readonly KIE_AI_API_KEY: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -150,6 +162,9 @@ export const AaosApiConfigSchema = z.object({
   GCS_CREDENTIALS: z.string().default(""),
   GCS_KEY_FILE_PATH: z.string().default(""),
   MOBIX_LISTING_URL: z.string().default("https://mobixbydss.id/produk"),
+
+  // AAOS-CREATIVE-REVIEW. Intentionally NOT `.min(1, ...)` — see the `KIE_AI_API_KEY` doc comment.
+  KIE_AI_API_KEY: z.string().default(""),
 });
 
 /**

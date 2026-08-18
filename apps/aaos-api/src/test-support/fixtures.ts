@@ -50,6 +50,10 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     GCS_CREDENTIALS: "",
     GCS_KEY_FILE_PATH: "",
     MOBIX_LISTING_URL: "https://mobixbydss.id/unit",
+    // AAOS-CREATIVE-REVIEW — empty by default so no test can ever compose a runtime capable of
+    // making a real, billable Kie AI call. Tests that need the "Kai configured" branch pass
+    // `KIE_AI_API_KEY` explicitly (and still only reach the composition code, never the network).
+    KIE_AI_API_KEY: "",
     ...overrides,
   };
 }

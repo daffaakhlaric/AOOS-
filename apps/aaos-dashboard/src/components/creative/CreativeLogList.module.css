@@ -1,0 +1,112 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--gray-50, #f9fafb);
+  padding: 12px 14px;
+}
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  appearance: none;
+  border: var(--border);
+  border-radius: 999px;
+  background: var(--white);
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--gray-500);
+  cursor: pointer;
+}
+
+.chipActive {
+  background: var(--black);
+  border-color: var(--black);
+  color: var(--white);
+}
+
+.entry {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entryTime {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.entryHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.entryIcon {
+  font-size: 15px;
+}
+
+.eventBadge {
+  border-radius: 999px;
+  border: var(--border);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--gray-500);
+}
+
+.entryMessage {
+  font-size: 14px;
+  color: var(--gray-900);
+}
+
+.entryMeta {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.entryError {
+  font-size: 13px;
+  color: var(--red-700, #b91c1c);
+}
+
+.details {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.details > summary {
+  cursor: pointer;
+}
+
+.pre {
+  margin: 6px 0 0;
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--gray-50, #f9fafb);
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--gray-700, #374151);
+  overflow-x: auto;
+  max-width: 100%;
+}

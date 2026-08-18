@@ -12,7 +12,7 @@ import type { TaskPollingService } from "../services/TaskPollingService.js";
 import type { VideoGenerationService } from "../services/VideoGenerationService.js";
 
 export interface GenerateVideoFromImageInput {
-  readonly sourceImageUrl: string;
+  readonly sourceImageUrls: readonly string[];
   readonly prompt: string;
   readonly model: VideoModel;
   readonly aspectRatio: AspectRatio;
@@ -42,7 +42,7 @@ export class GenerateVideoFromImage {
     input: GenerateVideoFromImageInput,
   ): Promise<Result<GeneratedVideo, GenerateVideoFromImageError>> {
     const taskResult = await this.videoService.generateFromImage({
-      sourceImageUrl: input.sourceImageUrl,
+      sourceImageUrls: input.sourceImageUrls,
       prompt: input.prompt,
       model: input.model,
       aspectRatio: input.aspectRatio,

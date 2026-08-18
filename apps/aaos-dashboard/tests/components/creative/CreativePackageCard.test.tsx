@@ -6,13 +6,28 @@ import { CreativePackageCard } from "@/components/creative/CreativePackageCard";
 import type { CreativePackageDto } from "@/types/dashboard.types";
 
 const PACKAGE: CreativePackageDto = {
-  id: "KAI-001",
-  briefId: "A003",
+  id: "11111111-1111-4111-8111-111111111111",
+  briefId: "22222222-2222-4222-8222-222222222222",
   branch: "BINTARO",
-  unit: "Xpander",
-  title: "Xpander Bintaro",
-  videoUrl: "https://cdn.example.com/video.mp4",
-  imageUrls: ["a.jpg", "b.jpg", "c.jpg"],
+  unit: "xpander-gls-2022-001",
+  unitModel: "Xpander GLS 2022",
+  title: "Xpander GLS 2022 BINTARO · DP_RINGAN",
+  angle: "DP_RINGAN",
+  targetPersona: "PRIMARY_FAMILY",
+  reason: "Brief manual dibuat manager.",
+  requestedFormat: "VIDEO_AND_IMAGES",
+  decidedFormat: "VIDEO_AND_IMAGES",
+  primaryMessage: "DP mulai 29 juta",
+  urgency: "HIGH",
+  origin: "MANUAL",
+  status: "PENDING",
+  sourcePhotoUrls: ["https://storage.googleapis.com/aoos/units/x/foto-1.jpg"],
+  videoUrl: "https://storage.googleapis.com/aoos/ai-creatives/x/video.mp4",
+  imageUrls: [
+    "https://storage.googleapis.com/aoos/ai-creatives/x/a.jpg",
+    "https://storage.googleapis.com/aoos/ai-creatives/x/b.jpg",
+    "https://storage.googleapis.com/aoos/ai-creatives/x/c.jpg",
+  ],
   copyVariants: [
     {
       id: "v-a",
@@ -29,15 +44,62 @@ const PACKAGE: CreativePackageDto = {
       callToAction: "Hubungi",
     },
   ],
-  status: "PENDING",
+  aiModel: "veo3_fast+nano-banana-pro",
+  confidenceScore: 0.83,
   createdAt: "2026-08-09T00:00:00.000Z",
+  updatedAt: "2026-08-09T00:10:00.000Z",
 };
 
 describe("CreativePackageCard", () => {
-  it("renders video + 3 image slots", () => {
+  it("renders a REAL <video controls> and real <img> elements, not placeholder text", () => {
     render(<CreativePackageCard pkg={PACKAGE} onApprove={vi.fn()} onReject={vi.fn()} />);
-    expect(screen.getByTestId("creative-video-slot")).toBeInTheDocument();
-    expect(screen.getAllByTestId("creative-image-slot")).toHaveLength(3);
+    const video = screen.getByTestId("creative-video");
+    expect(video.tagName).toBe("VIDEO");
+    expect(video).toHaveAttribute("src", PACKAGE.videoUrl);
+    expect(video).toHaveAttribute("controls");
+    const images = screen.getAllByTestId("creative-image");
+    expect(images).toHaveLength(3);
+    expect(images[0]?.tagName).toBe("IMG");
+    expect(screen.queryByText("▶ Video")).not.toBeInTheDocument();
+  });
+
+  it("shows the REAL Kie AI model string (no google/ prefix — confirmed live against api.kie.ai)", () => {
+    render(<CreativePackageCard pkg={PACKAGE} onApprove={vi.fn()} onReject={vi.fn()} />);
+    expect(screen.getByText(/veo3_fast\+nano-banana-pro/)).toBeInTheDocument();
+  });
+
+  it("reports honestly when Kai downgraded the requested format", () => {
+    render(
+      <CreativePackageCard
+        pkg={{ ...PACKAGE, decidedFormat: "IMAGES_ONLY", videoUrl: undefined }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Kai turunkan karena foto sumber tidak cukup/)).toBeInTheDocument();
+    expect(screen.queryByTestId("creative-video")).not.toBeInTheDocument();
+  });
+
+  it("states plainly when no source photos existed at generate time", () => {
+    render(
+      <CreativePackageCard
+        pkg={{ ...PACKAGE, sourcePhotoUrls: [] }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/tidak ada foto unit/i)).toBeInTheDocument();
+  });
+
+  it("surfaces a real pipeline error", () => {
+    render(
+      <CreativePackageCard
+        pkg={{ ...PACKAGE, status: "FAILED", errorMessage: "Kie AI timeout after 15 minutes" }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("creative-package-error")).toHaveTextContent("Kie AI timeout");
   });
 
   it("renders copy variant radio buttons", () => {

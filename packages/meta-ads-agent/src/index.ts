@@ -36,7 +36,20 @@ export { DigestService } from "./application/services/DigestService.js";
 export type { TamaraAgent } from "./domain/entities/TamaraAgent.js";
 export type { CampaignDecision } from "./domain/entities/CampaignDecision.js";
 export type { ExecutionPlan } from "./domain/entities/ExecutionPlan.js";
-export type { CreativeBrief, CreativeBriefPriceContext } from "./domain/entities/CreativeBrief.js";
+// AAOS-CREATIVE-REVIEW: `CreativeBrief` is now exported as a VALUE, not only as a type. Its
+// constructor is private and its `props` field is `private`, so the class is nominally typed —
+// `apps/aaos-api`'s creative module cannot hand `@aos/creative-agent`'s
+// `ProcessCreativeBrief.execute(brief)` a structurally-compatible object literal, it must call the
+// real `CreativeBrief.create(...)` validator. Purely additive (a value export also exports the type).
+export { CreativeBrief } from "./domain/entities/CreativeBrief.js";
+export type {
+  CreativeBriefProps,
+  CreativeBriefPriceContext,
+} from "./domain/entities/CreativeBrief.js";
+// The two literal-union types `CreativeBriefProps.urgency`/`.formats` are declared with. Real, and
+// load-bearing: `@aos/creative-agent`'s `FormatDecider` branches on `"VIDEO_15S"`/`"VIDEO_30S"`/
+// `"IMAGE_STORY"` members of `CreativeFormat` to pick its video/image specs.
+export type { CreativeUrgency, CreativeFormat } from "./types/AgentTypes.js";
 export type { DailyDigest, DailyDigestTopPerformer } from "./domain/entities/DailyDigest.js";
 export type { EscalationRequest } from "./domain/entities/EscalationRequest.js";
 export type {

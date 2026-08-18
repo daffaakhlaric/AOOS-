@@ -7,55 +7,96 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { CreativeDetailClient } from "@/components/creative/CreativeDetailClient";
+import type { CreativePackageDto } from "@/types/dashboard.types";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
-const PACKAGE = {
-  id: "KAI-001",
-  briefId: "A003",
+const PACKAGE: CreativePackageDto = {
+  id: "11111111-1111-4111-8111-111111111111",
+  briefId: "22222222-2222-4222-8222-222222222222",
   branch: "BINTARO",
-  unit: "Xpander",
-  title: "Xpander Bintaro",
-  imageUrls: ["a.jpg", "b.jpg", "c.jpg"],
+  unit: "xpander-gls-2022-001",
+  title: "Xpander GLS 2022 BINTARO · DP_RINGAN",
+  angle: "DP_RINGAN",
+  targetPersona: "PRIMARY_FAMILY",
+  reason: "Brief manual dibuat manager.",
+  requestedFormat: "IMAGES_ONLY",
+  primaryMessage: "DP mulai 29 juta",
+  urgency: "HIGH",
+  origin: "MANUAL",
+  status: "PENDING",
+  sourcePhotoUrls: [],
+  imageUrls: ["https://gcs/a.jpg"],
   copyVariants: [
     { id: "v-a", variantLabel: "A", primaryText: "Copy A", headline: "H", callToAction: "CTA" },
   ],
-  status: "PENDING",
   createdAt: "2026-08-09T00:00:00.000Z",
+  updatedAt: "2026-08-09T00:00:00.000Z",
 };
+
+const DETAIL = { package: PACKAGE, logs: [] };
 
 describe("CreativeDetailClient", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders the found package", async () => {
-    global.fetch = vi.fn(async () =>
-      jsonResponse({ packages: [PACKAGE] }),
-    ) as unknown as typeof fetch;
-    render(<CreativeDetailClient packageId="KAI-001" />);
+  it("reads the REAL single-item endpoint instead of scanning the whole list", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL, _init?: RequestInit) =>
+      jsonResponse(DETAIL),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    render(<CreativeDetailClient packageId={PACKAGE.id} />);
     await waitFor(() => expect(screen.getByTestId("creative-package-card")).toBeInTheDocument());
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(`/api/creative/${PACKAGE.id}`);
   });
 
-  it("shows an empty state when the package id is not found", async () => {
+  it("renders the package's own real log trail when it has one", async () => {
     global.fetch = vi.fn(async () =>
-      jsonResponse({ packages: [PACKAGE] }),
+      jsonResponse({
+        package: PACKAGE,
+        logs: [
+          {
+            id: "log-1",
+            fromAgent: "MANAGER",
+            toAgent: "KAI",
+            eventType: "BRIEF_SENT",
+            message: "Brief dikirim ke Kai.",
+            createdAt: "2026-08-18T02:41:00.000Z",
+          },
+        ],
+      }),
+    ) as unknown as typeof fetch;
+    render(<CreativeDetailClient packageId={PACKAGE.id} />);
+    await waitFor(() => expect(screen.getByTestId("creative-detail-logs")).toBeInTheDocument());
+    expect(screen.getByText(/Brief dikirim ke Kai/)).toBeInTheDocument();
+  });
+
+  it("shows an empty state on a real upstream 404", async () => {
+    global.fetch = vi.fn(async () =>
+      jsonResponse({ error: { message: "not found" } }, 404),
     ) as unknown as typeof fetch;
     render(<CreativeDetailClient packageId="missing" />);
     await waitFor(() => expect(screen.getByTestId("empty-state")).toBeInTheDocument());
+  });
+
+  it("shows an error card on any other upstream failure", async () => {
+    global.fetch = vi.fn(async () => jsonResponse({}, 500)) as unknown as typeof fetch;
+    render(<CreativeDetailClient packageId={PACKAGE.id} />);
+    await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
   });
 
   it("rejecting the package calls the reject endpoint", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       if (String(input).includes("/reject"))
         return jsonResponse({ package: { ...PACKAGE, status: "REJECTED" } });
-      return jsonResponse({ packages: [PACKAGE] });
+      return jsonResponse(DETAIL);
     });
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    render(<CreativeDetailClient packageId="KAI-001" />);
+    render(<CreativeDetailClient packageId={PACKAGE.id} />);
     await waitFor(() => expect(screen.getByTestId("creative-package-card")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
     await waitFor(() => {

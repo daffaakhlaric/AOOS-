@@ -56,6 +56,12 @@ importers:
       '@aos/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@aos/creative-agent':
+        specifier: workspace:*
+        version: link:../../packages/creative-agent
+      '@aos/creative-connector':
+        specifier: workspace:*
+        version: link:../../packages/creative-connector
       '@aos/errors':
         specifier: workspace:*
         version: link:../../packages/errors

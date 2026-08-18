@@ -1,5 +1,5 @@
 import { Branch } from "@aos/meta-ads-connector";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ScrapedUnitMapper } from "../../src/infrastructure/mappers/ScrapedUnitMapper.js";
 import { ScrapedUnitRepository } from "../../src/infrastructure/supabase/ScrapedUnitRepository.js";
@@ -70,6 +70,48 @@ describe("ScrapedUnitRepository.upsertMany", () => {
     client.forceErrorOnce("scraped_units", "duplicate key");
     const error = unwrapErr(await repo.upsertMany([makeUnit()], TENANT));
     expect(error.message).toContain("ScrapedUnitRepository.upsertMany failed");
+  });
+
+  it(
+    "REAL BUG FIX regression guard: deduplicates a same-batch identityKey collision (real " +
+      "mobixbydss.id pagination quirk — a unit appearing on two listing pages) instead of sending " +
+      "Postgres a batch that fails ON CONFLICT DO UPDATE entirely",
+    async () => {
+      const { client, repo } = build();
+      const onDuplicate = vi.fn();
+
+      const count = unwrap(
+        await repo.upsertMany(
+          [
+            makeUnit({ slug: "brio-rs-2021", priceIdr: 145_000_000 }),
+            makeUnit({ slug: "avanza-g-2022" }),
+            makeUnit({ slug: "brio-rs-2021", priceIdr: 139_000_000 }),
+          ],
+          TENANT,
+          onDuplicate,
+        ),
+      );
+
+      // Deduplicated before ever reaching the client — 2 rows, not 3.
+      expect(count).toBe(2);
+      expect(client.rows("scraped_units")).toHaveLength(2);
+      // The LAST occurrence wins (freshest listing page), never silently dropped.
+      const brio = client
+        .rows("scraped_units")
+        .find((row) => row["identity_key"] === "brio-rs-2021");
+      expect(brio?.["price_idr"]).toBe(139_000_000);
+      expect(onDuplicate).toHaveBeenCalledTimes(1);
+      expect(onDuplicate).toHaveBeenCalledWith("brio-rs-2021");
+    },
+  );
+
+  it("never calls onDuplicate when every identityKey in the batch is unique", async () => {
+    const { repo } = build();
+    const onDuplicate = vi.fn();
+
+    await repo.upsertMany([makeUnit({ slug: "a" }), makeUnit({ slug: "b" })], TENANT, onDuplicate);
+
+    expect(onDuplicate).not.toHaveBeenCalled();
   });
 });
 

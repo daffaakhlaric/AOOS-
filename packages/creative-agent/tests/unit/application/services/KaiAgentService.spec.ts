@@ -120,22 +120,20 @@ describe("KaiAgentService", () => {
     expect(job?.packageId?.equals(pkg.id)).toBe(true);
   });
 
-  it("no photos available -> IMAGES_ONLY, orchestrate called with no sourcePhotoUrl", async () => {
+  it("no photos available -> IMAGES_ONLY, orchestrate called with empty sourcePhotoUrls", async () => {
     const getAssetsByUnit = {
       execute: vi.fn().mockResolvedValue(okResult(buildAssetCollection([]))),
     };
     const saveAiCreative = {
       execute: vi.fn().mockResolvedValue(okResult(savedImagesOnlyAssets())),
     };
-    const orchestrate = vi
-      .fn()
-      .mockResolvedValue(
-        okResult({
-          imageBuffers: [Buffer.from("i1"), Buffer.from("i2")],
-          imageSpecs: [],
-          videoDelivered: false,
-        }),
-      );
+    const orchestrate = vi.fn().mockResolvedValue(
+      okResult({
+        imageBuffers: [Buffer.from("i1"), Buffer.from("i2")],
+        imageSpecs: [],
+        videoDelivered: false,
+      }),
+    );
     const { service } = buildService({ getAssetsByUnit, saveAiCreative, orchestrate });
 
     const brief = buildBrief({ formats: ["VIDEO_15S"], urgency: "HIGH" });
@@ -143,9 +141,62 @@ describe("KaiAgentService", () => {
 
     expect(pkg.videoUrl).toBeUndefined();
     expect(orchestrate).toHaveBeenCalledWith(
-      expect.objectContaining({ sourcePhotoUrl: undefined, videoPrompt: undefined }),
+      expect.objectContaining({ sourcePhotoUrls: [], videoPrompt: undefined }),
     );
   });
+
+  it(
+    "REAL BUG FIX regression guard: 3 source photos available -> only the top 2 are sent " +
+      "(Kie AI's real, confirmed-live reference-image limit), not just 1 and not all 3",
+    async () => {
+      const getAssetsByUnit = {
+        execute: vi
+          .fn()
+          .mockResolvedValue(
+            okResult(
+              buildAssetCollection([
+                buildAsset({
+                  publicUrl: "https://cdn.supabase.test/photo-1.jpg",
+                  fileName: "photo-1.jpg",
+                }),
+                buildAsset({
+                  publicUrl: "https://cdn.supabase.test/photo-2.jpg",
+                  fileName: "photo-2.jpg",
+                }),
+                buildAsset({
+                  publicUrl: "https://cdn.supabase.test/photo-3.jpg",
+                  fileName: "photo-3.jpg",
+                }),
+              ]),
+            ),
+          ),
+      };
+      const saveAiCreative = {
+        execute: vi.fn().mockResolvedValue(okResult(savedImagesOnlyAssets())),
+      };
+      const orchestrate = vi.fn().mockResolvedValue(
+        okResult({
+          imageBuffers: [Buffer.from("i1"), Buffer.from("i2")],
+          imageSpecs: [],
+          videoDelivered: false,
+        }),
+      );
+      const { service } = buildService({ getAssetsByUnit, saveAiCreative, orchestrate });
+
+      const brief = buildBrief({ formats: ["IMAGE_SQUARE"], urgency: "HIGH" });
+      await service.processCreativeBrief(brief);
+
+      expect(orchestrate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourcePhotoUrls: [
+            "https://cdn.supabase.test/photo-1.jpg",
+            "https://cdn.supabase.test/photo-2.jpg",
+          ],
+          sourcePhotoFileNames: ["photo-1.jpg", "photo-2.jpg"],
+        }),
+      );
+    },
+  );
 
   it("photo query failure -> NoSourcePhotosError, job marked FAILED, CreativeGenerationFailed emitted", async () => {
     const getAssetsByUnit = {
@@ -208,15 +259,13 @@ describe("KaiAgentService", () => {
     const saveAiCreative = {
       execute: vi.fn().mockResolvedValue(okResult(savedImagesOnlyAssets())),
     };
-    const orchestrate = vi
-      .fn()
-      .mockResolvedValue(
-        okResult({
-          imageBuffers: [Buffer.from("i1"), Buffer.from("i2")],
-          imageSpecs: [],
-          videoDelivered: false,
-        }),
-      );
+    const orchestrate = vi.fn().mockResolvedValue(
+      okResult({
+        imageBuffers: [Buffer.from("i1"), Buffer.from("i2")],
+        imageSpecs: [],
+        videoDelivered: false,
+      }),
+    );
     const { service } = buildService({ getAssetsByUnit, saveAiCreative, orchestrate });
 
     const brief = buildBrief({ formats: ["VIDEO_15S"], urgency: "HIGH" });
@@ -250,7 +299,7 @@ describe("KaiAgentService", () => {
     await service.processCreativeBrief(buildBrief({ formats: ["VIDEO_15S"], urgency: "HIGH" }));
 
     expect(saveAiCreative.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ aiModel: "veo3+google/nano-banana-pro" }),
+      expect.objectContaining({ aiModel: "veo3+nano-banana-pro" }),
     );
   });
 
@@ -271,7 +320,7 @@ describe("KaiAgentService", () => {
     await service.processCreativeBrief(buildBrief({ formats: ["IMAGE_SQUARE"] }));
 
     expect(saveAiCreative.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ aiModel: "google/nano-banana-pro" }),
+      expect.objectContaining({ aiModel: "nano-banana-pro" }),
     );
   });
 

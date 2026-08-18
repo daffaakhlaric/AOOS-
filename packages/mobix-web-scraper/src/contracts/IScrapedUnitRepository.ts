@@ -46,8 +46,17 @@ export interface ScrapedUnitStats {
  * belongs next to every other persisted entity in this codebase.
  */
 export interface IScrapedUnitRepository {
-  /** Idempotent write of a whole scrape session's units, keyed on `(tenant_id, identity_key)`. */
-  upsertMany(units: readonly ScrapedUnit[], tenantId: string): Promise<Result<number, ScrapeError>>;
+  /**
+   * Idempotent write of a whole scrape session's units, keyed on `(tenant_id, identity_key)`.
+   * `onDuplicate` fires once per `identityKey` that appeared more than once in `units` (a real,
+   * observed mobixbydss.id pagination quirk — the same unit can land on two pages of one scrape) —
+   * the batch is deduplicated rather than failing outright, but the collapse is never silent.
+   */
+  upsertMany(
+    units: readonly ScrapedUnit[],
+    tenantId: string,
+    onDuplicate?: (identityKey: string) => void,
+  ): Promise<Result<number, ScrapeError>>;
   findByIdentityKey(
     identityKey: string,
     tenantId: string,

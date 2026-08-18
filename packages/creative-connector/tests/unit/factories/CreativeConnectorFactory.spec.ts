@@ -18,7 +18,7 @@ function config(): CreativeConnectorConfig {
     generationBaseUrl: "https://api.kie.ai",
     uploadBaseUrl: "https://kieai.redpandaai.co",
     defaultVideoModel: "veo3_fast",
-    defaultImageModel: "google/nano-banana-pro",
+    defaultImageModel: "nano-banana-pro",
     defaultAspectRatio: "16:9",
     pollIntervalMs: 5000,
     maxPollDurationMs: 300000,

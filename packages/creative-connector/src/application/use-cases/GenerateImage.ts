@@ -12,7 +12,7 @@ import type { ImageGenerationService } from "../services/ImageGenerationService.
 import type { TaskPollingService } from "../services/TaskPollingService.js";
 
 export interface GenerateImageInput {
-  readonly sourceImageUrl?: string;
+  readonly sourceImageUrls?: readonly string[];
   readonly prompt: string;
   readonly aspectRatio: AspectRatio;
   readonly outputFormat?: "jpg" | "png";
@@ -39,7 +39,7 @@ export class GenerateImage {
 
   async execute(input: GenerateImageInput): Promise<Result<GeneratedImage, GenerateImageError>> {
     const taskResult = await this.imageService.generate({
-      sourceImageUrl: input.sourceImageUrl,
+      sourceImageUrls: input.sourceImageUrls,
       prompt: input.prompt,
       aspectRatio: input.aspectRatio,
       outputFormat: input.outputFormat,

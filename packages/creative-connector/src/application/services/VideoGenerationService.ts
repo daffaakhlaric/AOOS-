@@ -35,7 +35,7 @@ export class VideoGenerationService implements IVideoGenerator {
   ): Promise<Result<GenerationTask, KieApiError | RateLimitError>> {
     const result = await this.client.generateVideoFromImage({
       prompt: params.prompt,
-      imageUrls: [params.sourceImageUrl],
+      imageUrls: [...params.sourceImageUrls],
       model: params.model,
       aspect_ratio: params.aspectRatio,
       watermark: "",

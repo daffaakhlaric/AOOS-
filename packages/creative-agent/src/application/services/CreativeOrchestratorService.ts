@@ -21,9 +21,9 @@ export type FetchSourcePhoto = (url: string) => Promise<Response>;
  * Calls `@aos/creative-connector` for real (spec "Full Pipeline: ProcessCreativeBrief" steps
  * 4-6). Implements the graceful-degradation rules from the spec's "Error handling" section:
  *
- *  - Source photo fetch/upload failure -> continue WITHOUT a source photo (falls back to
- *    text-to-image/video generation, per COORDINATOR NOTE #7 — `GenerateImage`'s `sourceImageUrl`
- *    is optional).
+ *  - Source photo fetch/upload failure -> continue WITHOUT that source photo (falls back to
+ *    text-to-image/video generation if none succeed, per COORDINATOR NOTE #7 —
+ *    `GenerateImage`'s `sourceImageUrls` is optional).
  *  - Video generation (or its media download) failure -> continue WITHOUT a video; the package
  *    still reaches `READY`, just images-only.
  *  - 1-of-N image failures -> continue with the images that succeeded.
@@ -41,15 +41,31 @@ export class CreativeOrchestratorService implements ICreativeOrchestrator {
   async orchestrate(
     input: OrchestrateGenerationInput,
   ): Promise<Result<OrchestrateGenerationOutput, GenerationError>> {
-    const sourceFileUrl = await this.tryUploadSourcePhoto(input);
+    const { fileUrls: sourceFileUrls, skippedReason: sourcePhotoSkippedReason } =
+      await this.tryUploadSourcePhotos(input);
 
-    const { videoBuffer, videoDelivered } = await this.tryGenerateVideo(input, sourceFileUrl);
+    const { videoBuffer, videoDelivered } = await this.tryGenerateVideo(input, sourceFileUrls);
 
-    const imageBuffers = await this.generateImages(input, sourceFileUrl);
+    const { buffers: imageBuffers, failures: imageFailures } = await this.generateImages(
+      input,
+      sourceFileUrls,
+    );
     if (imageBuffers.length === 0) {
+      // REAL BUG FIX: this used to report only a count ("all 3 image generation(s) failed"),
+      // discarding the real per-request `GenerateImageError`/download-failure reasons that
+      // `generateImages` already collected — leaving a manager (and whoever debugs it) with no way
+      // to tell a Kie AI quota/auth error apart from a bad source-photo URL apart from a timeout.
+      // Every real reason is preserved (capped so a large batch can't produce an unreadable
+      // message), never fabricated when the underlying calls report nothing.
+      const reasons =
+        imageFailures.length > 0
+          ? ` — ${imageFailures.slice(0, 3).join("; ")}${
+              imageFailures.length > 3 ? ` (+${String(imageFailures.length - 3)} more)` : ""
+            }`
+          : "";
       return err(
         new GenerationError(
-          `CreativeOrchestratorService: all ${input.imagePrompts.length} image generation(s) failed`,
+          `CreativeOrchestratorService: all ${String(input.imagePrompts.length)} image generation(s) failed${reasons}`,
         ),
       );
     }
@@ -59,57 +75,89 @@ export class CreativeOrchestratorService implements ICreativeOrchestrator {
       imageBuffers,
       imageSpecs: imageBuffers.map(() => input.imageSpec),
       videoDelivered,
+      ...(sourcePhotoSkippedReason !== undefined ? { sourcePhotoSkippedReason } : {}),
     });
   }
 
-  private async tryUploadSourcePhoto(
+  /**
+   * REAL BUG FIX: every failure branch here used to silently discard its reason and just fall
+   * back to no-source-photo generation — a real scraped photo could be found AND genuinely
+   * publicly fetchable, and still silently never reach Kie AI, with no trace anywhere of why
+   * (found live: a package with a real, curl-verified-200 `assets` photo URL still generated
+   * TEXT_2_VIDEO). Every branch below now names exactly which step failed.
+   *
+   * Uploads up to `input.sourcePhotoUrls.length` real photos (Kie AI's real, confirmed-live limit
+   * is 2 reference images — `KaiAgentService` never sends more) to Kie AI's own file host,
+   * independently per photo — one photo failing never blocks the others (same
+   * partial-failure-tolerant discipline as `generateImages` below).
+   */
+  private async tryUploadSourcePhotos(
     input: OrchestrateGenerationInput,
-  ): Promise<string | undefined> {
-    if (input.sourcePhotoUrl === undefined) {
-      return undefined;
+  ): Promise<{ readonly fileUrls: readonly string[]; readonly skippedReason?: string }> {
+    const sourceUrls = input.sourcePhotoUrls ?? [];
+    if (sourceUrls.length === 0) {
+      return { fileUrls: [] };
     }
 
-    let response: Response;
-    try {
-      response = await this.fetchSourcePhoto(input.sourcePhotoUrl);
-    } catch {
-      return undefined;
-    }
-    if (!response.ok) {
-      return undefined;
+    const fileUrls: string[] = [];
+    const failures: string[] = [];
+
+    for (const [index, sourceUrl] of sourceUrls.entries()) {
+      const label = `source photo ${String(index + 1)}`;
+      const fileName =
+        input.sourcePhotoFileNames?.[index] ?? `source-photo-${String(index + 1)}.jpg`;
+      const mimeType = mapMimeType(input.sourcePhotoMimeTypes?.[index]);
+
+      let response: Response;
+      try {
+        response = await this.fetchSourcePhoto(sourceUrl);
+      } catch (error) {
+        failures.push(`failed to fetch ${label}: ${toErrorMessage(error)}`);
+        continue;
+      }
+      if (!response.ok) {
+        failures.push(`${label} fetch responded with HTTP ${String(response.status)}`);
+        continue;
+      }
+
+      let buffer: Buffer;
+      try {
+        buffer = Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        failures.push(`failed to read ${label} response body: ${toErrorMessage(error)}`);
+        continue;
+      }
+
+      const uploadResult = await this.uploadSourceImage.execute(
+        buffer,
+        fileName,
+        mimeType,
+        undefined,
+        input.correlationId,
+      );
+      if (!uploadResult.ok) {
+        failures.push(`Kie AI file upload failed for ${label}: ${uploadResult.error.message}`);
+        continue;
+      }
+      fileUrls.push(uploadResult.value.fileUrl.toString());
     }
 
-    let buffer: Buffer;
-    try {
-      buffer = Buffer.from(await response.arrayBuffer());
-    } catch {
-      return undefined;
-    }
-
-    const mimeType = mapMimeType(input.sourcePhotoMimeType);
-    const uploadResult = await this.uploadSourceImage.execute(
-      buffer,
-      input.sourcePhotoFileName ?? "source-photo.jpg",
-      mimeType,
-      undefined,
-      input.correlationId,
-    );
-    if (!uploadResult.ok) {
-      return undefined;
-    }
-    return uploadResult.value.fileUrl.toString();
+    return {
+      fileUrls,
+      ...(failures.length > 0 ? { skippedReason: failures.join("; ") } : {}),
+    };
   }
 
   private async tryGenerateVideo(
     input: OrchestrateGenerationInput,
-    sourceFileUrl: string | undefined,
+    sourceFileUrls: readonly string[],
   ): Promise<{ videoBuffer?: Buffer; videoDelivered: boolean }> {
     if (input.videoPrompt === undefined || input.videoSpec === undefined) {
       return { videoDelivered: false };
     }
 
     const videoResult = await this.generateLongVideo.execute({
-      sourceImageUrl: sourceFileUrl,
+      sourceImageUrls: sourceFileUrls,
       prompt: input.videoPrompt,
       targetDurationSeconds: input.videoSpec.durationSeconds,
       aspectRatio: input.videoSpec.aspectRatio,
@@ -129,19 +177,25 @@ export class CreativeOrchestratorService implements ICreativeOrchestrator {
 
   private async generateImages(
     input: OrchestrateGenerationInput,
-    sourceFileUrl: string | undefined,
-  ): Promise<ReadonlyArray<Buffer>> {
+    sourceFileUrls: readonly string[],
+  ): Promise<{
+    readonly buffers: ReadonlyArray<Buffer>;
+    readonly failures: ReadonlyArray<string>;
+  }> {
     const setResult = await this.generateImageSet.execute({
       requests: input.imagePrompts.map((prompt) => ({
-        sourceImageUrl: sourceFileUrl,
+        sourceImageUrls: sourceFileUrls,
         prompt,
         aspectRatio: input.imageSpec.aspectRatio,
       })),
     });
     /* v8 ignore next 3 -- unreachable: `GenerateImageSet.execute` always returns `ok` (its `Result` error type is `never` — per-request failures are collected into `.failed`, not thrown/returned). */
     if (!setResult.ok) {
-      return [];
+      return { buffers: [], failures: [] };
     }
+
+    // Real per-request failure reasons — see the REAL BUG FIX note at this method's call site.
+    const failures: string[] = setResult.value.failed.map((f) => f.error.message);
 
     const sorted = [...setResult.value.succeeded].sort((a, b) => a.index - b.index);
     const buffers: Buffer[] = [];
@@ -149,10 +203,16 @@ export class CreativeOrchestratorService implements ICreativeOrchestrator {
       const downloadResult = await this.downloadMedia.execute(success.image.imageUrl);
       if (downloadResult.ok) {
         buffers.push(downloadResult.value);
+      } else {
+        failures.push(`download failed: ${downloadResult.error.message}`);
       }
     }
-    return buffers;
+    return { buffers, failures };
   }
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function mapMimeType(raw: string | undefined): SupportedImageMimeType {

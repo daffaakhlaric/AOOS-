@@ -169,6 +169,13 @@ describe("AssetsService.list", () => {
     });
   });
 
+  it("forwards the AAOS-CREATIVE-REVIEW `model` filter through to the library", async () => {
+    const { library, listAssets } = createLibrary();
+    const service = new AssetsService(buildTestConfig(), library);
+    await service.list({ page: 1, limit: 48, sort: "newest", model: "xpander" });
+    expect(listAssets).toHaveBeenCalledWith(expect.objectContaining({ model: "xpander" }));
+  });
+
   it("re-throws the library's domain error for AaosExceptionFilter to map", async () => {
     const { library } = createLibrary({
       listAssets: { execute: vi.fn(async () => err(new StorageError("postgrest down"))) },

@@ -156,6 +156,10 @@ export class AssetRepository implements IAssetRepository {
     if (filter.search !== undefined && filter.search.trim().length > 0) {
       query = query.ilike("file_name", `%${filter.search.trim()}%`);
     }
+    // AAOS-CREATIVE-REVIEW: `unit_model` is a real, scraper-populated column (see `AssetListFilter.model`).
+    if (filter.model !== undefined && filter.model.trim().length > 0) {
+      query = query.ilike("unit_model", `%${filter.model.trim()}%`);
+    }
 
     const { data, error, count } = await query
       .order("created_at", { ascending: filter.sort === "oldest" })

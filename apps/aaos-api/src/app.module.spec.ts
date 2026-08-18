@@ -7,6 +7,7 @@ import {
   ASSET_LIBRARY,
   BRANCH_MANAGER,
   EVENT_PUBLISHER,
+  KAI_AGENT_RUNTIME,
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
   LEAD_STORE_MESSAGE_REPOSITORY,
@@ -46,8 +47,24 @@ describe("AppModule.forRoot", () => {
     // the shared client SimulationRepository reuses — see di-tokens.ts's class doc).
     // AAOS-SCRAPER-ASSET-LIBRARY: +2 imports (ScraperModule, AssetsModule) and +2 providers
     // (ASSET_LIBRARY, MOBIX_SCRAPER_SERVICE).
+    // AAOS-CREATIVE-REVIEW: +1 provider (KAI_AGENT_RUNTIME, the composed @aos/creative-agent
+    // pipeline) — no new import (the existing CreativePackagesModule now backs it).
     expect(dynamicModule.imports).toHaveLength(15);
-    expect(dynamicModule.providers).toHaveLength(15);
+    expect(dynamicModule.providers).toHaveLength(16);
+  });
+
+  it("provides KAI_AGENT_RUNTIME as undefined when no Kie AI key / asset library is configured, so the app still boots", () => {
+    const dynamicModule = AppModule.forRoot(buildTestConfig());
+    const provider = findValueProvider(dynamicModule.providers, KAI_AGENT_RUNTIME);
+    // Same load-bearing "token exists, value is undefined" contract as ASSET_LIBRARY — see
+    // di-tokens.ts's KAI_AGENT_RUNTIME doc. No Kie AI call is ever attempted in this state.
+    expect(provider).toBeDefined();
+    expect(provider?.useValue).toBeUndefined();
+  });
+
+  it("leaves KAI_AGENT_RUNTIME undefined when KIE_AI_API_KEY is set but the asset library is not (Kai structurally needs it)", () => {
+    const dynamicModule = AppModule.forRoot(buildTestConfig({ KIE_AI_API_KEY: "kie-real-key" }));
+    expect(findValueProvider(dynamicModule.providers, KAI_AGENT_RUNTIME)?.useValue).toBeUndefined();
   });
 
   it("provides ASSET_LIBRARY as undefined when no GCS credentials are configured, so the app still boots", () => {
@@ -98,6 +115,7 @@ describe("AppModule.forRoot", () => {
       SUPABASE_CLIENT,
       ASSET_LIBRARY,
       MOBIX_SCRAPER_SERVICE,
+      KAI_AGENT_RUNTIME,
     ]);
   });
 

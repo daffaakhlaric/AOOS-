@@ -9,7 +9,7 @@ describe("parseCreativeConnectorConfig", () => {
     expect(config.generationBaseUrl).toBe("https://api.kie.ai");
     expect(config.uploadBaseUrl).toBe("https://kieai.redpandaai.co");
     expect(config.defaultVideoModel).toBe("veo3_fast");
-    expect(config.defaultImageModel).toBe("google/nano-banana-pro");
+    expect(config.defaultImageModel).toBe("nano-banana-pro");
     expect(config.defaultAspectRatio).toBe("16:9");
     expect(config.pollIntervalMs).toBe(5000);
     expect(config.maxPollDurationMs).toBe(300000);
@@ -23,7 +23,7 @@ describe("parseCreativeConnectorConfig", () => {
         generationBaseUrl: "https://api.kie.ai",
         uploadBaseUrl: "https://kieai.redpandaai.co",
         defaultVideoModel: "veo3",
-        defaultImageModel: "google/nano-banana-pro",
+        defaultImageModel: "nano-banana-pro",
         defaultAspectRatio: "9:16",
         callbackUrl: "https://example.com/callback",
         pollIntervalMs: 1000,

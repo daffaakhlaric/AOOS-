@@ -24,6 +24,7 @@ export interface CreativePackageBuilderInput {
   readonly generatedAt: Date;
   readonly totalGenerationMs: number;
   readonly confidenceScore: ConfidenceScore;
+  readonly sourcePhotoSkippedReason?: string;
 }
 
 /** Builder Pattern (spec "builders/CreativePackageBuilder.ts") — the single place a `CreativePackage` gets assembled at the end of `KaiAgentService.processCreativeBrief`, generating its `PackageId` and delegating validation to `CreativePackage.create`. */
@@ -43,6 +44,7 @@ export class CreativePackageBuilder {
       generatedAt: input.generatedAt,
       totalGenerationMs: input.totalGenerationMs,
       confidenceScore: input.confidenceScore,
+      sourcePhotoSkippedReason: input.sourcePhotoSkippedReason,
     });
   }
 }

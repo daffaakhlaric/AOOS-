@@ -1,9 +1,10 @@
+/* No `max-width` cap on `.page` — this session's established convention: the dashboard's content
+   fills the available width rather than being pinned to a 1200px column. */
 .page {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 32px;
-  max-width: 1200px;
 }
 
 .title {
@@ -18,4 +19,106 @@
   font-size: 13px;
   color: var(--gray-500);
   margin-top: 4px;
+}
+
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: var(--border);
+}
+
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  color: var(--gray-900);
+}
+
+.tabActive {
+  color: var(--black);
+  border-bottom-color: var(--black);
+}
+
+.notice {
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--gray-50, #f9fafb);
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--gray-700, #374151);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.rowTitle {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.rowMeta {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.primaryButton {
+  margin-top: 8px;
+  appearance: none;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--black);
+  color: var(--white);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  margin-top: 8px;
+  appearance: none;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
 }

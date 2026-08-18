@@ -1,0 +1,128 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--gray-50, #f9fafb);
+  padding: 14px 16px;
+}
+
+.bannerTitle {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.bannerMeta {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.card {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardTitle {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.freq {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.cardMeta {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.controlLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--gray-500);
+}
+
+.select {
+  appearance: none;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--gray-900);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.primaryButton {
+  appearance: none;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--black);
+  color: var(--white);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  appearance: none;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

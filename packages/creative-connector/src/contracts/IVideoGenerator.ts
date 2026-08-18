@@ -8,7 +8,8 @@ import type { TaskId } from "../domain/value-objects/TaskId.js";
 import type { VideoModel } from "../domain/value-objects/VideoModel.js";
 
 export interface GenerateVideoFromImageParams {
-  readonly sourceImageUrl: string;
+  /** Up to 2 real reference photos — the real `POST /api/v1/veo/generate` `imageUrls` array field. */
+  readonly sourceImageUrls: readonly string[];
   readonly prompt: string;
   readonly model: VideoModel;
   readonly aspectRatio: AspectRatio;

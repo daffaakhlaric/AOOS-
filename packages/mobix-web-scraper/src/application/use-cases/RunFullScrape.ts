@@ -40,7 +40,17 @@ export type ScrapeProgressEvent =
       readonly rawCabang: string;
       readonly slug: string;
       readonly fallback: string;
-    };
+    }
+  /**
+   * REAL BUG FIX regression signal: mobixbydss.id's own paginated listing can return the SAME unit
+   * on more than one page within a single scrape (no stable ordering guarantee across requests). A
+   * duplicate `identityKey` used to make the WHOLE `scraped_units` batch upsert fail (Postgres's
+   * "ON CONFLICT DO UPDATE command cannot affect row a second time"), silently zeroing out every
+   * unit's persisted metadata for that run while photo ingestion kept working — masking the failure
+   * entirely. `ScrapedUnitRepository.upsertMany` now deduplicates instead of failing; this event
+   * keeps that real, observed data-quality quirk visible rather than silent.
+   */
+  | { readonly type: "duplicate_unit"; readonly identityKey: string };
 
 export type ScrapeProgressListener = (event: ScrapeProgressEvent) => void;
 
@@ -161,7 +171,11 @@ export class RunFullScrape {
         const gallery = galleries.get(unit.identityKey);
         return gallery !== undefined && gallery.length > 0 ? unit.withPhotos(gallery) : unit;
       });
-      const persisted = await this.scrapedUnitRepository.upsertMany(unitsToPersist, this.tenantId);
+      const persisted = await this.scrapedUnitRepository.upsertMany(
+        unitsToPersist,
+        this.tenantId,
+        (identityKey) => onProgress?.({ type: "duplicate_unit", identityKey }),
+      );
       if (persisted.ok) {
         persistedUnits = persisted.value;
         onProgress?.({ type: "units_persisted", count: persisted.value });

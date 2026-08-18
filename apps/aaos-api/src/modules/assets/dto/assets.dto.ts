@@ -2,7 +2,7 @@ import { AssetStatus, AssetType, type Asset, type AssetStats } from "@aos/asset-
 import { Branch } from "@aos/meta-ads-connector";
 import { z } from "zod";
 
-/** `GET /api/v1/assets?type=&status=&branch=&unitId=&search=&page=&limit=&sort=` */
+/** `GET /api/v1/assets?type=&status=&branch=&unitId=&model=&search=&page=&limit=&sort=` */
 export const GetAssetsQuerySchema = z.object({
   // `z.nativeEnum` means only the REAL enum members are accepted — the spec's `?type=all` sentinel
   // is expressed by simply omitting the parameter, never by a fabricated "ALL" enum member.
@@ -10,6 +10,11 @@ export const GetAssetsQuerySchema = z.object({
   status: z.nativeEnum(AssetStatus).optional(),
   branch: z.nativeEnum(Branch).optional(),
   unitId: z.string().trim().min(1).optional(),
+  // AAOS-CREATIVE-REVIEW: case-insensitive substring match against the REAL, scraper-populated
+  // `unit_model` column — what the creative photo picker filters on ("xpander"/"hrv"/"avanza").
+  // Deliberately a free-text string, not an enum: there is no closed list of unit models anywhere
+  // in this codebase, and inventing one would reject real models the scraper genuinely persists.
+  model: z.string().trim().min(1).optional(),
   search: z.string().trim().min(1).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(200).default(48),

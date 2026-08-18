@@ -100,7 +100,7 @@ describe("FormatDecider", () => {
 
     it("uses model nano-banana-pro", () => {
       const brief = buildBrief({ formats: ["IMAGE_SQUARE"] });
-      expect(decider.decideImageSpec(brief).model).toBe("google/nano-banana-pro");
+      expect(decider.decideImageSpec(brief).model).toBe("nano-banana-pro");
     });
 
     it("IMAGE_STORY in formats -> aspectRatio 9:16 (vertical)", () => {

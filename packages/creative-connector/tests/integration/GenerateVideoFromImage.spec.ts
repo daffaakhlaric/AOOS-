@@ -45,7 +45,7 @@ describe("GenerateVideoFromImage (integration, MSW-mocked api.kie.ai)", () => {
     const { useCase } = makeUseCase();
     const video = unwrap(
       await useCase.execute({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "White Mitsubishi Xpander SUV",
         model: VideoModel.VEO3_FAST,
         aspectRatio: AspectRatio.WIDESCREEN,
@@ -68,7 +68,7 @@ describe("GenerateVideoFromImage (integration, MSW-mocked api.kie.ai)", () => {
     );
     const { useCase, publisher } = makeUseCase();
     await useCase.execute({
-      sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+      sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
       prompt: "car",
       model: VideoModel.VEO3_FAST,
       aspectRatio: AspectRatio.WIDESCREEN,
@@ -92,7 +92,7 @@ describe("GenerateVideoFromImage (integration, MSW-mocked api.kie.ai)", () => {
     const { useCase, publisher } = makeUseCase();
     const error = unwrapErr(
       await useCase.execute({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "car",
         model: VideoModel.VEO3_FAST,
         aspectRatio: AspectRatio.WIDESCREEN,
@@ -109,7 +109,7 @@ describe("GenerateVideoFromImage (integration, MSW-mocked api.kie.ai)", () => {
     const { useCase } = makeUseCase();
     const error = unwrapErr(
       await useCase.execute({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "car",
         model: VideoModel.VEO3_FAST,
         aspectRatio: AspectRatio.WIDESCREEN,

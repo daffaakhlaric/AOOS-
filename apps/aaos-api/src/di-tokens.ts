@@ -15,12 +15,19 @@ export const WHATSAPP_WEBHOOK_VERIFIER = Symbol("WHATSAPP_WEBHOOK_VERIFIER");
 export const OBJECTIVE_ENGINE = Symbol("OBJECTIVE_ENGINE");
 export const BRANCH_MANAGER = Symbol("BRANCH_MANAGER");
 /**
- * The new `creative-packages` module's process-local, in-memory "pending review" store (AAOS-W4A
- * coordinator note #3) — deliberately NOT part of `@aos/creative-agent` (whose own
- * `GenerationJobRegistry` is scoped to generation-job status only, not review/approval workflow
- * state) and NOT durable. See `modules/creative-packages/creative-package.store.ts`'s class doc.
+ * AAOS-CREATIVE-REVIEW — the composed `@aos/creative-agent` runtime (`KaiAgentFactory.create`),
+ * the FIRST real wiring of the Kai/Kie AI generation pipeline into this app. Replaces the old
+ * `CREATIVE_PACKAGE_STORE` token, whose process-local in-memory `Map` (2 fake seed packages, no
+ * connection to any generation pipeline) is gone — package state is now durable Supabase rows.
+ *
+ * Provided as `KaiAgentRuntime | undefined`: the runtime needs BOTH a real Kie AI key
+ * (`KIE_AI_API_KEY`) and a composed `ASSET_LIBRARY` (Kai reads source photos from it and writes
+ * generated media back to it), so `app.module.ts` composes it only when both are configured and
+ * provides `undefined` otherwise. Same graceful-degradation discipline as `ASSET_LIBRARY` — the
+ * whole app still boots, and `CreativePackagesService` raises an honest 503 naming the missing env
+ * vars rather than silently pretending a generation was queued.
  */
-export const CREATIVE_PACKAGE_STORE = Symbol("CREATIVE_PACKAGE_STORE");
+export const KAI_AGENT_RUNTIME = Symbol("KAI_AGENT_RUNTIME");
 /**
  * AAOS-W4B additions — the raw `@aos/lead-store` `MessageRepository`/`ClosingRepository` infra
  * classes, composed in `app.module.ts` against the SAME Supabase client `LeadStoreFactory` uses
@@ -34,7 +41,7 @@ export const LEAD_STORE_MESSAGE_REPOSITORY = Symbol("LEAD_STORE_MESSAGE_REPOSITO
 export const LEAD_STORE_CLOSING_REPOSITORY = Symbol("LEAD_STORE_CLOSING_REPOSITORY");
 /**
  * AAOS-LLM-TAMARA additions — module-local providers for `modules/llm`, following
- * `CREATIVE_PACKAGE_STORE`'s precedent (a process-local implementation detail of one module, not
+ * `LLM_*`'s own precedent (a process-local implementation detail of one module, not
  * a real external integration composed in `app.module.ts`, so these are provided inside
  * `LlmModule` itself, not exported from `AppModule.forRoot`).
  */

@@ -73,7 +73,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     const { useCase } = makeUseCase();
     const video = unwrap(
       await useCase.execute({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "car",
         targetDurationSeconds: 15,
         aspectRatio: AspectRatio.WIDESCREEN,
@@ -91,7 +91,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     const { useCase } = makeUseCase();
     const video = unwrap(
       await useCase.execute({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "car",
         targetDurationSeconds: 30,
         aspectRatio: AspectRatio.WIDESCREEN,
@@ -109,7 +109,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     const { useCase } = makeUseCase();
     const video = unwrap(
       await useCase.execute({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "car",
         targetDurationSeconds: 15,
         aspectRatio: AspectRatio.WIDESCREEN,
@@ -123,7 +123,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     const { useCase } = makeUseCase();
     const video = unwrap(
       await useCase.execute({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "car",
         targetDurationSeconds: 8,
         aspectRatio: AspectRatio.WIDESCREEN,
@@ -161,7 +161,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     registerHandlers(2);
     const { useCase, publisher } = makeUseCase();
     await useCase.execute({
-      sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+      sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
       prompt: "car",
       targetDurationSeconds: 15,
       aspectRatio: AspectRatio.WIDESCREEN,
@@ -183,7 +183,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     );
     const { useCase, publisher } = makeUseCase();
     const result = await useCase.execute({
-      sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+      sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
       prompt: "car",
       targetDurationSeconds: 15,
       aspectRatio: AspectRatio.WIDESCREEN,
@@ -214,7 +214,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     );
     const { useCase, publisher } = makeUseCase();
     const result = await useCase.execute({
-      sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+      sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
       prompt: "car",
       targetDurationSeconds: 15,
       aspectRatio: AspectRatio.WIDESCREEN,
@@ -229,7 +229,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     mswServer.use(http.post(GENERATE_URL, () => new HttpResponse(null, { status: 500 })));
     const { useCase } = makeUseCase();
     const result = await useCase.execute({
-      sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+      sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
       prompt: "car",
       targetDurationSeconds: 15,
       aspectRatio: AspectRatio.WIDESCREEN,
@@ -252,7 +252,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
     );
     const { useCase, publisher } = makeUseCase();
     const result = await useCase.execute({
-      sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+      sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
       prompt: "car",
       targetDurationSeconds: 15,
       aspectRatio: AspectRatio.WIDESCREEN,

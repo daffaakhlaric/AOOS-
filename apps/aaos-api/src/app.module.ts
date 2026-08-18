@@ -1,6 +1,8 @@
 import { AssetLibraryFactory, type AssetLibrary } from "@aos/asset-library";
 import type { BranchManager } from "@aos/branch-manager";
 import { BranchManagerFactory } from "@aos/branch-manager";
+import { KaiAgentFactory, type KaiAgentRuntime } from "@aos/creative-agent";
+import { CreativeConnectorFactory } from "@aos/creative-connector";
 import { EventBroker, type IPublisher } from "@aos/event-bus";
 import {
   ClosingRepository,
@@ -25,6 +27,10 @@ import {
 } from "./config/to-asset-library-config.js";
 import { toBranchManagerConfig } from "./config/to-branch-manager-config.js";
 import { toConnectorConfig } from "./config/to-connector-config.js";
+import {
+  isCreativePipelineConfigured,
+  toCreativeConnectorConfig,
+} from "./config/to-creative-connector-config.js";
 import { toLeadStoreConfig } from "./config/to-lead-store-config.js";
 import { toObjectiveEngineConfig } from "./config/to-objective-engine-config.js";
 import { toWhatsAppConnectorConfig } from "./config/to-whatsapp-connector-config.js";
@@ -33,6 +39,7 @@ import {
   ASSET_LIBRARY,
   BRANCH_MANAGER,
   EVENT_PUBLISHER,
+  KAI_AGENT_RUNTIME,
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
   LEAD_STORE_MESSAGE_REPOSITORY,
@@ -164,6 +171,43 @@ export class AppModule {
       });
     }
 
+    // AAOS-CREATIVE-REVIEW: the FIRST real composition of `@aos/creative-agent` (Kai) and
+    // `@aos/creative-connector` (Kie AI) in this app — until now the whole generation pipeline
+    // existed at package level and was never imported here.
+    //
+    // Composed ONLY when a real `KIE_AI_API_KEY` is set AND the asset library exists: `KaiAgentFactory`
+    // structurally requires `assetLibrary.getAssetsByUnit` (where Kai finds the unit's real scraped
+    // source photos) and `assetLibrary.saveAiCreative` (where the generated video/images are really
+    // persisted), so there is no meaningful half-composed state. When either is missing this stays
+    // `undefined` and `CreativePackagesService` raises an honest 503 naming the missing env vars.
+    //
+    // Shares the same real `IPublisher` as every other composed package.
+    let kaiRuntime: KaiAgentRuntime | undefined;
+    if (assetLibrary !== undefined && isCreativePipelineConfigured(config, true)) {
+      const creativeConnectorConfigResult = toCreativeConnectorConfig(config);
+      if (!creativeConnectorConfigResult.ok) {
+        throw creativeConnectorConfigResult.error;
+      }
+      const creativeConnector = CreativeConnectorFactory.create({
+        config: creativeConnectorConfigResult.value,
+        publisher,
+      });
+      const kaiResult = KaiAgentFactory.create({
+        config: { tenantId: config.AAOS_TENANT_ID },
+        publisher,
+        getAssetsByUnit: assetLibrary.getAssetsByUnit,
+        saveAiCreative: assetLibrary.saveAiCreative,
+        uploadSourceImage: creativeConnector.uploadSourceImage,
+        generateLongVideo: creativeConnector.generateLongVideo,
+        generateImageSet: creativeConnector.generateImageSet,
+        downloadMedia: creativeConnector.downloadMedia,
+      });
+      if (!kaiResult.ok) {
+        throw kaiResult.error;
+      }
+      kaiRuntime = kaiResult.value;
+    }
+
     const mobixScraper: MobixScraperService = MobixScraperFactory.create({
       publisher,
       listingUrl: config.MOBIX_LISTING_URL,
@@ -211,6 +255,10 @@ export class AppModule {
         // missing provider that would fail Nest's dependency resolution at boot.
         { provide: ASSET_LIBRARY, useValue: assetLibrary },
         { provide: MOBIX_SCRAPER_SERVICE, useValue: mobixScraper },
+        // `useValue: undefined` is intentional and load-bearing, same rationale as `ASSET_LIBRARY`
+        // above — an injectable token that resolves to `undefined` on a deployment with no Kie AI
+        // key, rather than a missing provider that would fail Nest's resolution at boot.
+        { provide: KAI_AGENT_RUNTIME, useValue: kaiRuntime },
         { provide: APP_FILTER, useValue: new AaosExceptionFilter() },
         { provide: APP_INTERCEPTOR, useValue: new LoggingInterceptor() },
         { provide: APP_INTERCEPTOR, useValue: new TracingInterceptor() },
@@ -228,6 +276,7 @@ export class AppModule {
         SUPABASE_CLIENT,
         ASSET_LIBRARY,
         MOBIX_SCRAPER_SERVICE,
+        KAI_AGENT_RUNTIME,
       ],
     };
   }

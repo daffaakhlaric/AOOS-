@@ -63,6 +63,7 @@ export class AssetsService {
       ...(query.status !== undefined ? { status: query.status } : {}),
       ...(query.branch !== undefined ? { branch: query.branch } : {}),
       ...(query.unitId !== undefined ? { unitId: query.unitId } : {}),
+      ...(query.model !== undefined ? { model: query.model } : {}),
       ...(query.search !== undefined ? { search: query.search } : {}),
       page: query.page,
       limit: query.limit,

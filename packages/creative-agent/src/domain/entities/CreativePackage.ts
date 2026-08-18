@@ -25,6 +25,15 @@ export interface CreativePackageProps {
   readonly generatedAt?: Date;
   readonly totalGenerationMs?: number;
   readonly confidenceScore: ConfidenceScore;
+  /**
+   * REAL BUG FIX diagnostic field: set only when `CreativeOrchestratorService` had a real source
+   * photo (a real `assets` row, a genuinely-fetched URL) but it could not be gotten to Kie AI —
+   * e.g. a failed fetch/upload — so this package silently generated TEXT_2_VIDEO/text-to-image
+   * instead of using the real unit photo. `undefined` whenever a photo either wasn't available at
+   * all (nothing to report) or was successfully delivered. See
+   * `ICreativeOrchestrator.OrchestrateGenerationOutput.sourcePhotoSkippedReason`'s docstring.
+   */
+  readonly sourcePhotoSkippedReason?: string;
 }
 
 /**
@@ -114,5 +123,9 @@ export class CreativePackage {
 
   get confidenceScore(): ConfidenceScore {
     return this.props.confidenceScore;
+  }
+
+  get sourcePhotoSkippedReason(): string | undefined {
+    return this.props.sourcePhotoSkippedReason;
   }
 }

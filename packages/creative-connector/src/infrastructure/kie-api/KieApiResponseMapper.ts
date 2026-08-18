@@ -6,6 +6,12 @@ import type { RawTaskStatusResponse } from "../../contracts/ICreativeClient.js";
 import { FileUploadError } from "../../domain/errors/FileUploadError.js";
 import { KieApiError } from "../../domain/errors/KieApiError.js";
 
+// REAL BUG FIX (confirmed live against api.kie.ai, 2026-08-18): on a real error response (e.g.
+// `{"code":422,"msg":"...","data":null}`), Kie AI sends `data` as an explicit JSON `null`, not an
+// omitted field. `.optional()` only accepts `undefined` (a missing key) — an explicit `null` still
+// failed it, so every real Kie AI error response was reported as an opaque "response failed schema
+// validation" instead of the real, informative `msg` Kie AI actually sent. `.nullable().optional()`
+// (i.e. `.nullish()`) accepts both shapes.
 const UploadResponseSchema = z.object({
   success: z.boolean(),
   code: z.number(),
@@ -15,7 +21,7 @@ const UploadResponseSchema = z.object({
       fileId: z.string(),
       fileUrl: z.string(),
     })
-    .optional(),
+    .nullish(),
 });
 
 const TaskCreatedResponseSchema = z.object({
@@ -25,7 +31,7 @@ const TaskCreatedResponseSchema = z.object({
     .object({
       taskId: z.string(),
     })
-    .optional(),
+    .nullish(),
 });
 
 const TaskStatusResponseSchema = z.object({
@@ -39,7 +45,7 @@ const TaskStatusResponseSchema = z.object({
       imageUrl: z.string().optional(),
       images: z.array(z.string()).optional(),
     })
-    .optional(),
+    .nullish(),
 });
 
 export interface UploadResponseData {

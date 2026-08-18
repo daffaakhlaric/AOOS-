@@ -109,19 +109,74 @@ export interface CopyVariantDto {
   readonly callToAction: string;
 }
 
+/**
+ * AAOS-CREATIVE-REVIEW: `DRAFT` (saved, never sent to Kai — zero Kie AI spend) · `GENERATING`
+ * (a human pressed "Kirim ke Kai"; the real pipeline is running) · `PENDING` (awaiting review) ·
+ * `APPROVED`/`REJECTED` (reviewed) · `FAILED` (the real pipeline errored).
+ */
+export type CreativePackageStatusDto =
+  "DRAFT" | "GENERATING" | "PENDING" | "APPROVED" | "REJECTED" | "FAILED";
+
+/** `@aos/creative-agent`'s real `CreativeFormat` — a package-level decision, not a per-asset tag. */
+export type CreativeFormatDto = "VIDEO_AND_IMAGES" | "IMAGES_ONLY";
+
 export interface CreativePackageDto {
   readonly id: string;
   readonly briefId: string;
+  readonly adId?: string;
+  readonly stableId?: string;
   readonly branch: string;
+  /** The scraped unit's `identityKey` — the key Kai matches source photos on. */
   readonly unit: string;
+  readonly unitModel?: string;
   readonly title: string;
+  readonly angle: string;
+  readonly targetPersona: string;
+  readonly reason: string;
+  readonly requestedFormat: CreativeFormatDto;
+  /** What Kai's real `FormatDecider` decided — may downgrade to `IMAGES_ONLY` with no source photos. */
+  readonly decidedFormat?: CreativeFormatDto;
+  readonly primaryMessage: string;
+  readonly urgency: "HIGH" | "MEDIUM" | "LOW";
+  readonly origin: "MANUAL" | "TAMARA";
+  readonly status: CreativePackageStatusDto;
+  /** Real asset-library photo URLs found for this unit when generation started. */
+  readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;
   readonly imageUrls: readonly string[];
   readonly copyVariants: readonly CopyVariantDto[];
-  readonly status: "PENDING" | "APPROVED" | "REJECTED";
+  /** The real Kie AI model string, e.g. `veo3_fast+nano-banana-pro`. */
+  readonly aiModel?: string;
+  readonly confidenceScore?: number;
+  readonly generationMs?: number;
   readonly selectedCopyVariantId?: string;
-  readonly createdAt: string;
+  readonly errorMessage?: string;
+  readonly generatedAt?: string;
   readonly reviewedAt?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** One row of the real, append-only `creative_logs` audit trail. */
+export interface CreativeLogDto {
+  readonly id: string;
+  readonly packageId?: string;
+  readonly fromAgent: string;
+  readonly toAgent?: string;
+  readonly eventType: string;
+  readonly message: string;
+  readonly brief?: unknown;
+  readonly result?: unknown;
+  readonly error?: string;
+  readonly metadata?: unknown;
+  readonly adId?: string;
+  readonly stableId?: string;
+  readonly createdAt: string;
+}
+
+export interface CreativePackageDetailDto {
+  readonly package: CreativePackageDto;
+  readonly logs: readonly CreativeLogDto[];
 }
 
 export interface SalesHumanDto {

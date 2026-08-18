@@ -98,17 +98,17 @@ describe("KieAiGenerationClient", () => {
     const client = makeClient();
     const result = unwrap(
       await client.generateImage({
-        model: "google/nano-banana-pro",
+        model: "nano-banana-pro",
         input: {
           prompt: "car photo",
-          image_url: "https://cdn.kie.ai/x.jpg",
+          image_urls: ["https://cdn.kie.ai/x.jpg"],
           output_format: "jpg",
           aspect_ratio: "1:1",
         },
       }),
     );
     expect(result.taskId).toBe("task_google_1");
-    expect((receivedBody as { model: string }).model).toBe("google/nano-banana-pro");
+    expect((receivedBody as { model: string }).model).toBe("nano-banana-pro");
   });
 
   it("GET /api/v1/jobs/{taskId} -> task status", async () => {

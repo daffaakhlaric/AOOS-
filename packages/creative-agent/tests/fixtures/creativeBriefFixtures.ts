@@ -12,6 +12,7 @@ export interface FixturePriceContext {
 export interface BuildBriefOverrides {
   readonly angle?: AdAngle;
   readonly unit?: string;
+  readonly unitModel?: string;
   readonly branch?: Branch;
   readonly urgency?: "HIGH" | "MEDIUM" | "LOW";
   readonly formats?: ReadonlyArray<"VIDEO_15S" | "VIDEO_30S" | "IMAGE_SQUARE" | "IMAGE_STORY">;
@@ -45,6 +46,7 @@ export function buildBrief(overrides: BuildBriefOverrides = {}): CreativeBrief {
     id: CreativeBriefId.generate(),
     adId: overrides.adId ?? "ad-xpander-001",
     unit: overrides.unit ?? "Xpander Cross 2019",
+    unitModel: overrides.unitModel,
     branch: overrides.branch ?? Branch.BINTARO,
     angle: overrides.angle ?? AdAngle.DP_RINGAN,
     targetPersona: TargetPersona.PRIMARY_FAMILY,

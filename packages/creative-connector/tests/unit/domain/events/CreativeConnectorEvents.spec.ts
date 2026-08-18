@@ -69,7 +69,7 @@ describe("CreativeConnectorEvents", () => {
     const events = new CreativeConnectorEvents(publisher);
     await events.publishImageGenerationStarted({
       taskId: "task_1",
-      model: "google/nano-banana-pro",
+      model: "nano-banana-pro",
       occurredAt: OCCURRED_AT,
       version: "1.0",
     });
@@ -82,7 +82,7 @@ describe("CreativeConnectorEvents", () => {
     await events.publishImageGenerationCompleted({
       taskId: "task_1",
       imageUrl: "https://cdn.kie.ai/i.jpg",
-      model: "google/nano-banana-pro",
+      model: "nano-banana-pro",
       aspectRatio: "1:1",
       occurredAt: OCCURRED_AT,
       version: "1.0",

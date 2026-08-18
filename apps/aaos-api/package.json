@@ -21,6 +21,8 @@
     "@aos/branch-manager": "workspace:*",
     "@aos/common": "workspace:*",
     "@aos/config": "workspace:*",
+    "@aos/creative-agent": "workspace:*",
+    "@aos/creative-connector": "workspace:*",
     "@aos/errors": "workspace:*",
     "@aos/event-bus": "workspace:*",
     "@aos/lead-store": "workspace:*",

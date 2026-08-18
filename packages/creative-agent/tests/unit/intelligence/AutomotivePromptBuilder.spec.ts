@@ -57,6 +57,30 @@ describe("AutomotivePromptBuilder", () => {
     expect(builder.buildImagePrompt(brief, 0)).toContain("Xpander Cross 2019");
   });
 
+  it(
+    "REAL BUG FIX regression guard: prefers unitModel (a real human-readable name) over unit " +
+      "(the scraped identityKey/slug) — a real generation's video prompt used to read " +
+      "'...toyota-avanza-g-2023-66e041ab in modern Indonesian car showroom...' instead of the " +
+      "real model name",
+    () => {
+      const brief = buildBrief({
+        unit: "toyota-avanza-g-2023-66e041ab",
+        unitModel: "Toyota Avanza G 2023",
+      });
+      const videoPrompt = builder.buildVideoPrompt(brief, true);
+      const imagePrompt = builder.buildImagePrompt(brief, 0);
+      expect(videoPrompt).toContain("Toyota Avanza G 2023");
+      expect(videoPrompt).not.toContain("toyota-avanza-g-2023-66e041ab");
+      expect(imagePrompt).toContain("Toyota Avanza G 2023");
+      expect(imagePrompt).not.toContain("toyota-avanza-g-2023-66e041ab");
+    },
+  );
+
+  it("falls back to unit (the slug) when unitModel is absent — e.g. a Tamara brief with no scraped stock match", () => {
+    const brief = buildBrief({ unit: "some-ad-name-with-no-stock-match", unitModel: undefined });
+    expect(builder.buildVideoPrompt(brief, true)).toContain("some-ad-name-with-no-stock-match");
+  });
+
   it("branch is included in the video prompt (title-cased)", () => {
     const brief = buildBrief({ branch: Branch.BINTARO });
     expect(builder.buildVideoPrompt(brief, true)).toContain("Bintaro");

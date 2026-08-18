@@ -24,7 +24,7 @@ describe("VideoGenerationService", () => {
     const service = new VideoGenerationService(client, new CreativeConnectorEvents(publisher));
     const task = unwrap(
       await service.generateFromImage({
-        sourceImageUrl: "https://cdn.kie.ai/x.jpg",
+        sourceImageUrls: ["https://cdn.kie.ai/x.jpg"],
         prompt: "A car",
         model: VideoModel.VEO3_FAST,
         aspectRatio: AspectRatio.WIDESCREEN,

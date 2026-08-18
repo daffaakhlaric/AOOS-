@@ -21,7 +21,7 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 /**
  * `LLM_OPENAI_CLIENT`/`LLM_RATE_LIMITER`/`LLM_RESPONSE_CACHE` are provided HERE (module-local),
  * not in `AppModule.forRoot`'s global providers — same precedent as `CreativePackagesModule`'s
- * `CREATIVE_PACKAGE_STORE`: these are implementation details of this one module, not real external
+ * module-local providers generally: these are implementation details of this one module, not real external
  * integrations shared with other modules, so nothing outside `LlmModule` needs to inject them.
  *
  * `LLM_RATE_LIMITER` reuses `@aos/meta-ads-connector`'s real, tested `TokenBucketRateLimiter`

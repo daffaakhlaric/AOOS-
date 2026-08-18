@@ -34,9 +34,12 @@ function videoSpec(): VideoSpec {
   );
 }
 
-function mockResponse(overrides: { ok?: boolean; body?: ArrayBuffer } = {}): Response {
+function mockResponse(
+  overrides: { ok?: boolean; status?: number; body?: ArrayBuffer } = {},
+): Response {
   return {
     ok: overrides.ok ?? true,
+    status: overrides.status ?? (overrides.ok === false ? 500 : 200),
     arrayBuffer: async () => overrides.body ?? new ArrayBuffer(8),
   } as Response;
 }
@@ -111,9 +114,9 @@ describe("CreativeOrchestratorService", () => {
 
     const result = unwrap(
       await service.orchestrate({
-        sourcePhotoUrl: "https://cdn.supabase.test/xpander.jpg",
-        sourcePhotoFileName: "xpander.jpg",
-        sourcePhotoMimeType: "image/jpeg",
+        sourcePhotoUrls: ["https://cdn.supabase.test/xpander.jpg"],
+        sourcePhotoFileNames: ["xpander.jpg"],
+        sourcePhotoMimeTypes: ["image/jpeg"],
         videoPrompt: "a video prompt",
         videoSpec: videoSpec(),
         imagePrompts: ["p1", "p2", "p3"],
@@ -132,10 +135,115 @@ describe("CreativeOrchestratorService", () => {
       undefined,
     );
     const videoCallArg = deps.generateLongVideo.execute.mock.calls[0]?.[0];
-    expect(videoCallArg.sourceImageUrl).toBe("https://cdn.kie.ai/up-1.jpg");
+    expect(videoCallArg.sourceImageUrls).toEqual(["https://cdn.kie.ai/up-1.jpg"]);
     const imageCallArg = deps.generateImageSet.execute.mock.calls[0]?.[0];
-    expect(imageCallArg.requests[0].sourceImageUrl).toBe("https://cdn.kie.ai/up-1.jpg");
+    expect(imageCallArg.requests[0].sourceImageUrls).toEqual(["https://cdn.kie.ai/up-1.jpg"]);
   });
+
+  it(
+    "REAL BUG FIX regression guard: uploads BOTH real source photos independently and sends " +
+      "BOTH resulting Kie AI file URLs to both video and image generation (Kie AI's real, " +
+      "confirmed-live reference-image limit is 2 — this used to only ever send 1)",
+    async () => {
+      const deps = buildDeps();
+      deps.fetchSourcePhoto.mockResolvedValue(mockResponse());
+      deps.uploadSourceImage.execute
+        .mockResolvedValueOnce(okResult(buildUploadedFile("https://cdn.kie.ai/up-1.jpg")))
+        .mockResolvedValueOnce(okResult(buildUploadedFile("https://cdn.kie.ai/up-2.jpg")));
+      deps.generateLongVideo.execute.mockResolvedValue(okResult(buildGeneratedVideo()));
+      deps.generateImageSet.execute.mockResolvedValue(okResult(threeSuccessfulImages()));
+      deps.downloadMedia.execute.mockResolvedValue(okResult(Buffer.from("media")));
+
+      const service = new CreativeOrchestratorService(
+        deps.uploadSourceImage,
+        deps.generateLongVideo,
+        deps.generateImageSet,
+        deps.downloadMedia,
+        deps.fetchSourcePhoto,
+      );
+
+      const result = unwrap(
+        await service.orchestrate({
+          sourcePhotoUrls: [
+            "https://cdn.supabase.test/photo-1.jpg",
+            "https://cdn.supabase.test/photo-2.jpg",
+          ],
+          sourcePhotoFileNames: ["photo-1.jpg", "photo-2.jpg"],
+          sourcePhotoMimeTypes: ["image/jpeg", "image/png"],
+          videoPrompt: "a video prompt",
+          videoSpec: videoSpec(),
+          imagePrompts: ["p1", "p2", "p3"],
+          imageSpec: imageSpec(),
+        }),
+      );
+
+      expect(result.sourcePhotoSkippedReason).toBeUndefined();
+      expect(deps.uploadSourceImage.execute).toHaveBeenCalledTimes(2);
+      expect(deps.uploadSourceImage.execute).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Buffer),
+        "photo-1.jpg",
+        "image/jpeg",
+        undefined,
+        undefined,
+      );
+      expect(deps.uploadSourceImage.execute).toHaveBeenNthCalledWith(
+        2,
+        expect.any(Buffer),
+        "photo-2.jpg",
+        "image/png",
+        undefined,
+        undefined,
+      );
+      const videoCallArg = deps.generateLongVideo.execute.mock.calls[0]?.[0];
+      expect(videoCallArg.sourceImageUrls).toEqual([
+        "https://cdn.kie.ai/up-1.jpg",
+        "https://cdn.kie.ai/up-2.jpg",
+      ]);
+      const imageCallArg = deps.generateImageSet.execute.mock.calls[0]?.[0];
+      expect(imageCallArg.requests[0].sourceImageUrls).toEqual([
+        "https://cdn.kie.ai/up-1.jpg",
+        "https://cdn.kie.ai/up-2.jpg",
+      ]);
+    },
+  );
+
+  it(
+    "one of 2 source photos fails to upload -> still uses the one that succeeded, reports the " +
+      "real reason for the one that didn't",
+    async () => {
+      const deps = buildDeps();
+      deps.fetchSourcePhoto.mockResolvedValue(mockResponse());
+      deps.uploadSourceImage.execute
+        .mockResolvedValueOnce(okResult(buildUploadedFile("https://cdn.kie.ai/up-1.jpg")))
+        .mockResolvedValueOnce(errResult(apiError("second upload rejected")));
+      deps.generateImageSet.execute.mockResolvedValue(okResult(threeSuccessfulImages()));
+      deps.downloadMedia.execute.mockResolvedValue(okResult(Buffer.from("x")));
+
+      const service = new CreativeOrchestratorService(
+        deps.uploadSourceImage,
+        deps.generateLongVideo,
+        deps.generateImageSet,
+        deps.downloadMedia,
+        deps.fetchSourcePhoto,
+      );
+
+      const result = unwrap(
+        await service.orchestrate({
+          sourcePhotoUrls: [
+            "https://cdn.supabase.test/photo-1.jpg",
+            "https://cdn.supabase.test/photo-2.jpg",
+          ],
+          imagePrompts: ["p1", "p2", "p3"],
+          imageSpec: imageSpec(),
+        }),
+      );
+
+      expect(result.sourcePhotoSkippedReason).toContain("second upload rejected");
+      const imageCallArg = deps.generateImageSet.execute.mock.calls[0]?.[0];
+      expect(imageCallArg.requests[0].sourceImageUrls).toEqual(["https://cdn.kie.ai/up-1.jpg"]);
+    },
+  );
 
   it("unsupported mimeType defaults to image/jpeg", async () => {
     const deps = buildDeps();
@@ -153,15 +261,15 @@ describe("CreativeOrchestratorService", () => {
     );
 
     await service.orchestrate({
-      sourcePhotoUrl: "https://cdn.supabase.test/x.gif",
-      sourcePhotoMimeType: "image/gif",
+      sourcePhotoUrls: ["https://cdn.supabase.test/x.gif"],
+      sourcePhotoMimeTypes: ["image/gif"],
       imagePrompts: ["p1", "p2", "p3"],
       imageSpec: imageSpec(),
     });
 
     expect(deps.uploadSourceImage.execute).toHaveBeenCalledWith(
       expect.any(Buffer),
-      "source-photo.jpg",
+      "source-photo-1.jpg",
       "image/jpeg",
       undefined,
       undefined,
@@ -184,15 +292,15 @@ describe("CreativeOrchestratorService", () => {
     );
 
     await service.orchestrate({
-      sourcePhotoUrl: "https://cdn.supabase.test/x.png",
-      sourcePhotoMimeType: "image/png",
+      sourcePhotoUrls: ["https://cdn.supabase.test/x.png"],
+      sourcePhotoMimeTypes: ["image/png"],
       imagePrompts: ["p1", "p2", "p3"],
       imageSpec: imageSpec(),
     });
 
     expect(deps.uploadSourceImage.execute).toHaveBeenCalledWith(
       expect.any(Buffer),
-      "source-photo.jpg",
+      "source-photo-1.jpg",
       "image/png",
       undefined,
       undefined,
@@ -215,15 +323,15 @@ describe("CreativeOrchestratorService", () => {
     );
 
     await service.orchestrate({
-      sourcePhotoUrl: "https://cdn.supabase.test/x.webp",
-      sourcePhotoMimeType: "image/webp",
+      sourcePhotoUrls: ["https://cdn.supabase.test/x.webp"],
+      sourcePhotoMimeTypes: ["image/webp"],
       imagePrompts: ["p1", "p2", "p3"],
       imageSpec: imageSpec(),
     });
 
     expect(deps.uploadSourceImage.execute).toHaveBeenCalledWith(
       expect.any(Buffer),
-      "source-photo.jpg",
+      "source-photo-1.jpg",
       "image/webp",
       undefined,
       undefined,
@@ -246,18 +354,20 @@ describe("CreativeOrchestratorService", () => {
 
     const result = unwrap(
       await service.orchestrate({
-        sourcePhotoUrl: "https://cdn.supabase.test/x.jpg",
+        sourcePhotoUrls: ["https://cdn.supabase.test/x.jpg"],
         imagePrompts: ["p1", "p2", "p3"],
         imageSpec: imageSpec(),
       }),
     );
     expect(result.imageBuffers).toHaveLength(3);
     expect(deps.uploadSourceImage.execute).not.toHaveBeenCalled();
+    // REAL BUG FIX regression guard: the real reason is preserved, not silently discarded.
+    expect(result.sourcePhotoSkippedReason).toContain("network down");
   });
 
   it("source photo fetch HTTP error (non-ok) -> falls back to no source photo", async () => {
     const deps = buildDeps();
-    deps.fetchSourcePhoto.mockResolvedValue(mockResponse({ ok: false }));
+    deps.fetchSourcePhoto.mockResolvedValue(mockResponse({ ok: false, status: 403 }));
     deps.generateImageSet.execute.mockResolvedValue(okResult(threeSuccessfulImages()));
     deps.downloadMedia.execute.mockResolvedValue(okResult(Buffer.from("x")));
 
@@ -269,12 +379,15 @@ describe("CreativeOrchestratorService", () => {
       deps.fetchSourcePhoto,
     );
 
-    await service.orchestrate({
-      sourcePhotoUrl: "https://cdn.supabase.test/x.jpg",
-      imagePrompts: ["p1", "p2", "p3"],
-      imageSpec: imageSpec(),
-    });
+    const result = unwrap(
+      await service.orchestrate({
+        sourcePhotoUrls: ["https://cdn.supabase.test/x.jpg"],
+        imagePrompts: ["p1", "p2", "p3"],
+        imageSpec: imageSpec(),
+      }),
+    );
     expect(deps.uploadSourceImage.execute).not.toHaveBeenCalled();
+    expect(result.sourcePhotoSkippedReason).toContain("403");
   });
 
   it("source photo response body read failure -> falls back to no source photo", async () => {
@@ -296,18 +409,52 @@ describe("CreativeOrchestratorService", () => {
       deps.fetchSourcePhoto,
     );
 
-    await service.orchestrate({
-      sourcePhotoUrl: "https://cdn.supabase.test/x.jpg",
-      imagePrompts: ["p1", "p2", "p3"],
-      imageSpec: imageSpec(),
-    });
+    const result = unwrap(
+      await service.orchestrate({
+        sourcePhotoUrls: ["https://cdn.supabase.test/x.jpg"],
+        imagePrompts: ["p1", "p2", "p3"],
+        imageSpec: imageSpec(),
+      }),
+    );
     expect(deps.uploadSourceImage.execute).not.toHaveBeenCalled();
+    expect(result.sourcePhotoSkippedReason).toContain("body read failed");
   });
 
-  it("source photo upload failure -> falls back to no source photo", async () => {
+  it(
+    "REAL BUG FIX regression guard: source photo upload failure -> falls back to no source " +
+      "photo, but names the real Kie AI upload error (found live: a real, publicly-fetchable " +
+      "GCS photo still silently generated TEXT_2_VIDEO with zero trace of why)",
+    async () => {
+      const deps = buildDeps();
+      deps.fetchSourcePhoto.mockResolvedValue(mockResponse());
+      deps.uploadSourceImage.execute.mockResolvedValue(errResult(apiError("upload rejected")));
+      deps.generateImageSet.execute.mockResolvedValue(okResult(threeSuccessfulImages()));
+      deps.downloadMedia.execute.mockResolvedValue(okResult(Buffer.from("x")));
+
+      const service = new CreativeOrchestratorService(
+        deps.uploadSourceImage,
+        deps.generateLongVideo,
+        deps.generateImageSet,
+        deps.downloadMedia,
+        deps.fetchSourcePhoto,
+      );
+
+      const result = unwrap(
+        await service.orchestrate({
+          sourcePhotoUrls: ["https://cdn.supabase.test/x.jpg"],
+          imagePrompts: ["p1", "p2", "p3"],
+          imageSpec: imageSpec(),
+        }),
+      );
+      expect(result.sourcePhotoSkippedReason).toContain("upload rejected");
+      expect(result.imageBuffers).toHaveLength(3);
+      const imageCallArg = deps.generateImageSet.execute.mock.calls[0]?.[0];
+      expect(imageCallArg.requests[0].sourceImageUrls).toEqual([]);
+    },
+  );
+
+  it("no sourcePhotoUrl at all (no scraped photos for this unit) -> sourcePhotoSkippedReason is undefined, not a fabricated reason", async () => {
     const deps = buildDeps();
-    deps.fetchSourcePhoto.mockResolvedValue(mockResponse());
-    deps.uploadSourceImage.execute.mockResolvedValue(errResult(apiError("upload rejected")));
     deps.generateImageSet.execute.mockResolvedValue(okResult(threeSuccessfulImages()));
     deps.downloadMedia.execute.mockResolvedValue(okResult(Buffer.from("x")));
 
@@ -321,14 +468,11 @@ describe("CreativeOrchestratorService", () => {
 
     const result = unwrap(
       await service.orchestrate({
-        sourcePhotoUrl: "https://cdn.supabase.test/x.jpg",
         imagePrompts: ["p1", "p2", "p3"],
         imageSpec: imageSpec(),
       }),
     );
-    expect(result.imageBuffers).toHaveLength(3);
-    const imageCallArg = deps.generateImageSet.execute.mock.calls[0]?.[0];
-    expect(imageCallArg.requests[0].sourceImageUrl).toBeUndefined();
+    expect(result.sourcePhotoSkippedReason).toBeUndefined();
   });
 
   it("video generation failure -> gracefully continues images-only (videoDelivered false)", async () => {
@@ -478,6 +622,38 @@ describe("CreativeOrchestratorService", () => {
     );
     expect(error.message).toContain("all 3 image generation(s) failed");
   });
+
+  it(
+    "REAL BUG FIX regression guard: includes the real per-request failure reasons in the " +
+      "GenerationError message, not just a count (previously discarded, leaving no way to tell a " +
+      "Kie AI auth/quota error apart from a bad prompt apart from a timeout)",
+    async () => {
+      const deps = buildDeps();
+      deps.generateImageSet.execute.mockResolvedValue(
+        okResult({
+          succeeded: [],
+          failed: [
+            { index: 0, error: apiError("insufficient credits") },
+            { index: 1, error: apiError("insufficient credits") },
+            { index: 2, error: apiError("insufficient credits") },
+          ],
+        }),
+      );
+
+      const service = new CreativeOrchestratorService(
+        deps.uploadSourceImage,
+        deps.generateLongVideo,
+        deps.generateImageSet,
+        deps.downloadMedia,
+        deps.fetchSourcePhoto,
+      );
+
+      const error = unwrapErr(
+        await service.orchestrate({ imagePrompts: ["p1", "p2", "p3"], imageSpec: imageSpec() }),
+      );
+      expect(error.message).toContain("insufficient credits");
+    },
+  );
 
   it("all image downloads fail (even though generation succeeded) -> returns a GenerationError", async () => {
     const deps = buildDeps();
