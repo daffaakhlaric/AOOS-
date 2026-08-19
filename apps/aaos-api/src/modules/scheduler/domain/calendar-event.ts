@@ -1,0 +1,68 @@
+/**
+ * Domain shape for one stored `calendar_events` row (AAOS-KALENDER-AKTIVITAS). Kept in one small
+ * self-contained file with no upstream `@aos/*` package entity of its own, mirroring
+ * `modules/scraper`/`modules/meta-interests`'s precedent for a module whose domain is purely a
+ * persisted row, not a wrapped package aggregate.
+ *
+ * SCOPE (see `docs/PROMPT-AAOS-KALENDER-AKTIVITAS.md`'s COORDINATOR NOTE section 1): only 5 of
+ * the spec's 14 proposed event types are implemented in this pass — `CalendarEventType` below is
+ * intentionally narrower than the spec's own `CalendarEventType` union. The 9 excluded types (6
+ * campaign-mutating types with no human-approval gate at execution time, plus 3 types with zero
+ * real backing anywhere in this codebase) are never selectable and have no `executeEvent()`
+ * handler.
+ */
+export const SUPPORTED_CALENDAR_EVENT_TYPES = [
+  "SCRAPER_RUN",
+  "TAMARA_PULL_DATA",
+  "TAMARA_ANALYZE",
+  "KAI_REFRESH_CHECK",
+  "DAILY_DIGEST",
+] as const;
+
+export type CalendarEventType = (typeof SUPPORTED_CALENDAR_EVENT_TYPES)[number];
+
+export function isSupportedCalendarEventType(value: string): value is CalendarEventType {
+  return (SUPPORTED_CALENDAR_EVENT_TYPES as readonly string[]).includes(value);
+}
+
+export type CalendarEventStatus = "PENDING" | "RUNNING" | "DONE" | "FAILED" | "SKIPPED";
+export type CalendarEventRecurrence = "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
+
+/** Real, handler-reported outcome of one executed event — never a fabricated/optimistic value. */
+export interface CalendarEventResult {
+  readonly summary: string;
+  readonly [key: string]: unknown;
+}
+
+export interface StoredCalendarEvent {
+  readonly id: string;
+  readonly tenantId: string;
+  /**
+   * Free-form `string` rather than `CalendarEventType`: a row's `event_type` is validated to be a
+   * supported type at the `POST`/`PUT` API boundary (`CreateCalendarEventBodySchema`), but this
+   * domain type must still be able to represent — and `SchedulerService.executeEvent` must still
+   * be able to safely reject — a stray unsupported value already sitting in the table (e.g. from
+   * an older seed, or written directly against Supabase), per coordinator note section 1's "mark
+   * it FAILED with a clear message" requirement.
+   */
+  readonly eventType: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly scheduledAt: string;
+  readonly timezone: string;
+  readonly recurrence: CalendarEventRecurrence;
+  readonly recurrenceDays?: readonly number[];
+  readonly recurrenceTime?: string;
+  readonly status: CalendarEventStatus;
+  readonly startedAt?: string;
+  readonly completedAt?: string;
+  readonly durationMs?: number;
+  readonly targetId?: string;
+  readonly targetName?: string;
+  readonly metadata?: Record<string, unknown>;
+  readonly result?: CalendarEventResult;
+  readonly errorMessage?: string;
+  readonly createdBy: string;
+  readonly parentEventId?: string;
+  readonly createdAt: string;
+}

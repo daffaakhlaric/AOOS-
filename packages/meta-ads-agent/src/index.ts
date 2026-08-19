@@ -32,6 +32,20 @@ export { ExecutionService } from "./application/services/ExecutionService.js";
 export { EscalationService } from "./application/services/EscalationService.js";
 export { DigestService } from "./application/services/DigestService.js";
 
+// Builders — AAOS-KALENDER-AKTIVITAS: exported (purely additively — both classes already existed
+// and were already exercised by `RunOptimizationCycle`'s own internals, just never reachable from
+// outside this package) so a caller can build a real `DailyDigest` WITHOUT running the full
+// PERCEIVE→ANALYZE→DECIDE→ACT→REPORT→LEARN cycle (which would execute real, money-affecting
+// AUTO_EXECUTE decisions against the live Meta API via `ExecuteVerdict`). `apps/aaos-api`'s
+// `DAILY_DIGEST` scheduler handler is the first such caller: it builds an intentionally EMPTY
+// `ExecutionPlan` (zero decisions — nothing was executed) and passes it straight to
+// `DailyDigestBuilder`, producing an honest digest of real objective/campaign data with no
+// side effects on any real campaign.
+export { ExecutionPlanBuilder } from "./builders/ExecutionPlanBuilder.js";
+export { DailyDigestBuilder } from "./builders/DailyDigestBuilder.js";
+export type { DailyDigestBuildInput } from "./builders/DailyDigestBuilder.js";
+export { MetaAdsAgentEvents } from "./domain/events/MetaAdsAgentEvents.js";
+
 // Domain
 export type { TamaraAgent } from "./domain/entities/TamaraAgent.js";
 export type { CampaignDecision } from "./domain/entities/CampaignDecision.js";
@@ -49,7 +63,7 @@ export type {
 // The two literal-union types `CreativeBriefProps.urgency`/`.formats` are declared with. Real, and
 // load-bearing: `@aos/creative-agent`'s `FormatDecider` branches on `"VIDEO_15S"`/`"VIDEO_30S"`/
 // `"IMAGE_STORY"` members of `CreativeFormat` to pick its video/image specs.
-export type { CreativeUrgency, CreativeFormat } from "./types/AgentTypes.js";
+export type { CreativeUrgency, CreativeFormat, PerAdFinding } from "./types/AgentTypes.js";
 export type { DailyDigest, DailyDigestTopPerformer } from "./domain/entities/DailyDigest.js";
 export type { EscalationRequest } from "./domain/entities/EscalationRequest.js";
 export type {

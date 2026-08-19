@@ -1,0 +1,188 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-shadow: var(--shadow-md);
+}
+
+.header {
+  padding: 14px 20px;
+  border-bottom: var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.headerTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--gray-400);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+}
+
+.formInput {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+  width: 100%;
+}
+
+.dateTimeRow {
+  display: flex;
+  gap: 8px;
+}
+
+.timeInput {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.presetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.presetButton {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.presetButtonActive {
+  background: var(--gray-900);
+  color: var(--white);
+  border-color: var(--gray-900);
+}
+
+.recurrenceRow,
+.dayRow {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.recurrenceButton {
+  font-size: 12px;
+  padding: 5px 12px;
+  background: var(--white);
+  color: var(--gray-600);
+  border: var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.recurrenceButtonActive {
+  background: var(--gray-900);
+  color: var(--white);
+  border-color: var(--gray-900);
+}
+
+.dayButton {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 11px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border: var(--border);
+  cursor: pointer;
+}
+
+.dayButtonActive {
+  background: var(--blue);
+  color: var(--white);
+  border-color: var(--blue);
+}
+
+.error {
+  font-size: 12px;
+  color: var(--red);
+}
+
+.footer {
+  padding: 12px 20px;
+  border-top: var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancelButton {
+  font-size: 13px;
+  padding: 7px 14px;
+  background: var(--white);
+  color: var(--gray-600);
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.saveButton {
+  font-size: 13px;
+  padding: 7px 14px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.saveButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

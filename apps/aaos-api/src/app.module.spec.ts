@@ -52,7 +52,10 @@ describe("AppModule.forRoot", () => {
     // AAOS-SIMULASI-TARGETING: +1 import (MetaInterestsModule, for POST /api/v1/meta-interests/sync
     // and the Simulasi audience preview's real interest candidates) — no new global provider (it
     // composes its repository locally from the existing SUPABASE_CLIENT).
-    expect(dynamicModule.imports).toHaveLength(16);
+    // AAOS-KALENDER-AKTIVITAS: +2 imports (ScheduleModule.forRoot(), SchedulerModule) — no new
+    // global provider (SchedulerModule composes its repository locally from the existing
+    // SUPABASE_CLIENT, same as SimulationModule/ScraperModule/MetaInterestsModule).
+    expect(dynamicModule.imports).toHaveLength(18);
     expect(dynamicModule.providers).toHaveLength(16);
   });
 

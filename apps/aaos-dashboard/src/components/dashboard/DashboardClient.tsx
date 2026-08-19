@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import { CalendarWidget } from "@/components/calendar/CalendarWidget";
 import { BranchSummary, type BranchSummaryRow } from "@/components/dashboard/BranchSummary";
 import { ClosingsRecent } from "@/components/dashboard/ClosingsRecent";
 import { RecentHotLeads } from "@/components/dashboard/RecentHotLeads";
@@ -204,6 +205,7 @@ export function DashboardClient(): React.ReactElement {
         </section>
       </div>
       <BranchSummary rows={branchRows} />
+      <CalendarWidget />
     </div>
   );
 }

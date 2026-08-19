@@ -110,4 +110,13 @@ describe("public API surface (src/index.ts)", () => {
   it("createWithFullContext is a static method on the exported TamaraAgentFactory", () => {
     expect(typeof PublicApi.TamaraAgentFactory.createWithFullContext).toBe("function");
   });
+
+  it("exports ExecutionPlanBuilder, DailyDigestBuilder, and MetaAdsAgentEvents (AAOS-KALENDER-AKTIVITAS)", () => {
+    expect(PublicApi.ExecutionPlanBuilder).toBeDefined();
+    expect(typeof PublicApi.ExecutionPlanBuilder.build).toBe("function");
+    expect(PublicApi.DailyDigestBuilder).toBeDefined();
+    expect(typeof PublicApi.DailyDigestBuilder.build).toBe("function");
+    expect(PublicApi.MetaAdsAgentEvents).toBeDefined();
+    expect(typeof PublicApi.MetaAdsAgentEvents).toBe("function");
+  });
 });

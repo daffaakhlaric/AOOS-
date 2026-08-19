@@ -70,6 +70,7 @@ function mockFetchOk(): void {
     if (url.includes("/api/leads")) return jsonResponse(LEADS_BODY);
     if (url.includes("/api/closings")) return jsonResponse(CLOSINGS_BODY);
     if (url.includes("/api/branches")) return jsonResponse(BRANCHES_BODY);
+    if (url.includes("/api/calendar")) return jsonResponse({ events: [] });
     throw new Error(`unexpected fetch: ${url}`);
   }) as unknown as typeof fetch;
 }
@@ -94,6 +95,19 @@ describe("DashboardClient (FINAL UI REBUILD: KPI strip + Tamara Digest + Hot Lea
     expect(screen.getByText("Cinere")).toBeInTheDocument();
     // salesHumanId "sales-1" resolved to its real name via GET /api/branches's team roster.
     expect(screen.getByText(/Ahmad Fauzi/)).toBeInTheDocument();
+  });
+
+  it("renders <CalendarWidget /> after <BranchSummary /> (paling bawah)", async () => {
+    mockFetchOk();
+    render(<DashboardClient />);
+    await waitFor(() => expect(screen.getByTestId("calendar-widget")).toBeInTheDocument());
+
+    const branchSummary = screen.getByTestId("branch-summary");
+    const calendarWidget = screen.getByTestId("calendar-widget");
+    // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING bitmask, the standard way to assert DOM order.
+    expect(
+      branchSummary.compareDocumentPosition(calendarWidget) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("never calls /api/campaigns (Meta Ads data) — the Overview page only reads Supabase-backed leads/closings/branches data plus the localStorage Meta cache", async () => {

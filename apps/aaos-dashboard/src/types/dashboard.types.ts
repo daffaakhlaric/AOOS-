@@ -587,3 +587,38 @@ export interface RunScrapeResponseDto {
   readonly status: "RUNNING";
   readonly kind: "FULL" | "UNIT";
 }
+
+/**
+ * `/api/calendar*` DTOs (AAOS-KALENDER-AKTIVITAS) — client-safe mirror of `aaos-api`'s
+ * `CalendarEventResponseDto`. `eventType` is deliberately `string`, not a literal union: only the
+ * 5 supported types are ever offered by "Tambah Jadwal" (see `CALENDAR_EVENT_TYPE_OPTIONS` in
+ * `components/calendar/calendar.types.ts`), but a row this app merely displays should not fail to
+ * typecheck if the backend ever adds a 6th.
+ */
+export interface CalendarEventResultDto {
+  readonly summary: string;
+  readonly [key: string]: unknown;
+}
+
+export interface CalendarEventDto {
+  readonly id: string;
+  readonly eventType: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly scheduledAt: string;
+  readonly timezone: string;
+  readonly recurrence: string;
+  readonly recurrenceDays?: readonly number[];
+  readonly recurrenceTime?: string;
+  readonly status: "PENDING" | "RUNNING" | "DONE" | "FAILED" | "SKIPPED";
+  readonly startedAt?: string;
+  readonly completedAt?: string;
+  readonly durationMs?: number;
+  readonly targetId?: string;
+  readonly targetName?: string;
+  readonly metadata?: Record<string, unknown>;
+  readonly result?: CalendarEventResultDto;
+  readonly errorMessage?: string;
+  readonly createdBy: string;
+  readonly createdAt: string;
+}

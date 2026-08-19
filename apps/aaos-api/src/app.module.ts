@@ -19,6 +19,7 @@ import { WhatsAppConnectorFactory, type WhatsAppConnector } from "@aos/whatsapp-
 import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
+import { ScheduleModule } from "@nestjs/schedule";
 
 import type { AaosApiConfig } from "./config/aaos-api.config.js";
 import {
@@ -64,6 +65,7 @@ import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
+import { SchedulerModule } from "./modules/scheduler/scheduler.module.js";
 import { ScraperModule } from "./modules/scraper/scraper.module.js";
 import { SimulationModule } from "./modules/simulation/simulation.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
@@ -224,6 +226,10 @@ export class AppModule {
       module: AppModule,
       global: true,
       imports: [
+        // AAOS-KALENDER-AKTIVITAS: registers `@nestjs/schedule`'s cron registry ONCE, at the
+        // composition root every feature module (including `SchedulerModule`, the only `@Cron`
+        // user today) ultimately sits under.
+        ScheduleModule.forRoot(),
         HealthModule,
         LeadsModule,
         LlmModule,
@@ -238,6 +244,7 @@ export class AppModule {
         ClosingsModule,
         SalesModule,
         SimulationModule,
+        SchedulerModule,
         ScraperModule,
         AssetsModule,
       ],

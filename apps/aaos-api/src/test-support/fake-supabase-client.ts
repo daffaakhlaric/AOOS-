@@ -13,6 +13,10 @@ import type { SupabaseClientLike } from "@aos/lead-store";
  * `modules/creative-packages`' repositories exercise and no earlier caller did: a real `order(...)`
  * sort, `limit(...)`, and applying an `.update(...)` payload on the AWAITED (non-`.single()`) path,
  * which is how `CreativePackageRepository.patch` writes.
+ *
+ * AAOS-KALENDER-AKTIVITAS extended it (additively) with `.delete()` — `CalendarEventRepository`
+ * is the first repository that needs a real row delete (see its own docstring for why the shared
+ * `SupabaseClientLike` port deliberately doesn't declare `.delete()`).
  */
 export type Row = Record<string, unknown>;
 
@@ -56,7 +60,7 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
     return created;
   }
 
-  function builder(table: string, mode: "select" | "insert" | "update", payload?: Row) {
+  function builder(table: string, mode: "select" | "insert" | "update" | "delete", payload?: Row) {
     const filters: Filter[] = [];
     let orderBy: { readonly column: string; readonly ascending: boolean } | undefined;
     let maxRows: number | undefined;
@@ -116,6 +120,10 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
             Object.assign(row, payload);
           }
         }
+        if (mode === "delete") {
+          const remaining = tableRows(table).filter((row) => !rows.includes(row));
+          tables.set(table, remaining);
+        }
         resolve({ data: rows, error: null });
       },
       maybeSingle: async () => {
@@ -155,6 +163,7 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
       select: () => builder(table, "select"),
       insert: (values: Row) => builder(table, "insert", values),
       update: (values: Row) => builder(table, "update", values),
+      delete: () => builder(table, "delete"),
     }),
     channel: () => ({
       on: () => ({ subscribe: () => ({}) }) as never,
