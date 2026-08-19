@@ -2,20 +2,51 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import type { NextRequest, NextResponse } from "next/server";
 
-/** `manager`/`owner` → full dashboard access. `sales` → redirected out to `apps/aaos-crm` (W4B, not yet built — see `middleware.ts`). Unknown/missing role defaults to `sales` (least privilege), never to a privileged role. */
-export type UserRole = "manager" | "owner" | "sales";
+/**
+ * `manager`/`owner` → full dashboard access (tenant admin). `sales` → redirected out to
+ * `apps/aaos-crm`. `superadmin` → AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 1 addition, a real
+ * Supabase Auth user with `user_metadata.role = 'superadmin'` (coordinator note #1 — never a
+ * hardcoded env-var password), gated to `/superadmin/*` only (see `middleware.ts`). Unknown/
+ * missing role defaults to `sales` (least privilege), never to a privileged role.
+ */
+export type UserRole = "manager" | "owner" | "sales" | "superadmin";
+
+/** `AUTOMOTIVE` (DSS Motor, existing) or `PROPERTY` (PropertyKlik, Phase 2) — read from `user_metadata.vertical`. Defaults to `AUTOMOTIVE` for any pre-existing account provisioned before this field existed (same least-surprise default `DEFAULT_TENANT_ID`/`DEFAULT_VERTICAL` use in `apps/aaos-api`'s `tenants` migration). */
+export type Vertical = "AUTOMOTIVE" | "PROPERTY";
+
+/** Real, already-live `dss-motor` tenant's id — the same literal `apps/aaos-api`'s `common/tenant-context.ts`/`supabase/migrations/007_tenants_waba.sql` fall back to, kept in sync deliberately (see this file's `parseTenantId` doc). */
+export const DEFAULT_TENANT_ID = "dss-motor";
+const DEFAULT_VERTICAL: Vertical = "AUTOMOTIVE";
 
 export interface SessionInfo {
   readonly userId: string;
   readonly email?: string;
   readonly role: UserRole;
+  /** From `user_metadata.tenantId` (coordinator note section 1's real Supabase Auth user shape — never a separate `tenant_admins` table). Falls back to `DEFAULT_TENANT_ID` for any account with no `tenantId` set yet (every account provisioned before this field existed, i.e. every real DSS Motor manager/owner today) so nothing breaks for the existing single-tenant deployment. */
+  readonly tenantId: string;
+  /** From `user_metadata.vertical`. Falls back to `DEFAULT_VERTICAL`, same rationale as `tenantId`. */
+  readonly vertical: Vertical;
 }
 
 function parseRole(raw: unknown): UserRole {
-  if (raw === "manager" || raw === "owner" || raw === "sales") {
+  if (raw === "manager" || raw === "owner" || raw === "sales" || raw === "superadmin") {
     return raw;
   }
   return "sales";
+}
+
+function parseTenantId(raw: unknown): string {
+  if (typeof raw === "string" && raw.length > 0) {
+    return raw;
+  }
+  return DEFAULT_TENANT_ID;
+}
+
+function parseVertical(raw: unknown): Vertical {
+  if (raw === "AUTOMOTIVE" || raw === "PROPERTY") {
+    return raw;
+  }
+  return DEFAULT_VERTICAL;
 }
 
 function requireSupabaseEnv(): { url: string; anonKey: string } {
@@ -94,9 +125,12 @@ export async function getSession(
   if (user === null) {
     return null;
   }
+  const metadata = user.user_metadata as Record<string, unknown> | null;
   return {
     userId: user.id,
     email: user.email,
-    role: parseRole((user.user_metadata as Record<string, unknown> | null)?.["role"]),
+    role: parseRole(metadata?.["role"]),
+    tenantId: parseTenantId(metadata?.["tenantId"]),
+    vertical: parseVertical(metadata?.["vertical"]),
   };
 }

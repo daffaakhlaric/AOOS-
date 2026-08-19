@@ -56,6 +56,10 @@ function buildFakeAuthAdmin(): SupabaseAuthAdminLike & {
             : { data: { user: existing }, error: null };
         }),
         listUsers: vi.fn(async () => ({ data: { users: [...users.values()] }, error: null })),
+        generateLink: vi.fn(async (input) => ({
+          data: { properties: { action_link: `https://example.test/verify?email=${input.email}` } },
+          error: null,
+        })),
       },
     },
   };

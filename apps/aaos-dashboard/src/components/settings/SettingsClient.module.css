@@ -1,0 +1,188 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  max-width: 900px;
+}
+
+.card {
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+}
+
+.formLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+}
+
+.formInput {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+  width: 100%;
+}
+
+.tokenRow {
+  display: flex;
+  gap: 6px;
+}
+
+.smallButton {
+  font-size: 12px;
+  padding: 7px 10px;
+  background: var(--white);
+  color: var(--gray-600);
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.primaryButton {
+  font-size: 13px;
+  padding: 7px 14px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.primaryButton:disabled,
+.smallButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 8px;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.testResult {
+  font-size: 12px;
+}
+
+.testResultSuccess {
+  color: #166534;
+}
+
+.testResultFailure {
+  color: var(--red);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--gray-400);
+  padding: 6px 8px;
+  border-bottom: var(--border);
+}
+
+.table td {
+  padding: 8px;
+  border-bottom: var(--border);
+  color: var(--gray-700);
+}
+
+.emptyState {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.statusPill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: var(--border);
+}
+
+.statusPillActive {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.statusPillInactive {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.rowActions {
+  display: flex;
+  gap: 6px;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  font-size: 13px;
+}
+
+.infoLabel {
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.infoValue {
+  color: var(--gray-900);
+  margin-top: 2px;
+}
+
+.accountRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.error {
+  font-size: 13px;
+  color: var(--red);
+}

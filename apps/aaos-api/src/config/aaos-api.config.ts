@@ -101,6 +101,19 @@ export interface AaosApiConfig {
    * and serves normally with no Kie AI key at all.
    */
   readonly KIE_AI_API_KEY: string;
+
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY — base URL of the real, already-deployed
+   * `apps/aaos-dashboard` app, used ONLY to build the `redirectTo` for
+   * `supabase.auth.admin.generateLink({ type: 'magiclink', ... })`'s real impersonation flow
+   * (`modules/superadmin`'s "Login as Tenant" — coordinator note section 1's chosen mechanism).
+   * Deliberately allowed to be an empty string, same rationale as `AAOS_SIMULATOR_BASE_URL`: this
+   * app must boot and serve every other endpoint even when the dashboard's own URL isn't known
+   * yet. When empty, `generateLink` is called without `redirectTo`, and Supabase falls back to its
+   * project's configured Site URL — impersonation still works, just via that default instead of an
+   * explicit one.
+   */
+  readonly AAOS_DASHBOARD_BASE_URL: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -165,6 +178,10 @@ export const AaosApiConfigSchema = z.object({
 
   // AAOS-CREATIVE-REVIEW. Intentionally NOT `.min(1, ...)` — see the `KIE_AI_API_KEY` doc comment.
   KIE_AI_API_KEY: z.string().default(""),
+
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY. Intentionally NOT `.min(1, ...)`/`.url(...)` — see the
+  // `AaosApiConfig.AAOS_DASHBOARD_BASE_URL` doc comment.
+  AAOS_DASHBOARD_BASE_URL: z.string().default(""),
 });
 
 /**

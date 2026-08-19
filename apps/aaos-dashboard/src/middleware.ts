@@ -2,10 +2,24 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getSession } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/superadmin/login", "/auth/callback"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
+/** `/superadmin/*` pages and `/api/superadmin/*` route handlers (Part 1's Super Admin panel + tenant CRUD/impersonate proxy) — everything under here except the login page itself (`/superadmin/login`, already in `PUBLIC_PATHS`) requires a REAL `role === 'superadmin'` session, never just "any authenticated session" (coordinator note: "gated so only a real role='superadmin' session can call them"). */
+function isSuperadminPath(pathname: string): boolean {
+  return (
+    pathname === "/superadmin" ||
+    pathname.startsWith("/superadmin/") ||
+    pathname === "/api/superadmin" ||
+    pathname.startsWith("/api/superadmin/")
+  );
+}
+
+function isApiPath(pathname: string): boolean {
+  return pathname === "/api" || pathname.startsWith("/api/");
 }
 
 /**
@@ -78,10 +92,33 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const response = NextResponse.next();
   const session = await getSession(request, response);
 
+  const superadminPath = isSuperadminPath(request.nextUrl.pathname);
+
   if (session === null) {
-    const loginUrl = new URL("/login", request.url);
+    // A `/api/superadmin/*` call with no session at all is a direct/unauthenticated API call —
+    // an honest 401 JSON body, never a redirect an API client can't follow.
+    if (superadminPath && isApiPath(request.nextUrl.pathname)) {
+      return carryForwardCookies(
+        NextResponse.json({ error: { message: "Unauthorized" } }, { status: 401 }),
+        response,
+      );
+    }
+    const loginUrl = new URL(superadminPath ? "/superadmin/login" : "/login", request.url);
     loginUrl.searchParams.set("redirectedFrom", request.nextUrl.pathname);
     return carryForwardCookies(NextResponse.redirect(loginUrl), response);
+  }
+
+  if (superadminPath && session.role !== "superadmin") {
+    if (isApiPath(request.nextUrl.pathname)) {
+      return carryForwardCookies(
+        NextResponse.json({ error: { message: "Forbidden — superadmin only" } }, { status: 403 }),
+        response,
+      );
+    }
+    return carryForwardCookies(
+      NextResponse.redirect(new URL("/superadmin/login", request.url)),
+      response,
+    );
   }
 
   const crmUrl = process.env.NEXT_PUBLIC_CRM_URL;

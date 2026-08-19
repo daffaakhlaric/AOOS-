@@ -71,7 +71,9 @@ import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
 import { SchedulerModule } from "./modules/scheduler/scheduler.module.js";
 import { ScraperModule } from "./modules/scraper/scraper.module.js";
+import { SettingsModule } from "./modules/settings/settings.module.js";
 import { SimulationModule } from "./modules/simulation/simulation.module.js";
+import { SuperadminModule } from "./modules/superadmin/superadmin.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
 import { WhatsAppWebhookModule } from "./modules/whatsapp-webhook/whatsapp-webhook.module.js";
 
@@ -264,6 +266,12 @@ export class AppModule {
         SchedulerModule,
         ScraperModule,
         AssetsModule,
+        // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 1 — SuperadminModule imported before
+        // SettingsModule so its exported TenantRepository provider (not actually consumed
+        // cross-module today, both modules build their own instance from SUPABASE_CLIENT — see
+        // each module's own doc) resolves without ordering surprises.
+        SuperadminModule,
+        SettingsModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

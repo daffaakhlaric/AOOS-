@@ -40,6 +40,8 @@ const ASSET_LIBRARY: NavItem = { href: "/assets/library", label: "Asset Library"
 const BRANCHES: NavItem = { href: "/branches", label: "Branch Settings", icon: "⚙️" };
 /** MENU RESTRUCTURE FINAL section 5: `/go-live` is a real, always-empty-for-now page — see `app/(app)/go-live/page.tsx`'s own docstring. */
 const GO_LIVE: NavItem = { href: "/go-live", label: "Go Live Monitor", icon: "🚀" };
+/** AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Part 2/4 — Meta token + WABA CRUD, added to OPERASIONAL per the coordinator note's Phase 1 scope. */
+const SETTINGS: NavItem = { href: "/settings", label: "Settings", icon: "⚙️" };
 
 /** JESSY (SALES AI) group — MENU RESTRUCTURE FINAL. `/knowledge`/`/simulator` moved here from OPERASIONAL. */
 const JESSY_ANALYTICS: NavItem = { href: "/jessy/analytics", label: "Analytics", icon: "📊" };
@@ -110,7 +112,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
   {
     key: "operasional",
     label: "OPERASIONAL",
-    items: [OBJECTIVE, BRANCHES, GO_LIVE],
+    items: [OBJECTIVE, BRANCHES, GO_LIVE, SETTINGS],
   },
 ];
 

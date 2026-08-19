@@ -54,6 +54,10 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     // making a real, billable Kie AI call. Tests that need the "Kai configured" branch pass
     // `KIE_AI_API_KEY` explicitly (and still only reach the composition code, never the network).
     KIE_AI_API_KEY: "",
+    // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY — empty by default so most tests exercise the
+    // "no redirectTo" impersonation path. Tests needing a specific redirect target pass this
+    // explicitly.
+    AAOS_DASHBOARD_BASE_URL: "",
     ...overrides,
   };
 }

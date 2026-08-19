@@ -115,7 +115,7 @@ describe("Sidebar", () => {
     );
   });
 
-  it("renders Objective, Branch Settings, and Go Live Monitor under the OPERASIONAL group", () => {
+  it("renders Objective, Branch Settings, Go Live Monitor, and Settings under the OPERASIONAL group", () => {
     render(<Sidebar />);
     expect(screen.getByRole("link", { name: /Objective/ })).toHaveAttribute("href", "/objective");
     expect(screen.getByRole("link", { name: /Branch Settings/ })).toHaveAttribute(
@@ -126,6 +126,11 @@ describe("Sidebar", () => {
       "href",
       "/go-live",
     );
+    const settingsLink = screen
+      .getAllByRole("link")
+      .find((link) => link.getAttribute("href") === "/settings");
+    expect(settingsLink).toBeDefined();
+    expect(settingsLink).toHaveTextContent("Settings");
   });
 
   it("does NOT add every desktop item to the mobile NAV_ITEMS list, and swaps the retired Leads entry for the Jessy Inbox", () => {

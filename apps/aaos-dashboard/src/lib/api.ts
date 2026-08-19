@@ -33,6 +33,13 @@ export interface AaosApiRequestOptions {
   readonly method?: "GET" | "POST" | "PUT" | "DELETE";
   readonly body?: unknown;
   readonly searchParams?: Record<string, string | undefined>;
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY — extra headers merged on top of the always-sent
+   * `x-api-key`. Used by `modules/settings`'s route handlers to forward `x-tenant-id: <the
+   * caller's real session.tenantId>` (`apps/aaos-api`'s `common/tenant-context.ts` reads it) —
+   * the first per-request tenant-scoping header anywhere in this app (coordinator note section 2).
+   */
+  readonly headers?: Record<string, string>;
 }
 
 /**
@@ -59,6 +66,7 @@ export async function callAaosApi<T>(
     headers: {
       "x-api-key": apiKey,
       ...(options.body !== undefined ? { "content-type": "application/json" } : {}),
+      ...options.headers,
     },
     ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
     cache: "no-store",

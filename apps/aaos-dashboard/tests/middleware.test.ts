@@ -89,4 +89,50 @@ describe("middleware", () => {
     const response = await middleware(buildRequest("/leads/abc"));
     expect(response.status).toBe(200);
   });
+
+  describe("/superadmin/* gating (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY)", () => {
+    it("passes /superadmin/login through without checking session", async () => {
+      const response = await middleware(buildRequest("/superadmin/login"));
+      expect(getSession).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+    });
+
+    it("redirects an unauthenticated /superadmin/tenants page request to /superadmin/login", async () => {
+      getSession.mockResolvedValue(null);
+      const response = await middleware(buildRequest("/superadmin"));
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toContain("/superadmin/login");
+    });
+
+    it("returns 401 JSON for an unauthenticated /api/superadmin/* call (never a redirect an API client can't follow)", async () => {
+      getSession.mockResolvedValue(null);
+      const response = await middleware(buildRequest("/api/superadmin/tenants"));
+      expect(response.status).toBe(401);
+    });
+
+    it("redirects a non-superadmin session away from a /superadmin page", async () => {
+      getSession.mockResolvedValue({ userId: "u1", role: "manager", tenantId: "dss-motor" });
+      const response = await middleware(buildRequest("/superadmin"));
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toContain("/superadmin/login");
+    });
+
+    it("returns 403 JSON for a non-superadmin session calling /api/superadmin/*", async () => {
+      getSession.mockResolvedValue({ userId: "u1", role: "manager", tenantId: "dss-motor" });
+      const response = await middleware(buildRequest("/api/superadmin/tenants"));
+      expect(response.status).toBe(403);
+    });
+
+    it("allows a real superadmin session through to /superadmin", async () => {
+      getSession.mockResolvedValue({ userId: "u1", role: "superadmin", tenantId: "dss-motor" });
+      const response = await middleware(buildRequest("/superadmin"));
+      expect(response.status).toBe(200);
+    });
+
+    it("allows a real superadmin session through to /api/superadmin/tenants", async () => {
+      getSession.mockResolvedValue({ userId: "u1", role: "superadmin", tenantId: "dss-motor" });
+      const response = await middleware(buildRequest("/api/superadmin/tenants"));
+      expect(response.status).toBe(200);
+    });
+  });
 });

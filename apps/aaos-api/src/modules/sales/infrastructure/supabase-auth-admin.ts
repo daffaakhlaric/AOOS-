@@ -26,6 +26,18 @@ export interface UpdateSupabaseAuthUserInput {
   readonly user_metadata?: Record<string, unknown>;
 }
 
+/** Input for `auth.admin.generateLink` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY's "Login as Tenant" impersonation — coordinator note #1's chosen mechanism). */
+export interface GenerateLinkInput {
+  readonly type: "magiclink";
+  readonly email: string;
+  readonly options?: { readonly redirectTo?: string };
+}
+
+/** The one field this module actually reads from `generateLink`'s response — Supabase's real response nests it under `properties.action_link`. */
+export interface GenerateLinkResult {
+  readonly properties: { readonly action_link: string };
+}
+
 /**
  * A minimal, hand-written structural port over `@supabase/supabase-js`'s `SupabaseClient.auth.admin`
  * — the Admin API this module calls to provision/update the real Supabase Auth user backing a
@@ -36,9 +48,7 @@ export interface UpdateSupabaseAuthUserInput {
 export interface SupabaseAuthAdminLike {
   readonly auth: {
     readonly admin: {
-      createUser(
-        input: CreateSupabaseAuthUserInput,
-      ): Promise<{
+      createUser(input: CreateSupabaseAuthUserInput): Promise<{
         data: { user: SupabaseAuthUserLike } | null;
         error: SupabaseAuthAdminError | null;
       }>;
@@ -49,17 +59,16 @@ export interface SupabaseAuthAdminLike {
         data: { user: SupabaseAuthUserLike } | null;
         error: SupabaseAuthAdminError | null;
       }>;
-      getUserById(
-        userId: string,
-      ): Promise<{
+      getUserById(userId: string): Promise<{
         data: { user: SupabaseAuthUserLike } | null;
         error: SupabaseAuthAdminError | null;
       }>;
-      listUsers(params?: {
-        readonly page?: number;
-        readonly perPage?: number;
-      }): Promise<{
+      listUsers(params?: { readonly page?: number; readonly perPage?: number }): Promise<{
         data: { users: readonly SupabaseAuthUserLike[] } | null;
+        error: SupabaseAuthAdminError | null;
+      }>;
+      generateLink(input: GenerateLinkInput): Promise<{
+        data: GenerateLinkResult | null;
         error: SupabaseAuthAdminError | null;
       }>;
     };
