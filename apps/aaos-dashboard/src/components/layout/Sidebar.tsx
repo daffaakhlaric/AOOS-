@@ -28,35 +28,42 @@ const SIMULASI: NavItem = {
   icon: "🎬",
 };
 const OBJECTIVE: NavItem = { href: "/objective", label: "Objective", icon: "🎯" };
-const LEADS: NavItem = { href: "/leads", label: "Leads", icon: "🔥" };
-const CREATIVE: NavItem = { href: "/creative", label: "Creative Review", icon: "🎨" };
 /**
- * AAOS-SCRAPER-ASSET-LIBRARY. Placed in the OPERASIONAL group after `CREATIVE` and before
- * `BRANCHES` (matching the spec's proposed ordering). Deliberately NOT added to the mobile
- * `NAV_ITEMS` list below — same precedent as `SIMULASI`/`SIMULATOR`, whose 5-slot bottom bar must
- * stay focused on the highest-traffic pages.
+ * MENU RESTRUCTURE FINAL: `/leads` (the old flat leads list + `/leads/[leadId]` chat room) is
+ * fully retired — replaced by the JESSY group's `JESSY_INBOX`/`JESSY_CONTACTS` below (coordinator
+ * note #2's "rebuild fully as `/jessy/inbox`, not keep the split-panel `/leads/[leadId]`").
+ * `middleware.ts` redirects `/leads` → `/jessy/inbox` for any stale bookmark/link.
  */
+const CREATIVE: NavItem = { href: "/creative", label: "Creative Review", icon: "🎨" };
 const SCRAPER_MOBIX: NavItem = { href: "/assets/scraper", label: "Scraper Mobix", icon: "📸" };
 const ASSET_LIBRARY: NavItem = { href: "/assets/library", label: "Asset Library", icon: "🗂" };
 const BRANCHES: NavItem = { href: "/branches", label: "Branch Settings", icon: "⚙️" };
-const KNOWLEDGE: NavItem = { href: "/knowledge", label: "Knowledge Base", icon: "📚" };
-const SIMULATOR: NavItem = { href: "/simulator", label: "Simulator (Jessy)", icon: "🎮" };
+/** MENU RESTRUCTURE FINAL section 5: `/go-live` is a real, always-empty-for-now page — see `app/(app)/go-live/page.tsx`'s own docstring. */
+const GO_LIVE: NavItem = { href: "/go-live", label: "Go Live Monitor", icon: "🚀" };
+
+/** JESSY (SALES AI) group — MENU RESTRUCTURE FINAL. `/knowledge`/`/simulator` moved here from OPERASIONAL. */
+const JESSY_ANALYTICS: NavItem = { href: "/jessy/analytics", label: "Analytics", icon: "📊" };
+const JESSY_INBOX: NavItem = { href: "/jessy/inbox", label: "Inbox", icon: "💬" };
+const JESSY_CONTACTS: NavItem = { href: "/jessy/contacts", label: "Contacts", icon: "👥" };
+const KNOWLEDGE: NavItem = { href: "/jessy/knowledge", label: "Knowledge Base", icon: "📚" };
+const SIMULATOR: NavItem = { href: "/jessy/simulator", label: "Simulator", icon: "🎮" };
 
 /**
  * Flat list of every nav item — the order `MobileNav.tsx` slices `[0, 5)` from for its bottom tab
- * bar. Deliberately NOT the same order as the desktop `Sidebar`'s TAMARA / OPERASIONAL grouping
- * below (`NAV_GROUPS`): the mobile bar only ever shows 5 items, and this order keeps the
- * same 5 highest-traffic pages visible there (Overview, Data Iklan, Objective, Creative Review,
- * Leads — unchanged from before this restructure) rather than letting the 4 new Tamara sub-pages
- * crowd out Objective/Leads/Creative Review on mobile. Desktop `Sidebar` renders from `NAV_GROUPS`
- * instead, so this ordering choice only affects mobile.
+ * bar. Deliberately NOT the same order as the desktop `Sidebar`'s group order below
+ * (`NAV_GROUPS`): the mobile bar only ever shows 5 items. `JESSY_INBOX` replaces the retired
+ * `LEADS` item in this list (same highest-traffic-page precedent as before this restructure —
+ * Overview, Data Iklan, Objective, Creative Review, and now the Jessy Inbox that replaced the
+ * plain leads list) rather than letting the new Tamara/Jessy sub-pages crowd this 5-slot bar.
+ * Desktop `Sidebar` renders from `NAV_GROUPS` instead, so this ordering choice only affects
+ * mobile.
  */
 const NAV_ITEMS = [
   OVERVIEW,
   DATA_IKLAN,
   OBJECTIVE,
   CREATIVE,
-  LEADS,
+  JESSY_INBOX,
   AUDIT_BIAYA,
   ANALISA,
   STRATEGI,
@@ -73,16 +80,15 @@ export interface NavGroup {
 }
 
 /**
- * Grouped sidebar structure (spec "SIDEBAR MENU RESTRUCTURE": TAMARA (META ADS) / OPERASIONAL).
- * "Overview" (`/dashboard`) predates both groups and isn't mentioned by either — kept as its own
- * ungrouped top entry rather than dropped, since removing a working, linked-to route isn't part
- * of this restructure's scope.
- *
- * FINAL UI REBUILD (reference screenshot restyle): group labels dropped their leading 🤖/📋 emoji
- * to match the reference's plain uppercase section headers — purely a label-text change, the real
- * pages/routes grouped under each stayed exactly the same (the reference screenshot's own menu
- * items — Ad Set, Performa Iklan, Belanja, Tim & Akses, Laporan, Pengaturan — don't correspond to
- * real pages in this app, so only the visual style was carried over, not those item names).
+ * Grouped sidebar structure — MENU RESTRUCTURE FINAL (`docs/PROMPT-AAOS-MENU-RESTRUCTURE-
+ * FINAL.md`): "Overview" standalone at the top (NO section header, coordinator note #1 — real
+ * route stays `/dashboard`, only this sidebar item's label/position changed), followed by 4
+ * collapsible sections: TAMARA (META ADS) / JESSY (SALES AI) / KAI (CREATIVE) / OPERASIONAL.
+ * JESSY is new — 5 pages (`/jessy/analytics`, `/jessy/inbox`, `/jessy/contacts`,
+ * `/jessy/knowledge` moved from `/knowledge`, `/jessy/simulator` moved from `/simulator`). KAI is
+ * new — splits `CREATIVE`/`SCRAPER_MOBIX`/`ASSET_LIBRARY` out of the old flat OPERASIONAL group,
+ * which they were only ever loosely grouped under before. OPERASIONAL keeps `OBJECTIVE`/
+ * `BRANCHES` and gains `GO_LIVE` (coordinator note #5 — real page, honestly always-empty for now).
  */
 const NAV_GROUPS: readonly NavGroup[] = [
   { key: "top", items: [OVERVIEW] },
@@ -92,18 +98,19 @@ const NAV_GROUPS: readonly NavGroup[] = [
     items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, STRATEGI, SIMULASI],
   },
   {
+    key: "jessy",
+    label: "JESSY (SALES AI)",
+    items: [JESSY_ANALYTICS, JESSY_INBOX, JESSY_CONTACTS, KNOWLEDGE, SIMULATOR],
+  },
+  {
+    key: "kai",
+    label: "KAI (CREATIVE)",
+    items: [CREATIVE, SCRAPER_MOBIX, ASSET_LIBRARY],
+  },
+  {
     key: "operasional",
     label: "OPERASIONAL",
-    items: [
-      OBJECTIVE,
-      LEADS,
-      CREATIVE,
-      SCRAPER_MOBIX,
-      ASSET_LIBRARY,
-      BRANCHES,
-      KNOWLEDGE,
-      SIMULATOR,
-    ],
+    items: [OBJECTIVE, BRANCHES, GO_LIVE],
   },
 ];
 
@@ -119,6 +126,8 @@ function isActive(pathname: string | null, href: string): boolean {
  */
 const STORAGE_KEY_BY_GROUP: Readonly<Record<string, string>> = {
   tamara: "sidebar_tamara",
+  jessy: "sidebar_jessy",
+  kai: "sidebar_kai",
   operasional: "sidebar_ops",
 };
 
@@ -149,10 +158,15 @@ function writeStoredCollapsed(storageKey: string, collapsed: boolean): void {
 
 /**
  * Desktop navigation sidebar (spec "components/layout/Sidebar.tsx") — hidden below `md`, where
- * `MobileNav` takes over (spec "Mobile responsive"). Grouped into TAMARA (META ADS) / OPERASIONAL
- * sections (AAOS-TAMARA-PAGES redesign). "Lead & Spend per Cabang × Source" has no nav item of
+ * `MobileNav` takes over (spec "Mobile responsive"). Grouped into TAMARA (META ADS) / JESSY
+ * (SALES AI) / KAI (CREATIVE) / OPERASIONAL sections (MENU RESTRUCTURE FINAL, superseding the
+ * earlier AAOS-TAMARA-PAGES 2-group layout). "Lead & Spend per Cabang × Source" has no nav item of
  * its own — it's embedded at the top of Data Iklan (`DATA_IKLAN`'s own page), not a separate
  * route (user feedback: "itu data ada di halaman data iklan jadi di paling atas").
+ *
+ * The `"top"` group (`OVERVIEW` alone) intentionally renders no `group.label` button — the spec's
+ * "Overview standalone, paling atas, NO section header" — and is followed by a thin divider
+ * (`styles.divider`) separating it visually from the 4 real collapsible sections below.
  *
  * TOTAL UI REBUILD spec "=== SIDEBAR ===": fixed 220px rail, logo area with a live indicator dot,
  * collapsible section headers (chevron rotates, 200ms height transition via CSS grid
@@ -254,6 +268,7 @@ export function Sidebar(): React.ReactElement {
                   })}
                 </div>
               </div>
+              {group.key === "top" ? <div aria-hidden="true" className={styles.divider} /> : null}
             </div>
           );
         })}

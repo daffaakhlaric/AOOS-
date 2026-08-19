@@ -25,6 +25,15 @@ function buildFakeService(): LeadsService {
     sendMessage: vi.fn(async () => ({ id: "msg-1", direction: "OUTGOING" }) as unknown),
     intervene: vi.fn(async () => ({ id: "msg-2", direction: "OUTGOING" }) as unknown),
     getScoringHistory: vi.fn(async () => []),
+    getAnalytics: vi.fn(async () => ({
+      periodDays: 7,
+      totalContacts: 1,
+      newContacts: 1,
+      active: 1,
+      avgResponseTimeMinutes: null,
+      avgFirstResponseTimeMinutes: null,
+      dailySeries: [],
+    })),
   } as unknown as LeadsService;
 }
 
@@ -49,6 +58,14 @@ describe("LeadsController", () => {
     const result = await controller.getLeads({ branchId: BranchId.BINTARO });
     expect(service.getLeadsByBranch).toHaveBeenCalledWith({ branchId: BranchId.BINTARO });
     expect(result).toEqual([{ id: "lead-1", status: "NEW" }]);
+  });
+
+  it("GET /api/v1/leads/analytics delegates to LeadsService.getAnalytics with the query (MENU RESTRUCTURE FINAL)", async () => {
+    const service = buildFakeService();
+    const controller = new LeadsController(service);
+    const result = await controller.getAnalytics({ days: 7 });
+    expect(service.getAnalytics).toHaveBeenCalledWith({ days: 7 });
+    expect(result.totalContacts).toBe(1);
   });
 
   it("GET /api/v1/leads/my delegates to LeadsService.getMyLeads with the query", async () => {

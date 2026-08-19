@@ -64,4 +64,29 @@ describe("middleware", () => {
     const response = await middleware(buildRequest("/dashboard"));
     expect(response.status).toBe(200);
   });
+
+  it("redirects /leads to /jessy/inbox without checking session (MENU RESTRUCTURE FINAL)", async () => {
+    const response = await middleware(buildRequest("/leads"));
+    expect(getSession).not.toHaveBeenCalled();
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/jessy/inbox");
+  });
+
+  it("redirects /knowledge to /jessy/knowledge", async () => {
+    const response = await middleware(buildRequest("/knowledge"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/jessy/knowledge");
+  });
+
+  it("redirects /simulator to /jessy/simulator", async () => {
+    const response = await middleware(buildRequest("/simulator"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/jessy/simulator");
+  });
+
+  it("does NOT redirect a nested path like /leads/abc — only the exact /leads path", async () => {
+    getSession.mockResolvedValue({ userId: "u1", role: "manager" });
+    const response = await middleware(buildRequest("/leads/abc"));
+    expect(response.status).toBe(200);
+  });
 });

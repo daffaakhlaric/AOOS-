@@ -1,4 +1,4 @@
-import { AssignmentMode, SalesHumanId, toBranch } from "@aos/branch-manager";
+import { ALL_BRANCH_IDS, AssignmentMode, SalesHumanId, toBranch } from "@aos/branch-manager";
 import type { IMessageRepository, IScoringRepository, LeadStore } from "@aos/lead-store";
 import { ConversationNotFoundError, LeadId } from "@aos/lead-store";
 import type { WhatsAppConnector } from "@aos/whatsapp-connector";
@@ -13,6 +13,7 @@ import {
   WHATSAPP_CONNECTOR,
 } from "../../di-tokens.js";
 
+import type { GetLeadsAnalyticsQueryDto, LeadsAnalyticsResponseDto } from "./dto/analytics.dto.js";
 import type { ClaimLeadBodyDto } from "./dto/claim-lead.dto.js";
 import type { CreateLeadBodyDto } from "./dto/create-lead.dto.js";
 import type { GetLeadsQueryDto } from "./dto/get-leads.dto.js";
@@ -318,6 +319,130 @@ export class LeadsService {
     }
 
     return toMessageResponseDto(saveResult.value);
+  }
+
+  /**
+   * `GET /api/v1/leads/analytics?days=` — real KPIs for `/jessy/analytics` (MENU RESTRUCTURE
+   * FINAL), computed from `@aos/lead-store`'s real `leads`/`conversations`/`messages` data —
+   * never fabricated. `GetLeadsQueryDto.branchId` is required (there is no cross-branch endpoint
+   * of `aaos-api`'s own), so this fans out across `ALL_BRANCH_IDS` exactly like the dashboard
+   * app's own `/api/leads` proxy route already does for its manager-wide leads view.
+   *
+   * Response-time metrics are computed by fetching each active-in-period lead's real message
+   * thread (`findByConversationId`) and pairing every INCOMING message with the next OUTGOING
+   * reply after it — an O(active leads) fan-out, an honest tradeoff for POC-scale conversation
+   * volume (same precedent as `getMessages`'s in-memory pagination), not a pre-aggregated
+   * database view.
+   */
+  async getAnalytics(query: GetLeadsAnalyticsQueryDto): Promise<LeadsAnalyticsResponseDto> {
+    const now = new Date();
+    const periodStart = new Date(now.getTime() - query.days * 24 * 60 * 60 * 1000);
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const leadsByBranch = await Promise.all(
+      ALL_BRANCH_IDS.map((branchId) => this.leadStore.getLeadsByBranch.execute(branchId)),
+    );
+    const leads = leadsByBranch.flatMap((result) => {
+      if (!result.ok) {
+        throw result.error;
+      }
+      return result.value;
+    });
+
+    const totalContacts = leads.filter((lead) => lead.firstMessageAt !== undefined).length;
+    const newContacts = leads.filter((lead) => lead.createdAt >= periodStart).length;
+    const active = leads.filter(
+      (lead) => lead.lastMessageAt !== undefined && lead.lastMessageAt >= dayAgo,
+    ).length;
+
+    const activeInPeriod = leads.filter(
+      (lead) =>
+        lead.firstMessageAt !== undefined &&
+        lead.lastMessageAt !== undefined &&
+        lead.lastMessageAt >= periodStart,
+    );
+
+    const responseGapsMinutes: number[] = [];
+    const firstResponseGapsMinutes: number[] = [];
+    for (const lead of activeInPeriod) {
+      const conversationResult = await this.leadStore.getConversation.execute(lead.id.toString());
+      if (!conversationResult.ok) {
+        continue;
+      }
+      const messagesResult = await this.messageRepository.findByConversationId(
+        conversationResult.value.id,
+      );
+      if (!messagesResult.ok) {
+        continue;
+      }
+      const ordered = [...messagesResult.value].sort((a, b) => {
+        const at = (a.sentAt ?? a.createdAt).getTime();
+        const bt = (b.sentAt ?? b.createdAt).getTime();
+        return at - bt;
+      });
+
+      let firstIncomingAt: Date | undefined;
+      let awaitingReplyAt: Date | undefined;
+      let recordedFirstResponse = false;
+      for (const message of ordered) {
+        const at = message.sentAt ?? message.createdAt;
+        if (message.direction === "INCOMING") {
+          if (firstIncomingAt === undefined) {
+            firstIncomingAt = at;
+          }
+          awaitingReplyAt ??= at;
+          continue;
+        }
+        if (awaitingReplyAt !== undefined) {
+          const gapMinutes = (at.getTime() - awaitingReplyAt.getTime()) / 60_000;
+          responseGapsMinutes.push(gapMinutes);
+          if (!recordedFirstResponse) {
+            firstResponseGapsMinutes.push(gapMinutes);
+            recordedFirstResponse = true;
+          }
+          awaitingReplyAt = undefined;
+        }
+      }
+    }
+
+    const average = (values: readonly number[]): number | null =>
+      values.length === 0 ? null : values.reduce((sum, v) => sum + v, 0) / values.length;
+
+    const dailySeries = this.buildDailySeries(leads, query.days, now);
+
+    return {
+      periodDays: query.days,
+      totalContacts,
+      newContacts,
+      active,
+      avgResponseTimeMinutes: average(responseGapsMinutes),
+      avgFirstResponseTimeMinutes: average(firstResponseGapsMinutes),
+      dailySeries,
+    };
+  }
+
+  /** Builds the `/jessy/analytics` daily chart series — real per-day counts derived from every fetched lead's real `createdAt`, never fabricated/interpolated points. */
+  private buildDailySeries(
+    leads: ReadonlyArray<{ readonly createdAt: Date }>,
+    days: number,
+    now: Date,
+  ): LeadsAnalyticsResponseDto["dailySeries"] {
+    const toDateKey = (date: Date): string => date.toISOString().slice(0, 10);
+    const sortedCreatedAt = [...leads.map((l) => l.createdAt)].sort(
+      (a, b) => a.getTime() - b.getTime(),
+    );
+
+    const points: LeadsAnalyticsResponseDto["dailySeries"][number][] = [];
+    for (let i = days - 1; i >= 0; i -= 1) {
+      const dayEnd = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const dayKey = toDateKey(dayEnd);
+      const newContacts = sortedCreatedAt.filter(
+        (createdAt) => toDateKey(createdAt) === dayKey,
+      ).length;
+      const totalContacts = sortedCreatedAt.filter((createdAt) => createdAt <= dayEnd).length;
+      points.push({ date: dayKey, newContacts, totalContacts });
+    }
+    return points;
   }
 
   /** `GET /api/v1/leads/:id/scoring-history` — a thin read over the real `scoring_events` table (coordinator note #5: "no new domain logic"). */

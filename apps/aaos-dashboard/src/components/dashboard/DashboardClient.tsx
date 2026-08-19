@@ -186,7 +186,7 @@ export function DashboardClient(): React.ReactElement {
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <p className={styles.panelTitle}>🔥 Hot Leads Terbaru</p>
-            <Link href="/leads" className={styles.panelLink}>
+            <Link href="/jessy/contacts" className={styles.panelLink}>
               Lihat semua →
             </Link>
           </div>

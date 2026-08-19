@@ -212,6 +212,17 @@ export interface LeadDto {
   readonly temperature: string;
   readonly score: number;
   readonly createdAt: string;
+  /**
+   * MENU RESTRUCTURE FINAL widening — these were already present on `aaos-api`'s real
+   * `LeadResponseDto` and forwarded verbatim by `/api/leads`'s passthrough JSON response; this
+   * type just hadn't modeled them yet. `leadSource` powers `/jessy/contacts`'s "Source" column;
+   * `assignedSalesId`/`lastMessageAt` power `/jessy/inbox`'s Human/Bot tab split (coordinator note
+   * #3 — an `assignedSalesId` present is the real signal for an ACTIVE `assignments` row, since
+   * this domain has no lead-assignment "release" path yet) and "Last Seen" column.
+   */
+  readonly leadSource?: string;
+  readonly assignedSalesId?: string;
+  readonly lastMessageAt?: string;
 }
 
 /**
@@ -263,6 +274,19 @@ export interface ScoringEventDto {
   readonly createdAt: string;
 }
 
+/**
+ * `GET /api/leads/:leadId/messages` (dashboard proxy) — mirrors `aaos-api`'s
+ * `MessagesPageResponseDto` (MENU RESTRUCTURE FINAL `/jessy/inbox`). Paginated thread for one
+ * lead's conversation, reusing the real `GET /api/v1/leads/:id/messages` endpoint the prior "Chat
+ * Room Jessy" task built — never a new `/conversations` namespace.
+ */
+export interface MessagesPageDto {
+  readonly messages: readonly MessageDto[];
+  readonly page: number;
+  readonly limit: number;
+  readonly total: number;
+}
+
 /** `GET /api/leads/:leadId` (dashboard proxy) — the full manager-facing lead detail, mirrors `aaos-api`'s `LeadDetailResponseDto`. */
 export interface LeadDetailDto {
   readonly id: string;
@@ -306,6 +330,28 @@ export interface ClosingDto {
   readonly testDriveAt?: string;
   readonly spkAt?: string;
   readonly createdAt: string;
+}
+
+/**
+ * `GET /api/jessy/analytics?days=` (dashboard proxy) — mirrors `aaos-api`'s real
+ * `LeadsAnalyticsResponseDto` (MENU RESTRUCTURE FINAL `/jessy/analytics`). Every field is real,
+ * computed server-side from `@aos/lead-store`'s `leads`/`conversations`/`messages` data — never
+ * fabricated client-side math.
+ */
+export interface LeadsAnalyticsDailyPointDto {
+  readonly date: string;
+  readonly newContacts: number;
+  readonly totalContacts: number;
+}
+
+export interface LeadsAnalyticsDto {
+  readonly periodDays: number;
+  readonly totalContacts: number;
+  readonly newContacts: number;
+  readonly active: number;
+  readonly avgResponseTimeMinutes: number | null;
+  readonly avgFirstResponseTimeMinutes: number | null;
+  readonly dailySeries: readonly LeadsAnalyticsDailyPointDto[];
 }
 
 export interface ApiErrorBody {

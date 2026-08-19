@@ -14,6 +14,11 @@ import { CorrelationId } from "../../common/correlation.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
+import {
+  GetLeadsAnalyticsQuerySchema,
+  type GetLeadsAnalyticsQueryDto,
+  type LeadsAnalyticsResponseDto,
+} from "./dto/analytics.dto.js";
 import { ClaimLeadBodySchema, type ClaimLeadBodyDto } from "./dto/claim-lead.dto.js";
 import { CreateLeadBodySchema, type CreateLeadBodyDto } from "./dto/create-lead.dto.js";
 import { GetLeadsQuerySchema, type GetLeadsQueryDto } from "./dto/get-leads.dto.js";
@@ -63,6 +68,14 @@ export class LeadsController {
     @Query(new ZodValidationPipe(GetMyLeadsQuerySchema)) query: GetMyLeadsQueryDto,
   ): Promise<readonly LeadResponseDto[]> {
     return this.leadsService.getMyLeads(query);
+  }
+
+  /** `GET /api/v1/leads/analytics?days=` — real `/jessy/analytics` KPIs (MENU RESTRUCTURE FINAL). Registered before `:id` so the literal path segment `"analytics"` is never swallowed by `:id`, same reasoning as `"my"` above. */
+  @Get("analytics")
+  async getAnalytics(
+    @Query(new ZodValidationPipe(GetLeadsAnalyticsQuerySchema)) query: GetLeadsAnalyticsQueryDto,
+  ): Promise<LeadsAnalyticsResponseDto> {
+    return this.leadsService.getAnalytics(query);
   }
 
   @Get(":id")

@@ -11,7 +11,7 @@ describe("MobileNav", () => {
   it("renders only the first 5 nav items", () => {
     render(<MobileNav />);
     expect(screen.getByText("Overview")).toBeInTheDocument();
-    expect(screen.getByText("Leads")).toBeInTheDocument();
+    expect(screen.getByText("Inbox")).toBeInTheDocument();
     expect(screen.queryByText("Simulator")).not.toBeInTheDocument();
   });
 

@@ -61,6 +61,14 @@
   flex-direction: column;
 }
 
+/* MENU RESTRUCTURE FINAL: thin divider between the standalone Overview item and the 4
+   collapsible sections below it — rendered only after the "top" group. */
+.divider {
+  height: 1px;
+  background: var(--gray-100);
+  margin: 6px 8px 4px;
+}
+
 .sectionLabel {
   display: flex;
   align-items: center;

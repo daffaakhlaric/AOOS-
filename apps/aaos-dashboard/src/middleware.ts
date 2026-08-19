@@ -9,6 +9,20 @@ function isPublicPath(pathname: string): boolean {
 }
 
 /**
+ * MENU RESTRUCTURE FINAL — exact-path redirects for the 3 routes this restructure moved/retired.
+ * `/leads` is retired entirely (its flat list became `/jessy/contacts`, its chat room became
+ * `/jessy/inbox` — see `docs/PROMPT-AAOS-MENU-RESTRUCTURE-FINAL.md`'s coordinator note #2), so
+ * (unlike the spec's own middleware sketch, which sends `/leads` there loosely) it redirects to
+ * `/jessy/inbox`, matching the spec's original REDIRECTS map. `/knowledge`/`/simulator` simply
+ * moved under `/jessy/*` with identical content.
+ */
+const REDIRECTS: Readonly<Record<string, string>> = {
+  "/leads": "/jessy/inbox",
+  "/knowledge": "/jessy/knowledge",
+  "/simulator": "/jessy/simulator",
+};
+
+/**
  * Returns a new response of the given kind (redirect or pass-through) carrying forward every
  * cookie `getSession` wrote onto `mutatedResponse` — without this, a fresh `NextResponse.redirect`
  * silently drops any Set-Cookie header Supabase's `setAll` callback issued (e.g. to clear or
@@ -52,6 +66,11 @@ function carryForwardCookies(target: NextResponse, mutatedResponse: NextResponse
  * land.
  */
 export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const redirectTarget = REDIRECTS[request.nextUrl.pathname];
+  if (redirectTarget !== undefined) {
+    return NextResponse.redirect(new URL(redirectTarget, request.url));
+  }
+
   if (isPublicPath(request.nextUrl.pathname)) {
     return NextResponse.next();
   }

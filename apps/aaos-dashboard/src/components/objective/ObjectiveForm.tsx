@@ -65,53 +65,73 @@ export function ObjectiveForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className={styles.form} aria-label="Set objective">
-      <label className={styles.field}>
-        Target Hot Leads
-        <input
-          type="number"
-          value={targetHotLeads}
-          onChange={(event) => setTargetHotLeads(event.target.value)}
-          className={styles.input}
-        />
-      </label>
-      <label className={styles.field}>
-        Budget Iklan (IDR)
-        <input
-          type="number"
-          value={budgetAllocation}
-          onChange={(event) => setBudgetAllocation(event.target.value)}
-          className={styles.input}
-        />
-      </label>
-      <label className={styles.field}>
-        Fokus Unit (pisahkan dengan koma)
-        <input
-          type="text"
-          value={focusUnitsRaw}
-          onChange={(event) => setFocusUnitsRaw(event.target.value)}
-          className={styles.input}
-        />
-      </label>
-      <fieldset className={styles.fieldset}>
-        <legend>Area Prioritas</legend>
-        <div className={styles.checkboxRow}>
-          {AREA_OPTIONS.map((area) => (
-            <label key={area} className={styles.checkboxLabel}>
+    <div className={styles.card}>
+      <form onSubmit={handleSubmit} noValidate className={styles.form} aria-label="Set objective">
+        <div className={styles.row}>
+          <label className={styles.field}>
+            Target Hot Leads
+            <input
+              type="number"
+              min={1}
+              placeholder="cth. 50"
+              value={targetHotLeads}
+              onChange={(event) => setTargetHotLeads(event.target.value)}
+              className={styles.input}
+            />
+          </label>
+          <label className={styles.field}>
+            Budget Iklan (IDR)
+            <div className={styles.inputWrap}>
               <input
-                type="checkbox"
-                checked={areaPriorities.includes(area)}
-                onChange={() => toggleArea(area)}
+                type="number"
+                min={1}
+                placeholder="cth. 30000000"
+                value={budgetAllocation}
+                onChange={(event) => setBudgetAllocation(event.target.value)}
+                className={`${styles.input} ${styles.inputWithPrefix}`}
               />
-              {area}
-            </label>
-          ))}
+            </div>
+          </label>
         </div>
-      </fieldset>
-      {error !== undefined ? <p className={styles.error}>{error}</p> : null}
-      <button type="submit" disabled={submitting} className={styles.submitButton}>
-        ✅ Set Objective
-      </button>
-    </form>
+        <label className={styles.field}>
+          Fokus Unit <span className={styles.hint}>(pisahkan dengan koma)</span>
+          <input
+            type="text"
+            placeholder="cth. Xpander, Brio"
+            value={focusUnitsRaw}
+            onChange={(event) => setFocusUnitsRaw(event.target.value)}
+            className={styles.input}
+          />
+        </label>
+        <fieldset className={styles.fieldset}>
+          <legend>Area Prioritas</legend>
+          <div className={styles.checkboxRow}>
+            {AREA_OPTIONS.map((area) => {
+              const checked = areaPriorities.includes(area);
+              return (
+                <label
+                  key={area}
+                  className={`${styles.checkboxLabel} ${checked ? styles.checkboxLabelChecked : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleArea(area)}
+                    className={styles.checkboxInput}
+                  />
+                  {area}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+        {error !== undefined ? <p className={styles.error}>{error}</p> : null}
+        <div className={styles.footer}>
+          <button type="submit" disabled={submitting} className={styles.submitButton}>
+            ✅ Set Objective
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

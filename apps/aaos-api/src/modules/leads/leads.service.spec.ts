@@ -700,3 +700,102 @@ describe("LeadsService.getScoringHistory (AAOS-CHAT-ROOM-JESSY coordinator note 
     expect(history).toEqual([]);
   });
 });
+
+describe("LeadsService.getAnalytics (MENU RESTRUCTURE FINAL /jessy/analytics)", () => {
+  it("fans out across every real branch and computes totalContacts/newContacts/active from real lead timestamps", async () => {
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const oldIso = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Has a real conversation (firstMessageAt set), created + active just now.
+    client.seed(
+      "leads",
+      seedLeadRow({ first_message_at: nowIso, last_message_at: nowIso, created_at: nowIso }),
+    );
+    // No conversation yet — must NOT count toward totalContacts.
+    client.seed(
+      "leads",
+      seedLeadRow({
+        id: "55555555-5555-4555-8555-555555555555",
+        first_message_at: null,
+        last_message_at: null,
+        created_at: oldIso,
+      }),
+    );
+
+    const analytics = await service.getAnalytics({ days: 7 });
+
+    expect(analytics.periodDays).toBe(7);
+    expect(analytics.totalContacts).toBe(1);
+    expect(analytics.newContacts).toBe(1);
+    expect(analytics.active).toBe(1);
+    expect(analytics.dailySeries).toHaveLength(7);
+    expect(analytics.dailySeries.at(-1)?.date).toBe(nowIso.slice(0, 10));
+  });
+
+  it("computes avgResponseTimeMinutes/avgFirstResponseTimeMinutes by pairing real INCOMING messages with the next real OUTGOING reply", async () => {
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    const now = new Date();
+    const incomingAt = now;
+    const outgoingAt = new Date(now.getTime() + 5 * 60 * 1000);
+
+    client.seed(
+      "leads",
+      seedLeadRow({
+        first_message_at: incomingAt.toISOString(),
+        last_message_at: outgoingAt.toISOString(),
+        created_at: incomingAt.toISOString(),
+      }),
+    );
+    client.seed(
+      "conversations",
+      seedConversationRow({ last_message_at: outgoingAt.toISOString() }),
+    );
+    client.seed("messages", {
+      id: "66666666-6666-4666-8666-666666666666",
+      conversation_id: CONVERSATION_ID,
+      lead_id: LEAD_ID,
+      direction: "INCOMING",
+      message_type: "TEXT",
+      body: "halo",
+      wamid: null,
+      template_name: null,
+      delivery_status: null,
+      sent_at: incomingAt.toISOString(),
+      delivered_at: null,
+      read_at: null,
+      created_at: incomingAt.toISOString(),
+    });
+    client.seed("messages", {
+      id: "77777777-7777-4777-8777-777777777777",
+      conversation_id: CONVERSATION_ID,
+      lead_id: LEAD_ID,
+      direction: "OUTGOING",
+      message_type: "TEXT",
+      body: "halo juga",
+      wamid: null,
+      template_name: null,
+      delivery_status: null,
+      sent_at: outgoingAt.toISOString(),
+      delivered_at: null,
+      read_at: null,
+      created_at: outgoingAt.toISOString(),
+    });
+
+    const analytics = await service.getAnalytics({ days: 7 });
+
+    expect(analytics.avgResponseTimeMinutes).toBeCloseTo(5, 1);
+    expect(analytics.avgFirstResponseTimeMinutes).toBeCloseTo(5, 1);
+  });
+
+  it("returns null response-time averages (never a fabricated 0) when no conversation has a reply yet", async () => {
+    const service = buildService();
+    const analytics = await service.getAnalytics({ days: 7 });
+    expect(analytics.avgResponseTimeMinutes).toBeNull();
+    expect(analytics.avgFirstResponseTimeMinutes).toBeNull();
+    expect(analytics.totalContacts).toBe(0);
+  });
+});
