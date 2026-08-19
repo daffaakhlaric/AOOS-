@@ -22,3 +22,7 @@
   font-size: 13px;
   color: var(--gray-500);
 }
+
+.action {
+  margin-top: 12px;
+}

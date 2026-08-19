@@ -8,8 +8,17 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
+/** `/leads` retired in favor of `/inbox` (AAOS-SALES-MGMT-CRM-AUTH coordinator note #2) — `/leads/[leadId]` has no direct `/inbox` equivalent (the new page selects a conversation client-side, not via URL segment), so it redirects to bare `/inbox` rather than a broken `/inbox/[leadId]` path. */
+function isRetiredLeadsPath(pathname: string): boolean {
+  return pathname === "/leads" || pathname.startsWith("/leads/");
+}
+
 /** Protects every CRM route with a valid Supabase Auth session (spec "Redirect ke login jika tidak authenticated"). Mirrors `apps/aaos-dashboard`'s `middleware.ts` (a real `async function`, not the spec's own buggy non-async pseudocode). */
 export async function middleware(request: NextRequest): Promise<NextResponse> {
+  if (isRetiredLeadsPath(request.nextUrl.pathname)) {
+    return NextResponse.redirect(new URL("/inbox", request.url));
+  }
+
   if (isPublicPath(request.nextUrl.pathname)) {
     return NextResponse.next();
   }

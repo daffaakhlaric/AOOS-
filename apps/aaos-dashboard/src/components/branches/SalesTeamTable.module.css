@@ -21,6 +21,13 @@
   border-top: none;
 }
 
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
 .name {
   font-weight: 500;
   color: var(--gray-900);
@@ -28,14 +35,17 @@
 
 .meta {
   color: var(--gray-500);
+  font-size: 12px;
 }
 
 .actions {
   display: flex;
   gap: 12px;
+  flex-shrink: 0;
 }
 
-.editButton {
+.editButton,
+.resetButton {
   background: none;
   border: none;
   padding: 0;
@@ -53,4 +63,20 @@
   font-weight: 500;
   color: var(--red);
   cursor: pointer;
+}
+
+.addButton {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.addButtonFooter {
+  composes: addButton;
+  margin-top: 12px;
 }

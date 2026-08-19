@@ -26,7 +26,7 @@ export function LoginForm(): React.ReactElement {
         setError(signInError.message);
         return;
       }
-      const redirectedFrom = searchParams.get("redirectedFrom") ?? "/leads";
+      const redirectedFrom = searchParams.get("redirectedFrom") ?? "/inbox";
       router.push(redirectedFrom);
       router.refresh();
     } catch (caught) {

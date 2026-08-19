@@ -21,6 +21,7 @@ import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
+import { createClient } from "@supabase/supabase-js";
 
 import type { AaosApiConfig } from "./config/aaos-api.config.js";
 import {
@@ -49,6 +50,7 @@ import {
   META_ADS_CONNECTOR,
   MOBIX_SCRAPER_SERVICE,
   OBJECTIVE_ENGINE,
+  SUPABASE_AUTH_ADMIN,
   SUPABASE_CLIENT,
   WHATSAPP_CONNECTOR,
 } from "./di-tokens.js";
@@ -150,6 +152,15 @@ export class AppModule {
     const branchManager: BranchManager = BranchManagerFactory.create({
       config: branchManagerConfigResult.value,
       publisher,
+    });
+
+    // AAOS-SALES-MGMT-CRM-AUTH: a second, real `@supabase/supabase-js` client over the SAME
+    // Supabase project (same URL + service-role key `leadStoreSupabaseClient` above uses), kept
+    // untyped-as-`SupabaseClientLike` so `modules/sales`'s `SalesHumansService` can call
+    // `.auth.admin.*` (Supabase Auth's Admin API) — see `di-tokens.ts`'s `SUPABASE_AUTH_ADMIN` doc
+    // for why this is a separate token rather than widening the shared narrow port.
+    const supabaseAuthAdminClient = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
     // AAOS-SCRAPER-ASSET-LIBRARY: the first real composition of `@aos/asset-library` and
@@ -266,6 +277,7 @@ export class AppModule {
         { provide: LEAD_STORE_CLOSING_REPOSITORY, useValue: closingRepository },
         { provide: LEAD_STORE_SCORING_REPOSITORY, useValue: scoringRepository },
         { provide: SUPABASE_CLIENT, useValue: leadStoreSupabaseClient },
+        { provide: SUPABASE_AUTH_ADMIN, useValue: supabaseAuthAdminClient },
         // `useValue: undefined` is intentional and load-bearing: it makes `ASSET_LIBRARY` an
         // injectable token that resolves to `undefined` on a GCS-less deployment, rather than a
         // missing provider that would fail Nest's dependency resolution at boot.
@@ -291,6 +303,7 @@ export class AppModule {
         LEAD_STORE_CLOSING_REPOSITORY,
         LEAD_STORE_SCORING_REPOSITORY,
         SUPABASE_CLIENT,
+        SUPABASE_AUTH_ADMIN,
         ASSET_LIBRARY,
         MOBIX_SCRAPER_SERVICE,
         KAI_AGENT_RUNTIME,

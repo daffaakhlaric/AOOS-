@@ -79,3 +79,16 @@ export const SUPABASE_CLIENT = Symbol("SUPABASE_CLIENT");
  */
 export const ASSET_LIBRARY = Symbol("ASSET_LIBRARY");
 export const MOBIX_SCRAPER_SERVICE = Symbol("MOBIX_SCRAPER_SERVICE");
+/**
+ * AAOS-SALES-MGMT-CRM-AUTH addition — a real `@supabase/supabase-js` client constructed with the
+ * SAME `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` as `SUPABASE_CLIENT`, but kept as a SEPARATE DI token
+ * because it exposes `.auth.admin.*` (Supabase Auth's Admin API: `createUser`/`updateUserById`/
+ * `listUsers`), which `SUPABASE_CLIENT`'s narrow `SupabaseClientLike` port (`@aos/lead-store`'s
+ * `SupabaseTypes.ts` — deliberately only `.from(...)`/`.channel(...)`) does not and should not
+ * declare. Same "one Supabase project, two typed views of the same stateless HTTP client" pattern
+ * `app.module.ts`'s `ASSET_LIBRARY` client doc already establishes — not a second connection.
+ * Used exclusively by `modules/sales`'s `SalesHumansService` to provision/update the real Supabase
+ * Auth user backing a `sales_humans` row's `auth_user_id` (coordinator note #1 — never a custom
+ * bcrypt/JWT auth system).
+ */
+export const SUPABASE_AUTH_ADMIN = Symbol("SUPABASE_AUTH_ADMIN");

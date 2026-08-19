@@ -43,6 +43,8 @@ export interface MessageDto {
    */
   readonly senderType?: string;
   readonly senderName?: string;
+  /** Real `messages.read_at` (AAOS-SALES-MGMT-CRM-AUTH) — `undefined` until read. `/inbox`'s "Belum dibaca" tab reads this. */
+  readonly readAt?: string;
 }
 
 /** `GET /api/leads/:leadId/scoring-history` — mirrors `aaos-api`'s `ScoringEventResponseDto`. */
@@ -102,4 +104,17 @@ export interface SalesStatsDto {
 
 export interface ApiErrorBody {
   readonly error: { readonly code?: string; readonly message: string };
+}
+
+/** `GET/PUT /api/sales-humans/:id` — mirrors `aaos-api`'s `SalesHumanAccountResponseDto` (AAOS-SALES-MGMT-CRM-AUTH — profile self-service, coordinator note #1). */
+export interface SalesHumanAccountDto {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string | undefined;
+  readonly phone: string;
+  readonly branchId: string;
+  readonly status: "ON" | "BUSY" | "OFF";
+  readonly maxLeadsPerDay: number;
+  readonly createdAt: string;
+  readonly lastSignInAt: string | undefined;
 }

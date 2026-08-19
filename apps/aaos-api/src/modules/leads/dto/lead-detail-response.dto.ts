@@ -27,6 +27,14 @@ export interface MessageResponseDto {
    */
   readonly senderType?: string;
   readonly senderName?: string;
+  /**
+   * AAOS-SALES-MGMT-CRM-AUTH — the real `messages.read_at` column (`001_initial_schema.sql`),
+   * `undefined` until read. The CRM Inbox's "Belum dibaca" tab (coordinator note #2) reads this
+   * directly: a lead has an unread incoming message when its latest `direction === "INCOMING"`
+   * message has `readAt === undefined`. Never set by this app today (no "mark as read" write path
+   * exists yet) — surfaced honestly as `undefined` for every message until one does.
+   */
+  readonly readAt?: string;
 }
 
 export interface ConversationSummaryResponseDto {
@@ -55,6 +63,7 @@ export function toMessageResponseDto(message: Message): MessageResponseDto {
     createdAt: message.createdAt.toISOString(),
     senderType: message.senderType,
     senderName: message.senderName,
+    readAt: message.readAt?.toISOString(),
   };
 }
 

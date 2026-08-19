@@ -29,13 +29,13 @@ describe("LoginForm", () => {
     expect(screen.getByRole("button", { name: "Masuk" })).toBeInTheDocument();
   });
 
-  it("redirects to /leads on successful sign-in", async () => {
+  it("redirects to /inbox on successful sign-in", async () => {
     signInWithPassword.mockResolvedValue({ error: null });
     render(<LoginForm />);
     await userEvent.type(screen.getByLabelText("Email"), "rina@dssmotor.id");
     await userEvent.type(screen.getByLabelText("Password"), "secret123");
     await userEvent.click(screen.getByRole("button", { name: "Masuk" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/leads"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/inbox"));
   });
 
   it("shows an error card when sign-in fails", async () => {
