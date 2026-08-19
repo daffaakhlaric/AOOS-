@@ -144,6 +144,53 @@ export async function streamAaosApi(path: string): Promise<Response> {
   return response;
 }
 
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — forwards a `multipart/form-data` body to
+ * `apps/aaos-api` verbatim (Listing Manager's real photo upload, `POST /api/v1/listings/:id/photos`).
+ * Deliberately separate from `callAaosApi`: that function always JSON-serializes `options.body` and
+ * always sets `content-type: application/json`, neither of which is correct for a file upload —
+ * `fetch`'s native `FormData` body sets its own multipart boundary header, which must NOT be
+ * overridden here. Same error-wrapping contract as `callAaosApi` (`AaosApiError`, never a raw
+ * `fetch` rejection).
+ */
+export async function postFormDataToAaosApi<T>(
+  path: string,
+  formData: FormData,
+  headers: Record<string, string> = {},
+): Promise<T> {
+  const baseUrl = requireEnv("AAOS_API_BASE_URL");
+  const apiKey = requireEnv("AAOS_API_KEY");
+
+  const response = await fetch(new URL(path, baseUrl), {
+    method: "POST",
+    headers: { "x-api-key": apiKey, ...headers },
+    body: formData,
+    cache: "no-store",
+  });
+
+  const text = await response.text();
+  let data: unknown;
+  try {
+    data = text.length > 0 ? JSON.parse(text) : undefined;
+  } catch {
+    throw new AaosApiError(
+      response.status,
+      `aaos-api request to "${path}" returned a non-JSON body (status ${String(response.status)}): ` +
+        text.slice(0, 200),
+    );
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof data === "object" && data !== null && "message" in data
+        ? String((data as { message: unknown }).message)
+        : `aaos-api request to "${path}" failed with status ${response.status}`;
+    throw new AaosApiError(response.status, message);
+  }
+
+  return data as T;
+}
+
 export class AaosSimulatorError extends Error {
   constructor(
     public readonly statusCode: number,

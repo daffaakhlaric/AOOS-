@@ -7,7 +7,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 
-import { CURATED_INTEREST_SEARCH_TERMS } from "./dto/sync-interests.dto.js";
+import {
+  CURATED_INTEREST_SEARCH_TERMS,
+  CURATED_PROPERTY_INTEREST_SEARCH_TERMS,
+} from "./dto/sync-interests.dto.js";
 import { MetaInterestRepository } from "./infrastructure/meta-interest.repository.js";
 import { MetaInterestsService } from "./meta-interests.service.js";
 
@@ -59,6 +62,17 @@ describe("MetaInterestsService.sync", () => {
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({ term: "automotive", accessToken: expect.any(String) }),
     );
+  });
+
+  it("runs the PROPERTY curated term list when body.vertical is PROPERTY and terms is omitted (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2)", async () => {
+    const execute = vi.fn(async () => ok([USED_CAR]));
+    const { service } = buildService(buildConnector(execute));
+
+    const response = await service.sync({ vertical: "PROPERTY" }, NOW);
+
+    expect(execute).toHaveBeenCalledTimes(CURATED_PROPERTY_INTEREST_SEARCH_TERMS.length);
+    expect(response.terms.map((t) => t.term)).toEqual([...CURATED_PROPERTY_INTEREST_SEARCH_TERMS]);
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ term: "real estate" }));
   });
 
   it("persists the REAL returned interests verbatim, stamped with one shared fetchedAt", async () => {

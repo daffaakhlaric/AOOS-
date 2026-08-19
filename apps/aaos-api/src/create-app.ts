@@ -1,8 +1,12 @@
+import multipart from "@fastify/multipart";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 
 import { AppModule } from "./app.module.js";
 import type { AaosApiConfig } from "./config/aaos-api.config.js";
+
+/** Spec Part 4's "max 10MB/foto" — `ListingsService.addPhoto` re-validates this too (Busboy's limit alone would produce an opaque stream-abort, not the friendly `ValidationError` the Listing Manager UI expects), but capping it here as well means a request can never even buffer more than this into memory. */
+const MAX_LISTING_PHOTO_BYTES = 10 * 1024 * 1024;
 
 /**
  * Shared composition entry point used by both `main.ts` (real process bootstrap) and the e2e
@@ -27,6 +31,19 @@ export async function createApp(config: AaosApiConfig): Promise<NestFastifyAppli
     logger: false,
     rawBody: true,
   });
+
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — the FIRST real multipart registration in this
+  // app (`modules/assets/assets.controller.ts`'s docstring explicitly deferred this: "this app runs
+  // on @nestjs/platform-fastify with no multipart parser registered"). `POST
+  // /api/v1/listings/:id/photos` (Listing Manager's real drag&drop upload) is the genuine new
+  // requirement that finally justifies it — `@fastify/multipart` registered globally, scoped down
+  // per-request via `ListingsController`'s own `request.file()` call, not a bespoke body parser.
+  await app
+    .getHttpAdapter()
+    .getInstance()
+    .register(multipart, {
+      limits: { fileSize: MAX_LISTING_PHOTO_BYTES, files: 1 },
+    });
 
   await app.init();
   // Fastify's own plugin/hook/route registration is asynchronous — `app.init()` resolving does

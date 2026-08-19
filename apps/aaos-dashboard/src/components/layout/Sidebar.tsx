@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import type { Vertical } from "@/types/tenant.types";
+
 import styles from "./Sidebar.module.css";
 
 /** A single sidebar/mobile-nav link. */
@@ -36,6 +38,8 @@ const OBJECTIVE: NavItem = { href: "/objective", label: "Objective", icon: "🎯
  */
 const CREATIVE: NavItem = { href: "/creative", label: "Creative Review", icon: "🎨" };
 const SCRAPER_MOBIX: NavItem = { href: "/assets/scraper", label: "Scraper Mobix", icon: "📸" };
+/** AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 Part 3 — PROPERTY vertical's real replacement for `SCRAPER_MOBIX` (no scraper exists for that vertical; listings are entered manually). */
+const LISTING_MANAGER: NavItem = { href: "/listings", label: "Listing Manager", icon: "🏠" };
 const ASSET_LIBRARY: NavItem = { href: "/assets/library", label: "Asset Library", icon: "🗂" };
 const BRANCHES: NavItem = { href: "/branches", label: "Branch Settings", icon: "⚙️" };
 /** MENU RESTRUCTURE FINAL section 5: `/go-live` is a real, always-empty-for-now page — see `app/(app)/go-live/page.tsx`'s own docstring. */
@@ -92,29 +96,45 @@ export interface NavGroup {
  * which they were only ever loosely grouped under before. OPERASIONAL keeps `OBJECTIVE`/
  * `BRANCHES` and gains `GO_LIVE` (coordinator note #5 — real page, honestly always-empty for now).
  */
-const NAV_GROUPS: readonly NavGroup[] = [
-  { key: "top", items: [OVERVIEW] },
-  {
-    key: "tamara",
-    label: "TAMARA (META ADS)",
-    items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, STRATEGI, SIMULASI],
-  },
-  {
-    key: "jessy",
-    label: "JESSY (SALES AI)",
-    items: [JESSY_ANALYTICS, JESSY_INBOX, JESSY_CONTACTS, KNOWLEDGE, SIMULATOR],
-  },
-  {
-    key: "kai",
-    label: "KAI (CREATIVE)",
-    items: [CREATIVE, SCRAPER_MOBIX, ASSET_LIBRARY],
-  },
-  {
-    key: "operasional",
-    label: "OPERASIONAL",
-    items: [OBJECTIVE, BRANCHES, GO_LIVE, SETTINGS],
-  },
-];
+/**
+ * `NAV_GROUPS` moved from a constant to a function of `vertical` — AAOS-MULTI-TENANT-SUPERADMIN-
+ * PROPERTY Phase 2 Part 3: for a PROPERTY tenant, the KAI section's label changes ("KAI
+ * (CREATIVE)" -> "KAI (CREATIVE) — Properti") and `SCRAPER_MOBIX` (`/assets/scraper`, which reads
+ * from the automotive-only scraper) is replaced by `LISTING_MANAGER` (`/listings`, spec Part 3's
+ * "🏘️ KAI ... 🏠 Listing Manager /listings ← BARU (replace Scraper)"). Every other group is
+ * identical across verticals ("TAMARA"/"JESSY" sections are spec-confirmed "sama seperti
+ * Automotive"). `vertical` defaults to `undefined` (unresolved yet, see `Sidebar`'s fetch effect
+ * below) — AUTOMOTIVE's real, already-shipped nav is shown until the real vertical is known, never
+ * a flash of the PROPERTY nav for the common (AUTOMOTIVE) case.
+ */
+function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
+  const isProperty = vertical === "PROPERTY";
+  return [
+    { key: "top", items: [OVERVIEW] },
+    {
+      key: "tamara",
+      label: "TAMARA (META ADS)",
+      items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, STRATEGI, SIMULASI],
+    },
+    {
+      key: "jessy",
+      label: "JESSY (SALES AI)",
+      items: [JESSY_ANALYTICS, JESSY_INBOX, JESSY_CONTACTS, KNOWLEDGE, SIMULATOR],
+    },
+    {
+      key: "kai",
+      label: isProperty ? "KAI (CREATIVE) — PROPERTI" : "KAI (CREATIVE)",
+      items: isProperty
+        ? [CREATIVE, LISTING_MANAGER, ASSET_LIBRARY]
+        : [CREATIVE, SCRAPER_MOBIX, ASSET_LIBRARY],
+    },
+    {
+      key: "operasional",
+      label: "OPERASIONAL",
+      items: [OBJECTIVE, BRANCHES, GO_LIVE, SETTINGS],
+    },
+  ];
+}
 
 function isActive(pathname: string | null, href: string): boolean {
   return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
@@ -188,6 +208,7 @@ function writeStoredCollapsed(storageKey: string, collapsed: boolean): void {
 export function Sidebar(): React.ReactElement {
   const pathname = usePathname();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [vertical, setVertical] = useState<Vertical | undefined>(undefined);
 
   // Read persisted collapse state after mount only — `localStorage` doesn't exist during this
   // "use client" component's SSR pass (same reasoning as `MetaAdsClient.tsx`'s initial-load
@@ -204,6 +225,33 @@ export function Sidebar(): React.ReactElement {
       setCollapsedGroups((prev) => ({ ...prev, ...restored }));
     }
   }, []);
+
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — resolves the real session's vertical via the
+  // already-real `/api/settings` route (`lib/route-session.ts` -> `getSession().tenantId` ->
+  // `apps/aaos-api`'s `GET /api/v1/settings`), the SAME endpoint the Settings page already calls —
+  // no second "get my vertical" endpoint invented for this one sidebar label swap. `Sidebar` has no
+  // server-side session prop today (see this component's class doc), so a client-side fetch is the
+  // real mechanism here, not a fabricated one; a failed/pending fetch just keeps the AUTOMOTIVE nav.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((res) =>
+        res.ok ? (res.json() as Promise<{ tenant?: { vertical?: Vertical } }>) : null,
+      )
+      .then((data) => {
+        if (!cancelled && data?.tenant?.vertical !== undefined) {
+          setVertical(data.tenant.vertical);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — a failed lookup keeps the default AUTOMOTIVE nav, never breaks the sidebar.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const navGroups = buildNavGroups(vertical);
 
   function toggleGroup(key: string): void {
     setCollapsedGroups((prev) => {
@@ -230,7 +278,7 @@ export function Sidebar(): React.ReactElement {
         </div>
       </div>
       <div className={styles.nav}>
-        {NAV_GROUPS.map((group) => {
+        {navGroups.map((group) => {
           const collapsed = collapsedGroups[group.key] ?? false;
           return (
             <div key={group.key} className={styles.group}>

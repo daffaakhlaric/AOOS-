@@ -6,7 +6,7 @@ import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
 
 import type { StoredMetaInterest } from "./domain/meta-interest.js";
 import {
-  CURATED_INTEREST_SEARCH_TERMS,
+  INTERESTS_BY_VERTICAL,
   type MetaInterestResponseDto,
   type SyncInterestsBodyDto,
   type SyncInterestsResponseDto,
@@ -46,7 +46,7 @@ export class MetaInterestsService {
     body: SyncInterestsBodyDto,
     now: Date = new Date(),
   ): Promise<SyncInterestsResponseDto> {
-    const terms = body.terms ?? CURATED_INTEREST_SEARCH_TERMS;
+    const terms = body.terms ?? INTERESTS_BY_VERTICAL[body.vertical ?? "AUTOMOTIVE"];
     const fetchedAt = now.toISOString();
     const results: SyncInterestsTermResultDto[] = [];
 

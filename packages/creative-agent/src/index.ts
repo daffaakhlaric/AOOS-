@@ -66,11 +66,19 @@ export { CopyBuilder } from "./intelligence/CopyBuilder.js";
 // Additive: the 2 remaining intelligence-layer strategies (spec "intelligence/").
 export { FormatDecider } from "./intelligence/FormatDecider.js";
 export { AngleToPromptMapper } from "./intelligence/AngleToPromptMapper.js";
+// AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — Kai's PROPERTY-vertical prompt builder (spec Part 5).
+export { PropertyPromptBuilder } from "./intelligence/PropertyPromptBuilder.js";
+export { PropertyAngleToPromptMapper } from "./intelligence/PropertyAngleToPromptMapper.js";
+export { PropertyAdAngle, ALL_PROPERTY_AD_ANGLES } from "./domain/value-objects/PropertyAdAngle.js";
 
 // Additive: the contracts (ports) every intelligence/service class above implements.
 export type { ICreativeAgent } from "./contracts/ICreativeAgent.js";
 export type { IFormatDecider } from "./contracts/IFormatDecider.js";
 export type { IPromptBuilder } from "./contracts/IPromptBuilder.js";
+export type {
+  IPropertyPromptBuilder,
+  PropertyCreativeBrief,
+} from "./contracts/IPropertyPromptBuilder.js";
 export type {
   ICreativeOrchestrator,
   OrchestrateGenerationInput,

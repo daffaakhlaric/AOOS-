@@ -104,6 +104,13 @@ export {
   branchAudienceDefault,
 } from "./config/BranchAudienceDefaults.js";
 export type { BranchAudienceDefault } from "./config/BranchAudienceDefaults.js";
+/** AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — PROPERTY vertical's sibling config (spec Part 11). */
+export {
+  PROPERTY_BRANCH_AUDIENCE_DEFAULTS,
+  propertyBranchAudienceDefault,
+  HOUSING_SPECIAL_AD_CATEGORY,
+  HOUSING_POLICY_WARNING,
+} from "./config/PropertyBranchAudienceDefaults.js";
 
 // Registry
 export { AdAccountRegistry } from "./registry/AdAccountRegistry.js";

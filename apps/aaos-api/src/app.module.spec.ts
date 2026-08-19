@@ -62,10 +62,13 @@ describe("AppModule.forRoot", () => {
     // already existed).
     // AAOS-SALES-MGMT-CRM-AUTH: +1 provider (SUPABASE_AUTH_ADMIN, the real Supabase Auth Admin
     // client SalesHumansService calls) — no new import (SalesModule already existed).
-    // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY: +2 imports (SuperadminModule, SettingsModule) — no
-    // new global provider (both compose TenantRepository/WabaConfigRepository locally from the
+    // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 1: +2 imports (SuperadminModule, SettingsModule)
+    // — no new global provider (both compose TenantRepository/WabaConfigRepository locally from the
     // existing SUPABASE_CLIENT, same as every other per-feature repository).
-    expect(dynamicModule.imports).toHaveLength(20);
+    // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2: +1 import (ListingsModule) — no new global
+    // provider (composes ListingRepository locally from the existing SUPABASE_CLIENT, and reuses
+    // the already-global ASSET_LIBRARY token for photo upload, same pattern as AssetsModule).
+    expect(dynamicModule.imports).toHaveLength(21);
     expect(dynamicModule.providers).toHaveLength(18);
   });
 

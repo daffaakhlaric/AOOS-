@@ -64,6 +64,7 @@ import { ClosingsModule } from "./modules/closings/closings.module.js";
 import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
+import { ListingsModule } from "./modules/listings/listings.module.js";
 import { LlmModule } from "./modules/llm/llm.module.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
@@ -272,6 +273,9 @@ export class AppModule {
         // each module's own doc) resolves without ordering surprises.
         SuperadminModule,
         SettingsModule,
+        // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — Listing Manager (PROPERTY vertical's
+        // `listings` CRUD + photo upload, replacing Scraper Mobix for that vertical).
+        ListingsModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

@@ -1,0 +1,79 @@
+.card {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 150ms;
+}
+
+.card:hover {
+  box-shadow: var(--shadow);
+}
+
+.photoWrap {
+  height: 160px;
+  background: var(--gray-100);
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photoPlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: var(--gray-400);
+}
+
+.body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gray-900);
+}
+
+.price {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--gray-700);
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.actions {
+  padding: 10px 14px;
+  border-top: var(--border);
+  display: flex;
+  gap: 8px;
+}
+
+.actionButton {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  padding: 6px 10px;
+  background: var(--white);
+  color: var(--gray-700);
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-decoration: none;
+}

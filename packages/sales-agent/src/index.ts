@@ -23,9 +23,22 @@ export { FollowUpService } from "./application/services/FollowUpService.js";
 export type { LeadConversation } from "./domain/entities/LeadConversation.js";
 export type { LeadProfile } from "./domain/entities/LeadProfile.js";
 export type { HandoffPackage } from "./domain/entities/HandoffPackage.js";
-export { LeadTemperature } from "./domain/value-objects/LeadTemperature.js";
+export { LeadTemperature, classifyTemperature } from "./domain/value-objects/LeadTemperature.js";
 export { ConversationStage } from "./domain/value-objects/ConversationStage.js";
 export type { LeadScore } from "./domain/value-objects/LeadScore.js";
+
+// AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — PROPERTY_QUALIFICATION (spec Part 6), Jessy's
+// PROPERTY-vertical sibling to `ScoringCriterion`/`SCORING_RULES`. See `PropertyScoreCalculator.ts`
+// for the real scope of this addition (config-level, not yet wired into `ConversationEngine`).
+export {
+  PROPERTY_SCORING_RULES,
+  PropertyScoreCalculator,
+  PROPERTY_WARM_THRESHOLD,
+  PROPERTY_HOT_THRESHOLD,
+} from "./scoring/PropertyScoreCalculator.js";
+export type { PropertyScoringRule } from "./scoring/PropertyScoreCalculator.js";
+export { PropertyScoreDelta } from "./domain/value-objects/PropertyScoreDelta.js";
+export type { PropertyScoringCriterion } from "./domain/value-objects/PropertyScoreDelta.js";
 
 // Events
 export type {
