@@ -21,6 +21,10 @@ function buildFakeService(): LeadsService {
     ),
     claimLead: vi.fn(async () => ({ id: "lead-1", status: "ASSIGNED" }) as LeadResponseDto),
     updateStatus: vi.fn(async () => ({ id: "lead-1", status: "WARM" }) as LeadResponseDto),
+    getMessages: vi.fn(async () => ({ messages: [], page: 1, limit: 50, total: 0 })),
+    sendMessage: vi.fn(async () => ({ id: "msg-1", direction: "OUTGOING" }) as unknown),
+    intervene: vi.fn(async () => ({ id: "msg-2", direction: "OUTGOING" }) as unknown),
+    getScoringHistory: vi.fn(async () => []),
   } as unknown as LeadsService;
 }
 
@@ -81,6 +85,41 @@ describe("LeadsController", () => {
       "corr-3",
     );
     expect(result).toEqual({ id: "lead-1", status: "WARM" });
+  });
+
+  it("GET /api/v1/leads/:id/messages delegates to LeadsService.getMessages with the id + query", async () => {
+    const service = buildFakeService();
+    const controller = new LeadsController(service);
+    const query = { page: 1, limit: 50, order: "asc" as const };
+    const result = await controller.getMessages("lead-1", query);
+    expect(service.getMessages).toHaveBeenCalledWith("lead-1", query);
+    expect(result).toEqual({ messages: [], page: 1, limit: 50, total: 0 });
+  });
+
+  it("POST /api/v1/leads/:id/message delegates to LeadsService.sendMessage with the id + body + correlation id", async () => {
+    const service = buildFakeService();
+    const controller = new LeadsController(service);
+    const body = { salesHumanId: "sales-1", salesName: "Ahmad", message: "halo pak" };
+    const result = await controller.sendMessage("lead-1", body, "corr-4");
+    expect(service.sendMessage).toHaveBeenCalledWith("lead-1", body, "corr-4");
+    expect(result).toEqual({ id: "msg-1", direction: "OUTGOING" });
+  });
+
+  it("POST /api/v1/leads/:id/intervene delegates to LeadsService.intervene with the id + body + correlation id", async () => {
+    const service = buildFakeService();
+    const controller = new LeadsController(service);
+    const body = { message: "halo dari manager", managerName: "Budi" };
+    const result = await controller.intervene("lead-1", body, "corr-5");
+    expect(service.intervene).toHaveBeenCalledWith("lead-1", body, "corr-5");
+    expect(result).toEqual({ id: "msg-2", direction: "OUTGOING" });
+  });
+
+  it("GET /api/v1/leads/:id/scoring-history delegates to LeadsService.getScoringHistory with the id", async () => {
+    const service = buildFakeService();
+    const controller = new LeadsController(service);
+    const result = await controller.getScoringHistory("lead-1");
+    expect(service.getScoringHistory).toHaveBeenCalledWith("lead-1");
+    expect(result).toEqual([]);
   });
 
   it("guards the whole controller with ApiKeyGuard", () => {

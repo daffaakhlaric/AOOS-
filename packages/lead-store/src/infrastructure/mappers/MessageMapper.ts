@@ -5,6 +5,7 @@ import {
   type MessageContentType,
   type MessageDeliveryStatus,
   type MessageDirection,
+  type MessageSenderType,
 } from "../../domain/entities/Message.js";
 import { LeadStoreError } from "../../domain/errors/LeadStoreError.js";
 import { ConversationId } from "../../domain/value-objects/ConversationId.js";
@@ -18,8 +19,13 @@ const VALID_DELIVERY_STATUSES: ReadonlySet<string> = new Set([
   "READ",
   "FAILED",
 ]);
+const VALID_SENDER_TYPES: ReadonlySet<string> = new Set([
+  "JESSY",
+  "SALES_HUMAN",
+  "MANAGER_INTERVENTION",
+]);
 
-/** Exact shape of the `messages` table (spec `001_initial_schema.sql`). */
+/** Exact shape of the `messages` table (spec `001_initial_schema.sql` + `004_message_sender.sql`). */
 export interface MessageRow {
   readonly id: string;
   readonly conversation_id: string;
@@ -34,6 +40,9 @@ export interface MessageRow {
   readonly delivered_at: string | null;
   readonly read_at: string | null;
   readonly created_at: string;
+  /** AAOS-CHAT-ROOM-JESSY (`004_message_sender.sql`) — `null` for INCOMING rows and for any OUTGOING row predating the backfill. */
+  readonly sender_type: string | null;
+  readonly sender_name: string | null;
 }
 
 /** Maps between `messages` DB rows and the `Message` domain entity — field-by-field, both directions. */
@@ -81,6 +90,17 @@ export class MessageMapper {
         }),
       );
     }
+    // Loose `!= null` (not strict `!== null`): real Supabase rows always return an explicit
+    // `null`, but several callers across this monorepo (e.g. `apps/aaos-api`'s own hand-rolled
+    // `SupabaseClientLike` test doubles) seed rows that omit `sender_type` entirely — `undefined`,
+    // not `null`. Both mean "no sender_type set", so both must be tolerated the same way.
+    if (row.sender_type != null && !VALID_SENDER_TYPES.has(row.sender_type)) {
+      return err(
+        new LeadStoreError(`Message.sender_type is not valid: "${row.sender_type}"`, {
+          code: ErrorCode.VALIDATION_ERROR,
+        }),
+      );
+    }
 
     const messageResult = Message.create({
       id: idResult.value,
@@ -96,6 +116,8 @@ export class MessageMapper {
       deliveredAt: row.delivered_at !== null ? new Date(row.delivered_at) : undefined,
       readAt: row.read_at !== null ? new Date(row.read_at) : undefined,
       createdAt: new Date(row.created_at),
+      senderType: (row.sender_type ?? undefined) as MessageSenderType | undefined,
+      senderName: row.sender_name ?? undefined,
     });
     /* v8 ignore start -- direction is already validated above, so Message.create's only failure
        mode can never trigger here. */
@@ -123,6 +145,8 @@ export class MessageMapper {
       delivered_at: message.deliveredAt?.toISOString() ?? null,
       read_at: message.readAt?.toISOString() ?? null,
       created_at: message.createdAt.toISOString(),
+      sender_type: message.senderType ?? null,
+      sender_name: message.senderName ?? null,
     };
   }
 }

@@ -40,6 +40,14 @@ export const KAI_AGENT_RUNTIME = Symbol("KAI_AGENT_RUNTIME");
 export const LEAD_STORE_MESSAGE_REPOSITORY = Symbol("LEAD_STORE_MESSAGE_REPOSITORY");
 export const LEAD_STORE_CLOSING_REPOSITORY = Symbol("LEAD_STORE_CLOSING_REPOSITORY");
 /**
+ * AAOS-CHAT-ROOM-JESSY addition — same rationale as `LEAD_STORE_MESSAGE_REPOSITORY` above: no
+ * `LeadStore` use case exposes "list every scoring event for a lead" (`GET
+ * /leads/:id/scoring-history`), only `@aos/lead-store`'s real, already-public `ScoringRepository`
+ * infra class, composed here against the SAME Supabase client every other `lead-store`-backed
+ * repository in this app shares.
+ */
+export const LEAD_STORE_SCORING_REPOSITORY = Symbol("LEAD_STORE_SCORING_REPOSITORY");
+/**
  * AAOS-LLM-TAMARA additions — module-local providers for `modules/llm`, following
  * `LLM_*`'s own precedent (a process-local implementation detail of one module, not
  * a real external integration composed in `app.module.ts`, so these are provided inside

@@ -17,9 +17,14 @@ import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { ClaimLeadBodySchema, type ClaimLeadBodyDto } from "./dto/claim-lead.dto.js";
 import { CreateLeadBodySchema, type CreateLeadBodyDto } from "./dto/create-lead.dto.js";
 import { GetLeadsQuerySchema, type GetLeadsQueryDto } from "./dto/get-leads.dto.js";
+import { GetMessagesQuerySchema, type GetMessagesQueryDto } from "./dto/get-messages.dto.js";
 import { GetMyLeadsQuerySchema, type GetMyLeadsQueryDto } from "./dto/get-my-leads.dto.js";
-import type { LeadDetailResponseDto } from "./dto/lead-detail-response.dto.js";
+import { InterveneBodySchema, type InterveneBodyDto } from "./dto/intervene.dto.js";
+import type { LeadDetailResponseDto, MessageResponseDto } from "./dto/lead-detail-response.dto.js";
 import type { LeadResponseDto } from "./dto/lead-response.dto.js";
+import type { MessagesPageResponseDto } from "./dto/messages-page-response.dto.js";
+import type { ScoringEventResponseDto } from "./dto/scoring-history-response.dto.js";
+import { SendMessageBodySchema, type SendMessageBodyDto } from "./dto/send-message.dto.js";
 import {
   UpdateLeadStatusBodySchema,
   type UpdateLeadStatusBodyDto,
@@ -81,5 +86,40 @@ export class LeadsController {
     @CorrelationId() correlationId: string,
   ): Promise<LeadResponseDto> {
     return this.leadsService.updateStatus(id, body, correlationId);
+  }
+
+  /** `GET /api/v1/leads/:id/messages?page=&limit=&order=` — paginated real message thread (AAOS-CHAT-ROOM-JESSY coordinator note #5). */
+  @Get(":id/messages")
+  async getMessages(
+    @Param("id") id: string,
+    @Query(new ZodValidationPipe(GetMessagesQuerySchema)) query: GetMessagesQueryDto,
+  ): Promise<MessagesPageResponseDto> {
+    return this.leadsService.getMessages(id, query);
+  }
+
+  /** `POST /api/v1/leads/:id/message` — a sales human's real reply, sent via the real WhatsApp connector. */
+  @Post(":id/message")
+  async sendMessage(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(SendMessageBodySchema)) body: SendMessageBodyDto,
+    @CorrelationId() correlationId: string,
+  ): Promise<MessageResponseDto> {
+    return this.leadsService.sendMessage(id, body, correlationId);
+  }
+
+  /** `POST /api/v1/leads/:id/intervene` — manager-as-Jessy, persisted as `sender_type = 'MANAGER_INTERVENTION'` (coordinator note #5). */
+  @Post(":id/intervene")
+  async intervene(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(InterveneBodySchema)) body: InterveneBodyDto,
+    @CorrelationId() correlationId: string,
+  ): Promise<MessageResponseDto> {
+    return this.leadsService.intervene(id, body, correlationId);
+  }
+
+  /** `GET /api/v1/leads/:id/scoring-history` — thin read over the real `scoring_events` table. */
+  @Get(":id/scoring-history")
+  async getScoringHistory(@Param("id") id: string): Promise<readonly ScoringEventResponseDto[]> {
+    return this.leadsService.getScoringHistory(id);
   }
 }

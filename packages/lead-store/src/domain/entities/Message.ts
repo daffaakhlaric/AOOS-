@@ -8,6 +8,14 @@ import type { MessageId } from "../value-objects/MessageId.js";
 export type MessageDirection = "INCOMING" | "OUTGOING";
 export type MessageContentType = "TEXT" | "TEMPLATE" | "INTERACTIVE" | "IMAGE";
 export type MessageDeliveryStatus = "SENT" | "DELIVERED" | "READ" | "FAILED";
+/**
+ * AAOS-CHAT-ROOM-JESSY (coordinator note #2) — who actually authored an OUTGOING message.
+ * `undefined`/`null` for every INCOMING message (the lead is always the sender there — no column
+ * needed) and for OUTGOING rows persisted before this migration (backfilled to `"JESSY"` by
+ * `004_message_sender.sql`, but a defensive `undefined` is still valid here for any row that
+ * predates that backfill in a not-yet-migrated environment).
+ */
+export type MessageSenderType = "JESSY" | "SALES_HUMAN" | "MANAGER_INTERVENTION";
 
 export interface MessageProps {
   readonly id: MessageId;
@@ -23,6 +31,9 @@ export interface MessageProps {
   readonly deliveredAt?: Date;
   readonly readAt?: Date;
   readonly createdAt: Date;
+  readonly senderType?: MessageSenderType;
+  /** Human display name — populated for `SALES_HUMAN`/`MANAGER_INTERVENTION`, `undefined` for `JESSY`. */
+  readonly senderName?: string;
 }
 
 /** One persisted inbound or outbound WhatsApp message (spec table `messages`). */
@@ -90,5 +101,13 @@ export class Message {
 
   get createdAt(): Date {
     return this.props.createdAt;
+  }
+
+  get senderType(): MessageSenderType | undefined {
+    return this.props.senderType;
+  }
+
+  get senderName(): string | undefined {
+    return this.props.senderName;
   }
 }

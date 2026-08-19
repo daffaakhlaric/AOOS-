@@ -37,6 +37,24 @@ export interface MessageDto {
   readonly body?: string;
   readonly sentAt?: string;
   readonly createdAt: string;
+  /**
+   * AAOS-CHAT-ROOM-JESSY — who authored an OUTGOING message (`"JESSY"` | `"SALES_HUMAN"` |
+   * `"MANAGER_INTERVENTION"`), `undefined` for every INCOMING message (always the lead).
+   */
+  readonly senderType?: string;
+  readonly senderName?: string;
+}
+
+/** `GET /api/leads/:leadId/scoring-history` — mirrors `aaos-api`'s `ScoringEventResponseDto`. */
+export interface ScoringEventDto {
+  readonly id: string;
+  readonly leadId: string;
+  readonly scoreBefore: number;
+  readonly scoreAfter: number;
+  readonly delta: number;
+  readonly reason: string;
+  readonly triggeredBy?: string;
+  readonly createdAt: string;
 }
 
 export interface ConversationSummaryDto {

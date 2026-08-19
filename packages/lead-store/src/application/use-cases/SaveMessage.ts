@@ -9,6 +9,7 @@ import {
   Message,
   type MessageContentType,
   type MessageDirection,
+  type MessageSenderType,
 } from "../../domain/entities/Message.js";
 import { ConversationNotFoundError } from "../../domain/errors/ConversationNotFoundError.js";
 import { LeadStoreError } from "../../domain/errors/LeadStoreError.js";
@@ -25,6 +26,15 @@ export interface SaveMessageInput {
   readonly templateName?: string;
   readonly tenantId: string;
   readonly correlationId: string;
+  /**
+   * AAOS-CHAT-ROOM-JESSY — who authored an OUTGOING message. Callers persisting an INCOMING
+   * message never set this (the lead is always the sender there); `aaos-api`'s
+   * `POST /leads/:id/message`/`POST /leads/:id/intervene` set it to `"SALES_HUMAN"` /
+   * `"MANAGER_INTERVENTION"` respectively, and the webhook path that saves Jessy's own automated
+   * replies sets `"JESSY"`.
+   */
+  readonly senderType?: MessageSenderType;
+  readonly senderName?: string;
 }
 
 const SaveMessageInputSchema = z.object({
@@ -38,6 +48,10 @@ const SaveMessageInputSchema = z.object({
   templateName: z.string().optional(),
   tenantId: z.string().min(1),
   correlationId: z.string().min(1),
+  senderType: z
+    .union([z.literal("JESSY"), z.literal("SALES_HUMAN"), z.literal("MANAGER_INTERVENTION")])
+    .optional(),
+  senderName: z.string().optional(),
 });
 
 const MILESTONE_THRESHOLDS = [1, 2, 3, 5] as const;
@@ -124,6 +138,8 @@ export class SaveMessage {
       templateName: parsed.data.templateName,
       sentAt: parsed.data.direction === "OUTGOING" ? now : undefined,
       createdAt: now,
+      senderType: parsed.data.senderType,
+      senderName: parsed.data.senderName,
     });
     /* v8 ignore start -- direction is already validated by the Zod schema above, so Message.create's
        only failure mode can never trigger here. */

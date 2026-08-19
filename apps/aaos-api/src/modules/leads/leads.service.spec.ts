@@ -6,8 +6,10 @@ import {
   LeadStatus,
   LeadStoreFactory,
   MessageRepository,
+  ScoringRepository,
 } from "@aos/lead-store";
-import { describe, expect, it } from "vitest";
+import type { WhatsAppConnector } from "@aos/whatsapp-connector";
+import { describe, expect, it, vi } from "vitest";
 
 import { toLeadStoreConfig } from "../../config/to-lead-store-config.js";
 import { createFakePublisher } from "../../test-support/fake-publisher.js";
@@ -15,6 +17,28 @@ import { createFakeSupabaseClient } from "../../test-support/fake-supabase-clien
 import { buildTestConfig } from "../../test-support/fixtures.js";
 
 import { LeadsService } from "./leads.service.js";
+
+/** A minimal fake `WhatsAppConnector` — only the `sendTextMessage.execute` surface `LeadsService.sendMessage`/`intervene` call. Never touches a real network. */
+function buildFakeWhatsAppConnector(execute?: () => Promise<unknown>): WhatsAppConnector {
+  return {
+    sendTextMessage: {
+      execute:
+        execute ??
+        vi.fn(async () => ({
+          ok: true,
+          value: {
+            id: { toString: () => "wamid.fake-1" },
+            conversationId: { toString: () => "conv-fake-1" },
+            to: { toString: () => "+6281200000097" },
+            from: { toString: () => "waba-umum-1" },
+            branch: "UMUM",
+            type: "TEXT",
+            sentAt: new Date("2026-01-15T09:05:00.000Z"),
+          },
+        })),
+    },
+  } as unknown as WhatsAppConnector;
+}
 
 type Row = Record<string, unknown>;
 
@@ -115,7 +139,10 @@ function buildFakeSupabaseClient(): FakeSupabaseClient {
   } as unknown as FakeSupabaseClient;
 }
 
-function buildService(client: SupabaseClientLike = buildFakeSupabaseClient()): LeadsService {
+function buildService(
+  client: SupabaseClientLike = buildFakeSupabaseClient(),
+  whatsAppConnector: WhatsAppConnector = buildFakeWhatsAppConnector(),
+): LeadsService {
   const config = buildTestConfig();
   const leadStoreConfig = toLeadStoreConfig(config);
   if (!leadStoreConfig.ok) {
@@ -126,7 +153,13 @@ function buildService(client: SupabaseClientLike = buildFakeSupabaseClient()): L
     publisher: createFakePublisher(),
     supabaseClient: client,
   });
-  return new LeadsService(config, leadStore, new MessageRepository(client));
+  return new LeadsService(
+    config,
+    leadStore,
+    new MessageRepository(client),
+    new ScoringRepository(client),
+    whatsAppConnector,
+  );
 }
 
 /**
@@ -136,7 +169,9 @@ function buildService(client: SupabaseClientLike = buildFakeSupabaseClient()): L
  * `CreateLead`/`GetLeadsByBranch` tests). `createFakeSupabaseClient` (shared test-support) DOES
  * persist updates in place, so it's used for exactly those two describe blocks below.
  */
-function buildServiceWithPersistentUpdates() {
+function buildServiceWithPersistentUpdates(
+  whatsAppConnector: WhatsAppConnector = buildFakeWhatsAppConnector(),
+) {
   const client = createFakeSupabaseClient();
   const config = buildTestConfig();
   const leadStoreConfig = toLeadStoreConfig(config);
@@ -148,7 +183,13 @@ function buildServiceWithPersistentUpdates() {
     publisher: createFakePublisher(),
     supabaseClient: client,
   });
-  const service = new LeadsService(config, leadStore, new MessageRepository(client));
+  const service = new LeadsService(
+    config,
+    leadStore,
+    new MessageRepository(client),
+    new ScoringRepository(client),
+    whatsAppConnector,
+  );
   return { service, client };
 }
 
@@ -461,5 +502,201 @@ describe("LeadsService.getLeadDetail (AAOS-W4B coordinator note #2)", () => {
     await expect(service.getLeadDetail("00000000-0000-4000-8000-000000000000")).rejects.toThrow(
       LeadNotFoundError,
     );
+  });
+});
+
+const LEAD_ID = "11111111-1111-4111-8111-111111111111";
+const CONVERSATION_ID = "33333333-3333-4333-8333-333333333333";
+const NOW_ISO = new Date("2026-01-15T09:00:00.000Z").toISOString();
+const SALES_HUMAN_ID = "22222222-2222-4222-8222-222222222222";
+
+function seedConversationRow(overrides: Row = {}): Row {
+  return {
+    id: CONVERSATION_ID,
+    lead_id: LEAD_ID,
+    branch_id: BranchId.UMUM,
+    waba_phone_number_id: "waba-umum-1",
+    message_count: 1,
+    incoming_count: 1,
+    outgoing_count: 0,
+    d1_count: 0,
+    d2_count: 0,
+    d3_count: 0,
+    d5_count: 0,
+    current_stage: "QUALIFYING",
+    last_intent: "ask_price",
+    started_at: NOW_ISO,
+    last_message_at: NOW_ISO,
+    status: "ACTIVE",
+    ...overrides,
+  };
+}
+
+describe("LeadsService.getMessages (AAOS-CHAT-ROOM-JESSY coordinator note #5)", () => {
+  it("returns an empty page when there is no conversation yet", async () => {
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    client.seed("leads", seedLeadRow());
+    const page = await service.getMessages(LEAD_ID, { page: 1, limit: 50, order: "asc" });
+    expect(page).toEqual({ messages: [], page: 1, limit: 50, total: 0 });
+  });
+
+  it("paginates the real message thread in ascending order by default", async () => {
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    client.seed("leads", seedLeadRow());
+    client.seed("conversations", seedConversationRow());
+    for (let i = 0; i < 3; i += 1) {
+      client.seed("messages", {
+        id: `4444444${i}-4444-4444-8444-444444444444`,
+        conversation_id: CONVERSATION_ID,
+        lead_id: LEAD_ID,
+        direction: "INCOMING",
+        message_type: "TEXT",
+        body: `pesan ${i}`,
+        wamid: null,
+        template_name: null,
+        delivery_status: null,
+        sent_at: NOW_ISO,
+        delivered_at: null,
+        read_at: null,
+        created_at: new Date(Date.parse(NOW_ISO) + i * 1000).toISOString(),
+      });
+    }
+    const page1 = await service.getMessages(LEAD_ID, { page: 1, limit: 2, order: "asc" });
+    expect(page1.total).toBe(3);
+    expect(page1.messages).toHaveLength(2);
+    expect(page1.messages[0]?.body).toBe("pesan 0");
+
+    const page2 = await service.getMessages(LEAD_ID, { page: 2, limit: 2, order: "asc" });
+    expect(page2.messages).toHaveLength(1);
+    expect(page2.messages[0]?.body).toBe("pesan 2");
+
+    const desc = await service.getMessages(LEAD_ID, { page: 1, limit: 10, order: "desc" });
+    expect(desc.messages[0]?.body).toBe("pesan 2");
+  });
+});
+
+describe("LeadsService.sendMessage (AAOS-CHAT-ROOM-JESSY coordinator note #5)", () => {
+  it("sends via the real WhatsApp connector and persists sender_type='SALES_HUMAN'", async () => {
+    const sendExecute = vi.fn(async () => ({
+      ok: true,
+      value: {
+        id: { toString: () => "wamid.1" },
+        conversationId: { toString: () => "conv-wa-1" },
+        to: { toString: () => "+6281200000097" },
+        from: { toString: () => "waba-umum-1" },
+        branch: "UMUM",
+        type: "TEXT",
+        sentAt: new Date("2026-01-15T09:05:00.000Z"),
+      },
+    }));
+    const { service, client } = buildServiceWithPersistentUpdates(
+      buildFakeWhatsAppConnector(sendExecute),
+    );
+    client.seed("leads", seedLeadRow({ assigned_sales_id: SALES_HUMAN_ID }));
+    client.seed("conversations", seedConversationRow());
+
+    const dto = await service.sendMessage(
+      LEAD_ID,
+      { salesHumanId: SALES_HUMAN_ID, salesName: "Ahmad Fauzi", message: "halo pak" },
+      "corr-msg-1",
+    );
+
+    expect(sendExecute).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "+6281200000097", body: "halo pak" }),
+    );
+    expect(dto.direction).toBe("OUTGOING");
+    const stored = client
+      .rows("messages")
+      .find((row) => row["conversation_id"] === CONVERSATION_ID);
+    expect(stored?.["sender_type"]).toBe("SALES_HUMAN");
+    expect(stored?.["sender_name"]).toBe("Ahmad Fauzi");
+  });
+
+  it("throws ForbiddenException when salesHumanId does not match the lead's assigned sales human", async () => {
+    const { service, client } = buildServiceWithPersistentUpdates();
+    client.seed("leads", seedLeadRow({ assigned_sales_id: SALES_HUMAN_ID }));
+    client.seed("conversations", seedConversationRow());
+
+    await expect(
+      service.sendMessage(
+        LEAD_ID,
+        { salesHumanId: "someone-else", salesName: "X", message: "halo" },
+        "corr-msg-2",
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("throws ForbiddenException when the lead is not assigned to anyone", async () => {
+    const { service, client } = buildServiceWithPersistentUpdates();
+    client.seed("leads", seedLeadRow());
+    client.seed("conversations", seedConversationRow());
+
+    await expect(
+      service.sendMessage(
+        LEAD_ID,
+        { salesHumanId: SALES_HUMAN_ID, salesName: "X", message: "halo" },
+        "corr-msg-3",
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("LeadsService.intervene (AAOS-CHAT-ROOM-JESSY coordinator note #5)", () => {
+  it("sends via the real WhatsApp connector and persists sender_type='MANAGER_INTERVENTION' — honestly, never 'JESSY'", async () => {
+    const { service, client } = buildServiceWithPersistentUpdates();
+    client.seed("leads", seedLeadRow());
+    client.seed("conversations", seedConversationRow());
+
+    const dto = await service.intervene(
+      LEAD_ID,
+      { message: "halo dari Jessy (manager)", managerName: "Budi (Manager)" },
+      "corr-int-1",
+    );
+
+    expect(dto.direction).toBe("OUTGOING");
+    const stored = client
+      .rows("messages")
+      .find((row) => row["conversation_id"] === CONVERSATION_ID);
+    expect(stored?.["sender_type"]).toBe("MANAGER_INTERVENTION");
+    expect(stored?.["sender_type"]).not.toBe("JESSY");
+    expect(stored?.["sender_name"]).toBe("Budi (Manager)");
+  });
+
+  it("does not require the lead to be assigned to anyone (a manager may intervene on any lead)", async () => {
+    const { service, client } = buildServiceWithPersistentUpdates();
+    client.seed("leads", seedLeadRow());
+    client.seed("conversations", seedConversationRow());
+
+    await expect(
+      service.intervene(LEAD_ID, { message: "halo", managerName: "Manager" }, "corr-int-2"),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe("LeadsService.getScoringHistory (AAOS-CHAT-ROOM-JESSY coordinator note #5)", () => {
+  it("returns the real scoring_events thread for a lead, in chronological order", async () => {
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    client.seed("scoring_events", {
+      id: "55555555-5555-4555-8555-555555555555",
+      lead_id: LEAD_ID,
+      score_before: 0,
+      score_after: 25,
+      delta: 25,
+      reason: "BUDGET",
+      triggered_by: null,
+      created_at: NOW_ISO,
+    });
+    const history = await service.getScoringHistory(LEAD_ID);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ scoreAfter: 25, delta: 25, reason: "BUDGET" });
+  });
+
+  it("returns an empty array when the lead has no scoring events", async () => {
+    const service = buildService();
+    const history = await service.getScoringHistory(LEAD_ID);
+    expect(history).toEqual([]);
   });
 });

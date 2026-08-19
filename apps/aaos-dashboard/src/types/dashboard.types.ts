@@ -215,6 +215,78 @@ export interface LeadDto {
 }
 
 /**
+ * AAOS-CHAT-ROOM-JESSY — client-safe DTOs for the manager chat room (`/leads/[leadId]`), proxied
+ * via this app's own `/api/leads/[leadId]/*` routes to `aaos-api`'s real `LeadsController`
+ * endpoints. Same "plain hand-written interface, never import a backend DTO" convention as every
+ * other type in this file.
+ */
+export interface LeadQualificationDto {
+  readonly budget: boolean;
+  readonly unit: boolean;
+  readonly area: boolean;
+  readonly payment: boolean;
+  readonly timeline: boolean;
+  readonly name: boolean;
+}
+
+export interface MessageDto {
+  readonly id: string;
+  readonly direction: string;
+  readonly messageType: string;
+  readonly body?: string;
+  readonly sentAt?: string;
+  readonly createdAt: string;
+  /** Who authored an OUTGOING message — `"JESSY"` | `"SALES_HUMAN"` | `"MANAGER_INTERVENTION"`, `undefined` for every INCOMING message (always the lead). */
+  readonly senderType?: string;
+  readonly senderName?: string;
+}
+
+export interface ConversationSummaryDto {
+  readonly messageCount: number;
+  readonly incomingCount: number;
+  readonly outgoingCount: number;
+  readonly currentStage: string;
+  readonly lastIntent?: string;
+  readonly status: string;
+  readonly startedAt: string;
+  readonly lastMessageAt: string;
+}
+
+export interface ScoringEventDto {
+  readonly id: string;
+  readonly leadId: string;
+  readonly scoreBefore: number;
+  readonly scoreAfter: number;
+  readonly delta: number;
+  readonly reason: string;
+  readonly triggeredBy?: string;
+  readonly createdAt: string;
+}
+
+/** `GET /api/leads/:leadId` (dashboard proxy) — the full manager-facing lead detail, mirrors `aaos-api`'s `LeadDetailResponseDto`. */
+export interface LeadDetailDto {
+  readonly id: string;
+  readonly leadPhone: string;
+  readonly leadName?: string;
+  readonly branchId: string;
+  readonly campaignId?: string;
+  readonly adId?: string;
+  readonly status: string;
+  readonly temperature: string;
+  readonly score: number;
+  readonly qualification: LeadQualificationDto;
+  readonly assignedSalesId?: string;
+  readonly assignedAt?: string;
+  readonly firstMessageAt?: string;
+  readonly lastMessageAt?: string;
+  readonly becameHotAt?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly conversation?: ConversationSummaryDto;
+  readonly messages: readonly MessageDto[];
+}
+
+/**
  * Client-safe mirror of `aaos-api`'s `ClosingResponseDto` (`GET /api/v1/closings`, proxied via
  * this app's own `/api/closings` route) — one test-drive/SPK/cancellation record from the real
  * `closings` Supabase table (`@aos/lead-store`'s `Closing` entity). Powers the Overview page's

@@ -1,0 +1,291 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 32px 32px;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.headerMeta {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--gray-500);
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 60% 40%;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.chatCard {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 640px;
+}
+
+.chatHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: var(--border);
+}
+
+.chatHeaderTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.liveDot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--red);
+}
+
+.timeline {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 4px;
+}
+
+.bubbleRow {
+  display: flex;
+}
+
+.bubbleLead {
+  justify-content: flex-end;
+}
+
+.bubbleOutgoing {
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: 78%;
+  border-radius: var(--radius-lg);
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.bubbleLead .bubble {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.bubbleJessy .bubble {
+  background: var(--blue-light);
+  color: var(--gray-900);
+}
+
+.bubbleSales .bubble {
+  background: var(--green-light);
+  color: var(--gray-900);
+}
+
+.bubbleManager .bubble {
+  background: var(--amber-light);
+  color: var(--gray-900);
+}
+
+.senderLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  margin-bottom: 2px;
+}
+
+.timestamp {
+  font-size: 10px;
+  color: var(--gray-400);
+  margin-top: 2px;
+}
+
+.systemEvent {
+  align-self: center;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.interveneForm {
+  border-top: var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.interveneLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.interveneRow {
+  display: flex;
+  gap: 8px;
+}
+
+.interveneInput {
+  flex: 1;
+  border-radius: var(--radius);
+  border: var(--border);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.sendButton {
+  border-radius: var(--radius);
+  border: none;
+  background: var(--blue);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.sendButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.warnLine {
+  font-size: 11px;
+  color: var(--amber);
+}
+
+.errorLine {
+  font-size: 11px;
+  color: var(--red);
+}
+
+.infoList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+}
+
+.infoLabel {
+  color: var(--gray-500);
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+  margin-bottom: 8px;
+}
+
+.scoreBarTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--gray-200);
+  overflow: hidden;
+}
+
+.scoreBarFill {
+  height: 100%;
+  background: var(--blue);
+}
+
+.scoreLine {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 4px;
+}
+
+.scoreTimeline {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--gray-700);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.actionButton {
+  display: block;
+  text-align: center;
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--white);
+  color: var(--gray-900);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.actionButton:disabled,
+.actionButtonDisabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actionPrimary {
+  display: block;
+  text-align: center;
+  border-radius: var(--radius);
+  border: 1px solid var(--blue);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  text-decoration: none;
+  cursor: pointer;
+  background: var(--blue);
+  color: var(--white);
+}

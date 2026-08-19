@@ -48,6 +48,7 @@ export type {
   MessageDeliveryStatus,
   MessageDirection,
   MessageProps,
+  MessageSenderType,
 } from "./domain/entities/Message.js";
 export type { Closing, ClosingProps } from "./domain/entities/Closing.js";
 export type { ScoringEvent, ScoringEventProps } from "./domain/entities/ScoringEvent.js";

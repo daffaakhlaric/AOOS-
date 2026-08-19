@@ -70,4 +70,23 @@ describe("Message entity", () => {
     expect(message.wamid).toBeUndefined();
     expect(message.templateName).toBeUndefined();
   });
+
+  it("exposes senderType/senderName when set (AAOS-CHAT-ROOM-JESSY coordinator note #2)", () => {
+    const message = unwrap(
+      Message.create({
+        ...baseProps(),
+        direction: "OUTGOING",
+        senderType: "MANAGER_INTERVENTION",
+        senderName: "Budi (Manager)",
+      }),
+    );
+    expect(message.senderType).toBe("MANAGER_INTERVENTION");
+    expect(message.senderName).toBe("Budi (Manager)");
+  });
+
+  it("leaves senderType/senderName undefined when omitted", () => {
+    const message = unwrap(Message.create(baseProps()));
+    expect(message.senderType).toBeUndefined();
+    expect(message.senderName).toBeUndefined();
+  });
 });

@@ -91,6 +91,8 @@ export function makeMessageRow(overrides: Partial<MessageRow> = {}): MessageRow 
     delivered_at: null,
     read_at: null,
     created_at: FIXED_NOW.toISOString(),
+    sender_type: null,
+    sender_name: null,
     ...overrides,
   };
 }

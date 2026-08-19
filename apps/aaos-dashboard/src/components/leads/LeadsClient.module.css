@@ -43,6 +43,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+.chatLink {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blue);
+  text-decoration: none;
+}
+
 /* Client-side pagination bar (FINAL UI REBUILD spec: "Menampilkan 1-20 dari 48 leads" +
    Prev/Next) — no backend page/limit params to page against, so this slices the already-fetched
    `leads` array; see `LeadsClient.tsx`'s `PAGE_SIZE` docstring. */

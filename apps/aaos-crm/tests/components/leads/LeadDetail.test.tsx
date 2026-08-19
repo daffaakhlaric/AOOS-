@@ -1,5 +1,26 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+interface FakeAuthUser {
+  readonly id: string;
+  readonly email?: string;
+  readonly user_metadata: Record<string, unknown>;
+}
+const getUser = vi.fn(async (): Promise<{ data: { user: FakeAuthUser | null } }> => ({
+  data: { user: null },
+}));
+vi.mock("@/lib/supabase", () => ({
+  createSupabaseBrowserClient: () => ({
+    auth: { getUser },
+    channel: () => {
+      const fakeChannel = {
+        on: () => fakeChannel,
+        subscribe: () => ({ unsubscribe: vi.fn() }),
+      };
+      return fakeChannel;
+    },
+  }),
+}));
 
 import { LeadDetail } from "@/components/leads/LeadDetail";
 import type { LeadDetailDto } from "@/types/crm.types";
@@ -104,6 +125,53 @@ describe("LeadDetail", () => {
     render(<LeadDetail leadId="lead-1" />);
     await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
     expect(screen.queryByText(/Ringkasan Jessy/)).not.toBeInTheDocument();
+  });
+
+  it("sends a reply via POST /api/leads/:id/message and appends it to the timeline (AAOS-CHAT-ROOM-JESSY)", async () => {
+    getUser.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: "user-1",
+          email: "ahmad@dssmotor.id",
+          user_metadata: { salesHumanId: "sales-ahmad" },
+        },
+      },
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/message")) {
+        return new Response(
+          JSON.stringify({
+            id: "m-new",
+            direction: "OUTGOING",
+            messageType: "TEXT",
+            body: "siap kak, ditunggu ya",
+            createdAt: "2026-08-13T10:10:00.000Z",
+            senderType: "SALES_HUMAN",
+            senderName: "ahmad",
+          }),
+          { status: 201 },
+        );
+      }
+      if (url.includes("/scoring-history")) {
+        return new Response("[]", { status: 200 });
+      }
+      return new Response(JSON.stringify(makeDetail()), { status: 200 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<LeadDetail leadId="lead-1" />);
+    await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
+
+    const input = await screen.findByLabelText("Balas ke customer");
+    fireEvent.change(input, { target: { value: "siap kak, ditunggu ya" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
+
+    await waitFor(() => expect(screen.getByText("siap kak, ditunggu ya")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/leads/lead-1/message",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("shows an error card when the fetch fails", async () => {

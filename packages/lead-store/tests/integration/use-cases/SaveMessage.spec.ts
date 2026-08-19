@@ -183,6 +183,26 @@ describe("SaveMessage — general behavior", () => {
     expect(error.message).toContain("db error");
   });
 
+  it("persists senderType/senderName for an OUTGOING message (AAOS-CHAT-ROOM-JESSY coordinator note #2)", async () => {
+    const { useCase, client, conversationRow } = setup();
+    await useCase.execute({
+      ...base(conversationRow.id, "OUTGOING"),
+      senderType: "SALES_HUMAN",
+      senderName: "Ahmad Fauzi",
+    });
+    const stored = client.rows("messages")[0];
+    expect(stored?.sender_type).toBe("SALES_HUMAN");
+    expect(stored?.sender_name).toBe("Ahmad Fauzi");
+  });
+
+  it("leaves sender_type/sender_name null when omitted (e.g. an INCOMING message from the lead)", async () => {
+    const { useCase, client, conversationRow } = setup();
+    await useCase.execute(base(conversationRow.id, "INCOMING"));
+    const stored = client.rows("messages")[0];
+    expect(stored?.sender_type).toBeNull();
+    expect(stored?.sender_name).toBeNull();
+  });
+
   it("does not throw when the lead lookup for last_message_at fails silently", async () => {
     const { useCase, client, conversationRow } = setup();
     client.forceErrorOnce("leads", "transient error");

@@ -18,6 +18,15 @@ export interface MessageResponseDto {
   readonly body?: string;
   readonly sentAt?: string;
   readonly createdAt: string;
+  /**
+   * AAOS-CHAT-ROOM-JESSY (coordinator note #2) — who authored an OUTGOING message: `"JESSY"` for
+   * Jessy's own automated replies, `"SALES_HUMAN"` for a sales human's real reply, or
+   * `"MANAGER_INTERVENTION"` for a manager sending "as Jessy" from the dashboard. `undefined` for
+   * every INCOMING message (always the lead) and for any OUTGOING row that predates the
+   * `sender_type` column's backfill.
+   */
+  readonly senderType?: string;
+  readonly senderName?: string;
 }
 
 export interface ConversationSummaryResponseDto {
@@ -44,6 +53,8 @@ export function toMessageResponseDto(message: Message): MessageResponseDto {
     body: message.body,
     sentAt: message.sentAt?.toISOString(),
     createdAt: message.createdAt.toISOString(),
+    senderType: message.senderType,
+    senderName: message.senderName,
   };
 }
 

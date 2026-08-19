@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Badge,
   Table,
@@ -36,7 +37,15 @@ const TEMPERATURE_BADGE_COLOR: Readonly<Record<string, "red" | "amber" | "gray">
  */
 const PAGE_SIZE = 20;
 
-/** All leads overview across every branch (spec "leads/page.tsx" — manager view). Fetches `/api/leads`, which fans out across `aaos-api`'s per-branch `GET /api/v1/leads`. Table rendering restyled onto Tremor's `Table`/`Badge` (TREMOR REBUILD spec STEP 16) — data-fetching logic unchanged (coordinator note #9). */
+/**
+ * All leads overview across every branch (spec "leads/page.tsx" — manager view). Fetches
+ * `/api/leads`, which fans out across `aaos-api`'s per-branch `GET /api/v1/leads`. Table rendering
+ * restyled onto Tremor's `Table`/`Badge` (TREMOR REBUILD spec STEP 16) — data-fetching logic
+ * unchanged (coordinator note #9).
+ *
+ * AAOS-CHAT-ROOM-JESSY: each row now links to `/leads/[id]`, the manager chat room — the ONLY
+ * change this task makes to this component, per its own coordinator note #4.
+ */
 export function LeadsClient(): React.ReactElement {
   const [leads, setLeads] = useState<readonly LeadDto[] | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -96,12 +105,15 @@ export function LeadsClient(): React.ReactElement {
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>Score</TableHeaderCell>
               <TableHeaderCell>Masuk</TableHeaderCell>
+              <TableHeaderCell>Chat</TableHeaderCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {pageLeads.map((lead) => (
-              <TableRow key={lead.id}>
-                <TableCell className={styles.nameCell}>{lead.leadName ?? lead.leadPhone}</TableCell>
+              <TableRow key={lead.id} data-testid="lead-row">
+                <TableCell className={styles.nameCell}>
+                  <Link href={`/leads/${lead.id}`}>{lead.leadName ?? lead.leadPhone}</Link>
+                </TableCell>
                 <TableCell className={styles.mutedCell}>{lead.branchId}</TableCell>
                 <TableCell>
                   <Badge color={TEMPERATURE_BADGE_COLOR[lead.temperature] ?? "gray"}>
@@ -110,6 +122,11 @@ export function LeadsClient(): React.ReactElement {
                 </TableCell>
                 <TableCell className={styles.scoreCell}>{lead.score}</TableCell>
                 <TableCell className={styles.mutedCell}>{formatDateId(lead.createdAt)}</TableCell>
+                <TableCell>
+                  <Link href={`/leads/${lead.id}`} className={styles.chatLink}>
+                    Lihat Chat →
+                  </Link>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

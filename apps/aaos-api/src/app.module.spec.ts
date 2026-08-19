@@ -11,6 +11,7 @@ import {
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
   LEAD_STORE_MESSAGE_REPOSITORY,
+  LEAD_STORE_SCORING_REPOSITORY,
   META_ADS_CONNECTOR,
   MOBIX_SCRAPER_SERVICE,
   OBJECTIVE_ENGINE,
@@ -55,8 +56,11 @@ describe("AppModule.forRoot", () => {
     // AAOS-KALENDER-AKTIVITAS: +2 imports (ScheduleModule.forRoot(), SchedulerModule) — no new
     // global provider (SchedulerModule composes its repository locally from the existing
     // SUPABASE_CLIENT, same as SimulationModule/ScraperModule/MetaInterestsModule).
+    // AAOS-CHAT-ROOM-JESSY: +1 provider (LEAD_STORE_SCORING_REPOSITORY, the shared
+    // ScoringRepository GET /leads/:id/scoring-history reads) — no new import (LeadsModule
+    // already existed).
     expect(dynamicModule.imports).toHaveLength(18);
-    expect(dynamicModule.providers).toHaveLength(16);
+    expect(dynamicModule.providers).toHaveLength(17);
   });
 
   it("provides KAI_AGENT_RUNTIME as undefined when no Kie AI key / asset library is configured, so the app still boots", () => {
@@ -106,7 +110,7 @@ describe("AppModule.forRoot", () => {
     );
   });
 
-  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/SUPABASE_CLIENT tokens", () => {
+  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/SUPABASE_CLIENT tokens", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.exports).toEqual([
       AAOS_API_CONFIG,
@@ -118,6 +122,7 @@ describe("AppModule.forRoot", () => {
       BRANCH_MANAGER,
       LEAD_STORE_MESSAGE_REPOSITORY,
       LEAD_STORE_CLOSING_REPOSITORY,
+      LEAD_STORE_SCORING_REPOSITORY,
       SUPABASE_CLIENT,
       ASSET_LIBRARY,
       MOBIX_SCRAPER_SERVICE,

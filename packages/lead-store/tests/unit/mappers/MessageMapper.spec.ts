@@ -88,6 +88,33 @@ describe("MessageMapper.toDomain", () => {
     const error = unwrapErr(MessageMapper.toDomain(makeMessageRow({ lead_id: "" })));
     expect(error.message).toContain("LeadId");
   });
+
+  it("fails on an invalid sender_type", () => {
+    const error = unwrapErr(MessageMapper.toDomain(makeMessageRow({ sender_type: "ROBOT" })));
+    expect(error.message).toContain("sender_type");
+  });
+
+  it("maps sender_type/sender_name (AAOS-CHAT-ROOM-JESSY coordinator note #2)", () => {
+    const message = unwrap(
+      MessageMapper.toDomain(
+        makeMessageRow({
+          direction: "OUTGOING",
+          sender_type: "SALES_HUMAN",
+          sender_name: "Ahmad Fauzi",
+        }),
+      ),
+    );
+    expect(message.senderType).toBe("SALES_HUMAN");
+    expect(message.senderName).toBe("Ahmad Fauzi");
+  });
+
+  it("maps a null sender_type/sender_name to undefined", () => {
+    const message = unwrap(
+      MessageMapper.toDomain(makeMessageRow({ sender_type: null, sender_name: null })),
+    );
+    expect(message.senderType).toBeUndefined();
+    expect(message.senderName).toBeUndefined();
+  });
 });
 
 describe("MessageMapper.toRow", () => {

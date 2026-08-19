@@ -9,6 +9,7 @@ import {
   createSupabaseClient,
   LeadStoreFactory,
   MessageRepository,
+  ScoringRepository,
   type LeadStore,
 } from "@aos/lead-store";
 import { MetaAdsConnectorFactory, type MetaAdsConnector } from "@aos/meta-ads-connector";
@@ -44,6 +45,7 @@ import {
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
   LEAD_STORE_MESSAGE_REPOSITORY,
+  LEAD_STORE_SCORING_REPOSITORY,
   META_ADS_CONNECTOR,
   MOBIX_SCRAPER_SERVICE,
   OBJECTIVE_ENGINE,
@@ -135,6 +137,10 @@ export class AppModule {
     // conversation" or "list raw closings matching a filter" (see di-tokens.ts's docstring).
     const messageRepository = new MessageRepository(leadStoreSupabaseClient);
     const closingRepository = new ClosingRepository(leadStoreSupabaseClient);
+    // AAOS-CHAT-ROOM-JESSY: `GET /leads/:id/scoring-history`'s thin read over the real
+    // `scoring_events` table — same composition pattern as `messageRepository`/`closingRepository`
+    // above.
+    const scoringRepository = new ScoringRepository(leadStoreSupabaseClient);
     // AAOS-W4A additions: shares the same real `IPublisher` as every other composed package —
     // one event bus for the whole app, per the same discipline established above.
     const objectiveEngine: ObjectiveEngine = ObjectiveEngineFactory.create({
@@ -258,6 +264,7 @@ export class AppModule {
         { provide: BRANCH_MANAGER, useValue: branchManager },
         { provide: LEAD_STORE_MESSAGE_REPOSITORY, useValue: messageRepository },
         { provide: LEAD_STORE_CLOSING_REPOSITORY, useValue: closingRepository },
+        { provide: LEAD_STORE_SCORING_REPOSITORY, useValue: scoringRepository },
         { provide: SUPABASE_CLIENT, useValue: leadStoreSupabaseClient },
         // `useValue: undefined` is intentional and load-bearing: it makes `ASSET_LIBRARY` an
         // injectable token that resolves to `undefined` on a GCS-less deployment, rather than a
@@ -282,6 +289,7 @@ export class AppModule {
         BRANCH_MANAGER,
         LEAD_STORE_MESSAGE_REPOSITORY,
         LEAD_STORE_CLOSING_REPOSITORY,
+        LEAD_STORE_SCORING_REPOSITORY,
         SUPABASE_CLIENT,
         ASSET_LIBRARY,
         MOBIX_SCRAPER_SERVICE,
