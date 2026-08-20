@@ -1,20 +1,23 @@
 import { randomUUID } from "node:crypto";
 
+import type { AssetLibrary } from "@aos/asset-library";
 import { NotFoundError } from "@aos/errors";
 import { Branch, branchAudienceDefault } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG } from "../../di-tokens.js";
+import { AAOS_API_CONFIG, ASSET_LIBRARY } from "../../di-tokens.js";
 import type { TargetingCandidateDto } from "../llm/dto/select-targeting.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
 
+import { buildKaiPromptDetail as computeKaiPromptDetail } from "./domain/kai-prompt-preview.js";
 import { computeSimulationScoring } from "./domain/scoring.js";
 import type {
   AudienceTargetingPreview,
   JessyPersonaRun,
   JessyStageResult,
+  KaiPromptDetail,
   KaiStageResult,
   SelectedAudienceInterest,
   SimulationLogEntry,
@@ -64,6 +67,7 @@ export class SimulationService {
 
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
+    @Inject(ASSET_LIBRARY) private readonly assetLibrary: AssetLibrary | undefined,
     private readonly repository: SimulationRepository,
     private readonly llmService: LlmService,
     private readonly metaInterestRepository: MetaInterestRepository,
@@ -178,6 +182,7 @@ export class SimulationService {
             elapsedMs: Date.now() - kaiStart,
             videoGenerated: false,
             note: "Brief nyata dari Tamara. Generate video/gambar Kie AI belum dijalankan pada simulasi ini.",
+            promptDetail: await this.buildKaiPromptDetail(id, briefResult),
           }
         : {
             available: false,
@@ -359,6 +364,72 @@ export class SimulationService {
         interestsUnavailableReason: "TARGETING_ERROR",
       };
     }
+  }
+
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section C — computes the "Prompt Kai → Kie AI"
+   * detail panel's data, once `briefResult.available` is true. Queries real `@aos/asset-library`
+   * source photos for `briefResult.unit` (honestly empty when none are filed under that unit — see
+   * `buildKaiPromptDetail`'s doc), then hands the real brief fields to
+   * `domain/kai-prompt-preview.ts`'s pure, no-external-call builder.
+   *
+   * NEVER FAILS THE RUN: any thrown error here is caught and logged; the panel degrades to
+   * `undefined` (an honest "not shown") rather than aborting a simulation whose Tamara/Kai brief
+   * step already succeeded.
+   */
+  private async buildKaiPromptDetail(
+    id: string,
+    briefResult: Extract<
+      Awaited<ReturnType<LlmService["creativeBrief"]>>,
+      { readonly available: true }
+    >,
+  ): Promise<KaiPromptDetail | undefined> {
+    try {
+      const sourcePhotoUrls = await this.findKaiSourcePhotoUrls(briefResult.unit);
+      const detail = computeKaiPromptDetail({
+        unit: briefResult.unit,
+        branch: briefResult.branch,
+        angle: briefResult.angle,
+        primaryMessage: briefResult.primaryMessage,
+        tone: briefResult.tone,
+        formats: briefResult.formats,
+        avoid: briefResult.avoid,
+        urgency: briefResult.urgency,
+        sourcePhotoUrls,
+      });
+      if (detail === undefined) {
+        await this.log(
+          id,
+          "KAI",
+          "WARN",
+          "Prompt detail tidak bisa dihitung dari brief ini (validasi CreativeBrief gagal) — panel prompt disembunyikan.",
+        );
+      }
+      return detail;
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      this.logger.warn(`SimulationService.buildKaiPromptDetail(${id}) failed: ${message}`);
+      await this.log(id, "KAI", "WARN", `Prompt detail gagal dihitung: ${message}.`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Reads REAL `@aos/asset-library` photos filed under `unit` — the exact same
+   * `GetAssetsByUnit` query `CreativePackagesService.findSourcePhotoUrls` runs for the real Kai
+   * pipeline. Returns `[]` (a real, meaningful "no photos found") when the library isn't
+   * configured, the unit has no scraped/uploaded photos, or the query fails — never a fabricated
+   * thumbnail.
+   */
+  private async findKaiSourcePhotoUrls(unitId: string): Promise<readonly string[]> {
+    if (this.assetLibrary === undefined) {
+      return [];
+    }
+    const found = await this.assetLibrary.getAssetsByUnit.execute({ unitId });
+    if (!found.ok) {
+      return [];
+    }
+    return found.value.assets.map((asset) => asset.publicUrl.toString());
   }
 
   private async runJessyStage(

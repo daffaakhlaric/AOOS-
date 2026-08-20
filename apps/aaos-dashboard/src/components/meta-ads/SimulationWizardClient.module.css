@@ -409,3 +409,29 @@
   padding: 6px 8px;
   font-size: 11px;
 }
+
+/* === History detail modal (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3) === */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modalPanel {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  padding: 20px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}

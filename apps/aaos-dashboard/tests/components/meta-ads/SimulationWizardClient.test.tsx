@@ -434,6 +434,121 @@ describe("SimulationWizardClient", () => {
     });
   });
 
+  describe("Kai prompt detail panel (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section C)", () => {
+    const STATUS_WITH_PROMPT_DETAIL: SimulationStatusDto = {
+      ...DONE_STATUS,
+      result: {
+        ...DONE_STATUS.result!,
+        kai: {
+          ...DONE_STATUS.result!.kai,
+          promptDetail: {
+            videoPrompt: "Professional car advertisement video, Xpander Cross 2019 in showroom",
+            imagePrompts: [
+              "Professional automotive photography, Xpander Cross 2019, variant 1",
+              "Professional automotive photography, Xpander Cross 2019, variant 2",
+              "Professional automotive photography, Xpander Cross 2019, variant 3",
+            ],
+            copyVariants: [
+              {
+                id: "cv-a",
+                variantLabel: "A",
+                primaryText: "DP mulai 29 juta, cicilan ringan.",
+                headline: "Xpander DP Ringan",
+                callToAction: "Tanya Sekarang",
+              },
+            ],
+            sourcePhotoUrls: ["https://assets.example/xpander-1.jpg"],
+            format: "VIDEO_AND_IMAGES",
+            imageModel: "nano-banana-pro",
+            imageAspectRatio: "SQUARE",
+            imageCount: 3,
+            videoModel: "veo3_fast",
+            videoDurationSeconds: 15,
+            videoAspectRatio: "WIDESCREEN",
+          },
+        },
+      },
+    };
+
+    async function runToPipelineWithStatus(status: SimulationStatusDto): Promise<void> {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockFetch({
+        "/api/simulation/start": () => jsonResponse({ id: "sim-1", status: "RUNNING" }, 202),
+        "/api/simulation/sim-1/status": () => jsonResponse(status),
+      });
+      render(<SimulationWizardClient />);
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Ready Buyer" }));
+      await userEvent.click(screen.getByRole("button", { name: /Mulai Simulasi Dry-Run/ }));
+      await waitFor(() => expect(screen.getByTestId("wizard-pipeline")).toBeInTheDocument());
+    }
+
+    it("shows the real EN prompts, model/ratio/duration and copy variants — never a fabricated example", async () => {
+      await runToPipelineWithStatus(STATUS_WITH_PROMPT_DETAIL);
+      await userEvent.click(screen.getByRole("button", { name: /Lihat Prompt Kai → Kie AI/ }));
+
+      const panel = screen.getByTestId("kai-prompt-preview");
+      expect(panel.textContent).toContain(
+        "Professional car advertisement video, Xpander Cross 2019 in showroom",
+      );
+      expect(panel.textContent).toContain("variant 1");
+      expect(panel.textContent).toContain("veo3_fast");
+      expect(panel.textContent).toContain("15s");
+      expect(panel.textContent).toContain("Xpander DP Ringan");
+      expect(panel.textContent).toContain("Tanya Sekarang");
+    });
+
+    it("does not offer the prompt panel at all when promptDetail is absent (honest, not hidden-empty)", async () => {
+      await runToPipelineWithStatus(DONE_STATUS);
+      expect(
+        screen.queryByRole("button", { name: /Lihat Prompt Kai → Kie AI/ }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("History detail modal (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section D)", () => {
+    it("'Lihat →' fetches the real historical status and opens a 4-tab detail modal", async () => {
+      mockFetch({
+        "/api/simulation/history": () =>
+          jsonResponse({
+            history: [
+              {
+                id: "sim-old12345",
+                status: "DONE",
+                overallScore: 85.8,
+                grade: "B",
+                verdict: "GO",
+                decision: "APPROVED",
+                createdAt: "2026-08-10T00:00:00.000Z",
+                updatedAt: "2026-08-10T00:05:00.000Z",
+              },
+            ],
+          }),
+        "/api/simulation/sim-old12345/status": () => jsonResponse(DONE_STATUS),
+      });
+
+      render(<SimulationWizardClient />);
+      await userEvent.click(await screen.findByRole("button", { name: "Riwayat" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Lihat →" }));
+
+      // The fetched detail's own real `id` field ("sim-1" in the shared `DONE_STATUS` fixture) is
+      // what renders here — not the history row's id, which is only used to know which status to fetch.
+      expect(await screen.findByText(/Detail Simulasi sim-1/)).toBeInTheDocument();
+      // Scores tab is the default — the real overall/grade/verdict from the fetched status.
+      expect(screen.getByText("85.8")).toBeInTheDocument();
+      expect(screen.getByTestId("score-radar-chart")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Kai Prompt" }));
+      expect(screen.getByText(/Tidak ada detail prompt Kai/)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Log" }));
+      expect(screen.getByTestId("simulation-log-panel")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Tutup" }));
+      expect(screen.queryByText(/Detail Simulasi sim-1/)).not.toBeInTheDocument();
+    });
+  });
+
   it("history toggle loads /api/simulation/history", async () => {
     mockFetch({
       "/api/simulation/history": () =>

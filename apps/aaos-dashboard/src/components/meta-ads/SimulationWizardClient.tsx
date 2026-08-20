@@ -10,6 +10,7 @@ import type {
   CampaignAdDto,
   ObjectiveDto,
   SimulationHistoryEntryDto,
+  SimulationKaiStageDto,
   SimulationLogEntryDto,
   SimulationStatusDto,
 } from "@/types/dashboard.types";
@@ -169,6 +170,17 @@ export function SimulationWizardClient(): React.ReactElement {
     undefined,
   );
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section D — the history detail modal's own
+  // fetched state, independent of the live `status` above (a past run's full `SimulationStatusDto`,
+  // fetched on demand from the same real `GET /api/v1/simulation/:id/status` this page already
+  // polls for the in-progress run).
+  const [historyDetailId, setHistoryDetailId] = useState<string | undefined>(undefined);
+  const [historyDetail, setHistoryDetail] = useState<SimulationStatusDto | undefined>(undefined);
+  const [historyDetailError, setHistoryDetailError] = useState<string | undefined>(undefined);
+  const [historyDetailTab, setHistoryDetailTab] = useState<"SCORES" | "CAMPAIGN" | "KAI" | "LOG">(
+    "SCORES",
+  );
 
   const pollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
@@ -332,6 +344,32 @@ export function SimulationWizardClient(): React.ReactElement {
     }
   }
 
+  /** "Lihat →" on a history row — fetches that run's real full status once, then opens the detail modal. */
+  async function openHistoryDetail(id: string): Promise<void> {
+    setHistoryDetailId(id);
+    setHistoryDetail(undefined);
+    setHistoryDetailError(undefined);
+    setHistoryDetailTab("SCORES");
+    try {
+      const res = await fetch(`/api/simulation/${id}/status`);
+      if (!res.ok) {
+        const body = (await res.json()) as { error?: { message?: string } };
+        setHistoryDetailError(body.error?.message ?? "Gagal memuat detail simulasi.");
+        return;
+      }
+      const body = (await res.json()) as SimulationStatusDto;
+      setHistoryDetail(body);
+    } catch {
+      setHistoryDetailError("Gagal memuat detail simulasi.");
+    }
+  }
+
+  function closeHistoryDetail(): void {
+    setHistoryDetailId(undefined);
+    setHistoryDetail(undefined);
+    setHistoryDetailError(undefined);
+  }
+
   // Real bug fix: this used to be `.filter(needsRefresh)` — when no cached ad happened to need a
   // refresh, the list was permanently empty, `selectedAd` could never be set, and "Mulai Simulasi
   // Dry-Run" stayed disabled forever with no way out. Kai's brief step just needs SOME real ad to
@@ -376,6 +414,13 @@ export function SimulationWizardClient(): React.ReactElement {
                 </span>
                 <span>{entry.decision ?? "—"}</span>
                 <span>{new Date(entry.createdAt).toLocaleString("id-ID")}</span>
+                <button
+                  type="button"
+                  onClick={() => void openHistoryDetail(entry.id)}
+                  className={styles.secondaryButton}
+                >
+                  Lihat →
+                </button>
               </div>
             ))}
           </div>
@@ -612,7 +657,193 @@ export function SimulationWizardClient(): React.ReactElement {
       {status?.status === "ERROR" ? (
         <ErrorCard message={status.errorMessage ?? "Simulasi gagal."} />
       ) : null}
+
+      {historyDetailId !== undefined ? (
+        <HistoryDetailModal
+          detail={historyDetail}
+          error={historyDetailError}
+          tab={historyDetailTab}
+          onTabChange={setHistoryDetailTab}
+          onClose={closeHistoryDetail}
+          objective={objective}
+        />
+      ) : null}
     </div>
+  );
+}
+
+const HISTORY_DETAIL_TABS: ReadonlyArray<{
+  readonly id: "SCORES" | "CAMPAIGN" | "KAI" | "LOG";
+  readonly label: string;
+}> = [
+  { id: "SCORES", label: "Scores" },
+  { id: "CAMPAIGN", label: "Campaign Detail" },
+  { id: "KAI", label: "Kai Prompt" },
+  { id: "LOG", label: "Log" },
+];
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section D — the History table's new "Lihat →"
+ * detail modal. Reuses the exact same real components the live pipeline view already renders
+ * (`CampaignPreview`, `KaiPromptPreview`, `LogPanel`) over a past run's real, fetched
+ * `SimulationStatusDto` — no new data path, no re-derived summary.
+ */
+function HistoryDetailModal({
+  detail,
+  error,
+  tab,
+  onTabChange,
+  onClose,
+  objective,
+}: {
+  readonly detail: SimulationStatusDto | undefined;
+  readonly error: string | undefined;
+  readonly tab: "SCORES" | "CAMPAIGN" | "KAI" | "LOG";
+  readonly onTabChange: (tab: "SCORES" | "CAMPAIGN" | "KAI" | "LOG") => void;
+  readonly onClose: () => void;
+  readonly objective: ObjectiveDto | null | undefined;
+}): React.ReactElement {
+  const scoring = detail?.result?.scoring;
+  const targeting = detail?.result?.tamara.audienceTargeting;
+  const promptDetail = detail?.result?.kai.promptDetail;
+
+  return (
+    <div className={styles.modalOverlay} role="dialog" aria-modal="true">
+      <div className={styles.modalPanel}>
+        <div className={styles.headerRow}>
+          <h3 className={styles.sectionTitle}>
+            Detail Simulasi {detail !== undefined ? detail.id.slice(0, 8) : "…"}
+          </h3>
+          <button type="button" onClick={onClose} className={styles.secondaryButton}>
+            Tutup
+          </button>
+        </div>
+
+        {error !== undefined ? <ErrorCard message={error} /> : null}
+        {error === undefined && detail === undefined ? <LoadingSpinner /> : null}
+
+        {detail !== undefined ? (
+          <>
+            <div className={styles.stepBar}>
+              {HISTORY_DETAIL_TABS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => onTabChange(option.id)}
+                  className={`${styles.stepPill} ${tab === option.id ? styles.stepPillActive : ""}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {tab === "SCORES" ? (
+              scoring !== undefined ? (
+                <div className={styles.formRow}>
+                  <div className={styles.scoreCard}>
+                    <span className={styles.scoreBig}>{scoring.overallScore}</span>
+                    <div className={styles.scoreBreakdown}>
+                      <span>Grade {scoring.grade}</span>
+                      <span>Verdict {scoring.verdict}</span>
+                    </div>
+                  </div>
+                  <ScoreRadarChart scoring={scoring} />
+                </div>
+              ) : (
+                <p className={styles.mutedText}>Simulasi ini belum punya hasil skor.</p>
+              )
+            ) : null}
+
+            {tab === "CAMPAIGN" ? (
+              targeting !== undefined ? (
+                <CampaignPreview targeting={targeting} objective={objective} />
+              ) : (
+                <p className={styles.mutedText}>
+                  Tidak ada preview campaign untuk simulasi ini (tahap Tamara tidak tersedia).
+                </p>
+              )
+            ) : null}
+
+            {tab === "KAI" ? (
+              promptDetail !== undefined ? (
+                <KaiPromptPreview detail={promptDetail} />
+              ) : (
+                <p className={styles.mutedText}>Tidak ada detail prompt Kai untuk simulasi ini.</p>
+              )
+            ) : null}
+
+            {tab === "LOG" ? <LogPanel logs={detail.logs} /> : null}
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+const RADAR_AXES: ReadonlyArray<{
+  readonly key: "tamaraCoverageScore" | "kaiScore" | "jessyScore";
+  readonly label: string;
+  readonly max: number;
+}> = [
+  { key: "tamaraCoverageScore", label: "Tamara", max: 100 },
+  { key: "kaiScore", label: "Kai", max: 100 },
+  { key: "jessyScore", label: "Jessy", max: 100 },
+];
+
+const RADAR_SIZE = 160;
+const RADAR_CENTER = RADAR_SIZE / 2;
+const RADAR_RADIUS = 60;
+
+/**
+ * A dependency-free inline-SVG radar chart over the 3 REAL per-stage scores
+ * (`SimulationScoringDto.tamaraCoverageScore`/`kaiScore`/`jessyScore`) — no chart library in this
+ * app today, and 3 real axes is an honest triangle, not a fabricated 4th/5th dimension to make it
+ * look more like a "radar". `jessyScore` (0-100 already per `domain/scoring.ts`) shares the same
+ * 0-100 scale as the other two, so all 3 axes use one radius mapping.
+ */
+function ScoreRadarChart({
+  scoring,
+}: {
+  readonly scoring: NonNullable<SimulationStatusDto["result"]>["scoring"];
+}): React.ReactElement {
+  const points = RADAR_AXES.map((axis, index) => {
+    const angle = (Math.PI * 2 * index) / RADAR_AXES.length - Math.PI / 2;
+    const value = Math.max(0, Math.min(axis.max, scoring[axis.key]));
+    const r = (value / axis.max) * RADAR_RADIUS;
+    return {
+      x: RADAR_CENTER + r * Math.cos(angle),
+      y: RADAR_CENTER + r * Math.sin(angle),
+      labelX: RADAR_CENTER + (RADAR_RADIUS + 14) * Math.cos(angle),
+      labelY: RADAR_CENTER + (RADAR_RADIUS + 14) * Math.sin(angle),
+      label: axis.label,
+      value,
+    };
+  });
+  const polygonPoints = points.map((p) => `${p.x},${p.y}`).join(" ");
+
+  return (
+    <svg
+      data-testid="score-radar-chart"
+      width={RADAR_SIZE}
+      height={RADAR_SIZE}
+      viewBox={`0 0 ${RADAR_SIZE} ${RADAR_SIZE}`}
+      role="img"
+      aria-label={`Radar skor: ${points.map((p) => `${p.label} ${p.value}`).join(", ")}`}
+    >
+      <circle
+        cx={RADAR_CENTER}
+        cy={RADAR_CENTER}
+        r={RADAR_RADIUS}
+        fill="none"
+        stroke="var(--gray-300)"
+      />
+      <polygon points={polygonPoints} fill="rgba(0,0,0,0.15)" stroke="var(--black)" />
+      {points.map((p) => (
+        <text key={p.label} x={p.labelX} y={p.labelY} fontSize={10} textAnchor="middle">
+          {p.label} {p.value}
+        </text>
+      ))}
+    </svg>
   );
 }
 
@@ -829,6 +1060,62 @@ function CampaignPreview({
       {targeting.reasoning !== undefined ? (
         <p className={styles.mutedText}>Alasan Tamara: {targeting.reasoning}</p>
       ) : null}
+
+      <p className={styles.previewHeading}>Campaign / AdSet — Meta Marketing API</p>
+      <p className={styles.mutedText}>
+        Struktur field di bawah ini sama persis dengan yang dikirim{" "}
+        <code>@aos/meta-ads-connector</code>&apos;s <code>CreateCampaign</code> use case nyata (satu
+        campaign OUTCOME_LEADS + satu ad set CTWA WhatsApp, keduanya mulai PAUSED) — bukan field
+        yang dikarang untuk preview ini.
+      </p>
+      <div className={styles.list}>
+        <div className={styles.row}>
+          <span className={styles.rowText}>Campaign objective</span>
+          <span className={styles.mutedText}>OUTCOME_LEADS</span>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowText}>Campaign status awal</span>
+          <span className={styles.mutedText}>PAUSED (approve manual sebelum aktif)</span>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowText}>AdSet destination</span>
+          <span className={styles.mutedText}>WHATSAPP (CTWA)</span>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowText}>AdSet optimization / billing</span>
+          <span className={styles.mutedText}>LEAD_GENERATION / IMPRESSIONS</span>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.rowText}>AdSet daily budget</span>
+          <span className={styles.mutedText}>
+            {dailyBudget !== undefined
+              ? `Rp ${dailyBudget.toLocaleString("id-ID")}/hari`
+              : "Belum ada objective — pakai default Rp 100.000/hari"}
+          </span>
+        </div>
+      </div>
+      <p className={styles.mutedText}>
+        Tidak ada &quot;createAd&quot; nyata di connector ini hari ini — hanya campaign + ad set
+        yang dibuat; unit iklan (creative) dipasang manual di Meta Ads Manager setelah approve.
+      </p>
+
+      <div className={styles.formRow} style={{ flexDirection: "row", gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => void copyJson(buildCampaignExportJson(targeting, dailyBudget))}
+          className={styles.secondaryButton}
+        >
+          Copy JSON Config
+        </button>
+        <button
+          type="button"
+          onClick={() => void copyJson(buildCampaignExportJson(targeting, dailyBudget))}
+          className={styles.secondaryButton}
+        >
+          Export untuk Meta API
+        </button>
+      </div>
+
       <p className={styles.mutedText}>
         Preview saja — simulasi ini tidak membuat campaign Meta apa pun.
       </p>
@@ -836,9 +1123,48 @@ function CampaignPreview({
   );
 }
 
+function copyJson(value: unknown): void {
+  void navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+}
+
+/**
+ * Builds the exact request-body shape `IMetaAdsClient.createCampaign`/`createAdSet` accept
+ * (`CreateCampaignParams`/`CreateAdSetParams`, `packages/meta-ads-connector/src/contracts/
+ * IMetaAdsClient.ts`) plus the targeting block for reference — every field name and literal here
+ * matches what `CreateCampaign.execute` really sends to Meta (see that use case's source), never an
+ * invented field (no `bid_strategy`, no `placements`, nothing this connector doesn't really have).
+ */
+function buildCampaignExportJson(
+  targeting: NonNullable<SimulationStatusDto["result"]>["tamara"]["audienceTargeting"],
+  dailyBudget: number | undefined,
+): Record<string, unknown> {
+  const dailyBudgetIDR = dailyBudget ?? 100_000;
+  return {
+    campaign: {
+      name: `Simulasi — ${targeting?.branch ?? ""}`,
+      objective: "OUTCOME_LEADS",
+      specialAdCategories: [],
+      status: "PAUSED",
+    },
+    adSet: {
+      name: `Simulasi — ${targeting?.branch ?? ""}-adset`,
+      destinationType: "WHATSAPP",
+      optimizationGoal: "LEAD_GENERATION",
+      billingEvent: "IMPRESSIONS",
+      dailyBudgetCents: Math.round(dailyBudgetIDR * 100),
+      status: "PAUSED",
+    },
+    targetingPreview: targeting,
+    note:
+      "targetingPreview bukan field Meta API nyata — CreateCampaign/CreateAdSet tidak mengirim " +
+      "targeting apa pun hari ini; disertakan di sini hanya untuk referensi manual.",
+  };
+}
+
 function KaiStageCard({ status }: { readonly status: SimulationStatusDto }): React.ReactElement {
   const kai = status.result?.kai;
   const pending = kai === undefined;
+  const [promptOpen, setPromptOpen] = useState(false);
   return (
     <div className={styles.stageCard}>
       <div className={styles.stageHeader}>
@@ -857,6 +1183,121 @@ function KaiStageCard({ status }: { readonly status: SimulationStatusDto }): Rea
         </>
       ) : null}
       {!pending ? <p className={styles.mutedText}>{kai.note}</p> : null}
+
+      {!pending && kai.promptDetail !== undefined ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setPromptOpen((open) => !open)}
+            className={styles.secondaryButton}
+          >
+            {promptOpen ? "Tutup" : "Lihat"} Prompt Kai → Kie AI
+          </button>
+          {promptOpen ? <KaiPromptPreview detail={kai.promptDetail} /> : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * "Prompt Kai → Kie AI" (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section C) — display only,
+ * same hard scope boundary as `CampaignPreview`: nothing here calls Kie AI. Every value is what
+ * `aaos-api`'s real `FormatDecisionService`/`PromptBuildingService`/`CopyBuilder` pipeline would
+ * actually produce for this exact brief (see `simulation.service.ts`'s `buildKaiPromptDetail` doc)
+ * — never a hand-written "representative" example.
+ *
+ * No "Regenerate" button: the prompt is a deterministic function of the brief already shown above,
+ * so there is nothing a client-side "regenerate" could honestly recompute — a genuinely different
+ * prompt requires a new dry-run (Step 1's "Mulai Simulasi Dry-Run"), not a per-panel action.
+ */
+function KaiPromptPreview({
+  detail,
+}: {
+  readonly detail: NonNullable<SimulationKaiStageDto["promptDetail"]>;
+}): React.ReactElement {
+  function copyAllPrompts(): void {
+    const parts: string[] = [];
+    if (detail.videoPrompt !== undefined) {
+      parts.push(`VIDEO PROMPT:\n${detail.videoPrompt}`);
+    }
+    detail.imagePrompts.forEach((prompt, index) => {
+      parts.push(`IMAGE PROMPT ${index + 1}:\n${prompt}`);
+    });
+    void navigator.clipboard.writeText(parts.join("\n\n"));
+  }
+
+  return (
+    <div data-testid="kai-prompt-preview" className={styles.previewBox}>
+      <p className={styles.previewHeading}>Format &amp; Model</p>
+      <p className={styles.mutedText}>
+        {detail.format} · Gambar: {detail.imageModel} ({detail.imageAspectRatio},{" "}
+        {detail.imageCount} varian)
+        {detail.videoModel !== undefined
+          ? ` · Video: ${detail.videoModel} (${detail.videoDurationSeconds}s, ${detail.videoAspectRatio ?? ""})`
+          : ""}
+      </p>
+
+      <p className={styles.previewHeading}>Foto Sumber ({detail.sourcePhotoUrls.length})</p>
+      {detail.sourcePhotoUrls.length === 0 ? (
+        <p className={styles.mutedText}>
+          Tidak ada foto sumber ditemukan di asset library untuk unit ini — Kai generate dari
+          deskripsi teks saja.
+        </p>
+      ) : (
+        <div className={styles.list}>
+          {detail.sourcePhotoUrls.map((url) => (
+            // eslint-disable-next-line @next/next/no-img-element -- a small, real, arbitrary-host asset-library URL; not worth Next/Image's remote-pattern config for a preview thumbnail.
+            <img
+              key={url}
+              src={url}
+              alt="Foto sumber"
+              style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8 }}
+            />
+          ))}
+        </div>
+      )}
+
+      {detail.videoPrompt !== undefined ? (
+        <>
+          <p className={styles.previewHeading}>EN Video Prompt</p>
+          <pre className={styles.logPayload}>{detail.videoPrompt}</pre>
+        </>
+      ) : null}
+
+      <p className={styles.previewHeading}>EN Image Prompts ({detail.imagePrompts.length})</p>
+      {detail.imagePrompts.map((prompt, index) => (
+        <pre key={index} className={styles.logPayload}>
+          {prompt}
+        </pre>
+      ))}
+
+      <button type="button" onClick={copyAllPrompts} className={styles.secondaryButton}>
+        Copy semua prompts
+      </button>
+
+      <p className={styles.previewHeading}>Copy Variants (ID)</p>
+      {detail.copyVariants.length === 0 ? (
+        <p className={styles.mutedText}>
+          {detail.copyVariantsUnavailableReason ?? "Belum ada copy variant untuk brief ini."}
+        </p>
+      ) : (
+        <div className={styles.list}>
+          {detail.copyVariants.map((variant) => (
+            <div key={variant.id} className={styles.row}>
+              <span className={styles.rowText}>
+                {variant.variantLabel} — {variant.headline}
+              </span>
+              <span className={styles.mutedText}>
+                {variant.primaryText} · CTA: {variant.callToAction}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className={styles.mutedText}>
+        Preview saja — belum ada generate Kie AI nyata pada simulasi ini.
+      </p>
     </div>
   );
 }

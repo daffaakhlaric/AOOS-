@@ -91,6 +91,45 @@ export interface TamaraStageResult {
   readonly audienceTargeting?: AudienceTargetingPreview;
 }
 
+/** One real Kie AI copy variant, exactly as `@aos/creative-agent`'s `CopyBuilder.buildVariants` produces it — never re-derived or fabricated here. */
+export interface KaiPromptCopyVariant {
+  readonly id: string;
+  readonly variantLabel: string;
+  readonly primaryText: string;
+  readonly headline: string;
+  readonly callToAction: string;
+}
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section C — the REAL prompt Kai would send to Kie
+ * AI, computed by running the brief through the exact same deterministic, no-external-call pipeline
+ * `KaiAgentService.processCreativeBrief` uses (`FormatDecisionService`/`FormatDecider`,
+ * `PromptBuildingService`/`AutomotivePromptBuilder`, `CopyBuilder`) — WITHOUT invoking
+ * `CreativeOrchestratorService` (no real Kie AI upload/generation call, no credits spent). Every
+ * field here is something the real pipeline would actually produce for this exact brief; nothing is
+ * a "representative" or hand-written example.
+ *
+ * `undefined`/empty fields are honest gaps, never filled with a plausible-looking placeholder:
+ * `sourcePhotoUrls` is `[]` when `@aos/asset-library` has no photos filed under this brief's `unit`
+ * (real for most Simulasi runs — the wizard's ad selection carries no real scraped `unitId`, only a
+ * free-text ad name, so a lookup miss is the normal, honest outcome, not a bug).
+ */
+export interface KaiPromptDetail {
+  readonly videoPrompt?: string;
+  readonly imagePrompts: readonly string[];
+  readonly copyVariants: readonly KaiPromptCopyVariant[];
+  /** Why `copyVariants` is empty, when it is (e.g. no `CopyBuilder` exists yet for this vertical) — never silently empty. */
+  readonly copyVariantsUnavailableReason?: string;
+  readonly sourcePhotoUrls: readonly string[];
+  readonly format: string;
+  readonly imageModel: string;
+  readonly imageAspectRatio: string;
+  readonly imageCount: number;
+  readonly videoModel?: string;
+  readonly videoDurationSeconds?: number;
+  readonly videoAspectRatio?: string;
+}
+
 /** Step 3 (Kai) result. `videoGenerated`/`imageGenerated` are honestly `false` in this pass — see this module's class docs for why real Kie AI video generation is not invoked here. */
 export interface KaiStageResult {
   readonly available: boolean;
@@ -108,6 +147,13 @@ export interface KaiStageResult {
   readonly elapsedMs: number;
   readonly videoGenerated: false;
   readonly note: string;
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3 — the real prompt detail (see `KaiPromptDetail`),
+   * computed only when `brief` is available. `undefined` when the brief itself failed validation
+   * (e.g. an invalid angle/branch) or when computing it threw — a prompt-detail failure must never
+   * fail the whole simulation, same discipline as `computeAudienceTargeting`.
+   */
+  readonly promptDetail?: KaiPromptDetail;
 }
 
 /** One persona's real Jessy simulation + AI Judge result, proxied from `apps/aaos-simulator`'s `POST /api/simulate`. Fields are the exact subset this module needs for scoring/display — see `infrastructure/aaos-simulator-client.ts` for the full upstream response types. */

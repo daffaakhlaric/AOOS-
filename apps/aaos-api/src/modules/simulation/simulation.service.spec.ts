@@ -136,6 +136,7 @@ describe("SimulationService", () => {
     const repository = buildFakeRepository(stored);
     const service = new SimulationService(
       buildTestConfig(),
+      undefined,
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
@@ -163,6 +164,7 @@ describe("SimulationService", () => {
     });
     const service = new SimulationService(
       buildTestConfig({ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }),
+      undefined,
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
@@ -176,9 +178,21 @@ describe("SimulationService", () => {
     expect(repository.complete).toHaveBeenCalledTimes(1);
     const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
       string,
-      { scoring: { verdict: string } },
+      {
+        scoring: { verdict: string };
+        kai: {
+          promptDetail?: { imagePrompts: readonly string[]; sourcePhotoUrls: readonly string[] };
+        };
+      },
     ];
     expect(result.scoring.verdict).toBe("GO");
+    // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section C — the real Kai prompt-detail panel's
+    // data rides along on `kai.promptDetail`, computed with zero real Kie AI calls.
+    expect(result.kai.promptDetail).toBeDefined();
+    expect(result.kai.promptDetail?.imagePrompts).toHaveLength(3);
+    // No asset-library configured in this test (`undefined` passed to the constructor above) — an
+    // honest empty source-photo list, never a fabricated thumbnail.
+    expect(result.kai.promptDetail?.sourcePhotoUrls).toEqual([]);
   });
 
   it("records Jessy as unavailable (never fabricated) when AAOS_SIMULATOR_BASE_URL is unset", async () => {
@@ -186,6 +200,7 @@ describe("SimulationService", () => {
     const repository = buildFakeRepository(stored);
     const service = new SimulationService(
       buildTestConfig({ AAOS_SIMULATOR_BASE_URL: "" }),
+      undefined,
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
@@ -210,6 +225,7 @@ describe("SimulationService", () => {
     mockedCallAaosSimulator.mockRejectedValue(new AaosSimulatorError("upstream down"));
     const service = new SimulationService(
       buildTestConfig({ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }),
+      undefined,
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
@@ -232,6 +248,7 @@ describe("SimulationService", () => {
     const repository = buildFakeRepository(stored);
     const service = new SimulationService(
       buildTestConfig(),
+      undefined,
       repository,
       buildFakeLlmService({
         analyze: vi.fn(async () => {
@@ -252,6 +269,7 @@ describe("SimulationService", () => {
     const repository = buildFakeRepository(buildStored());
     const service = new SimulationService(
       buildTestConfig(),
+      undefined,
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
@@ -264,6 +282,7 @@ describe("SimulationService", () => {
     const repository = buildFakeRepository(stored);
     const service = new SimulationService(
       buildTestConfig(),
+      undefined,
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
@@ -294,7 +313,13 @@ describe("SimulationService", () => {
       llm: LlmService = buildFakeLlmService(),
     ) {
       const repository = buildFakeRepository(buildStored());
-      const service = new SimulationService(buildTestConfig(), repository, llm, interestRepository);
+      const service = new SimulationService(
+        buildTestConfig(),
+        undefined,
+        repository,
+        llm,
+        interestRepository,
+      );
       await service.start(BODY);
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -386,6 +411,7 @@ describe("SimulationService", () => {
       const repository = buildFakeRepository(buildStored());
       const service = new SimulationService(
         buildTestConfig(),
+        undefined,
         repository,
         buildFakeLlmService(),
         buildFakeInterestRepository([REAL_STORED_INTEREST]),
@@ -414,6 +440,7 @@ describe("SimulationService", () => {
     const repository = buildFakeRepository(buildStored());
     const service = new SimulationService(
       buildTestConfig(),
+      undefined,
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),

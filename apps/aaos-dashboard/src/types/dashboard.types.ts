@@ -470,6 +470,36 @@ export interface SimulationKaiBriefDto {
   readonly urgency: string;
 }
 
+/** One real Kie AI copy variant — mirrors aaos-api's `KaiPromptCopyVariant`, itself `@aos/creative-agent`'s `CopyBuilder.buildVariants` output verbatim. */
+export interface SimulationKaiCopyVariantDto {
+  readonly id: string;
+  readonly variantLabel: string;
+  readonly primaryText: string;
+  readonly headline: string;
+  readonly callToAction: string;
+}
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section C — mirrors aaos-api's `KaiPromptDetail`.
+ * Every field is the real prompt/format/copy decision the real Kai pipeline (`FormatDecisionService`
+ * + `PromptBuildingService`/`AutomotivePromptBuilder` + `CopyBuilder`) would produce for this exact
+ * brief, computed WITHOUT calling Kie AI (no credits spent, no real generation triggered).
+ */
+export interface SimulationKaiPromptDetailDto {
+  readonly videoPrompt?: string;
+  readonly imagePrompts: readonly string[];
+  readonly copyVariants: readonly SimulationKaiCopyVariantDto[];
+  readonly copyVariantsUnavailableReason?: string;
+  readonly sourcePhotoUrls: readonly string[];
+  readonly format: string;
+  readonly imageModel: string;
+  readonly imageAspectRatio: string;
+  readonly imageCount: number;
+  readonly videoModel?: string;
+  readonly videoDurationSeconds?: number;
+  readonly videoAspectRatio?: string;
+}
+
 export interface SimulationKaiStageDto {
   readonly available: boolean;
   readonly reason?: string;
@@ -477,6 +507,8 @@ export interface SimulationKaiStageDto {
   readonly elapsedMs: number;
   readonly videoGenerated: false;
   readonly note: string;
+  /** `undefined` when the prompt-detail computation itself degraded — see `KaiStageResult.promptDetail`'s backend doc. Never fabricated when absent. */
+  readonly promptDetail?: SimulationKaiPromptDetailDto;
 }
 
 export interface SimulationJessyPersonaRunDto {
