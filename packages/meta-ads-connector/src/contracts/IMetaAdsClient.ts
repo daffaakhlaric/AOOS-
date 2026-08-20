@@ -7,7 +7,9 @@ import type {
   MetaAdListResponse,
   MetaAdSetListResponse,
   MetaCampaignListResponse,
+  MetaImageUploadResponse,
   MetaUpdateResponse,
+  MetaVideoUploadResponse,
 } from "../types/MetaApiTypes.js";
 
 /** Optional pagination cursor, from a previous page's `paging.cursors.after`. */
@@ -38,9 +40,51 @@ export interface CreateAdSetParams {
   readonly status: string;
 }
 
-/** Result of `createCampaign`/`createAdSet` — Meta's `POST /{ad-account}/campaigns|adsets` response always includes the new object's `id`. */
+/** Result of `createCampaign`/`createAdSet`/`createAd` — Meta's `POST /{ad-account}/campaigns|adsets|ads` response always includes the new object's `id`. */
 export interface MetaCreateResponse {
   readonly id: string;
+}
+
+/**
+ * Input for `IMetaAdsClient.createAd` (AAOS-GO-LIVE) — mirrors Meta's real
+ * `object_story_spec.video_data` shape for a click-to-WhatsApp video ad. `videoId` is the id
+ * returned by a prior `uploadVideo` call.
+ */
+export interface CreateAdCreativeVideoSpec {
+  readonly kind: "VIDEO";
+  readonly videoId: string;
+  /** Meta requires a thumbnail image URL for video creatives (`image_url` under `video_data`). */
+  readonly thumbnailUrl: string;
+  readonly message: string;
+  /** e.g. `"WHATSAPP_MESSAGE"` — CTWA's real call-to-action type. */
+  readonly callToActionType: string;
+}
+
+/**
+ * Input for `IMetaAdsClient.createAd` (AAOS-GO-LIVE) — mirrors Meta's real
+ * `object_story_spec.link_data` shape for a click-to-WhatsApp image ad. `imageHash` is the hash
+ * returned by a prior `uploadImage` call.
+ */
+export interface CreateAdCreativeImageSpec {
+  readonly kind: "IMAGE";
+  readonly imageHash: string;
+  readonly linkUrl: string;
+  readonly message: string;
+  /** e.g. `"WHATSAPP_MESSAGE"` — CTWA's real call-to-action type. */
+  readonly callToActionType: string;
+}
+
+export type CreateAdCreativeSpec = CreateAdCreativeVideoSpec | CreateAdCreativeImageSpec;
+
+/** Input for `IMetaAdsClient.createAd` (AAOS-GO-LIVE) — mirrors Meta's `POST /{ad-account}/ads` body shape. */
+export interface CreateAdParams {
+  readonly adSetId: string;
+  readonly name: string;
+  /** The tenant's Facebook Page id — required by `object_story_spec.page_id` for any ad creative. */
+  readonly pageId: string;
+  readonly creative: CreateAdCreativeSpec;
+  /** `"ACTIVE"` for Go Live-created ads (the simulation is already DSS-approved by the time this runs), `"PAUSED"` otherwise. */
+  readonly status: string;
 }
 
 /**
@@ -119,4 +163,57 @@ export interface IMetaAdsClient {
     term: string,
     accessToken: string,
   ): Promise<Result<MetaAdInterestSearchResponse, MetaApiError>>;
+
+  /**
+   * AAOS-GO-LIVE: `POST /{campaign-id}` with `status: "PAUSED"` — pauses a campaign. Unlike
+   * `pauseAd` (ad-level), this targets the campaign node directly; used by Go Live's rollback to
+   * pause the campaign it just created.
+   */
+  pauseCampaign(
+    campaignId: string,
+    accessToken: string,
+  ): Promise<Result<MetaUpdateResponse, MetaApiError>>;
+
+  /** AAOS-GO-LIVE: `POST /{campaign-id}` with `status: "ACTIVE"` — activates a campaign (e.g. the newly-created Go Live campaign, after its ad set + ad are ready). */
+  activateCampaign(
+    campaignId: string,
+    accessToken: string,
+  ): Promise<Result<MetaUpdateResponse, MetaApiError>>;
+
+  /**
+   * AAOS-GO-LIVE: `POST /{ad-id}` with `status: "ACTIVE"` — the inverse of the existing `pauseAd`.
+   * Added alongside `pauseCampaign`/`activateCampaign` specifically so Go Live's rollback can
+   * honestly re-activate an ad that a Tamara PAUSE verdict paused during Go Live's verdict
+   * execution step (rollback needs a real way to undo that, not just campaign-level undo).
+   */
+  activateAd(adId: string, accessToken: string): Promise<Result<MetaUpdateResponse, MetaApiError>>;
+
+  /** AAOS-GO-LIVE: `POST /{ad-account}/ads` — creates a single ad under an existing ad set, with a video or image creative attached, per `CreateAdParams`. */
+  createAd(
+    adAccountId: string,
+    params: CreateAdParams,
+    accessToken: string,
+  ): Promise<Result<MetaCreateResponse, MetaApiError>>;
+
+  /**
+   * AAOS-GO-LIVE: `POST /{ad-account}/advideos` with `file_url` — uploads an already-hosted (GCS)
+   * video into the ad account's asset library, returning a real Meta video id usable in
+   * `createAd`'s `video_data.video_id`.
+   */
+  uploadVideo(
+    adAccountId: string,
+    videoUrl: string,
+    accessToken: string,
+  ): Promise<Result<MetaVideoUploadResponse, MetaApiError>>;
+
+  /**
+   * AAOS-GO-LIVE: `POST /{ad-account}/adimages` with `url` — uploads an already-hosted (GCS)
+   * image into the ad account's asset library, returning a real Meta image hash usable in
+   * `createAd`'s `link_data.image_hash`.
+   */
+  uploadImage(
+    adAccountId: string,
+    imageUrl: string,
+    accessToken: string,
+  ): Promise<Result<MetaImageUploadResponse, MetaApiError>>;
 }

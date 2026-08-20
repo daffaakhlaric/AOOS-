@@ -104,6 +104,36 @@ export class MetaApiRequestBuilder {
    * `/{node}/edge` reads above use, and the result set is already small. Capping how many rows
    * AAOS keeps is `SearchAdInterests`'s job, not this URL's.
    */
+  /** AAOS-GO-LIVE: `POST /{campaign-id}` — pause/activate a campaign (same node URL as `fixCampaignUrl`, kept as its own named method for call-site clarity). */
+  static pauseCampaignUrl(campaignId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${campaignId}`;
+  }
+
+  /** AAOS-GO-LIVE: `POST /{campaign-id}` — see `pauseCampaignUrl`. */
+  static activateCampaignUrl(campaignId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${campaignId}`;
+  }
+
+  /** AAOS-GO-LIVE: `POST /{ad-id}` — the inverse of `pauseAdUrl`. */
+  static activateAdUrl(adId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${adId}`;
+  }
+
+  /** AAOS-GO-LIVE: `POST /{ad-account}/ads` — create a single ad. */
+  static createAdUrl(adAccountId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${adAccountId}/ads`;
+  }
+
+  /** AAOS-GO-LIVE: `POST /{ad-account}/advideos` — Meta's real video-upload endpoint. */
+  static uploadVideoUrl(adAccountId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${adAccountId}/advideos`;
+  }
+
+  /** AAOS-GO-LIVE: `POST /{ad-account}/adimages` — Meta's real image-upload endpoint. */
+  static uploadImageUrl(adAccountId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${adAccountId}/adimages`;
+  }
+
   static adInterestSearchUrl(term: string, accessToken: string): string {
     const url = new URL(`${BASE_URL}/${API_VERSION}/search`);
     url.searchParams.set("type", "adinterest");

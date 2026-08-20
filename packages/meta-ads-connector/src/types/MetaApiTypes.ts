@@ -167,6 +167,28 @@ export const MetaAdInterestSearchResponseSchema = z.object({
 });
 export type MetaAdInterestSearchResponse = z.infer<typeof MetaAdInterestSearchResponseSchema>;
 
+/**
+ * Response of `POST /{ad-account}/advideos` (AAOS-GO-LIVE) — Meta's real video-upload endpoint,
+ * called with a `file_url` pointing at an already-hosted (GCS) video. Meta returns just the new
+ * video node's `id`, later referenced as `video_data.video_id` in an ad creative.
+ */
+export const MetaVideoUploadResponseSchema = z.object({
+  id: z.string(),
+});
+export type MetaVideoUploadResponse = z.infer<typeof MetaVideoUploadResponseSchema>;
+
+/**
+ * Response of `POST /{ad-account}/adimages` (AAOS-GO-LIVE) — Meta's real image-upload endpoint.
+ * Meta's real response shape keys `images` by the same string the caller uploaded under (the
+ * `bytes` field name when uploading raw bytes, or literally the source URL when uploading via
+ * `url=` as AAOS does here) — see Meta Marketing API "Ad Image" reference. AAOS never predicts
+ * that key; `UploadCreativeAsset` reads whichever single entry comes back.
+ */
+export const MetaImageUploadResponseSchema = z.object({
+  images: z.record(z.string(), z.object({ hash: z.string(), url: z.string() })),
+});
+export type MetaImageUploadResponse = z.infer<typeof MetaImageUploadResponseSchema>;
+
 export const MetaErrorResponseSchema = z.object({
   error: z.object({
     message: z.string(),

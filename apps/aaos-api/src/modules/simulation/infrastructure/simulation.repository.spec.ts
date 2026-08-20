@@ -92,6 +92,13 @@ function buildFilterBuilder(
       }
       return builder;
     },
+    gte(column: string, value: unknown) {
+      filtered = filtered.filter((row) => {
+        const raw = row[column];
+        return typeof raw === "string" && raw >= String(value);
+      });
+      return builder;
+    },
     order() {
       return builder;
     },
@@ -225,5 +232,78 @@ describe("SimulationRepository", () => {
     const logs = await repo.listLogs("sim-1");
     expect(logs).toHaveLength(1);
     expect(logs[0]?.message).toBe("hello");
+  });
+
+  describe("AAOS-GO-LIVE additions", () => {
+    it("markLive sets status=LIVE and the real campaign/ad/rollback ids", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new SimulationRepository(client);
+      await repo.create(INPUT);
+      await repo.markLive("sim-1", "campaign-1", "ad-1", "2026-08-13T10:00:00.000Z", {
+        newCampaignId: "campaign-1",
+        newAdSetId: "adset-1",
+        newAdId: "ad-1",
+        mutatedEntities: [],
+      });
+      const live = await repo.findById("sim-1");
+      expect(live?.status).toBe("LIVE");
+      expect(live?.liveCampaignId).toBe("campaign-1");
+      expect(live?.liveAdId).toBe("ad-1");
+      expect(live?.liveAt).toBe("2026-08-13T10:00:00.000Z");
+      expect(live?.rollbackData?.newAdSetId).toBe("adset-1");
+    });
+
+    it("markRolledBack sets status=ROLLED_BACK and rolledBackAt", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new SimulationRepository(client);
+      await repo.create(INPUT);
+      await repo.markLive("sim-1", "campaign-1", "ad-1", "2026-08-13T10:00:00.000Z", {
+        newCampaignId: "campaign-1",
+        newAdSetId: "adset-1",
+        newAdId: "ad-1",
+        mutatedEntities: [],
+      });
+      await repo.markRolledBack("sim-1", "2026-08-13T11:00:00.000Z");
+      const rolledBack = await repo.findById("sim-1");
+      expect(rolledBack?.status).toBe("ROLLED_BACK");
+      expect(rolledBack?.rolledBackAt).toBe("2026-08-13T11:00:00.000Z");
+    });
+
+    it("hasLiveSince returns false when no LIVE row exists on/after the given timestamp", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new SimulationRepository(client);
+      await repo.create(INPUT);
+      expect(await repo.hasLiveSince("2026-08-13T00:00:00.000Z")).toBe(false);
+    });
+
+    it("hasLiveSince returns true once a LIVE row's live_at is on/after the given timestamp", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new SimulationRepository(client);
+      await repo.create(INPUT);
+      await repo.markLive("sim-1", "campaign-1", "ad-1", "2026-08-13T10:00:00.000Z", {
+        newCampaignId: "campaign-1",
+        newAdSetId: "adset-1",
+        newAdId: "ad-1",
+        mutatedEntities: [],
+      });
+      expect(await repo.hasLiveSince("2026-08-13T00:00:00.000Z")).toBe(true);
+      expect(await repo.hasLiveSince("2026-08-14T00:00:00.000Z")).toBe(false);
+    });
+
+    it("listLive returns only LIVE rows", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new SimulationRepository(client);
+      await repo.create(INPUT);
+      await repo.create({ ...INPUT, id: "sim-2" });
+      await repo.markLive("sim-1", "campaign-1", "ad-1", "2026-08-13T10:00:00.000Z", {
+        newCampaignId: "campaign-1",
+        newAdSetId: "adset-1",
+        newAdId: "ad-1",
+        mutatedEntities: [],
+      });
+      const live = await repo.listLive();
+      expect(live).toHaveLength(1);
+      expect(live[0]?.id).toBe("sim-1");
+    });
   });
 });

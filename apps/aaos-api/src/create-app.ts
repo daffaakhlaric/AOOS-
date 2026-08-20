@@ -27,9 +27,18 @@ const MAX_LISTING_PHOTO_BYTES = 10 * 1024 * 1024;
 export async function createApp(config: AaosApiConfig): Promise<NestFastifyApplication> {
   const adapter = new FastifyAdapter();
 
+  // `abortOnError: false` — Nest's default (`true`) calls `process.abort()`/`process.exit()`
+  // internally on a bootstrap failure, bypassing normal error propagation. `main.ts`'s own
+  // `bootstrap().catch(...)` already gives this app a proper structured-log-then-`exitCode=1`
+  // failure path, so Nest's internal abort is strictly worse there too — and inside a vitest
+  // worker (the e2e test bootstrap helper also calls this function), `process.abort()` triggers a
+  // native process crash instead of a catchable rejection, taking the whole test file down with
+  // an opaque native stack trace. `abortOnError: false` makes any real init failure surface as a
+  // normal thrown/rejected error in both places.
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.forRoot(config), adapter, {
     logger: false,
     rawBody: true,
+    abortOnError: false,
   });
 
   // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — the FIRST real multipart registration in this

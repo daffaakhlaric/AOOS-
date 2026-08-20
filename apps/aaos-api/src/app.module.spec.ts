@@ -68,7 +68,10 @@ describe("AppModule.forRoot", () => {
     // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2: +1 import (ListingsModule) — no new global
     // provider (composes ListingRepository locally from the existing SUPABASE_CLIENT, and reuses
     // the already-global ASSET_LIBRARY token for photo upload, same pattern as AssetsModule).
-    expect(dynamicModule.imports).toHaveLength(21);
+    // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 (Go Live): +1 import (GoLiveModule) — no new
+    // global provider (composes SimulationRepository/WabaConfigRepository locally from the
+    // existing SUPABASE_CLIENT, reuses the already-global META_ADS_CONNECTOR/AAOS_API_CONFIG).
+    expect(dynamicModule.imports).toHaveLength(22);
     expect(dynamicModule.providers).toHaveLength(18);
   });
 

@@ -114,6 +114,30 @@ export interface AaosApiConfig {
    * explicit one.
    */
   readonly AAOS_DASHBOARD_BASE_URL: string;
+
+  /**
+   * AAOS-GO-LIVE (Phase 4) — the master safety switch for `POST /api/v1/simulation/:id/go-live`.
+   * Defaults to `true` (dry run): every step logs `[DRY RUN] Would ...` to `simulation_logs`
+   * without calling Meta/WhatsApp/CAPI. Per coordinator note section 6, this must NEVER silently
+   * default to executing real mutations if unset — `AaosApiConfigSchema` below enforces that with
+   * an explicit `.default(true)` on a boolean-coerced field, never `.default(false)`.
+   */
+  readonly GO_LIVE_DRY_RUN: boolean;
+  /** Minimum `result.scoring.overallScore` a simulation must have to be eligible for Go Live. */
+  readonly GO_LIVE_MIN_SCORE: number;
+  /** How many hours after `live_at` a `POST /api/v1/simulation/:id/rollback` call is still accepted. */
+  readonly ROLLBACK_WINDOW_HOURS: number;
+  /**
+   * The tenant's real Facebook Page id — required by Meta's `object_story_spec.page_id` for any ad
+   * creative (`CreateAd`, new in this phase). Deliberately a single env var, NOT yet a per-tenant
+   * `tenants` column: no page-id concept existed anywhere in this codebase before Go Live needed
+   * one, and Phase 1's per-tenant `meta_access_token`/`meta_ad_account_id` precedent (coordinator
+   * note section 4) is the natural home for it in a future pass, not invented here as an
+   * unreviewed schema addition. Left allowed-empty like `KIE_AI_API_KEY`/`AAOS_SIMULATOR_BASE_URL`
+   * above — `GoLiveService` raises an honest guard failure naming this var when it's needed
+   * (status !== dry-run) and unset, rather than sending Meta a blank `page_id`.
+   */
+  readonly META_PAGE_ID: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -182,6 +206,17 @@ export const AaosApiConfigSchema = z.object({
   // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY. Intentionally NOT `.min(1, ...)`/`.url(...)` — see the
   // `AaosApiConfig.AAOS_DASHBOARD_BASE_URL` doc comment.
   AAOS_DASHBOARD_BASE_URL: z.string().default(""),
+
+  // AAOS-GO-LIVE (Phase 4). `.default(true)` is load-bearing — see the `GO_LIVE_DRY_RUN` doc
+  // comment above. `z.coerce.boolean()` would treat the STRING "false" as truthy (any non-empty
+  // string coerces to `true`), so this instead accepts real env-var string forms explicitly.
+  GO_LIVE_DRY_RUN: z
+    .string()
+    .default("true")
+    .transform((raw) => raw.trim().toLowerCase() !== "false" && raw.trim() !== "0"),
+  GO_LIVE_MIN_SCORE: z.coerce.number().int().min(0).max(100).default(60),
+  ROLLBACK_WINDOW_HOURS: z.coerce.number().positive().default(1),
+  META_PAGE_ID: z.string().default(""),
 });
 
 /**

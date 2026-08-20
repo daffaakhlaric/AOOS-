@@ -79,4 +79,28 @@ describe("MetaApiRequestBuilder", () => {
   it("builds the create-adset action URL as {base}/{version}/{ad-account}/adsets (AAOS-W1D-S3)", () => {
     expect(MetaApiRequestBuilder.createAdSetUrl("act_123")).toBe(`${BASE}/act_123/adsets`);
   });
+
+  it("builds the pause-campaign action URL as {base}/{version}/{campaign-id} (AAOS-GO-LIVE)", () => {
+    expect(MetaApiRequestBuilder.pauseCampaignUrl("campaign-1")).toBe(`${BASE}/campaign-1`);
+  });
+
+  it("builds the activate-campaign action URL as {base}/{version}/{campaign-id} (AAOS-GO-LIVE)", () => {
+    expect(MetaApiRequestBuilder.activateCampaignUrl("campaign-1")).toBe(`${BASE}/campaign-1`);
+  });
+
+  it("builds the activate-ad action URL as {base}/{version}/{ad-id} (AAOS-GO-LIVE)", () => {
+    expect(MetaApiRequestBuilder.activateAdUrl("ad-1")).toBe(`${BASE}/ad-1`);
+  });
+
+  it("builds the create-ad action URL as {base}/{version}/{ad-account}/ads (AAOS-GO-LIVE)", () => {
+    expect(MetaApiRequestBuilder.createAdUrl("act_123")).toBe(`${BASE}/act_123/ads`);
+  });
+
+  it("builds the upload-video action URL as {base}/{version}/{ad-account}/advideos (AAOS-GO-LIVE)", () => {
+    expect(MetaApiRequestBuilder.uploadVideoUrl("act_123")).toBe(`${BASE}/act_123/advideos`);
+  });
+
+  it("builds the upload-image action URL as {base}/{version}/{ad-account}/adimages (AAOS-GO-LIVE)", () => {
+    expect(MetaApiRequestBuilder.uploadImageUrl("act_123")).toBe(`${BASE}/act_123/adimages`);
+  });
 });

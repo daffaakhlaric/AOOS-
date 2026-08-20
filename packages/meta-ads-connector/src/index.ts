@@ -21,6 +21,26 @@ export type {
   CreateCampaignInput,
   CreateCampaignOutput,
 } from "./application/use-cases/CreateCampaign.js";
+export { CreateAd } from "./application/use-cases/CreateAd.js";
+export type { CreateAdInput, CreateAdOutput } from "./application/use-cases/CreateAd.js";
+export { UploadCreativeAsset } from "./application/use-cases/UploadCreativeAsset.js";
+export type {
+  CreativeAssetType,
+  UploadCreativeAssetInput,
+  UploadCreativeAssetOutput,
+} from "./application/use-cases/UploadCreativeAsset.js";
+export { PauseCampaign } from "./application/use-cases/PauseCampaign.js";
+export type {
+  PauseCampaignInput,
+  PauseCampaignOutput,
+} from "./application/use-cases/PauseCampaign.js";
+export { ActivateCampaign } from "./application/use-cases/ActivateCampaign.js";
+export type {
+  ActivateCampaignInput,
+  ActivateCampaignOutput,
+} from "./application/use-cases/ActivateCampaign.js";
+export { ActivateAd } from "./application/use-cases/ActivateAd.js";
+export type { ActivateAdInput, ActivateAdOutput } from "./application/use-cases/ActivateAd.js";
 export {
   SearchAdInterests,
   MAX_INTERESTS_PER_TERM,
@@ -121,12 +141,18 @@ export type {
   PageCursor,
   CreateCampaignParams,
   CreateAdSetParams,
+  CreateAdParams,
+  CreateAdCreativeSpec,
+  CreateAdCreativeVideoSpec,
+  CreateAdCreativeImageSpec,
   MetaCreateResponse,
 } from "./contracts/IMetaAdsClient.js";
 export type {
   MetaAdAccountResponse,
   MetaAdInterest,
   MetaAdInterestSearchResponse,
+  MetaVideoUploadResponse,
+  MetaImageUploadResponse,
 } from "./types/MetaApiTypes.js";
 export { MetaAdInterestSchema, MetaAdInterestSearchResponseSchema } from "./types/MetaApiTypes.js";
 export type { ILeadWebhookParser, RawLeadData } from "./contracts/ILeadWebhookParser.js";

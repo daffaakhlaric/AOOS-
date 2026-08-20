@@ -8,7 +8,7 @@ import type {
 /** `GET /api/v1/simulation/:id/status` response — the dashboard's polling contract (coordinator note #8). */
 export interface SimulationStatusResponseDto {
   readonly id: string;
-  readonly status: "RUNNING" | "DONE" | "ERROR";
+  readonly status: "RUNNING" | "DONE" | "ERROR" | "LIVE" | "ROLLED_BACK";
   readonly currentStep: string;
   readonly campaignDataSource: "cache" | "fresh";
   readonly personaIds: readonly string[];
@@ -19,6 +19,11 @@ export interface SimulationStatusResponseDto {
   readonly decidedBy?: string;
   readonly decisionNotes?: string;
   readonly decidedAt?: string;
+  /** AAOS-GO-LIVE additions — present only once `status` is `'LIVE'` or `'ROLLED_BACK'`. */
+  readonly liveCampaignId?: string;
+  readonly liveAdId?: string;
+  readonly liveAt?: string;
+  readonly rolledBackAt?: string;
   /**
    * `result.tamara.audienceTargeting` (AAOS-SIMULASI-TARGETING) rides along inside `result` — no
    * separate top-level field, exactly like `tamara`/`kai` already do.
@@ -54,6 +59,10 @@ export function toSimulationStatusResponseDto(
     decidedBy: simulation.decidedBy,
     decisionNotes: simulation.decisionNotes,
     decidedAt: simulation.decidedAt,
+    liveCampaignId: simulation.liveCampaignId,
+    liveAdId: simulation.liveAdId,
+    liveAt: simulation.liveAt,
+    rolledBackAt: simulation.rolledBackAt,
     logs,
     createdAt: simulation.createdAt,
     updatedAt: simulation.updatedAt,
@@ -63,7 +72,7 @@ export function toSimulationStatusResponseDto(
 /** `GET /api/v1/simulation/history` — one row per past run, no per-persona/log detail (that's what `.../:id/status` is for). */
 export interface SimulationHistoryEntryDto {
   readonly id: string;
-  readonly status: "RUNNING" | "DONE" | "ERROR";
+  readonly status: "RUNNING" | "DONE" | "ERROR" | "LIVE" | "ROLLED_BACK";
   readonly overallScore?: number;
   readonly grade?: string;
   readonly verdict?: string;

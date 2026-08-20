@@ -73,6 +73,8 @@ const LOG_STEP_META: Readonly<
   JUDGE: { label: "AI Judge", icon: "⚖", color: "#fbbf24" },
   REVIEW: { label: "Manager", icon: "🧑‍💼", color: "#f472b6" },
   DONE: { label: "Selesai", icon: "✅", color: "#9ca3af" },
+  /** AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 — every log line `GoLiveService` appends (both `/go-live` and `/rollback`) uses this step, so the existing filter dropdown/log panel already isolates them, no second log UI needed. */
+  GO_LIVE: { label: "Go Live", icon: "🚀", color: "#f97316" },
 };
 
 /** Unknown steps keep the raw value rather than being hidden or relabelled — an honest fallback. */
@@ -164,6 +166,21 @@ export function SimulationWizardClient(): React.ReactElement {
 
   const [decisionPending, setDecisionPending] = useState(false);
   const [decisionNotes, setDecisionNotes] = useState("");
+
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 (Go Live) — dialog state. The real "GO LIVE"
+  // confirmation-text check happens server-side too (`GoLiveService.execute`) — this is only the
+  // client-side UX layer (coordinator note section 6).
+  const [goLiveOpen, setGoLiveOpen] = useState(false);
+  const [goLiveConfirmText, setGoLiveConfirmText] = useState("");
+  const [goLiveDailyBudget, setGoLiveDailyBudget] = useState("50000");
+  const [goLiveAssetType, setGoLiveAssetType] = useState<"VIDEO" | "IMAGE">("IMAGE");
+  const [goLiveHostedUrl, setGoLiveHostedUrl] = useState("");
+  const [goLiveThumbnailUrl, setGoLiveThumbnailUrl] = useState("");
+  const [goLivePrimaryText, setGoLivePrimaryText] = useState("");
+  const [goLivePending, setGoLivePending] = useState(false);
+  const [goLiveError, setGoLiveError] = useState<string | undefined>(undefined);
+  const [rollbackPending, setRollbackPending] = useState(false);
+  const [rollbackError, setRollbackError] = useState<string | undefined>(undefined);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<readonly SimulationHistoryEntryDto[] | undefined>(
@@ -326,6 +343,83 @@ export function SimulationWizardClient(): React.ReactElement {
       }
     } finally {
       setDecisionPending(false);
+    }
+  }
+
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 — submits `POST /api/simulation/:id/go-live`.
+   * On success/failure alike, refetches this simulation's real `status` so the SAME `LogPanel`
+   * already rendered below immediately shows every real `GO_LIVE`-step log line the server just
+   * appended (dry-run or real) — no separate polling/log UI for Go Live.
+   */
+  async function submitGoLive(): Promise<void> {
+    if (simulationId === undefined) {
+      return;
+    }
+    setGoLivePending(true);
+    setGoLiveError(undefined);
+    try {
+      const res = await fetch(`/api/simulation/${simulationId}/go-live`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          confirmation: goLiveConfirmText,
+          dailyBudgetIDR: Number(goLiveDailyBudget),
+          creative:
+            goLiveAssetType === "VIDEO"
+              ? {
+                  assetType: "VIDEO",
+                  hostedUrl: goLiveHostedUrl,
+                  thumbnailUrl: goLiveThumbnailUrl,
+                  primaryText: goLivePrimaryText,
+                }
+              : { assetType: "IMAGE", hostedUrl: goLiveHostedUrl, primaryText: goLivePrimaryText },
+        }),
+      });
+      const body = (await res.json()) as SimulationStatusDto & { error?: { message?: string } };
+      if (!res.ok) {
+        setGoLiveError(body.error?.message ?? "Go Live gagal.");
+        // Refetch anyway — a guard failure still appends nothing, but a mid-sequence failure
+        // logs real GO_LIVE lines the operator needs to see.
+        const statusRes = await fetch(`/api/simulation/${simulationId}/status`);
+        if (statusRes.ok) {
+          setStatus((await statusRes.json()) as SimulationStatusDto);
+        }
+        return;
+      }
+      setStatus(body);
+      setGoLiveOpen(false);
+      setGoLiveConfirmText("");
+    } catch {
+      setGoLiveError("Go Live gagal.");
+    } finally {
+      setGoLivePending(false);
+    }
+  }
+
+  /** AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 — submits `POST /api/simulation/:id/rollback`; the real rollback-window check is server-side. */
+  async function submitRollback(): Promise<void> {
+    if (simulationId === undefined) {
+      return;
+    }
+    setRollbackPending(true);
+    setRollbackError(undefined);
+    try {
+      const res = await fetch(`/api/simulation/${simulationId}/rollback`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const body = (await res.json()) as SimulationStatusDto & { error?: { message?: string } };
+      if (!res.ok) {
+        setRollbackError(body.error?.message ?? "Rollback gagal.");
+        return;
+      }
+      setStatus(body);
+    } catch {
+      setRollbackError("Rollback gagal.");
+    } finally {
+      setRollbackPending(false);
     }
   }
 
@@ -651,7 +745,74 @@ export function SimulationWizardClient(): React.ReactElement {
               {status.decisionNotes !== undefined ? ` — ${status.decisionNotes}` : ""}
             </p>
           )}
+
+          {/* AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 — the Go Live button is visible ONLY once decision is real APPROVED. */}
+          {status.decision === "APPROVED" && status.status === "DONE" ? (
+            <div className={styles.formRow} style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                data-testid="go-live-button"
+                onClick={() => setGoLiveOpen(true)}
+                className={styles.primaryButton}
+              >
+                🚀 Go Live
+              </button>
+            </div>
+          ) : null}
+
+          {status.status === "LIVE" ? (
+            <div className={styles.formRow} style={{ marginTop: 12 }} data-testid="go-live-status">
+              <p className={styles.rowText}>
+                🚀 <strong>LIVE</strong> — campaignId {status.liveCampaignId}, adId{" "}
+                {status.liveAdId}
+                {status.liveAt !== undefined
+                  ? ` sejak ${new Date(status.liveAt).toLocaleString("id-ID")}`
+                  : ""}
+              </p>
+              <button
+                type="button"
+                data-testid="rollback-button"
+                onClick={() => void submitRollback()}
+                disabled={rollbackPending}
+                className={styles.secondaryButton}
+              >
+                ↩ Rollback
+              </button>
+              {rollbackError !== undefined ? <ErrorCard message={rollbackError} /> : null}
+            </div>
+          ) : null}
+
+          {status.status === "ROLLED_BACK" ? (
+            <p className={styles.rowText}>
+              ↩ Campaign sudah di-rollback
+              {status.rolledBackAt !== undefined
+                ? ` pada ${new Date(status.rolledBackAt).toLocaleString("id-ID")}`
+                : ""}
+              .
+            </p>
+          ) : null}
         </section>
+      ) : null}
+
+      {goLiveOpen ? (
+        <GoLiveDialog
+          confirmText={goLiveConfirmText}
+          onConfirmTextChange={setGoLiveConfirmText}
+          dailyBudget={goLiveDailyBudget}
+          onDailyBudgetChange={setGoLiveDailyBudget}
+          assetType={goLiveAssetType}
+          onAssetTypeChange={setGoLiveAssetType}
+          hostedUrl={goLiveHostedUrl}
+          onHostedUrlChange={setGoLiveHostedUrl}
+          thumbnailUrl={goLiveThumbnailUrl}
+          onThumbnailUrlChange={setGoLiveThumbnailUrl}
+          primaryText={goLivePrimaryText}
+          onPrimaryTextChange={setGoLivePrimaryText}
+          pending={goLivePending}
+          error={goLiveError}
+          onCancel={() => setGoLiveOpen(false)}
+          onSubmit={() => void submitGoLive()}
+        />
       ) : null}
 
       {status?.status === "ERROR" ? (
@@ -681,6 +842,167 @@ const HISTORY_DETAIL_TABS: ReadonlyArray<{
   { id: "KAI", label: "Kai Prompt" },
   { id: "LOG", label: "Log" },
 ];
+
+const GO_LIVE_CONFIRMATION_TEXT = "GO LIVE";
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 — the "🚀 Go Live" confirmation dialog. Requires
+ * typing the literal string "GO LIVE" (client-side UX layer only — the real enforcement is
+ * server-side in `GoLiveService.execute`, coordinator note section 6) plus the real inputs
+ * `POST /api/v1/simulation/:id/go-live` needs: a daily budget and the creative asset (a real,
+ * already-hosted GCS video/image URL from the Simulasi wizard's already-generated creative
+ * package — this dialog does not upload anything itself).
+ */
+function GoLiveDialog({
+  confirmText,
+  onConfirmTextChange,
+  dailyBudget,
+  onDailyBudgetChange,
+  assetType,
+  onAssetTypeChange,
+  hostedUrl,
+  onHostedUrlChange,
+  thumbnailUrl,
+  onThumbnailUrlChange,
+  primaryText,
+  onPrimaryTextChange,
+  pending,
+  error,
+  onCancel,
+  onSubmit,
+}: {
+  readonly confirmText: string;
+  readonly onConfirmTextChange: (value: string) => void;
+  readonly dailyBudget: string;
+  readonly onDailyBudgetChange: (value: string) => void;
+  readonly assetType: "VIDEO" | "IMAGE";
+  readonly onAssetTypeChange: (value: "VIDEO" | "IMAGE") => void;
+  readonly hostedUrl: string;
+  readonly onHostedUrlChange: (value: string) => void;
+  readonly thumbnailUrl: string;
+  readonly onThumbnailUrlChange: (value: string) => void;
+  readonly primaryText: string;
+  readonly onPrimaryTextChange: (value: string) => void;
+  readonly pending: boolean;
+  readonly error: string | undefined;
+  readonly onCancel: () => void;
+  readonly onSubmit: () => void;
+}): React.ReactElement {
+  const canSubmit =
+    confirmText === GO_LIVE_CONFIRMATION_TEXT &&
+    hostedUrl.length > 0 &&
+    primaryText.length > 0 &&
+    (assetType === "IMAGE" || thumbnailUrl.length > 0) &&
+    Number(dailyBudget) > 0 &&
+    !pending;
+
+  return (
+    <div
+      className={styles.modalOverlay}
+      role="dialog"
+      aria-modal="true"
+      data-testid="go-live-dialog"
+    >
+      <div className={styles.modalPanel}>
+        <div className={styles.headerRow}>
+          <h3 className={styles.sectionTitle}>🚀 Konfirmasi Go Live</h3>
+          <button type="button" onClick={onCancel} className={styles.secondaryButton}>
+            Batal
+          </button>
+        </div>
+
+        <p className={styles.mutedText}>
+          Ini akan membuat Campaign+AdSet+Ad NYATA di Meta Ads (atau, jika mode dry-run aktif di
+          server, hanya mencatat log simulasi tanpa panggilan API nyata). Ketik{" "}
+          <strong>{GO_LIVE_CONFIRMATION_TEXT}</strong> untuk melanjutkan.
+        </p>
+
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>Ketik &quot;{GO_LIVE_CONFIRMATION_TEXT}&quot;</label>
+          <input
+            type="text"
+            data-testid="go-live-confirm-input"
+            value={confirmText}
+            onChange={(event) => onConfirmTextChange(event.target.value)}
+            className={styles.select}
+            placeholder={GO_LIVE_CONFIRMATION_TEXT}
+          />
+        </div>
+
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>Budget harian (Rp)</label>
+          <input
+            type="number"
+            min={1}
+            value={dailyBudget}
+            onChange={(event) => onDailyBudgetChange(event.target.value)}
+            className={styles.select}
+          />
+        </div>
+
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>Tipe creative</label>
+          <select
+            value={assetType}
+            onChange={(event) => onAssetTypeChange(event.target.value as "VIDEO" | "IMAGE")}
+            className={styles.select}
+          >
+            <option value="IMAGE">Gambar</option>
+            <option value="VIDEO">Video</option>
+          </select>
+        </div>
+
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>URL creative (sudah ter-hosting di GCS)</label>
+          <input
+            type="text"
+            value={hostedUrl}
+            onChange={(event) => onHostedUrlChange(event.target.value)}
+            className={styles.select}
+            placeholder="https://storage.googleapis.com/aaos/…"
+          />
+        </div>
+
+        {assetType === "VIDEO" ? (
+          <div className={styles.formRow}>
+            <label className={styles.formLabel}>URL thumbnail (untuk video_data.image_url)</label>
+            <input
+              type="text"
+              value={thumbnailUrl}
+              onChange={(event) => onThumbnailUrlChange(event.target.value)}
+              className={styles.select}
+              placeholder="https://storage.googleapis.com/aaos/…thumb.jpg"
+            />
+          </div>
+        ) : null}
+
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>Primary text</label>
+          <input
+            type="text"
+            value={primaryText}
+            onChange={(event) => onPrimaryTextChange(event.target.value)}
+            className={styles.select}
+          />
+        </div>
+
+        {error !== undefined ? <ErrorCard message={error} /> : null}
+
+        <div className={styles.formRow} style={{ flexDirection: "row", gap: 8 }}>
+          <button
+            type="button"
+            data-testid="go-live-confirm-button"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+            className={styles.primaryButton}
+          >
+            {pending ? "Memproses…" : "🚀 Go Live Sekarang"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section D — the History table's new "Lihat →"

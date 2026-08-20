@@ -563,7 +563,7 @@ export interface SimulationLogEntryDto {
 
 export interface SimulationStatusDto {
   readonly id: string;
-  readonly status: "RUNNING" | "DONE" | "ERROR";
+  readonly status: "RUNNING" | "DONE" | "ERROR" | "LIVE" | "ROLLED_BACK";
   readonly currentStep: string;
   readonly campaignDataSource: "cache" | "fresh";
   readonly personaIds: readonly string[];
@@ -574,6 +574,11 @@ export interface SimulationStatusDto {
   readonly decidedBy?: string;
   readonly decisionNotes?: string;
   readonly decidedAt?: string;
+  /** AAOS-GO-LIVE (Phase 4) additions — present only once `status` is `'LIVE'` or `'ROLLED_BACK'`. Mirrors aaos-api's `SimulationStatusResponseDto`. */
+  readonly liveCampaignId?: string;
+  readonly liveAdId?: string;
+  readonly liveAt?: string;
+  readonly rolledBackAt?: string;
   readonly logs: readonly SimulationLogEntryDto[];
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -581,7 +586,7 @@ export interface SimulationStatusDto {
 
 export interface SimulationHistoryEntryDto {
   readonly id: string;
-  readonly status: "RUNNING" | "DONE" | "ERROR";
+  readonly status: "RUNNING" | "DONE" | "ERROR" | "LIVE" | "ROLLED_BACK";
   readonly overallScore?: number;
   readonly grade?: string;
   readonly verdict?: string;

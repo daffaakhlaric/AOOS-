@@ -58,6 +58,13 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     // "no redirectTo" impersonation path. Tests needing a specific redirect target pass this
     // explicitly.
     AAOS_DASHBOARD_BASE_URL: "",
+    // AAOS-GO-LIVE — dry run ON by default so no test can ever compose a Go Live path capable of
+    // a real Meta/WhatsApp/CAPI call. Tests exercising the real-call branch pass
+    // `GO_LIVE_DRY_RUN: false` explicitly.
+    GO_LIVE_DRY_RUN: true,
+    GO_LIVE_MIN_SCORE: 60,
+    ROLLBACK_WINDOW_HOURS: 1,
+    META_PAGE_ID: "test-page-id",
     ...overrides,
   };
 }

@@ -4,10 +4,25 @@
  * module with no upstream `@aos/*` package of its own.
  */
 
-/** The 6-step wizard's step names, in order — also `simulations.current_step`'s real values. */
-export type SimulationStep = "SETUP" | "TAMARA" | "KAI" | "JESSY" | "JUDGE" | "REVIEW" | "DONE";
+/**
+ * The 6-step wizard's step names, in order, plus `"GO_LIVE"` (AAOS-GO-LIVE, Phase 4) — the value
+ * `GoLiveService` writes to every `simulation_logs.step` it appends, so the dashboard's existing
+ * Log Panel step filter can isolate Go Live/rollback activity from the original 6-step run without
+ * a second log table. `simulations.current_step` itself is never set to `"GO_LIVE"` — Go Live runs
+ * strictly after a simulation's `current_step` has already reached `"DONE"`.
+ */
+export type SimulationStep =
+  "SETUP" | "TAMARA" | "KAI" | "JESSY" | "JUDGE" | "REVIEW" | "DONE" | "GO_LIVE";
 
-export type SimulationStatus = "RUNNING" | "DONE" | "ERROR";
+/**
+ * `"LIVE"`/`"ROLLED_BACK"` (AAOS-GO-LIVE, Phase 4) added on top of the original
+ * `"RUNNING" | "DONE" | "ERROR"` set. `"LIVE"` is set only once `GoLiveService.execute` has
+ * finished every real step (including the real Meta campaign/adset/ad creation) — never set
+ * mid-sequence. `"ROLLED_BACK"` replaces `"LIVE"` once `GoLiveService.rollback` finishes. See
+ * `docs/PROMPT-AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY.md` coordinator note section 8's closing
+ * paragraph — this was confirmed as real, in-scope schema work for this phase.
+ */
+export type SimulationStatus = "RUNNING" | "DONE" | "ERROR" | "LIVE" | "ROLLED_BACK";
 
 export type SimulationDecision = "APPROVED" | "REJECTED";
 
@@ -221,6 +236,29 @@ export interface SimulationLogEntry {
   readonly createdAt: string;
 }
 
+/**
+ * One entity `GoLiveService.execute` mutated during its Tamara-verdict-execution step (AAOS-GO-LIVE),
+ * recorded so `GoLiveService.rollback` can honestly undo it. Only `"ad"` entries are reversible
+ * today (via the new `ActivateAd` use case) — a `"campaign"`-targeted FIX verdict has no real
+ * inverse (there is no "un-fix an objective" operation), so those are recorded for the audit trail
+ * only and are not replayed by rollback. See `docs/PROMPT-AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY.md`
+ * coordinator note section 8.
+ */
+export interface GoLiveRollbackEntry {
+  readonly targetType: "ad" | "campaign" | "adset";
+  readonly targetId: string;
+  readonly action: "PAUSED" | "SCALED" | "FIXED";
+  readonly reversible: boolean;
+}
+
+/** `simulations.rollback_data` JSONB payload — the newly-created campaign/adset/ad plus every entity `GoLiveService.execute` mutated, per point 4 of the Go Live spec. */
+export interface GoLiveRollbackData {
+  readonly newCampaignId: string;
+  readonly newAdSetId: string;
+  readonly newAdId: string;
+  readonly mutatedEntities: readonly GoLiveRollbackEntry[];
+}
+
 /** One full `simulations` row, domain-shaped (camelCase, dates as ISO strings). */
 export interface StoredSimulation {
   readonly id: string;
@@ -237,6 +275,13 @@ export interface StoredSimulation {
   readonly decidedBy?: string;
   readonly decisionNotes?: string;
   readonly decidedAt?: string;
+  /** AAOS-GO-LIVE: the real Meta campaign id `GoLiveService.execute` created, once `status === 'LIVE'` (or was `'LIVE'` before a rollback). */
+  readonly liveCampaignId?: string;
+  /** AAOS-GO-LIVE: the real Meta ad id `GoLiveService.execute` created. */
+  readonly liveAdId?: string;
+  readonly liveAt?: string;
+  readonly rolledBackAt?: string;
+  readonly rollbackData?: GoLiveRollbackData;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

@@ -6,11 +6,16 @@ import { getTracer } from "@aos/telemetry";
 
 import { MetaAdsSyncService } from "../application/services/MetaAdsSyncService.js";
 import { VerdictExecutionService } from "../application/services/VerdictExecutionService.js";
+import { ActivateAd } from "../application/use-cases/ActivateAd.js";
+import { ActivateCampaign } from "../application/use-cases/ActivateCampaign.js";
+import { CreateAd } from "../application/use-cases/CreateAd.js";
 import { CreateCampaign } from "../application/use-cases/CreateCampaign.js";
 import { ExecuteVerdict } from "../application/use-cases/ExecuteVerdict.js";
+import { PauseCampaign } from "../application/use-cases/PauseCampaign.js";
 import { ProcessLeadWebhook } from "../application/use-cases/ProcessLeadWebhook.js";
 import { PullCampaignData, type Tracer } from "../application/use-cases/PullCampaignData.js";
 import { SearchAdInterests } from "../application/use-cases/SearchAdInterests.js";
+import { UploadCreativeAsset } from "../application/use-cases/UploadCreativeAsset.js";
 import type { MetaAdsConnectorConfig } from "../config/MetaAdsConnectorConfig.js";
 import type { IMetaAdsClient } from "../contracts/IMetaAdsClient.js";
 import { MetaAdsConnectorEvents } from "../domain/events/MetaAdsConnectorEvents.js";
@@ -40,6 +45,16 @@ export interface MetaAdsConnector {
   readonly pullCampaignData: PullCampaignData;
   readonly executeVerdict: ExecuteVerdict;
   readonly createCampaign: CreateCampaign;
+  /** AAOS-GO-LIVE: single-ad creation with a real creative attached — see `CreateAd`'s docstring. */
+  readonly createAd: CreateAd;
+  /** AAOS-GO-LIVE: real video/image asset upload into the ad account's asset library — see `UploadCreativeAsset`'s docstring. */
+  readonly uploadCreativeAsset: UploadCreativeAsset;
+  /** AAOS-GO-LIVE: campaign-level pause — used by Go Live rollback. */
+  readonly pauseCampaign: PauseCampaign;
+  /** AAOS-GO-LIVE: campaign-level activation — used by Go Live's create step and rollback's undo path. */
+  readonly activateCampaign: ActivateCampaign;
+  /** AAOS-GO-LIVE: ad-level activation (inverse of the verdict-driven `pauseAd`) — used by Go Live rollback to undo a PAUSE verdict. */
+  readonly activateAd: ActivateAd;
   /**
    * AAOS-SIMULASI-TARGETING: read-only Meta ad-interest discovery
    * (`GET /search?type=adinterest`). Deliberately NOT connected to `createCampaign` — see
@@ -108,6 +123,12 @@ export class MetaAdsConnectorFactory {
 
     const searchAdInterests = new SearchAdInterests(client, rateLimiter, retry, logger, tracer);
 
+    const createAd = new CreateAd(client, rateLimiter, retry, logger, tracer);
+    const uploadCreativeAsset = new UploadCreativeAsset(client, rateLimiter, retry, logger, tracer);
+    const pauseCampaign = new PauseCampaign(client, rateLimiter, retry, logger, tracer);
+    const activateCampaign = new ActivateCampaign(client, rateLimiter, retry, logger, tracer);
+    const activateAd = new ActivateAd(client, rateLimiter, retry, logger, tracer);
+
     const webhookVerifier = new WebhookVerifier();
     const webhookParser = new WebhookParser({ now });
     const resolveAd: AdResolver = (metaAdId) => {
@@ -137,6 +158,11 @@ export class MetaAdsConnectorFactory {
       pullCampaignData,
       executeVerdict,
       createCampaign,
+      createAd,
+      uploadCreativeAsset,
+      pauseCampaign,
+      activateCampaign,
+      activateAd,
       searchAdInterests,
       processLeadWebhook,
       registry,

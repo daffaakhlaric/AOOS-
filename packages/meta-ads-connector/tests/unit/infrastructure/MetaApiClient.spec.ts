@@ -167,6 +167,240 @@ describe("MetaApiClient", () => {
     });
   });
 
+  it("pauseCampaign() POSTs status=PAUSED to {campaign-id} and parses a success response (AAOS-GO-LIVE)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/campaign-1`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ success: true });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.pauseCampaign("campaign-1", "TOKEN");
+    expect(unwrap(result).success).toBe(true);
+    expect(capturedBody).toEqual({ status: "PAUSED", access_token: "TOKEN" });
+  });
+
+  it("activateCampaign() POSTs status=ACTIVE to {campaign-id} and parses a success response (AAOS-GO-LIVE)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/campaign-1`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ success: true });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.activateCampaign("campaign-1", "TOKEN");
+    expect(unwrap(result).success).toBe(true);
+    expect(capturedBody).toEqual({ status: "ACTIVE", access_token: "TOKEN" });
+  });
+
+  it("activateAd() POSTs status=ACTIVE to {ad-id} and parses a success response (AAOS-GO-LIVE)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/ad-1`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ success: true });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.activateAd("ad-1", "TOKEN");
+    expect(unwrap(result).success).toBe(true);
+    expect(capturedBody).toEqual({ status: "ACTIVE", access_token: "TOKEN" });
+  });
+
+  it("createAd() POSTs a video creative's object_story_spec.video_data and parses the new id (AAOS-GO-LIVE)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/ads`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "new-ad-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createAd(
+      "act_123",
+      {
+        adSetId: "adset-1",
+        name: "Meta-CTWA-Leads-Mobix-Cinere-ad",
+        pageId: "page-1",
+        creative: {
+          kind: "VIDEO",
+          videoId: "video-1",
+          thumbnailUrl: "https://storage.googleapis.com/aaos/thumb.jpg",
+          message: "Promo motor bekas!",
+          callToActionType: "WHATSAPP_MESSAGE",
+        },
+        status: "ACTIVE",
+      },
+      "TOKEN",
+    );
+    expect(unwrap(result).id).toBe("new-ad-1");
+    expect(capturedBody).toEqual({
+      adset_id: "adset-1",
+      name: "Meta-CTWA-Leads-Mobix-Cinere-ad",
+      creative: {
+        object_story_spec: {
+          page_id: "page-1",
+          video_data: {
+            video_id: "video-1",
+            image_url: "https://storage.googleapis.com/aaos/thumb.jpg",
+            message: "Promo motor bekas!",
+            call_to_action: { type: "WHATSAPP_MESSAGE" },
+          },
+        },
+      },
+      status: "ACTIVE",
+      access_token: "TOKEN",
+    });
+  });
+
+  it("createAd() POSTs an image creative's object_story_spec.link_data and parses the new id (AAOS-GO-LIVE)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/ads`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "new-ad-2" });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createAd(
+      "act_123",
+      {
+        adSetId: "adset-1",
+        name: "Image Ad",
+        pageId: "page-1",
+        creative: {
+          kind: "IMAGE",
+          imageHash: "hash-abc",
+          linkUrl: "https://wa.me/6281234567890",
+          message: "Rumah dijual",
+          callToActionType: "WHATSAPP_MESSAGE",
+        },
+        status: "ACTIVE",
+      },
+      "TOKEN",
+    );
+    expect(unwrap(result).id).toBe("new-ad-2");
+    expect(capturedBody).toEqual({
+      adset_id: "adset-1",
+      name: "Image Ad",
+      creative: {
+        object_story_spec: {
+          page_id: "page-1",
+          link_data: {
+            image_hash: "hash-abc",
+            link: "https://wa.me/6281234567890",
+            message: "Rumah dijual",
+            call_to_action: { type: "WHATSAPP_MESSAGE" },
+          },
+        },
+      },
+      status: "ACTIVE",
+      access_token: "TOKEN",
+    });
+  });
+
+  it("createAd() returns an err Result when Meta rejects ad creation", async () => {
+    mswServer.use(
+      http.post(`${BASE}/act_123/ads`, () =>
+        HttpResponse.json({ error: { message: "invalid creative", code: 100 } }, { status: 400 }),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createAd(
+      "act_123",
+      {
+        adSetId: "adset-1",
+        name: "Will Fail",
+        pageId: "page-1",
+        creative: {
+          kind: "IMAGE",
+          imageHash: "hash-abc",
+          linkUrl: "https://wa.me/6281234567890",
+          message: "Rumah dijual",
+          callToActionType: "WHATSAPP_MESSAGE",
+        },
+        status: "ACTIVE",
+      },
+      "TOKEN",
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("uploadVideo() POSTs file_url to {ad-account}/advideos and parses the returned id (AAOS-GO-LIVE)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/advideos`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "video-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.uploadVideo(
+      "act_123",
+      "https://storage.googleapis.com/aaos/creative.mp4",
+      "TOKEN",
+    );
+    expect(unwrap(result).id).toBe("video-1");
+    expect(capturedBody).toEqual({
+      file_url: "https://storage.googleapis.com/aaos/creative.mp4",
+      access_token: "TOKEN",
+    });
+  });
+
+  it("uploadVideo() returns an err Result when Meta rejects the upload", async () => {
+    mswServer.use(
+      http.post(`${BASE}/act_123/advideos`, () =>
+        HttpResponse.json({ error: { message: "bad video url", code: 100 } }, { status: 400 }),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.uploadVideo("act_123", "https://bad-url", "TOKEN");
+    expect(result.ok).toBe(false);
+  });
+
+  it("uploadImage() POSTs url to {ad-account}/adimages and parses the returned images map (AAOS-GO-LIVE)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/adimages`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({
+          images: {
+            "https://storage.googleapis.com/aaos/creative.jpg": {
+              hash: "hash-abc",
+              url: "https://storage.googleapis.com/aaos/creative.jpg",
+            },
+          },
+        });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.uploadImage(
+      "act_123",
+      "https://storage.googleapis.com/aaos/creative.jpg",
+      "TOKEN",
+    );
+    expect(unwrap(result).images["https://storage.googleapis.com/aaos/creative.jpg"]?.hash).toBe(
+      "hash-abc",
+    );
+    expect(capturedBody).toEqual({
+      url: "https://storage.googleapis.com/aaos/creative.jpg",
+      access_token: "TOKEN",
+    });
+  });
+
+  it("uploadImage() returns an err Result when Meta rejects the upload", async () => {
+    mswServer.use(
+      http.post(`${BASE}/act_123/adimages`, () =>
+        HttpResponse.json({ error: { message: "bad image url", code: 100 } }, { status: 400 }),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.uploadImage("act_123", "https://bad-url", "TOKEN");
+    expect(result.ok).toBe(false);
+  });
+
   it("maps Meta error code 190 to AuthError regardless of HTTP status", async () => {
     mswServer.use(
       http.get(`${BASE}/act_123/campaigns`, () =>

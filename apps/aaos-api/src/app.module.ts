@@ -62,6 +62,7 @@ import { BranchesModule } from "./modules/branches/branches.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { ClosingsModule } from "./modules/closings/closings.module.js";
 import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
+import { GoLiveModule } from "./modules/go-live/go-live.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
 import { ListingsModule } from "./modules/listings/listings.module.js";
@@ -264,6 +265,11 @@ export class AppModule {
         ClosingsModule,
         SalesModule,
         SimulationModule,
+        // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 — Go Live execution/rollback, built on top
+        // of SimulationModule's `simulations`/`simulation_logs` tables and SettingsModule's
+        // `waba_configs` (see GoLiveModule's own doc for why it composes its own repository
+        // instances rather than importing those modules).
+        GoLiveModule,
         SchedulerModule,
         ScraperModule,
         AssetsModule,

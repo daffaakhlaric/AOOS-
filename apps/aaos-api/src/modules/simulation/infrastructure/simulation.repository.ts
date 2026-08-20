@@ -1,6 +1,7 @@
 import type { SupabaseClientLike } from "@aos/lead-store";
 
 import type {
+  GoLiveRollbackData,
   SimulationDecision,
   SimulationLogEntry,
   SimulationLogPayload,
@@ -29,6 +30,12 @@ interface SimulationRow {
   readonly decided_by: string | null;
   readonly decision_notes: string | null;
   readonly decided_at: string | null;
+  /** AAOS-GO-LIVE (`009_go_live.sql`) additions. */
+  readonly live_campaign_id: string | null;
+  readonly live_ad_id: string | null;
+  readonly live_at: string | null;
+  readonly rolled_back_at: string | null;
+  readonly rollback_data: GoLiveRollbackData | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -66,6 +73,11 @@ function toDomain(row: SimulationRow): StoredSimulation {
     decidedBy: row.decided_by ?? undefined,
     decisionNotes: row.decision_notes ?? undefined,
     decidedAt: row.decided_at ?? undefined,
+    liveCampaignId: row.live_campaign_id ?? undefined,
+    liveAdId: row.live_ad_id ?? undefined,
+    liveAt: row.live_at ?? undefined,
+    rolledBackAt: row.rolled_back_at ?? undefined,
+    rollbackData: row.rollback_data ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -137,6 +149,19 @@ export class SimulationRepository {
     return (data ?? []).map(toDomain);
   }
 
+  /** AAOS-GO-LIVE: backs `GET /api/v1/simulation/live` — the dashboard's `/go-live` monitoring page real data source (coordinator note section 8's "should start reading real data instead of staying permanently empty"). */
+  async listLive(): Promise<readonly StoredSimulation[]> {
+    const { data, error } = await this.client
+      .from<SimulationRow>(TABLE)
+      .select("*")
+      .eq("status", "LIVE")
+      .order("live_at", { ascending: false });
+    if (error !== null) {
+      throw new SimulationRepositoryError(`SimulationRepository.listLive failed: ${error.message}`);
+    }
+    return (data ?? []).map(toDomain);
+  }
+
   /** Advances `current_step` mid-pipeline — used between stages so `GET .../status` polling reflects real progress, not just a final result. */
   async updateStep(id: string, step: SimulationStep): Promise<void> {
     const { error } = await this.client
@@ -200,6 +225,68 @@ export class SimulationRepository {
     if (error !== null) {
       throw new SimulationRepositoryError(
         `SimulationRepository.recordDecision failed: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * AAOS-GO-LIVE: backs `GoLiveService`'s "max 1 Go Live per day" guard — `true` when any
+   * simulation row went live (`live_at`) on-or-after `startOfDayIso` (the caller's real wall-clock
+   * midnight, injected rather than computed here so this stays a pure DB query, testable without a
+   * fake clock).
+   */
+  async hasLiveSince(startOfDayIso: string): Promise<boolean> {
+    const { data, error } = await this.client
+      .from<SimulationRow>(TABLE)
+      .select("id")
+      .eq("status", "LIVE")
+      .gte("live_at", startOfDayIso)
+      .limit(1);
+    if (error !== null) {
+      throw new SimulationRepositoryError(
+        `SimulationRepository.hasLiveSince failed: ${error.message}`,
+      );
+    }
+    return (data ?? []).length > 0;
+  }
+
+  /** AAOS-GO-LIVE: called only once `GoLiveService.execute` finishes every real step — never mid-sequence. */
+  async markLive(
+    id: string,
+    liveCampaignId: string,
+    liveAdId: string,
+    liveAt: string,
+    rollbackData: GoLiveRollbackData,
+  ): Promise<void> {
+    const { error } = await this.client
+      .from<SimulationRow>(TABLE)
+      .update({
+        status: "LIVE",
+        live_campaign_id: liveCampaignId,
+        live_ad_id: liveAdId,
+        live_at: liveAt,
+        rollback_data: rollbackData,
+        updated_at: liveAt,
+      })
+      .eq("id", id);
+    if (error !== null) {
+      throw new SimulationRepositoryError(`SimulationRepository.markLive failed: ${error.message}`);
+    }
+  }
+
+  /** AAOS-GO-LIVE: called once `GoLiveService.rollback` finishes every real undo step. */
+  async markRolledBack(id: string, rolledBackAt: string): Promise<void> {
+    const { error } = await this.client
+      .from<SimulationRow>(TABLE)
+      .update({
+        status: "ROLLED_BACK",
+        rolled_back_at: rolledBackAt,
+        updated_at: rolledBackAt,
+      })
+      .eq("id", id);
+    if (error !== null) {
+      throw new SimulationRepositoryError(
+        `SimulationRepository.markRolledBack failed: ${error.message}`,
       );
     }
   }

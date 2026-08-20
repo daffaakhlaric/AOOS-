@@ -2,6 +2,7 @@ import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
 import type {
+  CreateAdParams,
   CreateAdSetParams,
   CreateCampaignParams,
   IMetaAdsClient,
@@ -28,8 +29,12 @@ import {
   type MetaCampaignListResponse,
   MetaCreateResponseSchema,
   MetaErrorResponseSchema,
+  MetaImageUploadResponseSchema,
+  type MetaImageUploadResponse,
   MetaUpdateResponseSchema,
   type MetaUpdateResponse,
+  MetaVideoUploadResponseSchema,
+  type MetaVideoUploadResponse,
 } from "../../types/MetaApiTypes.js";
 
 import { MetaApiRequestBuilder } from "./MetaApiRequestBuilder.js";
@@ -169,6 +174,120 @@ export class MetaApiClient implements IMetaAdsClient {
   ): Promise<Result<MetaAdInterestSearchResponse, MetaApiError>> {
     const url = MetaApiRequestBuilder.adInterestSearchUrl(term, accessToken);
     return this.getJson(url, MetaAdInterestSearchResponseSchema);
+  }
+
+  /** AAOS-GO-LIVE: `POST /{campaign-id}` with `status: "PAUSED"` — see `IMetaAdsClient.pauseCampaign`. */
+  async pauseCampaign(
+    campaignId: string,
+    accessToken: string,
+  ): Promise<Result<MetaUpdateResponse, MetaApiError>> {
+    return this.postJson(MetaApiRequestBuilder.pauseCampaignUrl(campaignId), {
+      status: "PAUSED",
+      access_token: accessToken,
+    });
+  }
+
+  /** AAOS-GO-LIVE: `POST /{campaign-id}` with `status: "ACTIVE"` — see `IMetaAdsClient.activateCampaign`. */
+  async activateCampaign(
+    campaignId: string,
+    accessToken: string,
+  ): Promise<Result<MetaUpdateResponse, MetaApiError>> {
+    return this.postJson(MetaApiRequestBuilder.activateCampaignUrl(campaignId), {
+      status: "ACTIVE",
+      access_token: accessToken,
+    });
+  }
+
+  /** AAOS-GO-LIVE: `POST /{ad-id}` with `status: "ACTIVE"` — see `IMetaAdsClient.activateAd`. */
+  async activateAd(
+    adId: string,
+    accessToken: string,
+  ): Promise<Result<MetaUpdateResponse, MetaApiError>> {
+    return this.postJson(MetaApiRequestBuilder.activateAdUrl(adId), {
+      status: "ACTIVE",
+      access_token: accessToken,
+    });
+  }
+
+  /**
+   * AAOS-GO-LIVE: `POST /{ad-account}/ads` — see `IMetaAdsClient.createAd`. Builds the real
+   * `object_story_spec` shape Meta expects: `video_data` for a video creative, `link_data` for an
+   * image creative, both carrying the CTWA `call_to_action`.
+   */
+  async createAd(
+    adAccountId: string,
+    params: CreateAdParams,
+    accessToken: string,
+  ): Promise<Result<ClientMetaCreateResponse, MetaApiError>> {
+    const objectStorySpec =
+      params.creative.kind === "VIDEO"
+        ? {
+            page_id: params.pageId,
+            video_data: {
+              video_id: params.creative.videoId,
+              image_url: params.creative.thumbnailUrl,
+              message: params.creative.message,
+              call_to_action: { type: params.creative.callToActionType },
+            },
+          }
+        : {
+            page_id: params.pageId,
+            link_data: {
+              image_hash: params.creative.imageHash,
+              link: params.creative.linkUrl,
+              message: params.creative.message,
+              call_to_action: { type: params.creative.callToActionType },
+            },
+          };
+    const responseResult = await this.doFetch(MetaApiRequestBuilder.createAdUrl(adAccountId), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        adset_id: params.adSetId,
+        name: params.name,
+        creative: { object_story_spec: objectStorySpec },
+        status: params.status,
+        access_token: accessToken,
+      }),
+    });
+    if (!responseResult.ok) {
+      return responseResult;
+    }
+    return this.parseBody(responseResult.value, MetaCreateResponseSchema);
+  }
+
+  /** AAOS-GO-LIVE: `POST /{ad-account}/advideos` with `file_url` — see `IMetaAdsClient.uploadVideo`. */
+  async uploadVideo(
+    adAccountId: string,
+    videoUrl: string,
+    accessToken: string,
+  ): Promise<Result<MetaVideoUploadResponse, MetaApiError>> {
+    const responseResult = await this.doFetch(MetaApiRequestBuilder.uploadVideoUrl(adAccountId), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ file_url: videoUrl, access_token: accessToken }),
+    });
+    if (!responseResult.ok) {
+      return responseResult;
+    }
+    return this.parseBody(responseResult.value, MetaVideoUploadResponseSchema);
+  }
+
+  /** AAOS-GO-LIVE: `POST /{ad-account}/adimages` with `url` — see `IMetaAdsClient.uploadImage`. */
+  async uploadImage(
+    adAccountId: string,
+    imageUrl: string,
+    accessToken: string,
+  ): Promise<Result<MetaImageUploadResponse, MetaApiError>> {
+    const responseResult = await this.doFetch(MetaApiRequestBuilder.uploadImageUrl(adAccountId), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: imageUrl, access_token: accessToken }),
+    });
+    if (!responseResult.ok) {
+      return responseResult;
+    }
+    return this.parseBody(responseResult.value, MetaImageUploadResponseSchema);
   }
 
   private async getJson<T>(

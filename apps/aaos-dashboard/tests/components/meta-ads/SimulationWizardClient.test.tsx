@@ -251,6 +251,122 @@ describe("SimulationWizardClient", () => {
     expect(screen.getByText("APPROVED")).toBeInTheDocument();
   });
 
+  describe("Go Live (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4)", () => {
+    const APPROVED_STATUS: SimulationStatusDto = {
+      ...DONE_STATUS,
+      decision: "APPROVED",
+      decidedAt: "2026-08-13T00:00:10.000Z",
+    };
+
+    async function renderApprovedRun(
+      extraOverrides: Record<string, () => Response | Promise<Response>> = {},
+    ): Promise<void> {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockFetch({
+        "/api/simulation/start": () => jsonResponse({ id: "sim-1", status: "RUNNING" }, 202),
+        "/api/simulation/sim-1/status": () => jsonResponse(APPROVED_STATUS),
+        "/api/simulation/sim-1/approve": () => jsonResponse(APPROVED_STATUS),
+        ...extraOverrides,
+      });
+      render(<SimulationWizardClient />);
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Ready Buyer" }));
+      await userEvent.click(screen.getByRole("button", { name: /Mulai Simulasi Dry-Run/ }));
+      await screen.findByTestId("wizard-step-review");
+    }
+
+    it("shows the 🚀 Go Live button only once decision is APPROVED", async () => {
+      await renderApprovedRun();
+      expect(await screen.findByTestId("go-live-button")).toBeInTheDocument();
+    });
+
+    it("does NOT show the Go Live button before a decision is recorded", async () => {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockFetch({
+        "/api/simulation/start": () => jsonResponse({ id: "sim-1", status: "RUNNING" }, 202),
+        "/api/simulation/sim-1/status": () => jsonResponse(DONE_STATUS),
+      });
+      render(<SimulationWizardClient />);
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Ready Buyer" }));
+      await userEvent.click(screen.getByRole("button", { name: /Mulai Simulasi Dry-Run/ }));
+      await screen.findByTestId("wizard-step-review");
+      expect(screen.queryByTestId("go-live-button")).not.toBeInTheDocument();
+    });
+
+    it("the Go Live confirm button stays disabled until 'GO LIVE' is typed and required fields are filled", async () => {
+      await renderApprovedRun();
+      await userEvent.click(await screen.findByTestId("go-live-button"));
+      const confirmButton = screen.getByTestId("go-live-confirm-button");
+      expect(confirmButton).toBeDisabled();
+
+      await userEvent.type(screen.getByTestId("go-live-confirm-input"), "GO LIVE");
+      expect(confirmButton).toBeDisabled(); // still missing hostedUrl/primaryText
+
+      const urlInputs = screen.getAllByPlaceholderText(/storage\.googleapis\.com/);
+      await userEvent.type(urlInputs[0]!, "https://storage.googleapis.com/aaos/creative.jpg");
+      const inputs = screen.getAllByRole("textbox");
+      const primaryTextInput = inputs[inputs.length - 1]!;
+      await userEvent.type(primaryTextInput, "Promo!");
+
+      expect(confirmButton).not.toBeDisabled();
+    });
+
+    it("submits GO LIVE and renders the resulting LIVE status + Rollback button", async () => {
+      await renderApprovedRun({
+        "/api/simulation/sim-1/go-live": () =>
+          jsonResponse({
+            ...APPROVED_STATUS,
+            status: "LIVE",
+            liveCampaignId: "campaign-live-1",
+            liveAdId: "ad-live-1",
+            liveAt: "2026-08-13T01:00:00.000Z",
+          }),
+      });
+      await userEvent.click(await screen.findByTestId("go-live-button"));
+      await userEvent.type(screen.getByTestId("go-live-confirm-input"), "GO LIVE");
+      const urlInputs = screen.getAllByPlaceholderText(/storage\.googleapis\.com/);
+      await userEvent.type(urlInputs[0]!, "https://storage.googleapis.com/aaos/creative.jpg");
+      const inputs = screen.getAllByRole("textbox");
+      await userEvent.type(inputs[inputs.length - 1]!, "Promo!");
+
+      await userEvent.click(screen.getByTestId("go-live-confirm-button"));
+
+      await waitFor(() => expect(screen.getByTestId("go-live-status")).toBeInTheDocument());
+      expect(screen.getByText(/campaign-live-1/)).toBeInTheDocument();
+      expect(screen.getByTestId("rollback-button")).toBeInTheDocument();
+    });
+
+    it("Rollback posts to /api/simulation/:id/rollback and renders the ROLLED_BACK state", async () => {
+      const liveStatus: SimulationStatusDto = {
+        ...APPROVED_STATUS,
+        status: "LIVE",
+        liveCampaignId: "campaign-live-1",
+        liveAdId: "ad-live-1",
+        liveAt: "2026-08-13T01:00:00.000Z",
+      };
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockFetch({
+        "/api/simulation/start": () => jsonResponse({ id: "sim-1", status: "RUNNING" }, 202),
+        "/api/simulation/sim-1/status": () => jsonResponse(liveStatus),
+        "/api/simulation/sim-1/rollback": () =>
+          jsonResponse({
+            ...liveStatus,
+            status: "ROLLED_BACK",
+            rolledBackAt: "2026-08-13T01:30:00.000Z",
+          }),
+      });
+      render(<SimulationWizardClient />);
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Ready Buyer" }));
+      await userEvent.click(screen.getByRole("button", { name: /Mulai Simulasi Dry-Run/ }));
+      await screen.findByTestId("go-live-status");
+
+      await userEvent.click(screen.getByTestId("rollback-button"));
+      await waitFor(() => expect(screen.getByText(/sudah di-rollback/)).toBeInTheDocument());
+    });
+  });
+
   it("shows an error card (not a silently blank section) when /api/objective returns a non-2xx response", async () => {
     writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
     mockFetch({
