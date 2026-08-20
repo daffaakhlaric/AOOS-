@@ -4,6 +4,8 @@ export type {
   JessyAgent as JessyAgentComposition,
   JessyAgentFactoryOptions,
   PropertyConversationEngineFactoryOptions,
+  PropertyJessyAgent as PropertyJessyAgentComposition,
+  PropertyJessyAgentFactoryOptions,
 } from "./factories/JessyAgentFactory.js";
 
 // Use Cases

@@ -24,8 +24,18 @@ export { PersonaId } from "./domain/value-objects/PersonaId.js";
 export { SessionId } from "./domain/value-objects/SessionId.js";
 
 // Config
-export type { SimulatorConfig, SimulatorConfigInput } from "./config/SimulatorConfig.js";
-export { parseSimulatorConfig, DEFAULT_SIMULATOR_CONFIG } from "./config/SimulatorConfig.js";
+export type {
+  SimulatorConfig,
+  SimulatorConfigInput,
+  SimulatorVertical,
+  PropertyListingData,
+} from "./config/SimulatorConfig.js";
+export {
+  parseSimulatorConfig,
+  DEFAULT_SIMULATOR_CONFIG,
+  SIMULATOR_VERTICALS,
+  PropertyListingDataSchema,
+} from "./config/SimulatorConfig.js";
 
 // Errors
 export {

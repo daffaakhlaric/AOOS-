@@ -47,21 +47,30 @@ export interface AaosSimulatorRunResult {
 export class AaosSimulatorError extends Error {}
 
 /**
- * Calls `${baseUrl}/api/simulate` with `{ personaId }`. Throws `AaosSimulatorError` (never a raw
- * fetch rejection) on a non-2xx response, a network failure, or a response that fails the Zod
- * shape check — the caller (`SimulationService`) turns that into an honest `ok: false` per-persona
- * result, never a fabricated success.
+ * Calls `${baseUrl}/api/simulate` with `{ personaId, vertical?, listingId? }` — `vertical`/
+ * `listingId` are AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 additions (spec section 12 point
+ * 5), forwarded as-is to `apps/aaos-simulator`'s `POST /api/simulate` (which defaults `vertical`
+ * to `"AUTOMOTIVE"` when omitted — every existing caller's behavior unchanged). Throws
+ * `AaosSimulatorError` (never a raw fetch rejection) on a non-2xx response, a network failure, or
+ * a response that fails the Zod shape check — the caller (`SimulationService`) turns that into an
+ * honest `ok: false` per-persona result, never a fabricated success.
  */
 export async function callAaosSimulator(
   baseUrl: string,
   personaId: string,
+  vertical?: "AUTOMOTIVE" | "PROPERTY",
+  listingId?: string,
 ): Promise<AaosSimulatorRunResult> {
   let response: Response;
   try {
     response = await fetch(new URL("/api/simulate", baseUrl), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ personaId }),
+      body: JSON.stringify({
+        personaId,
+        ...(vertical !== undefined ? { vertical } : {}),
+        ...(listingId !== undefined ? { listingId } : {}),
+      }),
     });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);

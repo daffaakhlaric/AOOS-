@@ -137,9 +137,16 @@ export interface AllScenariosReportDto {
   readonly goldenCandidates: ReadonlyArray<string>;
 }
 
-/** Request body for `POST /api/simulate` (spec "API Routes"). */
+/**
+ * Request body for `POST /api/simulate` (spec "API Routes"). `vertical`/`listingId` are
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 additions (spec section 12 point 4) — both
+ * optional, `vertical` defaults `"AUTOMOTIVE"` when omitted (every existing caller's behavior
+ * unchanged).
+ */
 export interface SimulateRequest {
   readonly personaId: string;
+  readonly vertical?: "AUTOMOTIVE" | "PROPERTY";
+  readonly listingId?: string;
 }
 
 /** Success response body for `POST /api/simulate` (spec "API Routes"). */

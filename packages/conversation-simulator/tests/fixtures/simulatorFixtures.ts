@@ -11,6 +11,7 @@ export function makeSimulatorConfig(overrides: Partial<SimulatorConfig> = {}): S
     useRealInventory: false,
     delayBetweenTurnsMs: 0,
     tenantId: "tenant-dss-motor-test",
+    vertical: "AUTOMOTIVE",
     ...overrides,
   };
 }

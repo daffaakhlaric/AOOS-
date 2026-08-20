@@ -253,7 +253,7 @@ export class SimulationService {
 
       // --- Step 4+5: Jessy + AI Judge (real cross-app HTTP call to apps/aaos-simulator) ---
       await this.repository.updateStep(id, "JESSY");
-      const jessy = await this.runJessyStage(id, body.personaIds);
+      const jessy = await this.runJessyStage(id, body.personaIds, vertical, body.listingId);
 
       // --- Scoring ---
       await this.repository.updateStep(id, "JUDGE");
@@ -578,6 +578,8 @@ export class SimulationService {
   private async runJessyStage(
     id: string,
     personaIds: readonly string[],
+    vertical: "AUTOMOTIVE" | "PROPERTY",
+    listingId: string | undefined,
   ): Promise<JessyStageResult> {
     const jessyStart = Date.now();
     if (this.config.AAOS_SIMULATOR_BASE_URL.length === 0) {
@@ -604,7 +606,12 @@ export class SimulationService {
         `Menjalankan simulasi Jessy untuk persona "${personaId}"…`,
       );
       try {
-        const run = await callAaosSimulator(this.config.AAOS_SIMULATOR_BASE_URL, personaId);
+        const run = await callAaosSimulator(
+          this.config.AAOS_SIMULATOR_BASE_URL,
+          personaId,
+          vertical,
+          listingId,
+        );
         runs.push({
           personaId,
           ok: true,

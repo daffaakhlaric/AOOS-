@@ -5,13 +5,16 @@ import {
   JessyAgentFactory,
   parseSalesAgentConfig,
   type JessyAgentComposition,
+  type PropertyJessyAgentComposition,
   type SalesAgentConfig,
 } from "@aos/sales-agent";
 
 import type { SimulatorConfig } from "../../config/SimulatorConfig.js";
 import { SimulatorError } from "../../domain/errors/SimulatorError.js";
 
+import { InMemoryListingQueryService } from "./InMemoryListingQueryService.js";
 import { InventoryQueryServiceSpy } from "./InventoryQueryServiceSpy.js";
+import { ListingQueryServiceSpy } from "./ListingQueryServiceSpy.js";
 import { ObservablePublisher } from "./ObservablePublisher.js";
 
 /** A mutable clock box the simulator controls directly — `now: () => box.current` is the exact injectable-clock shape `@aos/sales-agent`'s own tests use (a plain `() => Date` closure), except here the closure reads a mutable cell so the simulator can *advance* time mid-session (design resolution #3) without rebuilding the whole composed agent. */
@@ -19,10 +22,23 @@ export interface SimulationClock {
   current: Date;
 }
 
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 (spec section 12 point 3) — `agent` is a union of
+ * the 2 vertical-specific `JessyAgentFactory` compositions (`create()`'s automotive shape vs
+ * `createPropertyAgent()`'s PROPERTY shape). They are NOT structurally interchangeable (each
+ * wraps a concretely-typed, vertical-specific `*JessyAgentService` class with its own private
+ * fields), so this is a real discriminated-by-`config.vertical` union, not a shared interface —
+ * `SimulationRunnerService.runTurnLoop` only ever touches the members both shapes genuinely share
+ * (`processIncomingMessage.execute(...)`/`followUpService`), which line up structurally across the
+ * union for every call site that package makes. `inventorySpy`/`listingSpy` are each populated only
+ * for the vertical that composed them — mutually exclusive, mirroring the automotive-vs-PROPERTY
+ * dispatch itself.
+ */
 export interface JessySimulationComposition {
-  readonly agent: JessyAgentComposition;
+  readonly agent: JessyAgentComposition | PropertyJessyAgentComposition;
   readonly publisher: ObservablePublisher;
-  readonly inventorySpy: InventoryQueryServiceSpy;
+  readonly inventorySpy?: InventoryQueryServiceSpy;
+  readonly listingSpy?: ListingQueryServiceSpy;
   readonly clock: SimulationClock;
   readonly salesAgentConfig: SalesAgentConfig;
 }
@@ -103,6 +119,10 @@ export class JessySimulationComposer {
     }
     /* v8 ignore stop */
 
+    if (config.vertical === "PROPERTY") {
+      return this.composeProperty(config, salesAgentConfig, publisher, branchManager, clock, now);
+    }
+
     const inventoryConnector = InventoryConnectorFactory.create({
       config: {
         tenantId: config.tenantId,
@@ -149,5 +169,37 @@ export class JessySimulationComposer {
     });
 
     return ok({ agent, publisher, inventorySpy, clock, salesAgentConfig });
+  }
+
+  /**
+   * The PROPERTY-vertical sibling composition path (spec section 12 point 3): wires
+   * `JessyAgentFactory.createPropertyAgent` with a real `IListingQueryService`
+   * (`InMemoryListingQueryService`, wrapped by the observation-seam `ListingQueryServiceSpy`) built
+   * from `config.listings` — the already-fetched real listing data the caller (`apps/aaos-simulator`)
+   * supplies. No inventory connector/sync is composed on this path — PROPERTY has no equivalent of
+   * `@aos/dss-inventory-connector`.
+   */
+  private composeProperty(
+    config: SimulatorConfig,
+    salesAgentConfig: SalesAgentConfig,
+    publisher: ObservablePublisher,
+    branchManager: BranchManager,
+    clock: SimulationClock,
+    now: () => Date,
+  ): Result<JessySimulationComposition, SimulatorError> {
+    const listingQueryService = new InMemoryListingQueryService(config.listings ?? []);
+    const listingSpy = new ListingQueryServiceSpy(listingQueryService);
+
+    const agent = JessyAgentFactory.createPropertyAgent({
+      config: salesAgentConfig,
+      branchId: config.branchId,
+      publisher,
+      assignLead: branchManager.assignLead,
+      salesTeamRegistry: branchManager.salesTeamRegistry,
+      listingQueryService: listingSpy,
+      now,
+    });
+
+    return ok({ agent, publisher, listingSpy, clock, salesAgentConfig });
   }
 }

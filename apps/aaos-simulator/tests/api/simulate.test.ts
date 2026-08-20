@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/simulate/route";
 import type { ApiErrorResponse, SimulateResponse } from "@/types/simulator.types";
@@ -67,5 +67,93 @@ describe("POST /api/simulate", () => {
     expect(body.judgementResult.closingAttempt.score).toBeGreaterThanOrEqual(0);
     expect(body.judgementResult.handoffQuality.score).toBeGreaterThanOrEqual(0);
     expect(body.judgementResult.responseLength.score).toBeGreaterThanOrEqual(0);
+  }, 20_000);
+});
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 (spec section 12 point 4) — `vertical`/`listingId`
+ * request body additions. Real end-to-end route handler tests, same discipline as the automotive
+ * tests above: only `global.fetch` (the real `apps/aaos-api` HTTP boundary `src/lib/aaos-api-
+ * client.ts` calls) is ever stubbed — `@aos/conversation-simulator`/`@aos/ai-judge` run for real.
+ */
+describe("POST /api/simulate (vertical: PROPERTY)", () => {
+  const originalBaseUrl = process.env["AAOS_API_BASE_URL"];
+  const originalApiKey = process.env["AAOS_API_KEY"];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalBaseUrl === undefined) {
+      delete process.env["AAOS_API_BASE_URL"];
+    } else {
+      process.env["AAOS_API_BASE_URL"] = originalBaseUrl;
+    }
+    if (originalApiKey === undefined) {
+      delete process.env["AAOS_API_KEY"];
+    } else {
+      process.env["AAOS_API_KEY"] = originalApiKey;
+    }
+  });
+
+  it("returns 400 for a vertical that isn't AUTOMOTIVE or PROPERTY", async () => {
+    const response = await POST(requestWith({ personaId: "cold_buyer", vertical: "SOMETHING" }));
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as ApiErrorResponse;
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 400 when listingId is not a string", async () => {
+    const response = await POST(requestWith({ personaId: "cold_buyer", listingId: 42 }));
+    expect(response.status).toBe(400);
+  });
+
+  it("runs a real PROPERTY-vertical simulation end-to-end with no AAOS_API_BASE_URL/AAOS_API_KEY configured (real degraded state — 0 listings, never a hard failure)", async () => {
+    delete process.env["AAOS_API_BASE_URL"];
+    delete process.env["AAOS_API_KEY"];
+
+    const response = await POST(
+      requestWith({ personaId: "cold_buyer", vertical: "PROPERTY", listingId: "listing-1" }),
+    );
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as SimulateResponse;
+    expect(body.simulationResult.messages.length).toBeGreaterThan(0);
+  }, 20_000);
+
+  it("runs a real PROPERTY-vertical simulation end-to-end, fetching the real listing from aaos-api when AAOS_API_BASE_URL/AAOS_API_KEY are configured", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "listing-1",
+            title: "Rumah Minimalis Cinere",
+            propertyType: "RUMAH",
+            price: 1_500_000_000,
+            city: "Cinere",
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      requestWith({ personaId: "ready_buyer", vertical: "PROPERTY", listingId: "listing-1" }),
+    );
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const body = (await response.json()) as SimulateResponse;
+    expect(body.simulationResult.messages.length).toBeGreaterThan(0);
+  }, 20_000);
+
+  it("omitting vertical entirely defaults to AUTOMOTIVE (no aaos-api fetch attempted)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(requestWith({ personaId: "cold_buyer" }));
+    expect(response.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
   }, 20_000);
 });

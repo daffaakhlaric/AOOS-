@@ -641,4 +641,74 @@ describe("SimulationService", () => {
       expect(repository.complete).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe("threads vertical/listingId into callAaosSimulator (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8)", () => {
+    it("passes the resolved vertical + body.listingId to callAaosSimulator for a PROPERTY tenant", async () => {
+      mockedCallAaosSimulator.mockResolvedValue({
+        finalScore: 80,
+        finalTemperature: "HOT",
+        handoffTriggered: true,
+        totalTurns: 6,
+        overallScore: 90,
+        grade: "A",
+        verdict: "APPROVED",
+        feedbackItems: [],
+      });
+      const repository = buildFakeRepository(buildStored());
+      const service = new SimulationService(
+        buildTestConfig({ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }),
+        undefined,
+        repository,
+        buildFakeLlmService(),
+        buildFakeInterestRepository(),
+        buildFakeTenantRepository("PROPERTY"),
+        buildFakeListingsService(buildFakeListing()),
+      );
+
+      await service.start({ ...BODY, listingId: "listing-1" }, "dss-motor");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(mockedCallAaosSimulator).toHaveBeenCalledWith(
+        "http://localhost:4100",
+        "ready_buyer",
+        "PROPERTY",
+        "listing-1",
+      );
+    });
+
+    it("passes vertical AUTOMOTIVE and an undefined listingId for a plain AUTOMOTIVE tenant", async () => {
+      mockedCallAaosSimulator.mockResolvedValue({
+        finalScore: 80,
+        finalTemperature: "HOT",
+        handoffTriggered: true,
+        totalTurns: 6,
+        overallScore: 90,
+        grade: "A",
+        verdict: "APPROVED",
+        feedbackItems: [],
+      });
+      const repository = buildFakeRepository(buildStored());
+      const service = new SimulationService(
+        buildTestConfig({ AAOS_SIMULATOR_BASE_URL: "http://localhost:4100" }),
+        undefined,
+        repository,
+        buildFakeLlmService(),
+        buildFakeInterestRepository(),
+        buildFakeTenantRepository("AUTOMOTIVE"),
+        buildFakeListingsService(),
+      );
+
+      await service.start(BODY, "dss-motor");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(mockedCallAaosSimulator).toHaveBeenCalledWith(
+        "http://localhost:4100",
+        "ready_buyer",
+        "AUTOMOTIVE",
+        undefined,
+      );
+    });
+  });
 });

@@ -165,7 +165,7 @@ export class SimulationRunnerService implements ISimulationRunner {
   ): Promise<TurnLoopOutcome> {
     let session = initialSession;
     let lastConversation: LeadConversation | undefined;
-    const { agent, publisher, inventorySpy, clock } = composition;
+    const { agent, publisher, inventorySpy, listingSpy, clock } = composition;
 
     for (let turn = 1; turn <= config.maxTurnsPerSimulation; turn += 1) {
       const messageText = this.personaStrategy.nextMessage(persona, turn - 1);
@@ -264,7 +264,7 @@ export class SimulationRunnerService implements ISimulationRunner {
         }
       }
 
-      if (inventorySpy.wasUsedWithResult) {
+      if (inventorySpy?.wasUsedWithResult === true || listingSpy?.wasUsedWithResult === true) {
         session = session.withJessyUsedInventory();
       }
 

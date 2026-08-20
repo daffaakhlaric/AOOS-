@@ -1,6 +1,11 @@
-import { PersonaId } from "@aos/conversation-simulator";
+import {
+  PersonaId,
+  SIMULATOR_VERTICALS,
+  type SimulatorVertical,
+} from "@aos/conversation-simulator";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { fetchListingById } from "@/lib/aaos-api-client";
 import { getJudge, toJudgementResultDto } from "@/lib/judge";
 import { DEFAULT_SIMULATOR_CONFIG, getSimulator, toSimulationResultDto } from "@/lib/simulator";
 import type { ApiErrorResponse, SimulateRequest, SimulateResponse } from "@/types/simulator.types";
@@ -12,6 +17,9 @@ import type { ApiErrorResponse, SimulateRequest, SimulateResponse } from "@/type
  */
 const VALID_PERSONA_IDS: ReadonlySet<string> = new Set(Object.values(PersonaId));
 
+/** AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 — `SIMULATOR_VERTICALS` IS re-exported from `@aos/conversation-simulator`'s top-level `src/index.ts` (unlike `ALL_PERSONA_IDS` above), so no `Object.values`-style workaround is needed here. */
+const VALID_VERTICALS: ReadonlySet<string> = new Set(SIMULATOR_VERTICALS);
+
 /**
  * `POST /api/simulate` (spec "API Routes"): runs one persona's simulation, then judges it — both
  * `@aos/conversation-simulator` and `@aos/ai-judge` are Node-only server-side business logic
@@ -21,6 +29,13 @@ const VALID_PERSONA_IDS: ReadonlySet<string> = new Set(Object.values(PersonaId))
  * Folder-structure fix (documented in README.md): the spec's ASCII tree lists this file at
  * `src/api/simulate/route.ts`, a sibling of `src/app/`. Next.js App Router route handlers are only
  * recognized inside the `app/` tree, so the working location is `src/app/api/simulate/route.ts`.
+ *
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 (spec section 12 point 4) — the request body now
+ * also accepts an optional `vertical` (defaults `"AUTOMOTIVE"`, every existing caller's behavior
+ * unchanged) and `listingId`. `getSimulator()`'s `cachedSimulator` is composed ONCE at module load
+ * and reused for every request, so `vertical`/`listingId`/the real fetched `listings` MUST flow
+ * through this per-call `config` object passed to `runSimulation.execute`, never through
+ * `SimulatorFactory.create()` itself (which stays call-independent).
  */
 export async function POST(
   request: NextRequest,
@@ -48,6 +63,45 @@ export async function POST(
     );
   }
 
+  const requestBody = body as { vertical?: unknown; listingId?: unknown };
+  const rawVertical = requestBody.vertical;
+  if (
+    rawVertical !== undefined &&
+    (typeof rawVertical !== "string" || !VALID_VERTICALS.has(rawVertical))
+  ) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `"vertical" must be one of: ${[...VALID_VERTICALS].join(", ")}.`,
+        },
+      },
+      { status: 400 },
+    );
+  }
+  const vertical = (rawVertical as SimulatorVertical | undefined) ?? "AUTOMOTIVE";
+
+  const rawListingId = requestBody.listingId;
+  if (rawListingId !== undefined && typeof rawListingId !== "string") {
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: '"listingId" must be a string.' } },
+      { status: 400 },
+    );
+  }
+  const listingId = rawListingId as string | undefined;
+
+  const listing =
+    vertical === "PROPERTY" && listingId !== undefined && listingId.length > 0
+      ? await fetchListingById(listingId)
+      : undefined;
+
+  const simulationConfig = {
+    ...DEFAULT_SIMULATOR_CONFIG,
+    vertical,
+    ...(listingId !== undefined ? { listingId } : {}),
+    ...(listing !== undefined ? { listings: [listing] } : {}),
+  };
+
   const simulatorResult = getSimulator();
   /* v8 ignore start -- unreachable in practice: `SimulatorFactory.create()` only ever fails if one
      of the 10 hardcoded persona literals in `@aos/conversation-simulator` becomes malformed (see
@@ -65,7 +119,7 @@ export async function POST(
 
   const simulationOutcome = await simulatorResult.value.runSimulation.execute(
     personaId as PersonaId,
-    DEFAULT_SIMULATOR_CONFIG,
+    simulationConfig,
   );
   /* v8 ignore start -- unreachable in practice: `personaId` is already validated against
      `VALID_PERSONA_IDS` above and `DEFAULT_SIMULATOR_CONFIG` is a valid, pre-parsed

@@ -57,4 +57,35 @@ describe("callAaosSimulator", () => {
       AaosSimulatorError,
     );
   });
+
+  it("sends only personaId in the body when vertical/listingId are omitted (every existing caller's behavior unchanged)", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(VALID_BODY));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await callAaosSimulator("http://localhost:4100", "ready_buyer");
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ personaId: "ready_buyer" });
+  });
+
+  it("sends vertical + listingId in the body when both are provided (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8)", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(VALID_BODY));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await callAaosSimulator("http://localhost:4100", "ready_buyer", "PROPERTY", "listing-1");
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      personaId: "ready_buyer",
+      vertical: "PROPERTY",
+      listingId: "listing-1",
+    });
+  });
+
+  it("sends only vertical when listingId is omitted", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(VALID_BODY));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await callAaosSimulator("http://localhost:4100", "ready_buyer", "AUTOMOTIVE");
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      personaId: "ready_buyer",
+      vertical: "AUTOMOTIVE",
+    });
+  });
 });

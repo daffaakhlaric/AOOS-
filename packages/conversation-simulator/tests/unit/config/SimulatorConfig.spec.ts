@@ -15,6 +15,9 @@ describe("SimulatorConfig", () => {
     expect(DEFAULT_SIMULATOR_CONFIG.useRealInventory).toBe(false);
     expect(DEFAULT_SIMULATOR_CONFIG.delayBetweenTurnsMs).toBe(0);
     expect(DEFAULT_SIMULATOR_CONFIG.tenantId).toBe("tenant-dss-motor");
+    expect(DEFAULT_SIMULATOR_CONFIG.vertical).toBe("AUTOMOTIVE");
+    expect(DEFAULT_SIMULATOR_CONFIG.listingId).toBeUndefined();
+    expect(DEFAULT_SIMULATOR_CONFIG.listings).toBeUndefined();
   });
 
   it("parseSimulatorConfig() defaults every field when given an empty object", () => {
@@ -70,5 +73,46 @@ describe("SimulatorConfig", () => {
       const config = unwrap(parseSimulatorConfig({ branchId }));
       expect(config.branchId).toBe(branchId);
     }
+  });
+
+  it("parseSimulatorConfig() accepts vertical: PROPERTY with listingId + listings", () => {
+    const config = unwrap(
+      parseSimulatorConfig({
+        vertical: "PROPERTY",
+        listingId: "listing-1",
+        listings: [
+          {
+            id: "listing-1",
+            title: "Rumah Minimalis Cinere",
+            propertyType: "RUMAH",
+            price: 1_500_000_000,
+            city: "Depok",
+          },
+        ],
+      }),
+    );
+    expect(config.vertical).toBe("PROPERTY");
+    expect(config.listingId).toBe("listing-1");
+    expect(config.listings).toHaveLength(1);
+    expect(config.listings?.[0]?.title).toBe("Rumah Minimalis Cinere");
+  });
+
+  it("parseSimulatorConfig() rejects an invalid vertical", () => {
+    const error = unwrapErr(parseSimulatorConfig({ vertical: "NOT_A_VERTICAL" }));
+    expect(error.message.length).toBeGreaterThan(0);
+  });
+
+  it("parseSimulatorConfig() rejects an empty listingId", () => {
+    const error = unwrapErr(parseSimulatorConfig({ listingId: "" }));
+    expect(error.message).toContain("listingId");
+  });
+
+  it("parseSimulatorConfig() rejects a listings entry with an invalid propertyType", () => {
+    const error = unwrapErr(
+      parseSimulatorConfig({
+        listings: [{ id: "l1", title: "X", propertyType: "NOT_A_TYPE", price: 1 }],
+      }),
+    );
+    expect(error.message.length).toBeGreaterThan(0);
   });
 });

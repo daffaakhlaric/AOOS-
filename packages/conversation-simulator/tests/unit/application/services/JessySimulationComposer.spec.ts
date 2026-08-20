@@ -47,4 +47,58 @@ describe("JessySimulationComposer", () => {
     const composition = unwrap(await composer.compose(makeSimulatorConfig()));
     expect(composition.agent.handoffService).toBeDefined();
   });
+
+  describe("vertical: PROPERTY (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8)", () => {
+    it("compose() wires a real PROPERTY JessyAgent via JessyAgentFactory.createPropertyAgent", async () => {
+      const composer = new JessySimulationComposer();
+      const composition = unwrap(
+        await composer.compose(makeSimulatorConfig({ vertical: "PROPERTY" })),
+      );
+
+      expect(composition.agent.processIncomingMessage).toBeDefined();
+      expect(composition.agent.followUpService).toBeDefined();
+      expect(composition.listingSpy).toBeDefined();
+      expect(composition.listingSpy?.wasUsedWithResult).toBe(false);
+      // No automotive inventory connector is composed on the PROPERTY path.
+      expect(composition.inventorySpy).toBeUndefined();
+    });
+
+    it("compose() with no listings supplied composes successfully with 0 active listings", async () => {
+      const composer = new JessySimulationComposer();
+      const composition = unwrap(
+        await composer.compose(makeSimulatorConfig({ vertical: "PROPERTY" })),
+      );
+      expect(composition.listingSpy?.getActive()).toHaveLength(0);
+    });
+
+    it("compose() wraps SimulatorConfig.listings into the real IListingQueryService seam", async () => {
+      const composer = new JessySimulationComposer();
+      const composition = unwrap(
+        await composer.compose(
+          makeSimulatorConfig({
+            vertical: "PROPERTY",
+            listings: [
+              {
+                id: "listing-1",
+                title: "Rumah Minimalis Cinere",
+                propertyType: "RUMAH",
+                price: 1_500_000_000,
+                city: "Depok",
+              },
+            ],
+          }),
+        ),
+      );
+      expect(composition.listingSpy?.getActive()).toHaveLength(1);
+      expect(composition.listingSpy?.wasUsedWithResult).toBe(true);
+    });
+
+    it("compose() seeds a sales human so PROPERTY handoffs can succeed", async () => {
+      const composer = new JessySimulationComposer();
+      const composition = unwrap(
+        await composer.compose(makeSimulatorConfig({ vertical: "PROPERTY" })),
+      );
+      expect(composition.agent.handoffService).toBeDefined();
+    });
+  });
 });
