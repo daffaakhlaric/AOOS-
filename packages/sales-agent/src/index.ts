@@ -3,6 +3,7 @@ export { JessyAgentFactory } from "./factories/JessyAgentFactory.js";
 export type {
   JessyAgent as JessyAgentComposition,
   JessyAgentFactoryOptions,
+  PropertyConversationEngineFactoryOptions,
 } from "./factories/JessyAgentFactory.js";
 
 // Use Cases
@@ -39,6 +40,33 @@ export {
 export type { PropertyScoringRule } from "./scoring/PropertyScoreCalculator.js";
 export { PropertyScoreDelta } from "./domain/value-objects/PropertyScoreDelta.js";
 export type { PropertyScoringCriterion } from "./domain/value-objects/PropertyScoreDelta.js";
+
+// AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 7 — the real PROPERTY-vertical conversation stack
+// (spec section 11 point 1): siblings to `ConversationEngine`/`StageDetector`/`ResponseGenerator`/
+// `InventoryQuerier`, driving `PropertyScoreCalculator`'s real 6 dimensions and querying Phase 2's
+// real `listings` (via `IListingQueryService`, implemented outside this package).
+export { PropertyConversationEngine } from "./conversation/PropertyConversationEngine.js";
+export { PropertyStageDetector } from "./conversation/PropertyStageDetector.js";
+export { PropertyResponseGenerator } from "./conversation/PropertyResponseGenerator.js";
+export {
+  PropertyIntentDetector,
+  PropertyDetectedIntent,
+  ALL_PROPERTY_DETECTED_INTENTS,
+} from "./conversation/PropertyIntentDetector.js";
+export { ListingQuerier } from "./intelligence/ListingQuerier.js";
+export { ListingMatcher } from "./intelligence/ListingMatcher.js";
+export type { PropertyListing, PropertyType } from "./domain/entities/PropertyListing.js";
+export { PROPERTY_TYPES } from "./domain/entities/PropertyListing.js";
+export type { IListingQueryService } from "./contracts/IListingQueryService.js";
+export type { IListingQuerier, FindListingsCriteria } from "./contracts/IListingQuerier.js";
+export type {
+  IPropertyConversationEngine,
+  PropertyEngineDecision,
+} from "./contracts/IPropertyConversationEngine.js";
+export type {
+  IPropertyResponseGenerator,
+  PropertyResponseContext,
+} from "./contracts/IPropertyResponseGenerator.js";
 
 // Events
 export type {

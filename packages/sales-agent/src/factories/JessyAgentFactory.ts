@@ -16,18 +16,26 @@ import { ScheduleFollowUp } from "../application/use-cases/ScheduleFollowUp.js";
 import { SendFollowUp } from "../application/use-cases/SendFollowUp.js";
 import { TriggerHandoff } from "../application/use-cases/TriggerHandoff.js";
 import type { SalesAgentConfig } from "../config/SalesAgentConfig.js";
+import type { IListingQueryService } from "../contracts/IListingQueryService.js";
 import type { IResponseGenerator } from "../contracts/IResponseGenerator.js";
 import { ConversationEngine } from "../conversation/ConversationEngine.js";
 import { ConversationPipeline } from "../conversation/ConversationPipeline.js";
+import { PropertyConversationEngine } from "../conversation/PropertyConversationEngine.js";
+import { PropertyResponseGenerator } from "../conversation/PropertyResponseGenerator.js";
 import { ResponseGenerator } from "../conversation/ResponseGenerator.js";
 import { JessyAgent as JessyAgentEntity } from "../domain/entities/JessyAgent.js";
 import { JessyAgentEvents } from "../domain/events/JessyAgentEvents.js";
 import type { BranchId } from "../domain/value-objects/BranchId.js";
 import { InventoryQuerier } from "../intelligence/InventoryQuerier.js";
 import { JessyKnowledgeBase } from "../intelligence/JessyKnowledgeBase.js";
+import { ListingQuerier } from "../intelligence/ListingQuerier.js";
 import { LlmResponseGenerator } from "../llm/LlmResponseGenerator.js";
 import { OpenAiChatClient } from "../llm/OpenAiChatClient.js";
 import { LeadScorer } from "../scoring/LeadScorer.js";
+import {
+  PROPERTY_HOT_THRESHOLD,
+  PROPERTY_WARM_THRESHOLD,
+} from "../scoring/PropertyScoreCalculator.js";
 
 export interface JessyAgentFactoryOptions {
   readonly config: SalesAgentConfig;
@@ -44,6 +52,25 @@ export interface JessyAgentFactoryOptions {
   readonly tracer?: Tracer;
   /** Injectable clock — defaults to the real wall clock only here. */
   readonly now?: () => Date;
+}
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 7 (spec section 11 point 2) — options for the
+ * vertical-aware PROPERTY composition path, `createPropertyConversationEngine`. Deliberately a
+ * separate, smaller options shape (not a superset of `JessyAgentFactoryOptions`): the PROPERTY path
+ * composes only the new PROPERTY conversation stack (`ListingQuerier`/`PropertyResponseGenerator`/
+ * `PropertyConversationEngine`) — it does NOT yet compose a full PROPERTY `JessyAgent`
+ * (`ConversationPipeline`/`JessyAgentService`/`LeadScoringService`/... remain automotive-typed,
+ * `IConversationEngine`-only; giving them a real PROPERTY-vertical sibling too is further,
+ * out-of-scope work for a future phase — see the coordinator report).
+ */
+export interface PropertyConversationEngineFactoryOptions {
+  readonly branchId: BranchId;
+  /** Real `IListingQueryService` — queried for real by `ListingQuerier`, never mocked. */
+  readonly listingQueryService: IListingQueryService;
+  /** Defaults to `PROPERTY_WARM_THRESHOLD`/`PROPERTY_HOT_THRESHOLD` (spec Part 6). */
+  readonly warmThreshold?: number;
+  readonly hotThreshold?: number;
 }
 
 export interface JessyAgent {
@@ -118,6 +145,27 @@ export class JessyAgentFactory {
       handoffService,
       followUpService,
     };
+  }
+
+  /**
+   * The PROPERTY-vertical sibling composition to `create()`'s automotive `ConversationEngine`
+   * wiring (spec section 11 point 2): wires the real `ListingQuerier`/`PropertyResponseGenerator`
+   * into a `PropertyConversationEngine`, scoped to one branch exactly like the automotive path.
+   */
+  static createPropertyConversationEngine(
+    options: PropertyConversationEngineFactoryOptions,
+  ): PropertyConversationEngine {
+    const listingQuerier = new ListingQuerier(options.listingQueryService);
+    const responseGenerator = new PropertyResponseGenerator();
+    return new PropertyConversationEngine(
+      listingQuerier,
+      {
+        warmThreshold: options.warmThreshold ?? PROPERTY_WARM_THRESHOLD,
+        hotThreshold: options.hotThreshold ?? PROPERTY_HOT_THRESHOLD,
+      },
+      responseGenerator,
+      (branchId) => JessyKnowledgeBase.branch(branchId).name,
+    );
   }
 
   /**

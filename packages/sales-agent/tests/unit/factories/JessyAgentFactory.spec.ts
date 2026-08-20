@@ -2,6 +2,11 @@ import { BranchId } from "@aos/branch-manager";
 import { HttpResponse, http } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import type { IListingQueryService } from "../../../src/contracts/IListingQueryService.js";
+import { LeadConversation } from "../../../src/domain/entities/LeadConversation.js";
+import type { PropertyListing } from "../../../src/domain/entities/PropertyListing.js";
+import { ConversationStage } from "../../../src/domain/value-objects/ConversationStage.js";
+import { LeadScore } from "../../../src/domain/value-objects/LeadScore.js";
 import { JessyAgentFactory } from "../../../src/factories/JessyAgentFactory.js";
 import { CHAT_COMPLETIONS_PATH, OPENAI_BASE_URL } from "../../../src/llm/OpenAiChatClient.js";
 import {
@@ -160,5 +165,51 @@ describe("JessyAgentFactory", () => {
       correlationId: "corr-4",
     });
     expect(outcome.ok).toBe(true);
+  });
+});
+
+describe("JessyAgentFactory.createPropertyConversationEngine", () => {
+  const NOW = new Date("2026-08-20T09:00:00.000Z");
+  const LISTING: PropertyListing = {
+    id: "l1",
+    title: "Rumah Bintaro",
+    propertyType: "RUMAH",
+    price: 1_500_000_000,
+    bedrooms: 3,
+  };
+
+  function fakeQueryService(active: ReadonlyArray<PropertyListing>): IListingQueryService {
+    return { getActive: () => active };
+  }
+
+  it("composes a real PropertyConversationEngine using default PROPERTY thresholds", async () => {
+    const engine = JessyAgentFactory.createPropertyConversationEngine({
+      branchId: BranchId.BINTARO,
+      listingQueryService: fakeQueryService([LISTING]),
+    });
+    const conversation = LeadConversation.start("+6281200000001", BranchId.BINTARO, NOW);
+    const decision = await engine.decide(conversation, "halo min");
+    expect(decision.ok).toBe(true);
+    if (decision.ok) {
+      expect(decision.value.nextStage).toBe(ConversationStage.GREETING);
+    }
+  });
+
+  it("honours explicit warmThreshold/hotThreshold overrides", async () => {
+    const engine = JessyAgentFactory.createPropertyConversationEngine({
+      branchId: BranchId.CINERE,
+      listingQueryService: fakeQueryService([LISTING]),
+      warmThreshold: 10,
+      hotThreshold: 20,
+    });
+    const conversation = LeadConversation.start("+6281200000001", BranchId.CINERE, NOW)
+      .withAppendedMessage({ isInbound: true } as never, NOW)
+      .withAppendedMessage({ isInbound: false } as never, NOW)
+      .withScore(LeadScore.zero().apply(25));
+    const decision = await engine.decide(conversation, "oke lanjut kak");
+    expect(decision.ok).toBe(true);
+    if (decision.ok) {
+      expect(decision.value.nextStage).toBe(ConversationStage.CLOSING);
+    }
   });
 });
