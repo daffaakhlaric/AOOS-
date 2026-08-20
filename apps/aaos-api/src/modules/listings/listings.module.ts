@@ -26,5 +26,9 @@ import { ListingsService } from "./listings.service.js";
       inject: [SUPABASE_CLIENT],
     },
   ],
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — `SimulationModule` imports this module to reuse
+  // the SAME real `ListingsService.getById` (tenant-scoped `NotFoundError` authorization included)
+  // for Step 3's PROPERTY Kai-prompt preview, rather than composing a second listing lookup path.
+  exports: [ListingsService],
 })
 export class ListingsModule {}

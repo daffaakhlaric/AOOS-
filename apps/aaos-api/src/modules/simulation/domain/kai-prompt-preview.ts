@@ -3,10 +3,15 @@ import { randomUUID } from "node:crypto";
 import {
   AutomotivePromptBuilder,
   CopyBuilder,
+  CreativeFormat,
   FormatDecider,
   FormatDecisionService,
   PromptBuildingService,
+  PropertyCopyBuilder,
+  PropertyFormatDecider,
+  PropertyPromptBuilder,
 } from "@aos/creative-agent";
+import type { PropertyCreativeBrief } from "@aos/creative-agent";
 import { CreativeBrief, CreativeBriefId, TargetPersona } from "@aos/meta-ads-agent";
 import type { AdAngle } from "@aos/meta-ads-agent";
 import type { Branch } from "@aos/meta-ads-connector";
@@ -17,6 +22,10 @@ const formatDecisionService = new FormatDecisionService(new FormatDecider());
 const promptBuildingService = new PromptBuildingService(new AutomotivePromptBuilder());
 const copyBuilder = new CopyBuilder();
 
+const propertyFormatDecider = new PropertyFormatDecider();
+const propertyPromptBuilder = new PropertyPromptBuilder();
+const propertyCopyBuilder = new PropertyCopyBuilder();
+
 /**
  * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section C — builds the REAL Kai/Kie AI prompt
  * detail for a Simulasi run's `kai.brief`, by re-running the brief through the exact same
@@ -26,16 +35,14 @@ const copyBuilder = new CopyBuilder();
  * constructed here — same hard scope boundary `SimulationService`'s class doc already documents for
  * Step 3 ("real Kie AI video generation is NOT invoked in this pass").
  *
- * AUTOMOTIVE ONLY: `AutomotivePromptBuilder`/`CopyBuilder` are the only real, wired implementations
- * for this pipeline today — `@aos/creative-agent`'s `PropertyPromptBuilder` (Phase 2) takes a
- * structurally different `PropertyCreativeBrief` (listing-shaped, not `CreativeBrief`-shaped) and
- * has no property-vertical `FormatDecider`/`CopyBuilder` counterpart, and the Simulasi pipeline has
- * no real per-request tenant/vertical resolution yet (`SimulationService` reads a single static
- * `AaosApiConfig.AAOS_TENANT_ID`, not a request-scoped tenant — see COORDINATOR NOTE #4). Building a
- * property branch here honestly would mean fabricating a format/copy decision this codebase cannot
- * really make yet, so this function is automotive-only; a `PROPERTY`-vertical caller degrades to
- * `available: false` rather than a half-real result. See this phase's final report for the follow-up
- * this leaves open.
+ * AUTOMOTIVE ONLY (this function): `AutomotivePromptBuilder`/`CopyBuilder`/`CreativeBrief` are all
+ * hard-typed to the automotive ad-refresh shape (`unit`/`branch`/`formats`/`urgency`, sourced from
+ * `LlmService.creativeBrief`'s real Meta-ad-driven brief) — there is no way to feed this function a
+ * `PropertyCreativeBrief` (listing-shaped, no `formats`/`urgency`). PROPERTY-vertical Kai prompts
+ * are built by the sibling `buildPropertyKaiPromptDetail` below instead, using Phase 6's real
+ * `PropertyFormatDecider`/`PropertyPromptBuilder`/`PropertyCopyBuilder` over the tenant's selected
+ * `listings` row (Step 1's "Pilih Listing") rather than a Meta-ad brief — `SimulationService`
+ * dispatches to whichever of the two applies for the resolved vertical.
  *
  * NEVER FAILS THE RUN: a real `CreativeBrief.create` validation failure, or a thrown asset-library
  * lookup, degrades to `undefined` (see `KaiStageResult.promptDetail`'s doc) — this is a display
@@ -122,6 +129,71 @@ export function buildKaiPromptDetail(
           videoModel: decision.videoSpec.model,
           videoDurationSeconds: decision.videoSpec.durationSeconds,
           videoAspectRatio: decision.videoSpec.aspectRatio,
+        }
+      : {}),
+  };
+}
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — builds the REAL Kai/Kie AI prompt detail for a
+ * PROPERTY-vertical Simulasi run, using Phase 6's real `PropertyFormatDecider`/
+ * `PropertyPromptBuilder`/`PropertyCopyBuilder` over the caller's already-real
+ * `PropertyCreativeBrief` (built by `SimulationService` from the tenant's selected `listings` row
+ * — Step 1's "Pilih Listing" — never fabricated). Mirrors `buildKaiPromptDetail`'s structure
+ * exactly (decide format/specs, build prompts, build copy) but has no `CreativeBrief.create`
+ * validation step to fail: `PropertyCreativeBrief` is a plain, already-validated struct (its
+ * fields come straight off a real, already-persisted `listings` row plus the tenant's selected
+ * angle), so this function cannot itself produce an "invalid brief" outcome the way the automotive
+ * path can. NEVER FAILS THE RUN: any error a caller wraps this in still degrades to `undefined`
+ * (see `KaiStageResult.promptDetail`'s doc), same discipline as `buildKaiPromptDetail`.
+ */
+export function buildPropertyKaiPromptDetail(
+  brief: PropertyCreativeBrief,
+  sourcePhotoUrls: readonly string[],
+): KaiPromptDetail {
+  const availablePhotos = sourcePhotoUrls.length;
+  const format = propertyFormatDecider.decideFormat(brief, availablePhotos);
+  const imageSpec = propertyFormatDecider.decideImageSpec(brief);
+  const videoSpec =
+    format === CreativeFormat.VIDEO_AND_IMAGES
+      ? propertyFormatDecider.decideVideoSpec(brief)
+      : undefined;
+
+  const sourcePhotoAvailable = availablePhotos > 0;
+  const videoPrompt =
+    videoSpec !== undefined
+      ? propertyPromptBuilder.buildVideoPrompt(brief, sourcePhotoAvailable)
+      : undefined;
+  const imagePrompts = Array.from({ length: imageSpec.count }, (_, index) =>
+    propertyPromptBuilder.buildImagePrompt(brief, index),
+  );
+
+  const copyResult = propertyCopyBuilder.buildVariants(brief);
+  const copyVariants = copyResult.ok
+    ? copyResult.value.map((variant) => ({
+        id: variant.id,
+        variantLabel: variant.variantLabel,
+        primaryText: variant.primaryText,
+        headline: variant.headline,
+        callToAction: variant.callToAction,
+      }))
+    : [];
+
+  return {
+    ...(videoPrompt !== undefined ? { videoPrompt } : {}),
+    imagePrompts,
+    copyVariants,
+    ...(!copyResult.ok ? { copyVariantsUnavailableReason: copyResult.error.message } : {}),
+    sourcePhotoUrls,
+    format,
+    imageModel: imageSpec.model,
+    imageAspectRatio: imageSpec.aspectRatio,
+    imageCount: imageSpec.count,
+    ...(videoSpec !== undefined
+      ? {
+          videoModel: videoSpec.model,
+          videoDurationSeconds: videoSpec.durationSeconds,
+          videoAspectRatio: videoSpec.aspectRatio,
         }
       : {}),
   };

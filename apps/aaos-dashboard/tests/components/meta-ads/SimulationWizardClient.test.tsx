@@ -665,6 +665,117 @@ describe("SimulationWizardClient", () => {
     });
   });
 
+  describe("PROPERTY vertical (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6, Step 1)", () => {
+    function mockPropertySettings(
+      overrides: Record<string, () => Response | Promise<Response>> = {},
+    ): void {
+      mockFetch({
+        "/api/settings": () =>
+          jsonResponse({
+            tenant: {
+              tenantId: "propertyklik-demo",
+              name: "PropertyKlik Demo",
+              vertical: "PROPERTY",
+              status: "ACTIVE",
+            },
+            meta: { apiVersion: "v21.0", hasToken: false, usingEnvDefault: true },
+          }),
+        "/api/listings?status=AKTIF": () =>
+          jsonResponse({
+            listings: [
+              {
+                id: "listing-1",
+                title: "Rumah Bintaro 88m²",
+                propertyType: "RUMAH",
+                listingStatus: "AKTIF",
+                price: 1_800_000_000,
+                highlights: [],
+                photos: [],
+                inKnowledgeBase: false,
+                createdAt: "2026-08-13T00:00:00.000Z",
+                updatedAt: "2026-08-13T00:00:00.000Z",
+              },
+            ],
+            total: 1,
+          }),
+        ...overrides,
+      });
+    }
+
+    it("shows the PROPERTY angle list + Pilih Listing dropdown, and relabels personas — once vertical resolves", async () => {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockPropertySettings();
+      render(<SimulationWizardClient />);
+
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+
+      await waitFor(() => expect(screen.getByText("Rumah Bintaro 88m²")).toBeInTheDocument());
+      expect(screen.getByText("Pilih Listing")).toBeInTheDocument();
+      // Property-flavored persona label, same real "ready_buyer" id underneath.
+      expect(screen.getByRole("button", { name: /Ready Buyer \(Siap Beli\)/ })).toBeInTheDocument();
+      // The automotive-only angle option must not leak into the PROPERTY select.
+      expect(screen.queryByText("KREDIT_SYARIAH")).not.toBeInTheDocument();
+      expect(screen.getByText("VIRTUAL_TOUR")).toBeInTheDocument();
+    });
+
+    it("'Mulai Simulasi Dry-Run' stays disabled until a listing is selected", async () => {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockPropertySettings();
+      render(<SimulationWizardClient />);
+
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+      await waitFor(() => expect(screen.getByText("Rumah Bintaro 88m²")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: /Ready Buyer \(Siap Beli\)/ }));
+
+      expect(screen.getByRole("button", { name: /Mulai Simulasi Dry-Run/ })).toBeDisabled();
+
+      await userEvent.selectOptions(screen.getByDisplayValue("— pilih listing —"), "listing-1");
+      expect(screen.getByRole("button", { name: /Mulai Simulasi Dry-Run/ })).not.toBeDisabled();
+    });
+
+    it("sends the real listingId + kaiPropertyAngle in the start payload once a listing is selected", async () => {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      let startCallBody: unknown;
+      mockPropertySettings({
+        "/api/simulation/start": () => jsonResponse({ id: "sim-1", status: "RUNNING" }, 202),
+        "/api/simulation/sim-1/status": () => jsonResponse(DONE_STATUS),
+      });
+      const realFetch = global.fetch;
+      global.fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+        if (String(input).includes("/api/simulation/start") && init?.body !== undefined) {
+          startCallBody = JSON.parse(String(init.body));
+        }
+        return realFetch(input as never, init);
+      }) as unknown as typeof fetch;
+
+      render(<SimulationWizardClient />);
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+      await waitFor(() => expect(screen.getByText("Rumah Bintaro 88m²")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: /Ready Buyer \(Siap Beli\)/ }));
+      await userEvent.selectOptions(screen.getByDisplayValue("— pilih listing —"), "listing-1");
+      await userEvent.click(screen.getByRole("button", { name: /Mulai Simulasi Dry-Run/ }));
+
+      await waitFor(() => expect(screen.getByTestId("wizard-pipeline")).toBeInTheDocument());
+      expect(startCallBody).toMatchObject({
+        listingId: "listing-1",
+        kaiPropertyAngle: "DP_RINGAN",
+      });
+    });
+
+    it("shows an honest empty state when the tenant has no AKTIF listings (never a fabricated option)", async () => {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockPropertySettings({
+        "/api/listings?status=AKTIF": () => jsonResponse({ listings: [], total: 0 }),
+      });
+      render(<SimulationWizardClient />);
+
+      await userEvent.click(await screen.findByRole("button", { name: /Xpander Cross 2019/ }));
+      expect(
+        await screen.findByText("Belum ada listing AKTIF — tambahkan di Listing Manager."),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("history toggle loads /api/simulation/history", async () => {
     mockFetch({
       "/api/simulation/history": () =>

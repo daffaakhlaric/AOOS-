@@ -70,6 +70,12 @@ export { AngleToPromptMapper } from "./intelligence/AngleToPromptMapper.js";
 export { PropertyPromptBuilder } from "./intelligence/PropertyPromptBuilder.js";
 export { PropertyAngleToPromptMapper } from "./intelligence/PropertyAngleToPromptMapper.js";
 export { PropertyAdAngle, ALL_PROPERTY_AD_ANGLES } from "./domain/value-objects/PropertyAdAngle.js";
+// AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the PROPERTY-vertical `FormatDecider`/`CopyBuilder`
+// siblings, unblocking a real PROPERTY Kai-prompt preview (Simulasi Step 3).
+export { PropertyFormatDecider } from "./intelligence/PropertyFormatDecider.js";
+export type { IPropertyFormatDecider } from "./contracts/IPropertyFormatDecider.js";
+export { PropertyCopyBuilder } from "./intelligence/PropertyCopyBuilder.js";
+export type { PropertyCopyVariant } from "./intelligence/PropertyCopyBuilder.js";
 
 // Additive: the contracts (ports) every intelligence/service class above implements.
 export type { ICreativeAgent } from "./contracts/ICreativeAgent.js";

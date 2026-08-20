@@ -2,6 +2,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { ListingsModule } from "../listings/listings.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { MetaInterestsModule } from "../meta-interests/meta-interests.module.js";
@@ -25,9 +26,14 @@ import { SimulationService } from "./simulation.service.js";
  * `SettingsModule` already does — its own instance over the shared `SUPABASE_CLIENT`, not a second
  * lookup mechanism — so `SimulationService.resolveVertical` can read the real per-request tenant's
  * `vertical`.
+ *
+ * `ListingsModule` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6) is imported (not re-provided,
+ * same reasoning as `LlmModule`/`MetaInterestsModule`) so `SimulationService` can inject the real
+ * `ListingsService` for Step 3's PROPERTY Kai-prompt preview — the tenant-scoped lookup + its
+ * `NotFoundError` authorization stay in one place.
  */
 @Module({
-  imports: [LlmModule, MetaInterestsModule],
+  imports: [LlmModule, MetaInterestsModule, ListingsModule],
   controllers: [SimulationController],
   providers: [
     SimulationService,

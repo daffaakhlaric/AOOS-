@@ -1,6 +1,8 @@
+import { PropertyAdAngle } from "@aos/creative-agent";
+import type { PropertyCreativeBrief } from "@aos/creative-agent";
 import { describe, expect, it } from "vitest";
 
-import { buildKaiPromptDetail } from "./kai-prompt-preview.js";
+import { buildKaiPromptDetail, buildPropertyKaiPromptDetail } from "./kai-prompt-preview.js";
 
 const BASE_INPUT = {
   unit: "Xpander",
@@ -72,5 +74,79 @@ describe("buildKaiPromptDetail", () => {
       angle: "NOT_A_REAL_ANGLE" as never,
     });
     expect(detail).toBeUndefined();
+  });
+});
+
+const PROPERTY_BRIEF: PropertyCreativeBrief = {
+  listingId: "listing-1",
+  listingTitle: "Rumah Bintaro 88m²",
+  propertyType: "RUMAH",
+  angle: PropertyAdAngle.READY_HUNI,
+  branch: "BINTARO",
+  waNumber: "+628123456789",
+  highlights: ["Dekat sekolah dan tol"],
+};
+
+describe("buildPropertyKaiPromptDetail", () => {
+  it("builds a real English video + N image prompts from PropertyPromptBuilder, never fabricated text", () => {
+    const detail = buildPropertyKaiPromptDetail(
+      { ...PROPERTY_BRIEF, angle: PropertyAdAngle.VIRTUAL_TOUR },
+      ["https://assets.example/listing-1-photo.jpg"],
+    );
+    expect(detail.videoPrompt).toContain("Rumah Bintaro 88m²");
+    expect(detail.imagePrompts.length).toBeGreaterThan(0);
+    detail.imagePrompts.forEach((prompt) => {
+      expect(prompt).toContain("Rumah Bintaro 88m²");
+    });
+  });
+
+  it("VIRTUAL_TOUR + a real source photo -> VIDEO_AND_IMAGES (matches PropertyFormatDecider)", () => {
+    const detail = buildPropertyKaiPromptDetail(
+      { ...PROPERTY_BRIEF, angle: PropertyAdAngle.VIRTUAL_TOUR },
+      ["https://assets.example/listing-1-photo.jpg"],
+    );
+    expect(detail.format).toBe("VIDEO_AND_IMAGES");
+    expect(detail.videoModel).toBeDefined();
+    expect(detail.videoDurationSeconds).toBe(30);
+  });
+
+  it("no video-appropriate angle -> IMAGES_ONLY, no video prompt", () => {
+    const detail = buildPropertyKaiPromptDetail(
+      { ...PROPERTY_BRIEF, angle: PropertyAdAngle.DP_RINGAN },
+      ["https://assets.example/listing-1-photo.jpg"],
+    );
+    expect(detail.format).toBe("IMAGES_ONLY");
+    expect(detail.videoPrompt).toBeUndefined();
+  });
+
+  it("no real source photos -> IMAGES_ONLY even for a video-appropriate angle (matches PropertyFormatDecider: needs availablePhotos >= 1)", () => {
+    const detail = buildPropertyKaiPromptDetail(
+      { ...PROPERTY_BRIEF, angle: PropertyAdAngle.VIRTUAL_TOUR },
+      [],
+    );
+    expect(detail.format).toBe("IMAGES_ONLY");
+    expect(detail.videoPrompt).toBeUndefined();
+  });
+
+  it("produces the real 3 Indonesian copy variants (A/B/C) from PropertyCopyBuilder", () => {
+    const detail = buildPropertyKaiPromptDetail(PROPERTY_BRIEF, []);
+    expect(detail.copyVariants).toHaveLength(3);
+    expect(detail.copyVariants.map((v) => v.variantLabel).sort()).toEqual(["A", "B", "C"]);
+  });
+
+  it("carries real source photo URLs through untouched — never a fabricated thumbnail", () => {
+    const detail = buildPropertyKaiPromptDetail(PROPERTY_BRIEF, [
+      "https://assets.example/listing-1-photo.jpg",
+    ]);
+    expect(detail.sourcePhotoUrls).toEqual(["https://assets.example/listing-1-photo.jpg"]);
+  });
+
+  it("reports zero source photos honestly when the listing has none (no fabricated thumbnail)", () => {
+    const detail = buildPropertyKaiPromptDetail(PROPERTY_BRIEF, []);
+    expect(detail.sourcePhotoUrls).toEqual([]);
+  });
+
+  it("never throws — a plain PropertyCreativeBrief has no validation step that can fail", () => {
+    expect(() => buildPropertyKaiPromptDetail(PROPERTY_BRIEF, [])).not.toThrow();
   });
 });

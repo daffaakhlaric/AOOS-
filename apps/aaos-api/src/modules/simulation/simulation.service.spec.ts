@@ -4,6 +4,8 @@ import { NotFoundError } from "@aos/errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
+import type { ListingsService } from "../listings/listings.service.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { StoredMetaInterest } from "../meta-interests/domain/meta-interest.js";
 import type { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
@@ -102,6 +104,51 @@ function buildFakeTenantRepository(
   } as unknown as TenantRepository;
 }
 
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the fake for `SimulationService`'s new
+ * `ListingsService` dependency (Step 3's PROPERTY Kai-prompt preview). Defaults to a real
+ * `NotFoundError` throw, matching `ListingsService.getById`'s real behavior for any id this fake
+ * wasn't told about — every pre-existing AUTOMOTIVE-vertical test never reaches this fake at all
+ * (`resolveKaiPromptDetail` short-circuits to the automotive path before touching `listings`), so
+ * the default never needs to succeed.
+ */
+function buildFakeListingsService(listing?: ListingResponseDto): ListingsService {
+  return {
+    getById: vi.fn(async (_tenantId: string, id: string) => {
+      if (listing !== undefined && listing.id === id) {
+        return listing;
+      }
+      throw new NotFoundError(`No listing found for id "${id}"`);
+    }),
+  } as unknown as ListingsService;
+}
+
+function buildFakeListing(overrides: Partial<ListingResponseDto> = {}): ListingResponseDto {
+  return {
+    id: "listing-1",
+    title: "Rumah Bintaro 88m²",
+    propertyType: "RUMAH",
+    listingStatus: "AKTIF",
+    price: 1_800_000_000,
+    branchId: "BINTARO",
+    waNumber: "+628123456789",
+    highlights: ["Dekat sekolah dan tol"],
+    photos: [
+      {
+        id: "photo-1",
+        url: "https://assets.example/listing-1-photo-1.jpg",
+        order: 0,
+        isMain: true,
+      },
+    ],
+    mainPhotoUrl: "https://assets.example/listing-1-photo-1.jpg",
+    inKnowledgeBase: false,
+    createdAt: "2026-08-13T00:00:00.000Z",
+    updatedAt: "2026-08-13T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 const REAL_STORED_INTEREST: StoredMetaInterest = {
   // Verbatim from a real live Meta `GET /search?type=adinterest&q=used car` response, 2026-08-18.
   id: "6003257869482",
@@ -171,6 +218,7 @@ describe("SimulationService", () => {
       buildFakeLlmService(),
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
+      buildFakeListingsService(),
     );
 
     const result = await service.start(BODY, "dss-motor");
@@ -200,6 +248,7 @@ describe("SimulationService", () => {
       buildFakeLlmService(),
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
+      buildFakeListingsService(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -237,6 +286,7 @@ describe("SimulationService", () => {
       buildFakeLlmService(),
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
+      buildFakeListingsService(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -263,6 +313,7 @@ describe("SimulationService", () => {
       buildFakeLlmService(),
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
+      buildFakeListingsService(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -291,6 +342,7 @@ describe("SimulationService", () => {
       }),
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
+      buildFakeListingsService(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -309,6 +361,7 @@ describe("SimulationService", () => {
       buildFakeLlmService(),
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
+      buildFakeListingsService(),
     );
     await expect(service.getStatus("missing")).rejects.toThrow(NotFoundError);
   });
@@ -323,6 +376,7 @@ describe("SimulationService", () => {
       buildFakeLlmService(),
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
+      buildFakeListingsService(),
     );
 
     await service.approve("sim-1", { decidedBy: "manager-1", notes: "looks good" });
@@ -357,6 +411,7 @@ describe("SimulationService", () => {
         llm,
         interestRepository,
         buildFakeTenantRepository(),
+        buildFakeListingsService(),
       );
       await service.start(BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -454,6 +509,7 @@ describe("SimulationService", () => {
         buildFakeLlmService(),
         buildFakeInterestRepository([REAL_STORED_INTEREST]),
         buildFakeTenantRepository(),
+        buildFakeListingsService(),
       );
       await service.start(BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -484,9 +540,105 @@ describe("SimulationService", () => {
       buildFakeLlmService(),
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
+      buildFakeListingsService(),
     );
     const history = await service.history();
     expect(history).toHaveLength(1);
     expect(history[0]?.id).toBe("sim-1");
+  });
+
+  describe("PROPERTY-vertical Kai-prompt preview (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6)", () => {
+    const PROPERTY_BODY: StartSimulationBodyDto = {
+      ...BODY,
+      listingId: "listing-1",
+      kaiPropertyAngle: "READY_HUNI" as never,
+    };
+
+    async function runPropertyPipeline(
+      body: StartSimulationBodyDto,
+      listingsService: ListingsService = buildFakeListingsService(buildFakeListing()),
+    ) {
+      const repository = buildFakeRepository(buildStored());
+      const service = new SimulationService(
+        buildTestConfig(),
+        undefined,
+        repository,
+        buildFakeLlmService(),
+        buildFakeInterestRepository(),
+        buildFakeTenantRepository("PROPERTY"),
+        listingsService,
+      );
+      await service.start(body, "dss-motor");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        {
+          kai: {
+            promptDetail?: {
+              imagePrompts: readonly string[];
+              copyVariants: ReadonlyArray<{ variantLabel: string }>;
+              sourcePhotoUrls: readonly string[];
+            };
+          };
+        },
+      ];
+      return { repository, kai: result.kai };
+    }
+
+    it("builds a real Kai promptDetail from the real selected listing (never the automotive path)", async () => {
+      const { kai } = await runPropertyPipeline(PROPERTY_BODY);
+      expect(kai.promptDetail).toBeDefined();
+      expect(kai.promptDetail?.imagePrompts.length).toBeGreaterThan(0);
+      kai.promptDetail?.imagePrompts.forEach((prompt) => {
+        expect(prompt).toContain("Rumah Bintaro 88m²");
+      });
+      expect(kai.promptDetail?.copyVariants).toHaveLength(3);
+      expect(kai.promptDetail?.sourcePhotoUrls).toEqual([
+        "https://assets.example/listing-1-photo-1.jpg",
+      ]);
+    });
+
+    it("degrades to promptDetail undefined (never fails the run) when Step 1 selected no listing", async () => {
+      const { repository, kai } = await runPropertyPipeline({
+        ...BODY,
+        kaiPropertyAngle: "READY_HUNI" as never,
+      });
+      expect(kai.promptDetail).toBeUndefined();
+      expect(repository.fail).not.toHaveBeenCalled();
+    });
+
+    it("degrades to promptDetail undefined (never fails the run) when the listing id is unknown to this tenant", async () => {
+      const { repository, kai } = await runPropertyPipeline(
+        PROPERTY_BODY,
+        buildFakeListingsService(), // no listing configured -> real NotFoundError
+      );
+      expect(kai.promptDetail).toBeUndefined();
+      expect(repository.fail).not.toHaveBeenCalled();
+    });
+
+    it("an AUTOMOTIVE tenant never touches ListingsService, even with a stray listingId in the body", async () => {
+      const repository = buildFakeRepository(buildStored());
+      const throwingListings = {
+        getById: vi.fn(async () => {
+          throw new Error("ListingsService must not be called for AUTOMOTIVE");
+        }),
+      } as unknown as ListingsService;
+      const service = new SimulationService(
+        buildTestConfig(),
+        undefined,
+        repository,
+        buildFakeLlmService(),
+        buildFakeInterestRepository(),
+        buildFakeTenantRepository("AUTOMOTIVE"),
+        throwingListings,
+      );
+      await service.start(PROPERTY_BODY, "dss-motor");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(throwingListings.getById).not.toHaveBeenCalled();
+      expect(repository.complete).toHaveBeenCalledTimes(1);
+    });
   });
 });

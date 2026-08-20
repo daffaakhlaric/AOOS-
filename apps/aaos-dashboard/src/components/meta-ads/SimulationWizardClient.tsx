@@ -14,6 +14,8 @@ import type {
   SimulationLogEntryDto,
   SimulationStatusDto,
 } from "@/types/dashboard.types";
+import type { ListingDto, ListingListDto } from "@/types/listing.types";
+import type { SettingsDto, Vertical } from "@/types/tenant.types";
 
 import styles from "./SimulationWizardClient.module.css";
 
@@ -44,8 +46,45 @@ const PERSONAS: ReadonlyArray<{ readonly id: string; readonly label: string }> =
   { id: "urgent_buyer", label: "Urgent Buyer" },
 ];
 
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the SAME real 10 `PersonaId` members above,
+ * relabelled with property-buyer framing for a `PROPERTY`-vertical tenant. No new persona ids are
+ * invented: `@aos/conversation-simulator`'s `PersonaId` enum (what `apps/aaos-simulator`'s real
+ * `/api/simulate` actually accepts) has no separate property-vertical member set, so Step 1
+ * switches only the DISPLAY label, never the id sent to `/api/simulation/start`'s `personaIds`.
+ */
+const PROPERTY_PERSONA_LABELS: Readonly<Record<string, string>> = {
+  cold_buyer: "Cold Buyer (Baru Lihat-lihat)",
+  budget_buyer: "Budget Buyer (Sensitif Harga)",
+  ready_buyer: "Ready Buyer (Siap Beli)",
+  specific_unit_buyer: "Listing Spesifik",
+  kredit_buyer: "KPR Buyer",
+  syariah_buyer: "Syariah Buyer",
+  ghost_buyer: "Ghost Buyer",
+  complainer_buyer: "Complainer",
+  first_time_buyer: "First-Time Buyer (KPR Pemula)",
+  urgent_buyer: "Urgent Buyer (Butuh Cepat)",
+};
+
 /** The real `Branch` enum (`@aos/meta-ads-connector`'s `Branch.ts`, verified against source). */
 const BRANCHES = ["CINERE", "BINTARO", "BANDUNG", "JABODETABEK", "BOOST", "MULTI", "UMUM"] as const;
+
+/**
+ * The real 8 `PropertyAdAngle` members (`@aos/creative-agent`'s `PropertyAdAngle` enum, verified
+ * against source) — Step 1's PROPERTY-only angle selector, sent as `kaiPropertyAngle` (a separate
+ * field/enum from `AD_ANGLES`'s automotive `AdAngle` — see `PropertyAdAngle.ts`'s docstring for
+ * why the two vocabularies are deliberately not unified).
+ */
+const PROPERTY_AD_ANGLES = [
+  "DP_RINGAN",
+  "READY_HUNI",
+  "INVESTASI",
+  "EXCLUSIVE",
+  "SYARIAH",
+  "PROMO_TERBATAS",
+  "TESTIMONIAL",
+  "VIRTUAL_TOUR",
+] as const;
 
 const STEPS = ["SETUP", "TAMARA", "KAI", "JESSY", "JUDGE", "REVIEW"] as const;
 type WizardStep = (typeof STEPS)[number];
@@ -158,6 +197,17 @@ export function SimulationWizardClient(): React.ReactElement {
   const [branch, setBranch] = useState<string>(BRANCHES[0]);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<readonly string[]>([]);
 
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the tenant's real resolved vertical (from
+  // `GET /api/settings`, Phase 1) drives Step 1's persona labels + the PROPERTY-only "Pilih
+  // Listing"/angle fields below. Defaults to `undefined` while loading — every branch below treats
+  // `undefined` the SAME as `"AUTOMOTIVE"` so a slow/failed fetch never changes AUTOMOTIVE's
+  // today-identical behavior.
+  const [vertical, setVertical] = useState<Vertical | undefined>(undefined);
+  const [listings, setListings] = useState<readonly ListingDto[] | undefined>(undefined);
+  const [listingsError, setListingsError] = useState<string | undefined>(undefined);
+  const [selectedListingId, setSelectedListingId] = useState<string | undefined>(undefined);
+  const [propertyAngle, setPropertyAngle] = useState<string>(PROPERTY_AD_ANGLES[0]);
+
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | undefined>(undefined);
   const [simulationId, setSimulationId] = useState<string | undefined>(undefined);
@@ -241,6 +291,61 @@ export function SimulationWizardClient(): React.ReactElement {
     };
   }, []);
 
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — resolves the tenant's real vertical once, the
+  // same real `GET /api/settings` route Phase 1's tenant Settings page already uses. A fetch
+  // failure degrades to `undefined` (treated as AUTOMOTIVE everywhere below), never blocks Step 1.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings")
+      .then(async (res) => {
+        if (!res.ok || cancelled) {
+          return;
+        }
+        const body = (await res.json()) as SettingsDto;
+        if (!cancelled) {
+          setVertical(body.tenant.vertical);
+        }
+      })
+      .catch(() => {
+        /* honest no-op — vertical stays undefined, treated as AUTOMOTIVE below */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — Step 1's "Pilih Listing" dropdown, sourced
+  // from the real `GET /api/listings?status=AKTIF` (Phase 2), fetched only once `vertical` resolves
+  // to PROPERTY (never fetched for AUTOMOTIVE tenants).
+  useEffect(() => {
+    if (vertical !== "PROPERTY") {
+      return;
+    }
+    let cancelled = false;
+    setListingsError(undefined);
+    fetch("/api/listings?status=AKTIF")
+      .then(async (res) => {
+        if (cancelled) {
+          return;
+        }
+        if (!res.ok) {
+          const body = (await res.json()) as { error?: { message?: string } };
+          setListingsError(body.error?.message ?? "Gagal memuat listing.");
+          return;
+        }
+        const body = (await res.json()) as ListingListDto;
+        setListings(body.listings);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setListingsError("Gagal memuat listing.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [vertical]);
+
   useEffect(() => {
     if (simulationId === undefined) {
       return;
@@ -285,6 +390,13 @@ export function SimulationWizardClient(): React.ReactElement {
     if (selectedAd === undefined || selectedPersonaIds.length === 0) {
       return;
     }
+    // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — a PROPERTY tenant must pick a real listing
+    // before Step 3 can build a real Kai prompt (`kai-prompt-preview.ts`'s PROPERTY branch needs
+    // `listingId`/`kaiPropertyAngle`) — same "don't start with a gap we already know about" guard
+    // the ad/persona checks above already apply.
+    if (vertical === "PROPERTY" && selectedListingId === undefined) {
+      return;
+    }
     setStarting(true);
     setStartError(undefined);
     try {
@@ -309,6 +421,9 @@ export function SimulationWizardClient(): React.ReactElement {
           kaiBranch: selectedAd.branch,
           personaIds: selectedPersonaIds,
           branch,
+          ...(vertical === "PROPERTY"
+            ? { listingId: selectedListingId, kaiPropertyAngle: propertyAngle }
+            : {}),
         }),
       });
       if (!res.ok) {
@@ -618,20 +733,67 @@ export function SimulationWizardClient(): React.ReactElement {
               </div>
             )}
 
-            <div className={styles.formRow}>
-              <label className={styles.formLabel}>Angle creative (Kai)</label>
-              <select
-                value={angle}
-                onChange={(event) => setAngle(event.target.value)}
-                className={styles.select}
-              >
-                {AD_ANGLES.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {vertical === "PROPERTY" ? (
+              <div className={styles.formRow}>
+                <label className={styles.formLabel}>Angle creative (Kai)</label>
+                <select
+                  value={propertyAngle}
+                  onChange={(event) => setPropertyAngle(event.target.value)}
+                  className={styles.select}
+                >
+                  {PROPERTY_AD_ANGLES.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className={styles.formRow}>
+                <label className={styles.formLabel}>Angle creative (Kai)</label>
+                <select
+                  value={angle}
+                  onChange={(event) => setAngle(event.target.value)}
+                  className={styles.select}
+                >
+                  {AD_ANGLES.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — Step 1's "Pilih Listing" (spec
+                Document 1 Part 5/Document 2 section E), PROPERTY tenants only. Sourced from the real
+                GET /api/listings?status=AKTIF (Phase 2) — never AUTOMOTIVE's ad-based flow. */}
+            {vertical === "PROPERTY" ? (
+              <div className={styles.formRow}>
+                <label className={styles.formLabel}>Pilih Listing</label>
+                {listingsError !== undefined ? <ErrorCard message={listingsError} /> : null}
+                {listingsError === undefined && listings === undefined ? <LoadingSpinner /> : null}
+                {listingsError === undefined && listings !== undefined && listings.length === 0 ? (
+                  <p className={styles.mutedText}>
+                    Belum ada listing AKTIF — tambahkan di Listing Manager.
+                  </p>
+                ) : null}
+                {listings !== undefined && listings.length > 0 ? (
+                  <select
+                    value={selectedListingId ?? ""}
+                    onChange={(event) => setSelectedListingId(event.target.value || undefined)}
+                    className={styles.select}
+                  >
+                    <option value="">— pilih listing —</option>
+                    {listings.map((listing) => (
+                      <option key={listing.id} value={listing.id}>
+                        {listing.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className={styles.formRow}>
               <label className={styles.formLabel}>Persona Jessy (pilih minimal 1)</label>
@@ -645,7 +807,9 @@ export function SimulationWizardClient(): React.ReactElement {
                       selectedPersonaIds.includes(persona.id) ? styles.personaChipSelected : ""
                     }`}
                   >
-                    {persona.label}
+                    {vertical === "PROPERTY"
+                      ? (PROPERTY_PERSONA_LABELS[persona.id] ?? persona.label)
+                      : persona.label}
                   </button>
                 ))}
               </div>
@@ -656,7 +820,12 @@ export function SimulationWizardClient(): React.ReactElement {
             <button
               type="button"
               onClick={() => void startSimulation()}
-              disabled={starting || selectedAd === undefined || selectedPersonaIds.length === 0}
+              disabled={
+                starting ||
+                selectedAd === undefined ||
+                selectedPersonaIds.length === 0 ||
+                (vertical === "PROPERTY" && selectedListingId === undefined)
+              }
               className={styles.primaryButton}
             >
               {starting ? "Memulai…" : "Mulai Simulasi Dry-Run"}

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import type { AssetLibrary } from "@aos/asset-library";
+import { PropertyAdAngle } from "@aos/creative-agent";
+import type { PropertyCreativeBrief } from "@aos/creative-agent";
 import { NotFoundError } from "@aos/errors";
 import {
   Branch,
@@ -13,12 +15,16 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, ASSET_LIBRARY } from "../../di-tokens.js";
+import { ListingsService } from "../listings/listings.service.js";
 import type { TargetingCandidateDto } from "../llm/dto/select-targeting.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
-import { buildKaiPromptDetail as computeKaiPromptDetail } from "./domain/kai-prompt-preview.js";
+import {
+  buildKaiPromptDetail as computeKaiPromptDetail,
+  buildPropertyKaiPromptDetail as computePropertyKaiPromptDetail,
+} from "./domain/kai-prompt-preview.js";
 import { computeSimulationScoring } from "./domain/scoring.js";
 import type {
   AudienceTargetingPreview,
@@ -79,6 +85,7 @@ export class SimulationService {
     private readonly llmService: LlmService,
     private readonly metaInterestRepository: MetaInterestRepository,
     private readonly tenants: TenantRepository,
+    private readonly listings: ListingsService,
   ) {}
 
   /**
@@ -220,7 +227,13 @@ export class SimulationService {
             elapsedMs: Date.now() - kaiStart,
             videoGenerated: false,
             note: "Brief nyata dari Tamara. Generate video/gambar Kie AI belum dijalankan pada simulasi ini.",
-            promptDetail: await this.buildKaiPromptDetail(id, briefResult),
+            promptDetail: await this.resolveKaiPromptDetail(
+              id,
+              briefResult,
+              vertical,
+              tenantId,
+              body,
+            ),
           }
         : {
             available: false,
@@ -419,11 +432,89 @@ export class SimulationService {
   }
 
   /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — dispatches Step 3's Kai-prompt detail to the
+   * automotive or PROPERTY builder depending on the resolved `vertical`, mirroring the same
+   * per-vertical dispatch `computeAudienceTargeting`/`computeSimulationScoring` already establish.
+   * PROPERTY dispatch needs a real `listings` row (`body.listingId`, Step 1's "Pilih Listing") and
+   * angle (`body.kaiPropertyAngle`) — either missing degrades to `undefined` with an honest log line
+   * (never a fabricated listing/angle), same "never fails the run" discipline as the automotive path.
+   */
+  private async resolveKaiPromptDetail(
+    id: string,
+    briefResult: Extract<
+      Awaited<ReturnType<LlmService["creativeBrief"]>>,
+      { readonly available: true }
+    >,
+    vertical: "AUTOMOTIVE" | "PROPERTY",
+    tenantId: string,
+    body: StartSimulationBodyDto,
+  ): Promise<KaiPromptDetail | undefined> {
+    if (vertical !== "PROPERTY") {
+      return this.buildKaiPromptDetail(id, briefResult);
+    }
+    if (body.listingId === undefined || body.kaiPropertyAngle === undefined) {
+      await this.log(
+        id,
+        "KAI",
+        "WARN",
+        "Simulasi PROPERTY tanpa listing/angle terpilih (Step 1) — panel prompt Kai disembunyikan.",
+      );
+      return undefined;
+    }
+    return this.buildPropertyKaiPromptDetail(id, tenantId, body.listingId, body.kaiPropertyAngle);
+  }
+
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the PROPERTY sibling to `buildKaiPromptDetail`:
+   * fetches the real, tenant-scoped `listings` row Step 1's "Pilih Listing" selected (via the same
+   * `ListingsService.getById` the Listing Manager itself uses — one lookup path, never a second),
+   * builds a real `PropertyCreativeBrief` from it, and hands it to
+   * `domain/kai-prompt-preview.ts`'s `buildPropertyKaiPromptDetail`. Real listing photos become
+   * `sourcePhotoUrls` — never a fabricated thumbnail.
+   *
+   * NEVER FAILS THE RUN: an unknown/foreign-tenant `listingId` (`NotFoundError`) or any other thrown
+   * error degrades to `undefined` with an honest log line, same discipline as `buildKaiPromptDetail`.
+   */
+  private async buildPropertyKaiPromptDetail(
+    id: string,
+    tenantId: string,
+    listingId: string,
+    angle: PropertyAdAngle,
+  ): Promise<KaiPromptDetail | undefined> {
+    try {
+      const listing = await this.listings.getById(tenantId, listingId);
+      const brief: PropertyCreativeBrief = {
+        listingId: listing.id,
+        listingTitle: listing.title,
+        propertyType: listing.propertyType,
+        angle,
+        ...(listing.branchId !== undefined ? { branch: listing.branchId } : {}),
+        ...(listing.waNumber !== undefined ? { waNumber: listing.waNumber } : {}),
+        ...(listing.highlights.length > 0 ? { highlights: listing.highlights } : {}),
+      };
+      const sourcePhotoUrls = listing.photos.map((photo) => photo.url);
+      return computePropertyKaiPromptDetail(brief, sourcePhotoUrls);
+    } catch (caught) {
+      const message =
+        caught instanceof NotFoundError
+          ? caught.message
+          : caught instanceof Error
+            ? caught.message
+            : String(caught);
+      this.logger.warn(`SimulationService.buildPropertyKaiPromptDetail(${id}) failed: ${message}`);
+      await this.log(id, "KAI", "WARN", `Prompt detail PROPERTY gagal dihitung: ${message}.`);
+      return undefined;
+    }
+  }
+
+  /**
    * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 3, section C — computes the "Prompt Kai → Kie AI"
    * detail panel's data, once `briefResult.available` is true. Queries real `@aos/asset-library`
    * source photos for `briefResult.unit` (honestly empty when none are filed under that unit — see
    * `buildKaiPromptDetail`'s doc), then hands the real brief fields to
    * `domain/kai-prompt-preview.ts`'s pure, no-external-call builder.
+   *
+   * AUTOMOTIVE ONLY — see `resolveKaiPromptDetail`'s doc for the PROPERTY sibling.
    *
    * NEVER FAILS THE RUN: any thrown error here is caught and logged; the panel degrades to
    * `undefined` (an honest "not shown") rather than aborting a simulation whose Tamara/Kai brief

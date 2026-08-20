@@ -1,3 +1,4 @@
+import { PropertyAdAngle } from "@aos/creative-agent";
 import { AdAngle } from "@aos/meta-ads-agent";
 import { Branch } from "@aos/meta-ads-connector";
 import { z } from "zod";
@@ -96,6 +97,19 @@ export const StartSimulationBodySchema = z.object({
    */
   personaIds: z.array(z.string().min(1)).min(1, "Pilih minimal 1 persona untuk Jessy"),
   branch: z.string().min(1).optional(),
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the real `listings.id` the dashboard's Step 1
+   * "Pilih Listing" dropdown selected (PROPERTY tenants only; absent/ignored for AUTOMOTIVE). Step
+   * 3's `buildPropertyKaiPromptDetail` needs a real listing row to build a `PropertyCreativeBrief`
+   * from — never fabricated from `kaiAd`'s automotive Meta-ad fields.
+   */
+  listingId: z.string().min(1).optional(),
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the real `PropertyAdAngle` Step 1's property
+   * angle selector chose (PROPERTY tenants only). Kept separate from `kaiAngle` (automotive
+   * `AdAngle`) — the two enums are deliberately not unified, see `PropertyAdAngle.ts`'s docstring.
+   */
+  kaiPropertyAngle: z.nativeEnum(PropertyAdAngle).optional(),
 });
 export type StartSimulationBodyDto = z.infer<typeof StartSimulationBodySchema>;
 
