@@ -19,6 +19,7 @@ export default withBaseConfig({
         "src/domain/events/HandoffTriggered.ts",
         "src/domain/events/FollowUpScheduled.ts",
         "src/domain/events/ConversationClosed.ts",
+        "src/domain/events/PropertyLeadScoreUpdated.ts",
       ],
       thresholds: {
         statements: 100,

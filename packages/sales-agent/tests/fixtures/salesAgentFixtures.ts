@@ -4,7 +4,9 @@ import type { IInventoryQueryService } from "@aos/dss-inventory-connector";
 import { InventoryConnectorFactory } from "@aos/dss-inventory-connector";
 
 import type { SalesAgentConfig } from "../../src/config/SalesAgentConfig.js";
+import type { IListingQueryService } from "../../src/contracts/IListingQueryService.js";
 import { LeadConversation } from "../../src/domain/entities/LeadConversation.js";
+import type { PropertyListing } from "../../src/domain/entities/PropertyListing.js";
 import { createFakePublisher, type FakePublisher } from "../helpers/publisher.js";
 import { unwrap } from "../helpers/result.js";
 
@@ -94,4 +96,31 @@ export async function makeRealSyncedInventoryQueryService(): Promise<IInventoryQ
   });
   await connector.syncInventory.execute({ correlationId: "fixture-sync" });
   return connector.queryService;
+}
+
+/** Real PROPERTY listings sample (Phase 8 fixtures) — used everywhere a real `IListingQueryService` is needed for PROPERTY-vertical tests. */
+export const SAMPLE_LISTINGS: ReadonlyArray<PropertyListing> = [
+  {
+    id: "l1",
+    title: "Rumah Bintaro 3 Kamar",
+    propertyType: "RUMAH",
+    price: 1_500_000_000,
+    city: "Tangerang Selatan",
+    bedrooms: 3,
+  },
+  {
+    id: "l2",
+    title: "Apartemen Cinere 2BR",
+    propertyType: "APARTEMEN",
+    price: 800_000_000,
+    city: "Cinere",
+    bedrooms: 2,
+  },
+];
+
+/** A plain in-memory `IListingQueryService` fake (mirrors `makeRealSyncedInventoryQueryService`'s role, per `IListingQueryService.ts`'s own docstring: "tests use a plain in-memory fake"). */
+export function makeListingQueryService(
+  active: ReadonlyArray<PropertyListing> = SAMPLE_LISTINGS,
+): IListingQueryService {
+  return { getActive: () => active };
 }

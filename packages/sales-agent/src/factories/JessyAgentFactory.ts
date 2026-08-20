@@ -8,10 +8,17 @@ import { FollowUpService } from "../application/services/FollowUpService.js";
 import { HandoffService } from "../application/services/HandoffService.js";
 import { JessyAgentService } from "../application/services/JessyAgentService.js";
 import { LeadScoringService } from "../application/services/LeadScoringService.js";
+import { PropertyHandoffService } from "../application/services/PropertyHandoffService.js";
+import { PropertyJessyAgentService } from "../application/services/PropertyJessyAgentService.js";
+import { PropertyLeadScoringService } from "../application/services/PropertyLeadScoringService.js";
 import type { Tracer } from "../application/tracer.js";
 import { CloseConversation } from "../application/use-cases/CloseConversation.js";
 import { GetConversationState } from "../application/use-cases/GetConversationState.js";
 import { ProcessIncomingMessage } from "../application/use-cases/ProcessIncomingMessage.js";
+import { PropertyCloseConversation } from "../application/use-cases/PropertyCloseConversation.js";
+import { PropertyGetConversationState } from "../application/use-cases/PropertyGetConversationState.js";
+import { PropertyProcessIncomingMessage } from "../application/use-cases/PropertyProcessIncomingMessage.js";
+import { PropertyTriggerHandoff } from "../application/use-cases/PropertyTriggerHandoff.js";
 import { ScheduleFollowUp } from "../application/use-cases/ScheduleFollowUp.js";
 import { SendFollowUp } from "../application/use-cases/SendFollowUp.js";
 import { TriggerHandoff } from "../application/use-cases/TriggerHandoff.js";
@@ -21,6 +28,7 @@ import type { IResponseGenerator } from "../contracts/IResponseGenerator.js";
 import { ConversationEngine } from "../conversation/ConversationEngine.js";
 import { ConversationPipeline } from "../conversation/ConversationPipeline.js";
 import { PropertyConversationEngine } from "../conversation/PropertyConversationEngine.js";
+import { PropertyConversationPipeline } from "../conversation/PropertyConversationPipeline.js";
 import { PropertyResponseGenerator } from "../conversation/PropertyResponseGenerator.js";
 import { ResponseGenerator } from "../conversation/ResponseGenerator.js";
 import { JessyAgent as JessyAgentEntity } from "../domain/entities/JessyAgent.js";
@@ -32,6 +40,7 @@ import { ListingQuerier } from "../intelligence/ListingQuerier.js";
 import { LlmResponseGenerator } from "../llm/LlmResponseGenerator.js";
 import { OpenAiChatClient } from "../llm/OpenAiChatClient.js";
 import { LeadScorer } from "../scoring/LeadScorer.js";
+import { PropertyLeadScorer } from "../scoring/PropertyLeadScorer.js";
 import {
   PROPERTY_HOT_THRESHOLD,
   PROPERTY_WARM_THRESHOLD,
@@ -84,6 +93,48 @@ export interface JessyAgent {
   readonly jessyAgentService: JessyAgentService;
   readonly leadScoringService: LeadScoringService;
   readonly handoffService: HandoffService;
+  readonly followUpService: FollowUpService;
+}
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 (spec section 12 points 1/2) — options for
+ * `createPropertyAgent`, the PROPERTY-vertical sibling to `JessyAgentFactoryOptions`. Deliberately
+ * mirrors `JessyAgentFactoryOptions`'s shape (not `PropertyConversationEngineFactoryOptions`'s
+ * narrower one — Phase 8 composes the FULL PROPERTY `JessyAgent`, not just the `decide()` engine),
+ * swapping `inventoryQueryService` for `listingQueryService`.
+ */
+export interface PropertyJessyAgentFactoryOptions {
+  readonly config: SalesAgentConfig;
+  readonly branchId: BranchId;
+  /** Real `@aos/event-bus` `IPublisher` — always caller-supplied. */
+  readonly publisher: IPublisher;
+  /** Real `@aos/branch-manager` `AssignLead` use case — called for real by `PropertyHandoffService`, never mocked. */
+  readonly assignLead: AssignLead;
+  /** Real `@aos/branch-manager` `SalesTeamRegistry` — used to resolve the assigned sales human's display name. */
+  readonly salesTeamRegistry: SalesTeamRegistry;
+  /** Real `IListingQueryService` — queried for real by `ListingQuerier`, never mocked. */
+  readonly listingQueryService: IListingQueryService;
+  /** Defaults to `PROPERTY_WARM_THRESHOLD`/`PROPERTY_HOT_THRESHOLD` (spec Part 6) — overrides `config.warmThreshold`/`config.hotThreshold` so the composed engine, scoring service, and temperature classification all agree on the same PROPERTY-tuned thresholds. */
+  readonly warmThreshold?: number;
+  readonly hotThreshold?: number;
+  readonly logger?: Logger;
+  readonly tracer?: Tracer;
+  /** Injectable clock — defaults to the real wall clock only here. */
+  readonly now?: () => Date;
+}
+
+/** The full PROPERTY-vertical composition `createPropertyAgent` returns — the sibling to `JessyAgent`. */
+export interface PropertyJessyAgent {
+  readonly agent: JessyAgentEntity;
+  readonly processIncomingMessage: PropertyProcessIncomingMessage;
+  readonly triggerHandoff: PropertyTriggerHandoff;
+  readonly scheduleFollowUp: ScheduleFollowUp;
+  readonly sendFollowUp: SendFollowUp;
+  readonly getConversationState: PropertyGetConversationState;
+  readonly closeConversation: PropertyCloseConversation;
+  readonly jessyAgentService: PropertyJessyAgentService;
+  readonly leadScoringService: PropertyLeadScoringService;
+  readonly handoffService: PropertyHandoffService;
   readonly followUpService: FollowUpService;
 }
 
@@ -166,6 +217,69 @@ export class JessyAgentFactory {
       responseGenerator,
       (branchId) => JessyKnowledgeBase.branch(branchId).name,
     );
+  }
+
+  /**
+   * The PROPERTY-vertical sibling to `create()` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8,
+   * spec section 12 points 1/2) — composes the FULL PROPERTY `JessyAgent`
+   * (pipeline+service+scoring+handoff+followUp), not just the `decide()` engine
+   * `createPropertyConversationEngine` builds. `FollowUpService` is reused as-is (confirmed
+   * genuinely vertical-generic); `PropertyLeadScoringService`/`PropertyHandoffService` are real,
+   * additive siblings to `LeadScoringService`/`HandoffService` (both confirmed concretely
+   * automotive-typed via direct read, not vertical-generic as originally assumed).
+   */
+  static createPropertyAgent(options: PropertyJessyAgentFactoryOptions): PropertyJessyAgent {
+    const tracer: Tracer = options.tracer ?? getTracer("sales-agent");
+    const now = options.now ?? (() => new Date());
+
+    const warmThreshold = options.warmThreshold ?? PROPERTY_WARM_THRESHOLD;
+    const hotThreshold = options.hotThreshold ?? PROPERTY_HOT_THRESHOLD;
+    const propertyConfig: SalesAgentConfig = { ...options.config, warmThreshold, hotThreshold };
+
+    const agent = JessyAgentEntity.create(options.branchId, propertyConfig.tenantId);
+    const events = new JessyAgentEvents(options.publisher);
+
+    const conversationEngine = JessyAgentFactory.createPropertyConversationEngine({
+      branchId: options.branchId,
+      listingQueryService: options.listingQueryService,
+      warmThreshold,
+      hotThreshold,
+    });
+    const leadScorer = new PropertyLeadScorer();
+    const pipeline = new PropertyConversationPipeline(leadScorer, conversationEngine);
+
+    const leadScoringService = new PropertyLeadScoringService(events, hotThreshold, now);
+    const handoffService = new PropertyHandoffService(
+      options.assignLead,
+      options.salesTeamRegistry,
+      events,
+      now,
+    );
+    const followUpService = new FollowUpService(events, propertyConfig.noReplyTimeoutMs, now);
+
+    const jessyAgentService = new PropertyJessyAgentService(
+      pipeline,
+      leadScoringService,
+      handoffService,
+      followUpService,
+      events,
+      propertyConfig,
+      now,
+    );
+
+    return {
+      agent,
+      processIncomingMessage: new PropertyProcessIncomingMessage(jessyAgentService, tracer),
+      triggerHandoff: new PropertyTriggerHandoff(handoffService, tracer),
+      scheduleFollowUp: new ScheduleFollowUp(followUpService),
+      sendFollowUp: new SendFollowUp(),
+      getConversationState: new PropertyGetConversationState(jessyAgentService),
+      closeConversation: new PropertyCloseConversation(jessyAgentService, events, now),
+      jessyAgentService,
+      leadScoringService,
+      handoffService,
+      followUpService,
+    };
   }
 
   /**
