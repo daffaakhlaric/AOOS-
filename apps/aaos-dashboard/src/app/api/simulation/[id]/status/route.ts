@@ -1,16 +1,28 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { AaosApiError, callAaosApi } from "@/lib/api";
+import { resolveRouteSession } from "@/lib/route-session";
 import type { SimulationStatusDto } from "@/types/dashboard.types";
 
-/** `GET /api/simulation/:id/status` — proxies `GET /api/v1/simulation/:id/status`, polled by the wizard while a run is `RUNNING`. */
+export const dynamic = "force-dynamic";
+
+/**
+ * `GET /api/simulation/:id/status` — proxies `GET /api/v1/simulation/:id/status`, polled by the
+ * wizard while a run is `RUNNING`. Forwards `x-tenant-id: session.tenantId` (coordinator note
+ * section 9).
+ */
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } },
 ): Promise<NextResponse> {
+  const session = await resolveRouteSession(request);
+  if (session === null) {
+    return NextResponse.json({ error: { message: "Unauthorized" } }, { status: 401 });
+  }
   try {
     const data = await callAaosApi<SimulationStatusDto>(
       `/api/v1/simulation/${encodeURIComponent(params.id)}/status`,
+      { headers: { "x-tenant-id": session.tenantId } },
     );
     return NextResponse.json(data);
   } catch (error) {

@@ -1,4 +1,4 @@
-import "reflect-metadata";
+﻿import "reflect-metadata";
 
 import { NotFoundError } from "@aos/errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,10 @@ import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { StoredMetaInterest } from "../meta-interests/domain/meta-interest.js";
 import type { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
+import type {
+  TenantRepository,
+  TenantRow,
+} from "../superadmin/infrastructure/tenant.repository.js";
 
 import type { StoredSimulation } from "./domain/simulation-record.js";
 import type { StartSimulationBodyDto } from "./dto/start-simulation.dto.js";
@@ -70,6 +74,32 @@ function buildFakeInterestRepository(
     findById: vi.fn(async () => undefined),
     save: vi.fn(async () => "inserted" as const),
   } as unknown as MetaInterestRepository;
+}
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 — the fake for `SimulationService.resolveVertical`'s
+ * dependency. Defaults to a real `AUTOMOTIVE` `dss-motor`-shaped row so every pre-existing test
+ * (written before vertical-aware branching existed) keeps its exact prior behavior.
+ */
+function buildFakeTenantRepository(
+  vertical: "AUTOMOTIVE" | "PROPERTY" = "AUTOMOTIVE",
+): TenantRepository {
+  const row: TenantRow = {
+    id: "tenant-uuid-1",
+    tenant_id: "dss-motor",
+    name: "DSS Motor (Mobix)",
+    vertical,
+    status: "ACTIVE",
+    trial_ends_at: null,
+    meta_access_token: null,
+    meta_ad_account_id: null,
+    meta_api_version: null,
+    created_at: "2026-08-13T00:00:00.000Z",
+    updated_at: "2026-08-13T00:00:00.000Z",
+  };
+  return {
+    findByTenantId: vi.fn(async () => row),
+  } as unknown as TenantRepository;
 }
 
 const REAL_STORED_INTEREST: StoredMetaInterest = {
@@ -140,9 +170,10 @@ describe("SimulationService", () => {
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
+      buildFakeTenantRepository(),
     );
 
-    const result = await service.start(BODY);
+    const result = await service.start(BODY, "dss-motor");
     expect(result).toEqual({ id: "sim-1", status: "RUNNING" });
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({ personaIds: ["ready_buyer"], campaignDataSource: "cache" }),
@@ -168,9 +199,10 @@ describe("SimulationService", () => {
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
+      buildFakeTenantRepository(),
     );
 
-    await service.start(BODY);
+    await service.start(BODY, "dss-motor");
     // The pipeline is detached (`void this.runPipeline(...)`) — wait for its microtasks to settle.
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -204,9 +236,10 @@ describe("SimulationService", () => {
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
+      buildFakeTenantRepository(),
     );
 
-    await service.start(BODY);
+    await service.start(BODY, "dss-motor");
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -229,9 +262,10 @@ describe("SimulationService", () => {
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
+      buildFakeTenantRepository(),
     );
 
-    await service.start(BODY);
+    await service.start(BODY, "dss-motor");
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -256,9 +290,10 @@ describe("SimulationService", () => {
         }),
       }),
       buildFakeInterestRepository(),
+      buildFakeTenantRepository(),
     );
 
-    await service.start(BODY);
+    await service.start(BODY, "dss-motor");
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -273,6 +308,7 @@ describe("SimulationService", () => {
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
+      buildFakeTenantRepository(),
     );
     await expect(service.getStatus("missing")).rejects.toThrow(NotFoundError);
   });
@@ -286,6 +322,7 @@ describe("SimulationService", () => {
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
+      buildFakeTenantRepository(),
     );
 
     await service.approve("sim-1", { decidedBy: "manager-1", notes: "looks good" });
@@ -319,8 +356,9 @@ describe("SimulationService", () => {
         repository,
         llm,
         interestRepository,
+        buildFakeTenantRepository(),
       );
-      await service.start(BODY);
+      await service.start(BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
       const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
@@ -415,8 +453,9 @@ describe("SimulationService", () => {
         repository,
         buildFakeLlmService(),
         buildFakeInterestRepository([REAL_STORED_INTEREST]),
+        buildFakeTenantRepository(),
       );
-      await service.start(BODY);
+      await service.start(BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -444,6 +483,7 @@ describe("SimulationService", () => {
       repository,
       buildFakeLlmService(),
       buildFakeInterestRepository(),
+      buildFakeTenantRepository(),
     );
     const history = await service.history();
     expect(history).toHaveLength(1);

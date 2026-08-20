@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import type { AssetLibrary } from "@aos/asset-library";
 import { NotFoundError } from "@aos/errors";
-import { Branch, branchAudienceDefault } from "@aos/meta-ads-connector";
+import {
+  Branch,
+  branchAudienceDefault,
+  HOUSING_POLICY_WARNING,
+  HOUSING_SPECIAL_AD_CATEGORY,
+  propertyBranchAudienceDefault,
+} from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
@@ -10,6 +16,7 @@ import { AAOS_API_CONFIG, ASSET_LIBRARY } from "../../di-tokens.js";
 import type { TargetingCandidateDto } from "../llm/dto/select-targeting.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
+import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import { buildKaiPromptDetail as computeKaiPromptDetail } from "./domain/kai-prompt-preview.js";
 import { computeSimulationScoring } from "./domain/scoring.js";
@@ -71,12 +78,38 @@ export class SimulationService {
     private readonly repository: SimulationRepository,
     private readonly llmService: LlmService,
     private readonly metaInterestRepository: MetaInterestRepository,
+    private readonly tenants: TenantRepository,
   ) {}
 
-  async start(body: StartSimulationBodyDto): Promise<{ id: string; status: "RUNNING" }> {
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 — resolves the tenant's real `vertical` via the
+   * SAME `TenantRepository`/pattern `SettingsService.getSettings` already uses (coordinator note
+   * section 9), NOT a second tenant lookup. NEVER FAILS THE RUN: an unknown tenant id (e.g. a stale
+   * header) or a repository error degrades to `"AUTOMOTIVE"` — the real pre-Phase-5 default this
+   * simulation module always behaved as — rather than aborting the whole pipeline over a
+   * display/branching concern.
+   */
+  private async resolveVertical(tenantId: string): Promise<"AUTOMOTIVE" | "PROPERTY"> {
+    try {
+      const tenant = await this.tenants.findByTenantId(tenantId);
+      if (tenant === undefined) {
+        return "AUTOMOTIVE";
+      }
+      return tenant.vertical === "PROPERTY" ? "PROPERTY" : "AUTOMOTIVE";
+    } catch (caught) {
+      this.logger.warn(`SimulationService.resolveVertical(${tenantId}) failed: ${String(caught)}`);
+      return "AUTOMOTIVE";
+    }
+  }
+
+  async start(
+    body: StartSimulationBodyDto,
+    tenantId: string,
+  ): Promise<{ id: string; status: "RUNNING" }> {
+    const vertical = await this.resolveVertical(tenantId);
     const created = await this.repository.create({
       id: randomUUID(),
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       objectiveSnapshot: body.objective,
       campaignDataSource: body.campaignDataSource,
       personaIds: body.personaIds,
@@ -85,7 +118,7 @@ export class SimulationService {
 
     // Detached on purpose (coordinator note #8) — not awaited, errors are caught and persisted
     // inside `runPipeline` itself so an unhandled rejection never crashes the process.
-    void this.runPipeline(created.id, body);
+    void this.runPipeline(created.id, body, tenantId, vertical);
 
     return { id: created.id, status: "RUNNING" };
   }
@@ -112,7 +145,12 @@ export class SimulationService {
     }
   }
 
-  private async runPipeline(id: string, body: StartSimulationBodyDto): Promise<void> {
+  private async runPipeline(
+    id: string,
+    body: StartSimulationBodyDto,
+    tenantId: string,
+    vertical: "AUTOMOTIVE" | "PROPERTY",
+  ): Promise<void> {
     try {
       await this.log(
         id,
@@ -154,7 +192,7 @@ export class SimulationService {
       );
 
       // --- Step 2b: audience targeting preview (display only — never sent to Meta) ---
-      const audienceTargeting = await this.computeAudienceTargeting(id, body);
+      const audienceTargeting = await this.computeAudienceTargeting(id, body, tenantId, vertical);
       const tamara: TamaraStageResult = { ...baseTamara, audienceTargeting };
 
       // --- Step 3: Kai (real /api/v1/llm/creative-brief; real Kie AI generation NOT invoked) ---
@@ -206,7 +244,7 @@ export class SimulationService {
 
       // --- Scoring ---
       await this.repository.updateStep(id, "JUDGE");
-      const scoring = computeSimulationScoring(tamara, kai, jessy);
+      const scoring = computeSimulationScoring(tamara, kai, jessy, vertical);
       const result: SimulationResult = {
         tamara: { ...tamara, coverageScore: scoring.tamaraCoverageScore },
         kai,
@@ -250,9 +288,20 @@ export class SimulationService {
   private async computeAudienceTargeting(
     id: string,
     body: StartSimulationBodyDto,
+    tenantId: string,
+    vertical: "AUTOMOTIVE" | "PROPERTY",
   ): Promise<AudienceTargetingPreview> {
     const branch = isBranch(body.branch) ? body.branch : body.kaiBranch;
-    const geoDefault = branchAudienceDefault(branch);
+    // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5, Step 2 — PROPERTY tenants read
+    // `PROPERTY_BRANCH_AUDIENCE_DEFAULTS` (age 27-55 default, `listings.branch_id`-shaped free-text
+    // branches) instead of the automotive `BRANCH_AUDIENCE_DEFAULTS`. `specialAdCategories`/
+    // `housingWarning` are the real Meta-mandatory HOUSING category this preview must carry once
+    // `vertical === "PROPERTY"` — see `AudienceTargetingPreview`'s class doc for the display-only
+    // hard scope boundary.
+    const geoDefault =
+      vertical === "PROPERTY"
+        ? propertyBranchAudienceDefault(branch)
+        : branchAudienceDefault(branch);
     const base = {
       branch,
       geo: geoDefault.cities,
@@ -260,10 +309,13 @@ export class SimulationService {
       ageMin: geoDefault.ageMin,
       ageMax: geoDefault.ageMax,
       geoNote: geoDefault.note,
+      specialAdCategories:
+        vertical === "PROPERTY" ? ([HOUSING_SPECIAL_AD_CATEGORY] as readonly string[]) : [],
+      ...(vertical === "PROPERTY" ? { housingWarning: HOUSING_POLICY_WARNING } : {}),
     };
 
     try {
-      const stored = await this.metaInterestRepository.listByTenant(this.config.AAOS_TENANT_ID);
+      const stored = await this.metaInterestRepository.listByTenant(tenantId);
       const candidates = selectTargetingCandidates(stored, {
         unit: body.kaiAd.name,
         ...(body.kaiAngle !== undefined ? { angle: body.kaiAngle } : {}),

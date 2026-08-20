@@ -21,6 +21,46 @@ export const SIMULATION_CRITERIA = {
 } as const;
 
 /**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 (Document 2 section E, Step 5) — points subtracted
+ * from `overallScore` for a `PROPERTY` simulation whose audience-targeting preview did NOT include
+ * Meta's mandatory `'HOUSING'` special ad category. Same "judgment-call, spec-pinned" caveat as
+ * `SIMULATION_CRITERIA` above.
+ */
+export const HOUSING_CATEGORY_PENALTY = 20;
+
+/**
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 (Document 2 section E, Step 5) — vertical-specific
+ * Indonesian copy for the AI Judge panel's grade/verdict labels. Consumed by
+ * `apps/aaos-dashboard`'s Judge step UI; kept here (not duplicated dashboard-side) so the labels
+ * stay attached to the same `Grade`/`Verdict` values this module computes.
+ */
+export const JUDGE_LABELS_BY_VERTICAL: Readonly<
+  Record<
+    "AUTOMOTIVE" | "PROPERTY",
+    { readonly title: string; readonly verdictLabels: Readonly<Record<Verdict, string>> }
+  >
+> = {
+  AUTOMOTIVE: {
+    title: "AI Judge — Kelayakan Campaign Mobil",
+    verdictLabels: {
+      GO: "Layak Live — lanjutkan ke Go Live",
+      CONDITIONAL: "Layak Bersyarat — review sebelum Go Live",
+      "NO-GO": "Tidak Layak — jangan Go Live",
+      INCOMPLETE: "Simulasi Belum Lengkap",
+    },
+  },
+  PROPERTY: {
+    title: "AI Judge — Kelayakan Campaign Properti",
+    verdictLabels: {
+      GO: "Layak Live — patuh kebijakan HOUSING, lanjutkan ke Go Live",
+      CONDITIONAL: "Layak Bersyarat — review kebijakan HOUSING sebelum Go Live",
+      "NO-GO": "Tidak Layak — jangan Go Live",
+      INCOMPLETE: "Simulasi Belum Lengkap",
+    },
+  },
+} as const;
+
+/**
  * `POST /api/v1/llm/analyze`'s real response is qualitative (findings/recommendations/summary —
  * see `llm.service.ts`), not a numeric score. This derives a deterministic, inspectable PROXY
  * score from real response field counts, so the simulation's overall gate has *something* numeric
@@ -84,12 +124,31 @@ export function computeSimulationScoring(
   tamara: TamaraStageResult,
   kai: KaiStageResult,
   jessy: JessyStageResult,
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 — the tenant's real resolved vertical
+   * (`SimulationService.resolveVertical`). Optional and defaulted to `"AUTOMOTIVE"` so every
+   * pre-existing call site (and every pre-Phase-5 test) keeps its exact prior behavior — the
+   * HOUSING criterion below only ever applies when a caller explicitly passes `"PROPERTY"`.
+   */
+  vertical: "AUTOMOTIVE" | "PROPERTY" = "AUTOMOTIVE",
 ): SimulationScoring {
   const tamaraCoverageScore = scoreTamaraCoverage(tamara);
   const kaiScore = scoreKaiAvailability(kai);
   const jessyScore = scoreJessy(jessy);
-  const overallScore =
+  let overallScore =
     tamaraCoverageScore * WEIGHTS.tamara + kaiScore * WEIGHTS.kai + jessyScore * WEIGHTS.jessy;
+
+  // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5, Step 5 — HOUSING-category-check criterion:
+  // a PROPERTY simulation whose audience-targeting preview didn't set Meta's mandatory
+  // `specialAdCategories: ['HOUSING']` loses HOUSING_CATEGORY_PENALTY points. `housingCategoryOk`
+  // stays `undefined` for AUTOMOTIVE (the criterion doesn't apply to it at all — not "true").
+  let housingCategoryOk: boolean | undefined;
+  if (vertical === "PROPERTY") {
+    housingCategoryOk = (tamara.audienceTargeting?.specialAdCategories ?? []).includes("HOUSING");
+    if (!housingCategoryOk) {
+      overallScore = Math.max(0, overallScore - HOUSING_CATEGORY_PENALTY);
+    }
+  }
 
   const jessyIncomplete = jessy.runs.filter((run) => run.ok).length === 0;
   let verdict: Verdict;
@@ -97,7 +156,8 @@ export function computeSimulationScoring(
     verdict = "INCOMPLETE";
   } else if (
     overallScore >= SIMULATION_CRITERIA.minOverallScore &&
-    tamaraCoverageScore >= SIMULATION_CRITERIA.minTamaraScore
+    tamaraCoverageScore >= SIMULATION_CRITERIA.minTamaraScore &&
+    housingCategoryOk !== false
   ) {
     verdict = "GO";
   } else if (overallScore >= 55) {
@@ -113,5 +173,6 @@ export function computeSimulationScoring(
     overallScore: Math.round(overallScore * 10) / 10,
     grade: toGrade(overallScore),
     verdict,
+    ...(housingCategoryOk !== undefined ? { housingCategoryOk } : {}),
   };
 }

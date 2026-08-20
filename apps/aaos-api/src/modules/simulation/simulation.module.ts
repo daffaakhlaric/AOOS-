@@ -5,6 +5,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { MetaInterestsModule } from "../meta-interests/meta-interests.module.js";
+import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import { SimulationRepository } from "./infrastructure/simulation.repository.js";
 import { SimulationController } from "./simulation.controller.js";
@@ -19,6 +20,11 @@ import { SimulationService } from "./simulation.service.js";
  * stage's audience-targeting step reads the real stored `meta_interests` catalogue through the
  * SAME `MetaInterestRepository` `POST /api/v1/meta-interests/sync` writes through — one repository
  * over that table, not a second one composed here.
+ *
+ * `TenantRepository` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5) is composed the SAME way
+ * `SettingsModule` already does — its own instance over the shared `SUPABASE_CLIENT`, not a second
+ * lookup mechanism — so `SimulationService.resolveVertical` can read the real per-request tenant's
+ * `vertical`.
  */
 @Module({
   imports: [LlmModule, MetaInterestsModule],
@@ -30,6 +36,11 @@ import { SimulationService } from "./simulation.service.js";
       provide: SimulationRepository,
       useFactory: (client: SupabaseClientLike): SimulationRepository =>
         new SimulationRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: TenantRepository,
+      useFactory: (client: SupabaseClientLike): TenantRepository => new TenantRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

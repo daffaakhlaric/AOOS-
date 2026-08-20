@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from "@nestjs/common";
 
+import { TenantId } from "../../common/tenant-context.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
@@ -25,6 +26,12 @@ import { SimulationService } from "./simulation.service.js";
  * swallowed by a `:id`-shaped route (Nest matches path segments literally, so `history` here isn't
  * actually ambiguous with `:id/status` — both have a fixed 2nd segment — but the sibling literal
  * route is still declared first per this codebase's existing convention).
+ *
+ * `start` is tenant-scoped via `@TenantId()` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5,
+ * coordinator note section 9) — the same `common/tenant-context.ts` decorator `SettingsController`
+ * already uses — since it's the one place `SimulationService` reads/records a real per-request
+ * tenant id and resolves that tenant's `vertical` for the rest of the pipeline. No other endpoint
+ * here needed the same treatment (out of scope per the coordinator note's explicit boundary).
  */
 @Controller("api/v1/simulation")
 @UseGuards(ApiKeyGuard)
@@ -40,8 +47,9 @@ export class SimulationController {
   @HttpCode(202)
   async start(
     @Body(new ZodValidationPipe(StartSimulationBodySchema)) body: StartSimulationBodyDto,
+    @TenantId() tenantId: string,
   ): Promise<StartSimulationResponseDto> {
-    return this.service.start(body);
+    return this.service.start(body, tenantId);
   }
 
   @Get(":id/status")

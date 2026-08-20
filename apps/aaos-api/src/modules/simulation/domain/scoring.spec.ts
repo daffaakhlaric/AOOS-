@@ -120,4 +120,54 @@ describe("computeSimulationScoring", () => {
     );
     expect(scoring.overallScore).toBeCloseTo(71.2, 5);
   });
+
+  describe("HOUSING-category-check criterion (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5)", () => {
+    it("leaves housingCategoryOk undefined and the score untouched for AUTOMOTIVE (default)", () => {
+      const scoring = computeSimulationScoring(
+        tamara({ ringkasan: "x" }),
+        kai({ available: true }),
+        jessy({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
+      );
+      expect(scoring.housingCategoryOk).toBeUndefined();
+      expect(scoring.overallScore).toBeCloseTo(71.2, 5);
+    });
+
+    it("subtracts HOUSING_CATEGORY_PENALTY and sets housingCategoryOk=false for a PROPERTY run missing HOUSING", () => {
+      const withoutHousing = computeSimulationScoring(
+        tamara({ ringkasan: "x", audienceTargeting: undefined }),
+        kai({ available: true }),
+        jessy({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
+        "PROPERTY",
+      );
+      expect(withoutHousing.housingCategoryOk).toBe(false);
+      expect(withoutHousing.overallScore).toBeCloseTo(51.2, 5);
+      // A verdict this low, even before the penalty, would already be CONDITIONAL/NO-GO — assert
+      // the penalty specifically pushes an otherwise-GO-eligible run out of GO.
+      expect(withoutHousing.verdict).not.toBe("GO");
+    });
+
+    it("does not penalize a PROPERTY run whose preview correctly set specialAdCategories: ['HOUSING']", () => {
+      const withHousing = computeSimulationScoring(
+        tamara({
+          ringkasan: "x",
+          audienceTargeting: {
+            branch: "BINTARO",
+            geo: ["Tangerang Selatan"],
+            radiusKm: 25,
+            ageMin: 27,
+            ageMax: 55,
+            geoNote: "note",
+            candidateCount: 0,
+            interests: [],
+            specialAdCategories: ["HOUSING"],
+          },
+        }),
+        kai({ available: true }),
+        jessy({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
+        "PROPERTY",
+      );
+      expect(withHousing.housingCategoryOk).toBe(true);
+      expect(withHousing.overallScore).toBeCloseTo(71.2, 5);
+    });
+  });
 });

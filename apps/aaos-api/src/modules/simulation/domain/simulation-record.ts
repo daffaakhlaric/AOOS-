@@ -70,6 +70,21 @@ export interface AudienceTargetingPreview {
   readonly reasoning?: string;
   /** Why `interests` is empty, when it is (e.g. `NO_CANDIDATES`, or the real LLM unavailable reason). Never a fabricated selection. */
   readonly interestsUnavailableReason?: string;
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 — Meta's real `special_ad_categories` value this
+   * preview's campaign would be created with. Always `[]` for `AUTOMOTIVE` tenants (no special
+   * category applies); `['HOUSING']` for `PROPERTY` tenants, per Meta's mandatory policy for
+   * property/housing ads (`packages/meta-ads-connector`'s `HOUSING_SPECIAL_AD_CATEGORY`). Display
+   * only, same hard scope boundary as the rest of this preview — never sent to Meta from Simulasi.
+   */
+  readonly specialAdCategories: readonly string[];
+  /**
+   * The exact Indonesian warning copy the UI MUST render verbatim whenever `specialAdCategories`
+   * includes `'HOUSING'` (`packages/meta-ads-connector`'s `HOUSING_POLICY_WARNING`) — age/gender
+   * targeting is disabled by Meta itself once this category is set, so `ageMin`/`ageMax` above are
+   * display-only estimates for a PROPERTY simulation, never real `targeting.age_min`/`age_max`.
+   */
+  readonly housingWarning?: string;
 }
 
 /** Step 2 (Tamara) result — the REAL `AnalyzeLlmPayload` shape from `POST /api/v1/llm/analyze`, or `undefined` when Tamara was unavailable (never fabricated). */
@@ -205,6 +220,14 @@ export interface SimulationScoring {
   readonly overallScore: number;
   readonly grade: Grade;
   readonly verdict: Verdict;
+  /**
+   * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 — set only for `PROPERTY` simulations: `false`
+   * when the preview's `specialAdCategories` did not include `'HOUSING'` (a real Meta-policy
+   * violation this simulation should have caught), in which case `domain/scoring.ts`'s
+   * `HOUSING_CATEGORY_PENALTY` (-20) was already subtracted from `overallScore` above. `undefined`
+   * for `AUTOMOTIVE` simulations, where this criterion does not apply.
+   */
+  readonly housingCategoryOk?: boolean;
 }
 
 /** The full `simulations.result` JSONB payload once the pipeline finishes (or fails). */

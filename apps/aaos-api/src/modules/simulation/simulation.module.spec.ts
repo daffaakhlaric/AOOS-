@@ -6,6 +6,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { MetaInterestsModule } from "../meta-interests/meta-interests.module.js";
+import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import { SimulationRepository } from "./infrastructure/simulation.repository.js";
 import { SimulationController } from "./simulation.controller.js";
@@ -48,5 +49,15 @@ describe("SimulationModule", () => {
     const fakeClient = { from: () => undefined, channel: () => undefined } as never;
     const repo = provider?.useFactory?.(fakeClient);
     expect(repo).toBeInstanceOf(SimulationRepository);
+  });
+
+  it("provides TenantRepository via a useFactory built from SUPABASE_CLIENT (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 — real per-request vertical resolution, not a second tenant lookup)", () => {
+    const metadata = Reflect.getMetadata("providers", SimulationModule) as FactoryProvider[];
+    const provider = metadata.find((p) => p.provide === TenantRepository);
+    expect(provider).toBeDefined();
+    expect(provider?.inject).toEqual([SUPABASE_CLIENT]);
+    const fakeClient = { from: () => undefined, channel: () => undefined } as never;
+    const repo = provider?.useFactory?.(fakeClient);
+    expect(repo).toBeInstanceOf(TenantRepository);
   });
 });

@@ -18,12 +18,12 @@ function buildFakeService(): SimulationService {
 }
 
 describe("SimulationController", () => {
-  it("POST start delegates to SimulationService.start", async () => {
+  it("POST start delegates to SimulationService.start with the real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new SimulationController(service);
     const body = { personaIds: ["ready_buyer"] } as never;
-    const result = await controller.start(body);
-    expect(service.start).toHaveBeenCalledWith(body);
+    const result = await controller.start(body, "acme-property");
+    expect(service.start).toHaveBeenCalledWith(body, "acme-property");
     expect(result).toEqual({ id: "sim-1", status: "RUNNING" });
   });
 
