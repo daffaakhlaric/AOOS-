@@ -1,0 +1,202 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  max-width: 1200px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--black);
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .kpiStrip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.kpiCell {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.kpiLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+}
+
+.kpiValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--black);
+  margin-top: 4px;
+}
+
+.poolActionsRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.primaryButton {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.tabRow {
+  display: flex;
+  gap: 4px;
+  border-bottom: var(--border);
+}
+
+.tab,
+.tabActive {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab {
+  color: var(--gray-500);
+}
+
+.tabActive {
+  color: var(--black);
+  border-bottom-color: var(--black);
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.cardStatus {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.variantGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.variantCol {
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--gray-50, #f9fafb);
+  padding: 10px;
+}
+
+.variantLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-700);
+  text-transform: uppercase;
+}
+
+.variantMetrics {
+  font-size: 12px;
+  color: var(--gray-600);
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.variantStatus {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 8px;
+  color: var(--gray-700);
+}
+
+.tamaraNote {
+  font-size: 12px;
+  color: var(--gray-600);
+  margin-top: 12px;
+  padding: 10px;
+  background: var(--gray-50, #f9fafb);
+  border-radius: var(--radius);
+}
+
+.cardActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.linkButton {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+  background: none;
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  padding: 6px 12px;
+}
+
+.linkButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

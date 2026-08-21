@@ -37,6 +37,7 @@ import {
   MOBIX_SCRAPER_SERVICE,
   OBJECTIVE_ENGINE,
 } from "../../di-tokens.js";
+import { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
@@ -85,6 +86,7 @@ export class SchedulerService {
     private readonly llmService: LlmService,
     private readonly repository: CalendarEventRepository,
     private readonly recyclingService: RecyclingService,
+    private readonly abTestingService: AbTestingService,
   ) {
     this.metaAdsSyncService = new MetaAdsSyncService(this.connector.pullCampaignData);
   }
@@ -143,6 +145,9 @@ export class SchedulerService {
           break;
         case "RECYCLING_RUN":
           result = await this.runRecyclingRun(correlationId);
+          break;
+        case "AB_TEST_CHECK":
+          result = await this.runAbTestCheck();
           break;
       }
 
@@ -211,6 +216,9 @@ export class SchedulerService {
       recurrence: body.recurrence,
       ...(body.recurrenceDays !== undefined ? { recurrenceDays: body.recurrenceDays } : {}),
       ...(body.recurrenceTime !== undefined ? { recurrenceTime: body.recurrenceTime } : {}),
+      ...(body.recurrenceIntervalHours !== undefined
+        ? { recurrenceIntervalHours: body.recurrenceIntervalHours }
+        : {}),
       ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
       ...(body.targetId !== undefined ? { targetId: body.targetId } : {}),
       ...(body.targetName !== undefined ? { targetName: body.targetName } : {}),
@@ -454,6 +462,17 @@ export class SchedulerService {
     };
   }
 
+  /**
+   * `AB_TEST_CHECK` (AAOS-ABTESTING-LOOKALIKE, coordinator note section 5) — delegates every real
+   * decision (launching a DRAFT test whose creatives finished, monitoring RUNNING tests, declaring
+   * a winner) to `AbTestingService.runAbTestCheck`, which returns an honest summary — never a
+   * fabricated count. Real 6-hour cadence via the new `"INTERVAL_HOURS"` recurrence, checked by
+   * this SAME due-window cron rather than a second, parallel `@Cron`.
+   */
+  private async runAbTestCheck(): Promise<CalendarEventResult> {
+    return this.abTestingService.runAbTestCheck();
+  }
+
   /** Sum of real `HOT`-status leads across every branch (`@aos/lead-store`'s `GetHotLeads`, per branch — there is no tenant-wide aggregate use case). A branch whose lookup fails contributes 0 and is logged, never aborts the whole digest. */
   private async countHotLeads(): Promise<number> {
     let total = 0;
@@ -521,6 +540,9 @@ export class SchedulerService {
       recurrence: event.recurrence,
       ...(event.recurrenceDays !== undefined ? { recurrenceDays: event.recurrenceDays } : {}),
       ...(event.recurrenceTime !== undefined ? { recurrenceTime: event.recurrenceTime } : {}),
+      ...(event.recurrenceIntervalHours !== undefined
+        ? { recurrenceIntervalHours: event.recurrenceIntervalHours }
+        : {}),
       ...(event.targetId !== undefined ? { targetId: event.targetId } : {}),
       ...(event.targetName !== undefined ? { targetName: event.targetName } : {}),
       ...(event.metadata !== undefined ? { metadata: event.metadata } : {}),
@@ -573,16 +595,25 @@ export function nextOccurrence(event: StoredCalendarEvent): Date | undefined {
       return nextWeeklyOccurrence(previous, event.recurrenceDays);
     case "MONTHLY":
       return addMonths(previous, 1);
+    case "INTERVAL_HOURS":
+      return addHours(previous, event.recurrenceIntervalHours ?? DEFAULT_INTERVAL_HOURS);
     case "ONCE":
     default:
       return undefined;
   }
 }
 
+/** `INTERVAL_HOURS`'s fallback step when a row somehow carries no `recurrenceIntervalHours` (should not happen — the API boundary requires it, per `CreateCalendarEventBodySchema`'s refine) — matches `AB_TEST_CHECK`'s own real 6-hour cadence rather than an arbitrary number. */
+const DEFAULT_INTERVAL_HOURS = 6;
+
 function addDays(date: Date, days: number): Date {
   const next = new Date(date.getTime());
   next.setUTCDate(next.getUTCDate() + days);
   return next;
+}
+
+function addHours(date: Date, hours: number): Date {
+  return new Date(date.getTime() + hours * 3_600_000);
 }
 
 function addMonths(date: Date, months: number): Date {

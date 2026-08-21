@@ -24,6 +24,8 @@ const ANALISA: NavItem = {
   icon: "🎯",
 };
 const STRATEGI: NavItem = { href: "/meta-ads/strategi", label: "Strategi & Approve", icon: "🧭" };
+/** AAOS-ABTESTING-LOOKALIKE — Tamara's auto A/B test creative page, per the spec's own menu mockup ("🔬 A/B Testing", placed right before Simulasi). */
+const ABTESTING: NavItem = { href: "/meta-ads/abtesting", label: "A/B Testing", icon: "🔬" };
 const SIMULASI: NavItem = {
   href: "/meta-ads/simulasi",
   label: "Simulasi Tamara × Kai × Jessy",
@@ -116,7 +118,7 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
     {
       key: "tamara",
       label: "TAMARA (META ADS)",
-      items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, STRATEGI, SIMULASI],
+      items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, STRATEGI, ABTESTING, SIMULASI],
     },
     {
       key: "jessy",

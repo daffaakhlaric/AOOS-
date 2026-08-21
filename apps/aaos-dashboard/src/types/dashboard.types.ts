@@ -852,3 +852,67 @@ export interface BroadcastAllResultDto {
 export interface AutoModeDto {
   readonly autoMode: boolean;
 }
+
+/**
+ * `/api/abtesting*` DTOs (AAOS-ABTESTING-LOOKALIKE) — client-safe mirrors of `aaos-api`'s real
+ * `abtesting` module response DTOs. Powers `/meta-ads/abtesting`'s tabs + create-test modal.
+ */
+export interface AbTestVariantDto {
+  readonly id: string;
+  readonly variantLabel: string;
+  readonly angle: string;
+  readonly creativePackageId: string;
+  readonly metaAdId?: string;
+  readonly status: string;
+  readonly spend: number;
+  readonly impressions: number;
+  readonly clicks: number;
+  readonly conversations: number;
+  readonly leads: number;
+  readonly rphLead?: number;
+  readonly ctr?: number;
+  readonly lastSyncedAt?: string;
+}
+
+export interface AbTestDto {
+  readonly id: string;
+  readonly name: string;
+  readonly campaignId: string;
+  readonly adSetId: string;
+  readonly status: string;
+  readonly thresholdSpend: number;
+  readonly thresholdDays: number;
+  readonly minMarginPct: number;
+  readonly autoPauseLoser: boolean;
+  readonly autoScaleWinner: boolean;
+  readonly winnerVariantId?: string;
+  readonly winnerRphLead?: number;
+  readonly improvementPct?: number;
+  readonly startedAt?: string;
+  readonly completedAt?: string;
+  readonly failedReason?: string;
+  readonly createdAt: string;
+  readonly variants: readonly AbTestVariantDto[];
+}
+
+export interface CreateAbTestInput {
+  readonly name: string;
+  readonly campaignId: string;
+  readonly adSetId: string;
+  readonly pageId: string;
+  readonly waLink: string;
+  readonly mode: "AUTO";
+  readonly variantCount: 2 | 3;
+  readonly unit: string;
+  readonly unitModel?: string;
+  readonly branch: string;
+  readonly targetPersona?: string;
+  readonly primaryMessage: string;
+  readonly format: "VIDEO_AND_IMAGES" | "IMAGES_ONLY";
+  readonly urgency?: "HIGH" | "MEDIUM" | "LOW";
+  readonly thresholdSpend: number;
+  readonly thresholdDays: number;
+  readonly minMarginPct: number;
+  readonly autoPauseLoser: boolean;
+  readonly autoScaleWinner: boolean;
+}

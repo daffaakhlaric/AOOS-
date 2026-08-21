@@ -21,6 +21,7 @@ export interface CalendarEventRow {
   readonly recurrence: string;
   readonly recurrence_days: number[] | null;
   readonly recurrence_time: string | null;
+  readonly recurrence_interval_hours: number | null;
   readonly status: string;
   readonly started_at: string | null;
   readonly completed_at: string | null;
@@ -49,6 +50,9 @@ function toDomain(row: CalendarEventRow): StoredCalendarEvent {
     recurrence: row.recurrence as CalendarEventRecurrence,
     ...(row.recurrence_days !== null ? { recurrenceDays: row.recurrence_days } : {}),
     ...(row.recurrence_time !== null ? { recurrenceTime: row.recurrence_time } : {}),
+    ...(row.recurrence_interval_hours !== null
+      ? { recurrenceIntervalHours: row.recurrence_interval_hours }
+      : {}),
     status: row.status as CalendarEventStatus,
     ...(row.started_at !== null ? { startedAt: row.started_at } : {}),
     ...(row.completed_at !== null ? { completedAt: row.completed_at } : {}),
@@ -75,6 +79,7 @@ export interface CreateCalendarEventInput {
   readonly recurrence: CalendarEventRecurrence;
   readonly recurrenceDays?: readonly number[];
   readonly recurrenceTime?: string;
+  readonly recurrenceIntervalHours?: number;
   readonly targetId?: string;
   readonly targetName?: string;
   readonly metadata?: Record<string, unknown>;
@@ -89,6 +94,7 @@ export interface UpdateCalendarEventInput {
   readonly recurrence?: CalendarEventRecurrence;
   readonly recurrenceDays?: readonly number[];
   readonly recurrenceTime?: string;
+  readonly recurrenceIntervalHours?: number;
   readonly metadata?: Record<string, unknown>;
 }
 
@@ -125,6 +131,7 @@ export class CalendarEventRepository {
         recurrence: input.recurrence,
         recurrence_days: input.recurrenceDays !== undefined ? [...input.recurrenceDays] : null,
         recurrence_time: input.recurrenceTime ?? null,
+        recurrence_interval_hours: input.recurrenceIntervalHours ?? null,
         status: "PENDING",
         target_id: input.targetId ?? null,
         target_name: input.targetName ?? null,
@@ -209,6 +216,9 @@ export class CalendarEventRepository {
       ...(input.recurrence !== undefined ? { recurrence: input.recurrence } : {}),
       ...(input.recurrenceDays !== undefined ? { recurrence_days: [...input.recurrenceDays] } : {}),
       ...(input.recurrenceTime !== undefined ? { recurrence_time: input.recurrenceTime } : {}),
+      ...(input.recurrenceIntervalHours !== undefined
+        ? { recurrence_interval_hours: input.recurrenceIntervalHours }
+        : {}),
       ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
     };
     const { error } = await this.client.from<CalendarEventRow>(TABLE).update(values).eq("id", id);

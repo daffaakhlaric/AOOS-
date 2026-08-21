@@ -49,6 +49,19 @@ describe("CalendarEventRepository", () => {
     expect(created.createdBy).toBe("manager");
   });
 
+  it("create honors recurrenceIntervalHours for INTERVAL_HOURS", async () => {
+    const repo = new CalendarEventRepository(createFakeSupabaseClient());
+    const created = await repo.create({
+      ...BASE_INPUT,
+      eventType: "AB_TEST_CHECK",
+      recurrence: "INTERVAL_HOURS",
+      recurrenceIntervalHours: 6,
+    });
+
+    expect(created.recurrence).toBe("INTERVAL_HOURS");
+    expect(created.recurrenceIntervalHours).toBe(6);
+  });
+
   it("findById returns undefined for an unknown id", async () => {
     const repo = new CalendarEventRepository(createFakeSupabaseClient());
     expect(await repo.findById("nope")).toBeUndefined();

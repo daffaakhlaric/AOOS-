@@ -7,7 +7,7 @@ import {
 
 /** Only the 5 supported types are ever accepted from a client — coordinator note section 1. */
 const CalendarEventTypeSchema = z.enum(SUPPORTED_CALENDAR_EVENT_TYPES);
-const RecurrenceSchema = z.enum(["ONCE", "DAILY", "WEEKLY", "MONTHLY"]);
+const RecurrenceSchema = z.enum(["ONCE", "DAILY", "WEEKLY", "MONTHLY", "INTERVAL_HOURS"]);
 
 /** `GET /api/v1/calendar?range=this_week` or `?month=YYYY-MM`. Exactly one of the two must be supplied. */
 export const GetCalendarQuerySchema = z
@@ -36,6 +36,7 @@ export const CreateCalendarEventBodySchema = z
       .string()
       .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "recurrenceTime must be formatted HH:mm")
       .optional(),
+    recurrenceIntervalHours: z.number().int().min(1).max(23).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
     targetId: z.string().min(1).optional(),
     targetName: z.string().min(1).optional(),
@@ -43,7 +44,14 @@ export const CreateCalendarEventBodySchema = z
   .refine((value) => value.recurrence !== "WEEKLY" || value.recurrenceDays !== undefined, {
     message: "recurrenceDays is required when recurrence is WEEKLY",
     path: ["recurrenceDays"],
-  });
+  })
+  .refine(
+    (value) => value.recurrence !== "INTERVAL_HOURS" || value.recurrenceIntervalHours !== undefined,
+    {
+      message: "recurrenceIntervalHours is required when recurrence is INTERVAL_HOURS",
+      path: ["recurrenceIntervalHours"],
+    },
+  );
 export type CreateCalendarEventBodyDto = z.infer<typeof CreateCalendarEventBodySchema>;
 
 /** `PUT /api/v1/calendar/:id` body — every field optional, only supplied fields are patched. */
@@ -57,6 +65,7 @@ export const UpdateCalendarEventBodySchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "recurrenceTime must be formatted HH:mm")
     .optional(),
+  recurrenceIntervalHours: z.number().int().min(1).max(23).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type UpdateCalendarEventBodyDto = z.infer<typeof UpdateCalendarEventBodySchema>;
@@ -71,6 +80,7 @@ export interface CalendarEventResponseDto {
   readonly recurrence: string;
   readonly recurrenceDays?: readonly number[];
   readonly recurrenceTime?: string;
+  readonly recurrenceIntervalHours?: number;
   readonly status: string;
   readonly startedAt?: string;
   readonly completedAt?: string;
@@ -95,6 +105,9 @@ export function toCalendarEventResponseDto(event: StoredCalendarEvent): Calendar
     recurrence: event.recurrence,
     ...(event.recurrenceDays !== undefined ? { recurrenceDays: event.recurrenceDays } : {}),
     ...(event.recurrenceTime !== undefined ? { recurrenceTime: event.recurrenceTime } : {}),
+    ...(event.recurrenceIntervalHours !== undefined
+      ? { recurrenceIntervalHours: event.recurrenceIntervalHours }
+      : {}),
     status: event.status,
     ...(event.startedAt !== undefined ? { startedAt: event.startedAt } : {}),
     ...(event.completedAt !== undefined ? { completedAt: event.completedAt } : {}),

@@ -14,6 +14,12 @@
  * `RECYCLING_RUN` was added by AAOS-LEAD-RECYCLING-BROADCAST (coordinator note section 7) — the
  * REAL mechanism for Jessy's daily auto-recycling broadcast is this existing due-window cron, not
  * a second, parallel `@Cron`.
+ *
+ * `AB_TEST_CHECK` was added by AAOS-ABTESTING-LOOKALIKE (coordinator note section 5) — monitors
+ * running A/B tests and launches DRAFT ones whose creative packages finished generating. It is the
+ * first event type to use the new `"INTERVAL_HOURS"` recurrence below (real 6-hour cadence,
+ * matching the spec's own "every 6 hours" cron intent without faking a cron-expression
+ * `scheduled_at`).
  */
 export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "SCRAPER_RUN",
@@ -22,6 +28,7 @@ export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "KAI_REFRESH_CHECK",
   "DAILY_DIGEST",
   "RECYCLING_RUN",
+  "AB_TEST_CHECK",
 ] as const;
 
 export type CalendarEventType = (typeof SUPPORTED_CALENDAR_EVENT_TYPES)[number];
@@ -31,7 +38,14 @@ export function isSupportedCalendarEventType(value: string): value is CalendarEv
 }
 
 export type CalendarEventStatus = "PENDING" | "RUNNING" | "DONE" | "FAILED" | "SKIPPED";
-export type CalendarEventRecurrence = "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
+/**
+ * `"INTERVAL_HOURS"` was added by AAOS-ABTESTING-LOOKALIKE (coordinator note section 5) — a real,
+ * additive extension for event types that need to recur every N hours (e.g. `AB_TEST_CHECK` every
+ * 6 hours), rather than once a day/week/month. `scheduled_at` stays a real ISO timestamp — never a
+ * cron-expression string — and `recurrenceIntervalHours` below carries the "every N hours" step,
+ * read by `SchedulerService.nextOccurrence()`'s new `"INTERVAL_HOURS"` case.
+ */
+export type CalendarEventRecurrence = "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "INTERVAL_HOURS";
 
 /** Real, handler-reported outcome of one executed event — never a fabricated/optimistic value. */
 export interface CalendarEventResult {
@@ -58,6 +72,8 @@ export interface StoredCalendarEvent {
   readonly recurrence: CalendarEventRecurrence;
   readonly recurrenceDays?: readonly number[];
   readonly recurrenceTime?: string;
+  /** Only meaningful when `recurrence === "INTERVAL_HOURS"` — the real "every N hours" step. */
+  readonly recurrenceIntervalHours?: number;
   readonly status: CalendarEventStatus;
   readonly startedAt?: string;
   readonly completedAt?: string;

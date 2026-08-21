@@ -60,6 +60,7 @@ import {
 import { AaosExceptionFilter } from "./filters/aaos-exception.filter.js";
 import { LoggingInterceptor } from "./interceptors/logging.interceptor.js";
 import { TracingInterceptor } from "./interceptors/tracing.interceptor.js";
+import { AbTestingModule } from "./modules/abtesting/abtesting.module.js";
 import { AssetsModule } from "./modules/assets/assets.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
@@ -294,6 +295,11 @@ export class AppModule {
         // import independently of array order here) so it can inject the exported
         // `RecyclingService` for its own `RECYCLING_RUN` handler.
         RecyclingModule,
+        // AAOS-ABTESTING-LOOKALIKE — new `abtesting` module (A/B test CRUD endpoints + the
+        // AB_TEST_CHECK Kalender handler's business logic). `SchedulerModule` separately imports
+        // this module directly (same pattern as `RecyclingModule`) so it can inject the exported
+        // `AbTestingService` for its own `AB_TEST_CHECK` handler.
+        AbTestingModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

@@ -59,6 +59,13 @@ describe("Sidebar", () => {
     expect(link).toHaveAttribute("href", "/jessy/recycling");
   });
 
+  it("renders the A/B Testing nav item under TAMARA (META ADS)", () => {
+    mockSettingsFetch(undefined);
+    render(<Sidebar />);
+    const link = screen.getByText("A/B Testing").closest("a");
+    expect(link).toHaveAttribute("href", "/meta-ads/abtesting");
+  });
+
   it("never breaks rendering when the settings fetch fails", async () => {
     global.fetch = vi.fn(async () => {
       throw new Error("network down");

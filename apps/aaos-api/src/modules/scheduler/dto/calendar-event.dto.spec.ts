@@ -69,6 +69,31 @@ describe("CreateCalendarEventBodySchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("accepts AB_TEST_CHECK", () => {
+    expect(
+      CreateCalendarEventBodySchema.safeParse({ ...base, eventType: "AB_TEST_CHECK" }).success,
+    ).toBe(true);
+  });
+
+  it("requires recurrenceIntervalHours when recurrence is INTERVAL_HOURS", () => {
+    const result = CreateCalendarEventBodySchema.safeParse({
+      ...base,
+      eventType: "AB_TEST_CHECK",
+      recurrence: "INTERVAL_HOURS",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts INTERVAL_HOURS with recurrenceIntervalHours", () => {
+    const result = CreateCalendarEventBodySchema.safeParse({
+      ...base,
+      eventType: "AB_TEST_CHECK",
+      recurrence: "INTERVAL_HOURS",
+      recurrenceIntervalHours: 6,
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("UpdateCalendarEventBodySchema", () => {

@@ -14,10 +14,11 @@ import type { ObjectiveEngine } from "@aos/objective-engine";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import type { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
 
-import type { StoredCalendarEvent } from "./domain/calendar-event.js";
+import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import type { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import { SchedulerService, nextOccurrence, resolveCalendarRange } from "./scheduler.service.js";
 
@@ -160,6 +161,19 @@ function buildFakeRecyclingService(result?: RecyclingRunResult): RecyclingServic
   } as unknown as RecyclingService;
 }
 
+function buildFakeAbTestingService(result?: CalendarEventResult): AbTestingService {
+  return {
+    runAbTestCheck: vi.fn(
+      async () =>
+        result ?? {
+          summary: "0 test di-launch · 0 winner ditemukan",
+          launched: 0,
+          winnersDeclared: 0,
+        },
+    ),
+  } as unknown as AbTestingService;
+}
+
 function buildService(
   options: {
     repository?: CalendarEventRepository;
@@ -169,6 +183,7 @@ function buildService(
     leadStore?: LeadStore;
     llmService?: LlmService;
     recyclingService?: RecyclingService;
+    abTestingService?: AbTestingService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -183,6 +198,7 @@ function buildService(
     options.llmService ?? buildFakeLlmService(),
     options.repository ?? buildFakeRepository(),
     options.recyclingService ?? buildFakeRecyclingService(),
+    options.abTestingService ?? buildFakeAbTestingService(),
   );
 }
 
@@ -378,6 +394,44 @@ describe("SchedulerService.executeEvent", () => {
     );
   });
 
+  it("AB_TEST_CHECK delegates to AbTestingService.runAbTestCheck and marks DONE with its real summary", async () => {
+    const repository = buildFakeRepository();
+    const abTestingService = buildFakeAbTestingService({
+      summary: "1 test di-launch · 1 winner ditemukan",
+      launched: 1,
+      winnersDeclared: 1,
+    });
+    const service = buildService({ repository, abTestingService });
+    await service.executeEvent(buildEvent({ eventType: "AB_TEST_CHECK" }));
+
+    expect(abTestingService.runAbTestCheck).toHaveBeenCalled();
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ summary: "1 test di-launch · 1 winner ditemukan", launched: 1 }),
+    );
+  });
+
+  it("schedules the next occurrence for an INTERVAL_HOURS event using recurrenceIntervalHours", async () => {
+    const repository = buildFakeRepository();
+    const service = buildService({ repository });
+    await service.executeEvent(
+      buildEvent({
+        eventType: "AB_TEST_CHECK",
+        recurrence: "INTERVAL_HOURS",
+        recurrenceIntervalHours: 6,
+      }),
+    );
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentEventId: "evt-1",
+        recurrence: "INTERVAL_HOURS",
+        recurrenceIntervalHours: 6,
+      }),
+    );
+  });
+
   it("schedules the next occurrence for a recurring event after a successful run", async () => {
     const repository = buildFakeRepository();
     const service = buildService({ repository });
@@ -497,6 +551,24 @@ describe("nextOccurrence", () => {
     expect(
       nextOccurrence(buildEvent({ recurrence: "WEEKLY", scheduledAt: "2026-08-18T08:00:00.000Z" })),
     ).toBeUndefined();
+  });
+
+  it("INTERVAL_HOURS adds recurrenceIntervalHours hours", () => {
+    const next = nextOccurrence(
+      buildEvent({
+        recurrence: "INTERVAL_HOURS",
+        recurrenceIntervalHours: 6,
+        scheduledAt: "2026-08-19T06:00:00.000Z",
+      }),
+    );
+    expect(next?.toISOString()).toBe("2026-08-19T12:00:00.000Z");
+  });
+
+  it("INTERVAL_HOURS falls back to a 6-hour default when recurrenceIntervalHours is missing", () => {
+    const next = nextOccurrence(
+      buildEvent({ recurrence: "INTERVAL_HOURS", scheduledAt: "2026-08-19T06:00:00.000Z" }),
+    );
+    expect(next?.toISOString()).toBe("2026-08-19T12:00:00.000Z");
   });
 });
 
