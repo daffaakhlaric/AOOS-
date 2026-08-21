@@ -6,10 +6,12 @@ import {
   AAOS_API_CONFIG,
   ASSET_LIBRARY,
   BRANCH_MANAGER,
+  EVENT_BROKER,
   EVENT_PUBLISHER,
   KAI_AGENT_RUNTIME,
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
+  LEAD_STORE_LEAD_REPOSITORY,
   LEAD_STORE_MESSAGE_REPOSITORY,
   LEAD_STORE_SCORING_REPOSITORY,
   META_ADS_CONNECTOR,
@@ -71,8 +73,12 @@ describe("AppModule.forRoot", () => {
     // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 4 (Go Live): +1 import (GoLiveModule) — no new
     // global provider (composes SimulationRepository/WabaConfigRepository locally from the
     // existing SUPABASE_CLIENT, reuses the already-global META_ADS_CONNECTOR/AAOS_API_CONFIG).
-    expect(dynamicModule.imports).toHaveLength(22);
-    expect(dynamicModule.providers).toHaveLength(18);
+    // AAOS-LEAD-RECYCLING-BROADCAST: +1 import (RecyclingModule) and +2 providers (EVENT_BROKER —
+    // the same real EventBroker instance as EVENT_PUBLISHER, exposed under its subscriber-capable
+    // interface for RecyclingReplyListener; LEAD_STORE_LEAD_REPOSITORY — the real
+    // @aos/lead-store LeadRepository composed against the existing SUPABASE_CLIENT).
+    expect(dynamicModule.imports).toHaveLength(23);
+    expect(dynamicModule.providers).toHaveLength(20);
   });
 
   it("provides KAI_AGENT_RUNTIME as undefined when no Kie AI key / asset library is configured, so the app still boots", () => {
@@ -122,11 +128,12 @@ describe("AppModule.forRoot", () => {
     );
   });
 
-  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN tokens", () => {
+  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN tokens", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.exports).toEqual([
       AAOS_API_CONFIG,
       EVENT_PUBLISHER,
+      EVENT_BROKER,
       META_ADS_CONNECTOR,
       WHATSAPP_CONNECTOR,
       LEAD_STORE,
@@ -135,6 +142,7 @@ describe("AppModule.forRoot", () => {
       LEAD_STORE_MESSAGE_REPOSITORY,
       LEAD_STORE_CLOSING_REPOSITORY,
       LEAD_STORE_SCORING_REPOSITORY,
+      LEAD_STORE_LEAD_REPOSITORY,
       SUPABASE_CLIENT,
       SUPABASE_AUTH_ADMIN,
       ASSET_LIBRARY,

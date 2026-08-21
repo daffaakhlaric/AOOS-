@@ -9,7 +9,7 @@ describe("AddEventModal", () => {
     vi.restoreAllMocks();
   });
 
-  it("only lists the 5 supported event types (grouped Tamara/Kai/Operasional)", () => {
+  it("only lists the 6 supported event types (grouped Tamara/Kai/Operasional/Jessy)", () => {
     render(<AddEventModal onClose={vi.fn()} onSaved={vi.fn()} />);
     const select = screen.getByLabelText("Tipe Aktivitas") as HTMLSelectElement;
     const optionValues = Array.from(select.options).map((option) => option.value);
@@ -20,6 +20,7 @@ describe("AddEventModal", () => {
         "DAILY_DIGEST",
         "KAI_REFRESH_CHECK",
         "SCRAPER_RUN",
+        "RECYCLING_RUN",
       ].sort(),
     );
     // None of the 9 excluded types ever appears.

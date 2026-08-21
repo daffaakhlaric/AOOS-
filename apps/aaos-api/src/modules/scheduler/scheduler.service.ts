@@ -39,6 +39,7 @@ import {
 } from "../../di-tokens.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import { RecyclingService } from "../recycling/recycling.service.js";
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import { isSupportedCalendarEventType } from "./domain/calendar-event.js";
@@ -83,6 +84,7 @@ export class SchedulerService {
     @Inject(EVENT_PUBLISHER) private readonly publisher: IPublisher,
     private readonly llmService: LlmService,
     private readonly repository: CalendarEventRepository,
+    private readonly recyclingService: RecyclingService,
   ) {
     this.metaAdsSyncService = new MetaAdsSyncService(this.connector.pullCampaignData);
   }
@@ -138,6 +140,9 @@ export class SchedulerService {
           break;
         case "DAILY_DIGEST":
           result = await this.runDailyDigest(correlationId);
+          break;
+        case "RECYCLING_RUN":
+          result = await this.runRecyclingRun(correlationId);
           break;
       }
 
@@ -429,6 +434,23 @@ export class SchedulerService {
       progressPercentage: digest.progressPercentage,
       budgetSpentPercentage: digest.budgetSpentPercentage,
       text: digest.text,
+    };
+  }
+
+  /**
+   * `RECYCLING_RUN` (AAOS-LEAD-RECYCLING-BROADCAST, coordinator note section 7) — the REAL daily
+   * auto-broadcast mechanism, dispatched by this same due-window cron rather than a second,
+   * parallel `@Cron`. Delegates every real decision (Auto Mode check, pool query, cooldown/hours
+   * filtering, sending) to `RecyclingService.runRecyclingRun`, which returns an honest summary —
+   * never a fabricated count.
+   */
+  private async runRecyclingRun(correlationId: string): Promise<CalendarEventResult> {
+    const result = await this.recyclingService.runRecyclingRun(correlationId);
+    return {
+      summary: result.summary,
+      attempted: result.attempted,
+      sent: result.sent,
+      failed: result.failed,
     };
   }
 

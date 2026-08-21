@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { LlmService } from "../llm/llm.service.js";
+import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
 
 import type { StoredCalendarEvent } from "./domain/calendar-event.js";
 import type { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
@@ -151,6 +152,14 @@ function buildFakeLlmService(): LlmService {
   } as unknown as LlmService;
 }
 
+function buildFakeRecyclingService(result?: RecyclingRunResult): RecyclingService {
+  return {
+    runRecyclingRun: vi.fn(
+      async () => result ?? { summary: "2 broadcast terkirim", attempted: 2, sent: 2, failed: 0 },
+    ),
+  } as unknown as RecyclingService;
+}
+
 function buildService(
   options: {
     repository?: CalendarEventRepository;
@@ -159,6 +168,7 @@ function buildService(
     objectiveEngine?: ObjectiveEngine;
     leadStore?: LeadStore;
     llmService?: LlmService;
+    recyclingService?: RecyclingService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -172,6 +182,7 @@ function buildService(
     publisher as never,
     options.llmService ?? buildFakeLlmService(),
     options.repository ?? buildFakeRepository(),
+    options.recyclingService ?? buildFakeRecyclingService(),
   );
 }
 
@@ -325,6 +336,45 @@ describe("SchedulerService.executeEvent", () => {
       expect.any(String),
       expect.any(Number),
       expect.stringContaining("Belum ada Objective"),
+    );
+  });
+
+  it("RECYCLING_RUN delegates to RecyclingService.runRecyclingRun and marks DONE with its real summary", async () => {
+    const repository = buildFakeRepository();
+    const recyclingService = buildFakeRecyclingService({
+      summary: "3 broadcast terkirim",
+      attempted: 3,
+      sent: 3,
+      failed: 0,
+    });
+    const service = buildService({ repository, recyclingService });
+    await service.executeEvent(buildEvent({ eventType: "RECYCLING_RUN" }));
+
+    expect(recyclingService.runRecyclingRun).toHaveBeenCalled();
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ summary: "3 broadcast terkirim", sent: 3 }),
+    );
+  });
+
+  it("RECYCLING_RUN honors Auto Mode OFF with an honest no-op summary", async () => {
+    const repository = buildFakeRepository();
+    const recyclingService = buildFakeRecyclingService({
+      summary: "Auto Mode OFF, tidak ada broadcast dikirim",
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+    });
+    const service = buildService({ repository, recyclingService });
+    await service.executeEvent(buildEvent({ eventType: "RECYCLING_RUN" }));
+
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ summary: "Auto Mode OFF, tidak ada broadcast dikirim" }),
     );
   });
 

@@ -92,3 +92,23 @@ export const MOBIX_SCRAPER_SERVICE = Symbol("MOBIX_SCRAPER_SERVICE");
  * bcrypt/JWT auth system).
  */
 export const SUPABASE_AUTH_ADMIN = Symbol("SUPABASE_AUTH_ADMIN");
+/**
+ * AAOS-LEAD-RECYCLING-BROADCAST additions.
+ *
+ * `LEAD_STORE_LEAD_REPOSITORY` — same rationale as `LEAD_STORE_MESSAGE_REPOSITORY`/
+ * `LEAD_STORE_CLOSING_REPOSITORY` above: no `LeadStore` use case exposes "find a lead by phone +
+ * branch" or "persist arbitrary broadcast fields on a lead" (the composed `LeadStore`'s own
+ * `UpdateLeadStatus`/`RecordScoreEvent`/etc. each write only their own narrow slice), so
+ * `RecyclingService`/`RecyclingReplyListener` are given the real, already-public
+ * `@aos/lead-store` `LeadRepository` infra class directly, composed against the SAME Supabase
+ * client every other `lead-store`-backed repository in this app shares.
+ *
+ * `EVENT_BROKER` — the SAME real `EventBroker` instance already composed as `EVENT_PUBLISHER`
+ * (one event bus for the whole app), exposed under its full `IEventBroker` (publisher +
+ * subscriber) interface rather than the narrower `IPublisher` `EVENT_PUBLISHER` uses. Needed
+ * because `RecyclingReplyListener` (coordinator note section 9) is the FIRST real subscriber
+ * anywhere in `aaos-api` to an event `@aos/whatsapp-connector` publishes — no prior module ever
+ * called `.subscribe(...)`, only `.publish(...)`.
+ */
+export const LEAD_STORE_LEAD_REPOSITORY = Symbol("LEAD_STORE_LEAD_REPOSITORY");
+export const EVENT_BROKER = Symbol("EVENT_BROKER");

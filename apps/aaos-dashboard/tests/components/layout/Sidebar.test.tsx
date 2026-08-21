@@ -52,6 +52,13 @@ describe("Sidebar", () => {
     expect(link).toHaveAttribute("href", "/listings");
   });
 
+  it("renders the Lead Recycling nav item under JESSY (SALES AI), for both verticals", () => {
+    mockSettingsFetch(undefined);
+    render(<Sidebar />);
+    const link = screen.getByText("Lead Recycling").closest("a");
+    expect(link).toHaveAttribute("href", "/jessy/recycling");
+  });
+
   it("never breaks rendering when the settings fetch fails", async () => {
     global.fetch = vi.fn(async () => {
       throw new Error("network down");

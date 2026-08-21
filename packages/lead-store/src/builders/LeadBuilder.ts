@@ -37,6 +37,10 @@ export class LeadBuilder {
   private firstMessageAt: Date | undefined;
   private lastMessageAt: Date | undefined;
   private becameHotAt: Date | undefined;
+  private broadcastCount = 0;
+  private lastBroadcastAt: Date | undefined;
+  private lastBroadcastTemplateId: string | undefined;
+  private recyclingArchived = false;
   private createdAt = new Date("2026-01-01T00:00:00.000Z");
   private updatedAt = new Date("2026-01-01T00:00:00.000Z");
 
@@ -140,6 +144,26 @@ export class LeadBuilder {
     return this;
   }
 
+  withBroadcastCount(broadcastCount: number): this {
+    this.broadcastCount = broadcastCount;
+    return this;
+  }
+
+  withLastBroadcastAt(lastBroadcastAt: Date | undefined): this {
+    this.lastBroadcastAt = lastBroadcastAt;
+    return this;
+  }
+
+  withLastBroadcastTemplateId(lastBroadcastTemplateId: string | undefined): this {
+    this.lastBroadcastTemplateId = lastBroadcastTemplateId;
+    return this;
+  }
+
+  withRecyclingArchived(recyclingArchived: boolean): this {
+    this.recyclingArchived = recyclingArchived;
+    return this;
+  }
+
   withCreatedAt(createdAt: Date): this {
     this.createdAt = createdAt;
     return this;
@@ -181,6 +205,10 @@ export class LeadBuilder {
       firstMessageAt: this.firstMessageAt,
       lastMessageAt: this.lastMessageAt,
       becameHotAt: this.becameHotAt,
+      broadcastCount: this.broadcastCount,
+      lastBroadcastAt: this.lastBroadcastAt,
+      lastBroadcastTemplateId: this.lastBroadcastTemplateId,
+      recyclingArchived: this.recyclingArchived,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });

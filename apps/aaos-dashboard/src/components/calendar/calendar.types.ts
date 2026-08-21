@@ -1,9 +1,10 @@
 /**
- * Shared constants for the "Kalender Aktivitas" widget (AAOS-KALENDER-AKTIVITAS). Only the 5
- * event types `aaos-api`'s `SchedulerService.executeEvent` actually implements are listed here —
- * see `docs/PROMPT-AAOS-KALENDER-AKTIVITAS.md`'s COORDINATOR NOTE section 1 for the full list of
- * 9 excluded types (6 campaign-mutating types with no human-approval gate at execution time, plus
- * 3 with zero real backing anywhere in this codebase). None of the 9 appears in "Tambah Jadwal".
+ * Shared constants for the "Kalender Aktivitas" widget (AAOS-KALENDER-AKTIVITAS). Only the event
+ * types `aaos-api`'s `SchedulerService.executeEvent` actually implements are listed here — see
+ * `docs/PROMPT-AAOS-KALENDER-AKTIVITAS.md`'s COORDINATOR NOTE section 1 for the full list of
+ * originally-excluded types (6 campaign-mutating types with no human-approval gate at execution
+ * time, plus 3 with zero real backing anywhere in this codebase). `RECYCLING_RUN` was added by
+ * AAOS-LEAD-RECYCLING-BROADCAST (coordinator note section 7) alongside the original 5.
  */
 export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "SCRAPER_RUN",
@@ -11,6 +12,7 @@ export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "TAMARA_ANALYZE",
   "KAI_REFRESH_CHECK",
   "DAILY_DIGEST",
+  "RECYCLING_RUN",
 ] as const;
 
 export type CalendarEventType = (typeof SUPPORTED_CALENDAR_EVENT_TYPES)[number];
@@ -43,6 +45,10 @@ export const CALENDAR_EVENT_TYPE_OPTIONS: readonly CalendarEventTypeGroup[] = [
     group: "Operasional",
     items: [{ value: "SCRAPER_RUN", label: "📸 Scrape Foto Mobix" }],
   },
+  {
+    group: "Jessy",
+    items: [{ value: "RECYCLING_RUN", label: "♻️ Auto Recycling Broadcast" }],
+  },
 ];
 
 export const EVENT_TYPE_LABEL: Readonly<Record<CalendarEventType, string>> = Object.fromEntries(
@@ -55,6 +61,7 @@ export const EVENT_ICON: Readonly<Record<CalendarEventType, string>> = {
   DAILY_DIGEST: "📋",
   KAI_REFRESH_CHECK: "🔍",
   SCRAPER_RUN: "📸",
+  RECYCLING_RUN: "♻️",
 };
 
 export const STATUS_ICON: Readonly<Record<string, string>> = {

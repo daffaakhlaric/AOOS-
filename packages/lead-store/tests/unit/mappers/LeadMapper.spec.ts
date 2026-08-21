@@ -33,6 +33,10 @@ describe("LeadMapper.toDomain", () => {
       first_message_at: "2026-01-14T08:00:00.000Z",
       last_message_at: "2026-01-15T08:30:00.000Z",
       became_hot_at: "2026-01-15T08:45:00.000Z",
+      broadcast_count: 2,
+      last_broadcast_at: "2026-01-16T08:00:00.000Z",
+      last_broadcast_template_id: "template-1",
+      recycling_archived: true,
       created_at: "2026-01-14T07:00:00.000Z",
       updated_at: "2026-01-15T09:00:00.000Z",
     });
@@ -66,6 +70,10 @@ describe("LeadMapper.toDomain", () => {
     expect(lead.firstMessageAt?.toISOString()).toBe("2026-01-14T08:00:00.000Z");
     expect(lead.lastMessageAt?.toISOString()).toBe("2026-01-15T08:30:00.000Z");
     expect(lead.becameHotAt?.toISOString()).toBe("2026-01-15T08:45:00.000Z");
+    expect(lead.broadcastCount).toBe(2);
+    expect(lead.lastBroadcastAt?.toISOString()).toBe("2026-01-16T08:00:00.000Z");
+    expect(lead.lastBroadcastTemplateId).toBe("template-1");
+    expect(lead.recyclingArchived).toBe(true);
     expect(lead.createdAt.toISOString()).toBe("2026-01-14T07:00:00.000Z");
     expect(lead.updatedAt.toISOString()).toBe("2026-01-15T09:00:00.000Z");
   });
@@ -82,6 +90,8 @@ describe("LeadMapper.toDomain", () => {
       first_message_at: null,
       last_message_at: null,
       became_hot_at: null,
+      last_broadcast_at: null,
+      last_broadcast_template_id: null,
     });
     const lead = unwrap(LeadMapper.toDomain(row));
     expect(lead.campaignId).toBeUndefined();
@@ -94,6 +104,8 @@ describe("LeadMapper.toDomain", () => {
     expect(lead.firstMessageAt).toBeUndefined();
     expect(lead.lastMessageAt).toBeUndefined();
     expect(lead.becameHotAt).toBeUndefined();
+    expect(lead.lastBroadcastAt).toBeUndefined();
+    expect(lead.lastBroadcastTemplateId).toBeUndefined();
   });
 
   it("fails on an invalid lead_phone", () => {
@@ -176,6 +188,8 @@ describe("LeadMapper.toRow", () => {
       first_message_at: null,
       last_message_at: null,
       became_hot_at: null,
+      last_broadcast_at: null,
+      last_broadcast_template_id: null,
     });
     const lead = unwrap(LeadMapper.toDomain(row));
     const mapped = LeadMapper.toRow(lead);
@@ -189,5 +203,7 @@ describe("LeadMapper.toRow", () => {
     expect(mapped.first_message_at).toBeNull();
     expect(mapped.last_message_at).toBeNull();
     expect(mapped.became_hot_at).toBeNull();
+    expect(mapped.last_broadcast_at).toBeNull();
+    expect(mapped.last_broadcast_template_id).toBeNull();
   });
 });

@@ -3,10 +3,11 @@ import type { BranchManager } from "@aos/branch-manager";
 import { BranchManagerFactory } from "@aos/branch-manager";
 import { KaiAgentFactory, type KaiAgentRuntime } from "@aos/creative-agent";
 import { CreativeConnectorFactory } from "@aos/creative-connector";
-import { EventBroker, type IPublisher } from "@aos/event-bus";
+import { EventBroker, type IEventBroker, type IPublisher } from "@aos/event-bus";
 import {
   ClosingRepository,
   createSupabaseClient,
+  LeadRepository,
   LeadStoreFactory,
   MessageRepository,
   ScoringRepository,
@@ -41,10 +42,12 @@ import {
   AAOS_API_CONFIG,
   ASSET_LIBRARY,
   BRANCH_MANAGER,
+  EVENT_BROKER,
   EVENT_PUBLISHER,
   KAI_AGENT_RUNTIME,
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
+  LEAD_STORE_LEAD_REPOSITORY,
   LEAD_STORE_MESSAGE_REPOSITORY,
   LEAD_STORE_SCORING_REPOSITORY,
   META_ADS_CONNECTOR,
@@ -70,6 +73,7 @@ import { LlmModule } from "./modules/llm/llm.module.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
+import { RecyclingModule } from "./modules/recycling/recycling.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
 import { SchedulerModule } from "./modules/scheduler/scheduler.module.js";
 import { ScraperModule } from "./modules/scraper/scraper.module.js";
@@ -143,6 +147,8 @@ export class AppModule {
     // conversation" or "list raw closings matching a filter" (see di-tokens.ts's docstring).
     const messageRepository = new MessageRepository(leadStoreSupabaseClient);
     const closingRepository = new ClosingRepository(leadStoreSupabaseClient);
+    // AAOS-LEAD-RECYCLING-BROADCAST addition — see di-tokens.ts's `LEAD_STORE_LEAD_REPOSITORY` doc.
+    const leadRepository = new LeadRepository(leadStoreSupabaseClient);
     // AAOS-CHAT-ROOM-JESSY: `GET /leads/:id/scoring-history`'s thin read over the real
     // `scoring_events` table — same composition pattern as `messageRepository`/`closingRepository`
     // above.
@@ -282,10 +288,21 @@ export class AppModule {
         // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — Listing Manager (PROPERTY vertical's
         // `listings` CRUD + photo upload, replacing Scraper Mobix for that vertical).
         ListingsModule,
+        // AAOS-LEAD-RECYCLING-BROADCAST — new `recycling` module (pool/templates/broadcast/logs
+        // endpoints + the RECYCLING_RUN Kalender handler's business logic + the reply-detection
+        // hook). `SchedulerModule` separately imports this module directly (Nest resolves that
+        // import independently of array order here) so it can inject the exported
+        // `RecyclingService` for its own `RECYCLING_RUN` handler.
+        RecyclingModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },
         { provide: EVENT_PUBLISHER, useValue: publisher },
+        // Same real `EventBroker` instance as `EVENT_PUBLISHER` above, exposed under its full
+        // `IEventBroker` interface — see di-tokens.ts's doc. `publisher` is always a real
+        // `EventBroker` (constructed a few lines above), so this cast reaches for a capability
+        // (`.subscribe`) the object genuinely has, never a fake widening.
+        { provide: EVENT_BROKER, useValue: publisher as IEventBroker },
         { provide: META_ADS_CONNECTOR, useValue: connector },
         { provide: WHATSAPP_CONNECTOR, useValue: whatsAppConnector },
         { provide: LEAD_STORE, useValue: leadStore },
@@ -294,6 +311,7 @@ export class AppModule {
         { provide: LEAD_STORE_MESSAGE_REPOSITORY, useValue: messageRepository },
         { provide: LEAD_STORE_CLOSING_REPOSITORY, useValue: closingRepository },
         { provide: LEAD_STORE_SCORING_REPOSITORY, useValue: scoringRepository },
+        { provide: LEAD_STORE_LEAD_REPOSITORY, useValue: leadRepository },
         { provide: SUPABASE_CLIENT, useValue: leadStoreSupabaseClient },
         { provide: SUPABASE_AUTH_ADMIN, useValue: supabaseAuthAdminClient },
         // `useValue: undefined` is intentional and load-bearing: it makes `ASSET_LIBRARY` an
@@ -312,6 +330,7 @@ export class AppModule {
       exports: [
         AAOS_API_CONFIG,
         EVENT_PUBLISHER,
+        EVENT_BROKER,
         META_ADS_CONNECTOR,
         WHATSAPP_CONNECTOR,
         LEAD_STORE,
@@ -320,6 +339,7 @@ export class AppModule {
         LEAD_STORE_MESSAGE_REPOSITORY,
         LEAD_STORE_CLOSING_REPOSITORY,
         LEAD_STORE_SCORING_REPOSITORY,
+        LEAD_STORE_LEAD_REPOSITORY,
         SUPABASE_CLIENT,
         SUPABASE_AUTH_ADMIN,
         ASSET_LIBRARY,

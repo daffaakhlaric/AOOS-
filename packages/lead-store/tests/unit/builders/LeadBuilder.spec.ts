@@ -48,6 +48,10 @@ describe("LeadBuilder", () => {
         .withFirstMessageAt(now)
         .withLastMessageAt(now)
         .withBecameHotAt(now)
+        .withBroadcastCount(2)
+        .withLastBroadcastAt(now)
+        .withLastBroadcastTemplateId("template-1")
+        .withRecyclingArchived(true)
         .withCreatedAt(now)
         .withUpdatedAt(now)
         .build(),
@@ -72,6 +76,10 @@ describe("LeadBuilder", () => {
     expect(lead.firstMessageAt).toBe(now);
     expect(lead.lastMessageAt).toBe(now);
     expect(lead.becameHotAt).toBe(now);
+    expect(lead.broadcastCount).toBe(2);
+    expect(lead.lastBroadcastAt).toBe(now);
+    expect(lead.lastBroadcastTemplateId).toBe("template-1");
+    expect(lead.recyclingArchived).toBe(true);
     expect(lead.createdAt).toBe(now);
     expect(lead.updatedAt).toBe(now);
   });

@@ -10,6 +10,10 @@
  * campaign-mutating types with no human-approval gate at execution time, plus 3 types with zero
  * real backing anywhere in this codebase) are never selectable and have no `executeEvent()`
  * handler.
+ *
+ * `RECYCLING_RUN` was added by AAOS-LEAD-RECYCLING-BROADCAST (coordinator note section 7) — the
+ * REAL mechanism for Jessy's daily auto-recycling broadcast is this existing due-window cron, not
+ * a second, parallel `@Cron`.
  */
 export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "SCRAPER_RUN",
@@ -17,6 +21,7 @@ export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "TAMARA_ANALYZE",
   "KAI_REFRESH_CHECK",
   "DAILY_DIGEST",
+  "RECYCLING_RUN",
 ] as const;
 
 export type CalendarEventType = (typeof SUPPORTED_CALENDAR_EVENT_TYPES)[number];

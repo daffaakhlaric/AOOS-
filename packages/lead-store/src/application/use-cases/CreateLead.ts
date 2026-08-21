@@ -110,6 +110,8 @@ export class CreateLead {
         timeline: false,
         name: false,
       },
+      broadcastCount: 0,
+      recyclingArchived: false,
       createdAt: now,
       updatedAt: now,
     });

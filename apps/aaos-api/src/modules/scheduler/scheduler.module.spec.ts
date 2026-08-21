@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { RecyclingModule } from "../recycling/recycling.module.js";
 
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import { SchedulerController } from "./scheduler.controller.js";
@@ -18,9 +19,9 @@ type FactoryProvider = {
 };
 
 describe("SchedulerModule", () => {
-  it("imports LlmModule so SchedulerService can inject the real LlmService", () => {
+  it("imports LlmModule/RecyclingModule so SchedulerService can inject the real LlmService/RecyclingService", () => {
     const metadata = Reflect.getMetadata("imports", SchedulerModule) as unknown[];
-    expect(metadata).toEqual([LlmModule]);
+    expect(metadata).toEqual([LlmModule, RecyclingModule]);
   });
 
   it("registers SchedulerController as its controller", () => {

@@ -777,3 +777,78 @@ export interface CalendarEventDto {
   readonly createdBy: string;
   readonly createdAt: string;
 }
+
+/**
+ * `/api/recycling*` DTOs (AAOS-LEAD-RECYCLING-BROADCAST) — client-safe mirrors of `aaos-api`'s
+ * real `recycling` module response DTOs. Powers `/jessy/recycling`'s 3 tabs.
+ */
+export interface RecyclingPoolLeadDto {
+  readonly id: string;
+  readonly leadName?: string;
+  readonly leadPhone: string;
+  readonly branchId: string;
+  readonly status: string;
+  readonly score: number;
+  readonly temperature: string;
+  readonly lastMessageAt?: string;
+  readonly broadcastCount: number;
+  readonly lastBroadcastAt?: string;
+  readonly lastBroadcastTemplateId?: string;
+  readonly readyToSend: boolean;
+}
+
+export interface TemplateDto {
+  readonly id: string;
+  readonly name: string;
+  readonly content: string;
+  readonly targetStatuses: readonly string[];
+  readonly cooldownDays: number;
+  readonly status: string;
+  readonly replyRate: number;
+  readonly hotRate: number;
+  readonly sentCount: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface CreateTemplateInput {
+  readonly name: string;
+  readonly content: string;
+  readonly targetStatuses: readonly string[];
+  readonly cooldownDays: number;
+  readonly status: "ACTIVE" | "DRAFT" | "INACTIVE";
+}
+
+export type UpdateTemplateInput = Partial<CreateTemplateInput>;
+
+export interface BroadcastLogDto {
+  readonly id: string;
+  readonly leadId: string;
+  readonly templateId?: string;
+  readonly messageSent: string;
+  readonly status: string;
+  readonly sentAt: string;
+  readonly deliveredAt?: string;
+  readonly readAt?: string;
+  readonly replied: boolean;
+  readonly repliedAt?: string;
+  readonly convertedToHot: boolean;
+  readonly convertedAt?: string;
+}
+
+export interface BroadcastResultDto {
+  readonly leadId: string;
+  readonly templateId: string;
+  readonly broadcastLogId: string;
+  readonly sentAt: string;
+}
+
+export interface BroadcastAllResultDto {
+  readonly attempted: number;
+  readonly sent: readonly BroadcastResultDto[];
+  readonly failed: ReadonlyArray<{ readonly leadId: string; readonly reason: string }>;
+}
+
+export interface AutoModeDto {
+  readonly autoMode: boolean;
+}

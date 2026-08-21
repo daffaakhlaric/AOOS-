@@ -53,6 +53,8 @@ const JESSY_INBOX: NavItem = { href: "/jessy/inbox", label: "Inbox", icon: "💬
 const JESSY_CONTACTS: NavItem = { href: "/jessy/contacts", label: "Contacts", icon: "👥" };
 const KNOWLEDGE: NavItem = { href: "/jessy/knowledge", label: "Knowledge Base", icon: "📚" };
 const SIMULATOR: NavItem = { href: "/jessy/simulator", label: "Simulator", icon: "🎮" };
+/** AAOS-LEAD-RECYCLING-BROADCAST — Jessy's COLD/WARM lead re-engagement broadcast page. */
+const RECYCLING: NavItem = { href: "/jessy/recycling", label: "Lead Recycling", icon: "♻️" };
 
 /**
  * Flat list of every nav item — the order `MobileNav.tsx` slices `[0, 5)` from for its bottom tab
@@ -119,7 +121,7 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
     {
       key: "jessy",
       label: "JESSY (SALES AI)",
-      items: [JESSY_ANALYTICS, JESSY_INBOX, JESSY_CONTACTS, KNOWLEDGE, SIMULATOR],
+      items: [JESSY_ANALYTICS, JESSY_INBOX, JESSY_CONTACTS, KNOWLEDGE, SIMULATOR, RECYCLING],
     },
     {
       key: "kai",

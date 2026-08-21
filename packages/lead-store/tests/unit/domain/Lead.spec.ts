@@ -30,6 +30,8 @@ function baseProps() {
       timeline: false,
       name: false,
     },
+    broadcastCount: 0,
+    recyclingArchived: false,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -120,6 +122,39 @@ describe("Lead entity", () => {
     const second = first.withLastMessageAt(LATER);
     expect(second.firstMessageAt).toBe(NOW); // unchanged
     expect(second.lastMessageAt).toBe(LATER);
+  });
+
+  it("defaults broadcastCount=0 and recyclingArchived=false", () => {
+    const lead = unwrap(Lead.create(baseProps()));
+    expect(lead.broadcastCount).toBe(0);
+    expect(lead.recyclingArchived).toBe(false);
+    expect(lead.lastBroadcastAt).toBeUndefined();
+    expect(lead.lastBroadcastTemplateId).toBeUndefined();
+  });
+
+  it("withBroadcastSent increments broadcastCount and stamps lastBroadcastAt/lastBroadcastTemplateId", () => {
+    const lead = unwrap(Lead.create(baseProps()));
+    const updated = lead.withBroadcastSent("template-1", LATER, LATER);
+    expect(updated.broadcastCount).toBe(1);
+    expect(updated.lastBroadcastAt).toBe(LATER);
+    expect(updated.lastBroadcastTemplateId).toBe("template-1");
+    expect(updated.updatedAt).toBe(LATER);
+    expect(lead.broadcastCount).toBe(0); // original untouched
+
+    const twice = updated.withBroadcastSent("template-2", LATER, LATER);
+    expect(twice.broadcastCount).toBe(2);
+    expect(twice.lastBroadcastTemplateId).toBe("template-2");
+  });
+
+  it("withRecyclingArchived sets recyclingArchived and updatedAt", () => {
+    const lead = unwrap(Lead.create(baseProps()));
+    const archived = lead.withRecyclingArchived(true, LATER);
+    expect(archived.recyclingArchived).toBe(true);
+    expect(archived.updatedAt).toBe(LATER);
+    expect(lead.recyclingArchived).toBe(false); // original untouched
+
+    const unarchived = archived.withRecyclingArchived(false, LATER);
+    expect(unarchived.recyclingArchived).toBe(false);
   });
 
   it("exposes every getter matching the constructed props", () => {

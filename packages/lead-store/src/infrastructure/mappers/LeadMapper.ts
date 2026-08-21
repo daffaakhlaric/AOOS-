@@ -39,6 +39,11 @@ export interface LeadRow {
   readonly first_message_at: string | null;
   readonly last_message_at: string | null;
   readonly became_hot_at: string | null;
+  /** Lead Recycling & Broadcast (AAOS-LEAD-RECYCLING-BROADCAST, `005_recycling_fields.sql`). */
+  readonly broadcast_count: number;
+  readonly last_broadcast_at: string | null;
+  readonly last_broadcast_template_id: string | null;
+  readonly recycling_archived: boolean;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -148,6 +153,18 @@ export class LeadMapper {
       firstMessageAt: row.first_message_at !== null ? new Date(row.first_message_at) : undefined,
       lastMessageAt: row.last_message_at !== null ? new Date(row.last_message_at) : undefined,
       becameHotAt: row.became_hot_at !== null ? new Date(row.became_hot_at) : undefined,
+      // `?? 0`/`row.x != null` (loose, catches BOTH `null` and `undefined`) rather than the
+      // `!== null`-only pattern the older fields above use: those 4 new AAOS-LEAD-RECYCLING-
+      // BROADCAST columns are additive on top of an already-large body of hand-rolled `LeadRow`
+      // test fixtures across this monorepo written before this migration existed, which construct
+      // a row object without these keys at all (JS `undefined`, not SQL `NULL`) — a real Postgres
+      // row always has an explicit `NULL`, but backward-compatibility with those pre-existing
+      // fixtures requires tolerating `undefined` too, defaulting exactly like the migration's own
+      // `DEFAULT 0`/`DEFAULT false`.
+      broadcastCount: row.broadcast_count ?? 0,
+      lastBroadcastAt: row.last_broadcast_at != null ? new Date(row.last_broadcast_at) : undefined,
+      lastBroadcastTemplateId: row.last_broadcast_template_id ?? undefined,
+      recyclingArchived: row.recycling_archived ?? false,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     });
@@ -186,6 +203,10 @@ export class LeadMapper {
       first_message_at: lead.firstMessageAt?.toISOString() ?? null,
       last_message_at: lead.lastMessageAt?.toISOString() ?? null,
       became_hot_at: lead.becameHotAt?.toISOString() ?? null,
+      broadcast_count: lead.broadcastCount,
+      last_broadcast_at: lead.lastBroadcastAt?.toISOString() ?? null,
+      last_broadcast_template_id: lead.lastBroadcastTemplateId ?? null,
+      recycling_archived: lead.recyclingArchived,
       created_at: lead.createdAt.toISOString(),
       updated_at: lead.updatedAt.toISOString(),
     };

@@ -41,6 +41,12 @@ export interface LeadProps {
   readonly firstMessageAt?: Date;
   readonly lastMessageAt?: Date;
   readonly becameHotAt?: Date;
+  /** Lead Recycling & Broadcast (AAOS-LEAD-RECYCLING-BROADCAST) — how many recycling broadcasts this lead has received so far, `0` until the first one. */
+  readonly broadcastCount: number;
+  readonly lastBroadcastAt?: Date;
+  readonly lastBroadcastTemplateId?: string;
+  /** `true` once this lead has exhausted `RECYCLING_CRITERIA.maxBroadcastCount` (or was manually archived) — excluded from the recycling pool going forward. */
+  readonly recyclingArchived: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -141,6 +147,22 @@ export class Lead {
     return this.props.becameHotAt;
   }
 
+  get broadcastCount(): number {
+    return this.props.broadcastCount;
+  }
+
+  get lastBroadcastAt(): Date | undefined {
+    return this.props.lastBroadcastAt;
+  }
+
+  get lastBroadcastTemplateId(): string | undefined {
+    return this.props.lastBroadcastTemplateId;
+  }
+
+  get recyclingArchived(): boolean {
+    return this.props.recyclingArchived;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -195,5 +217,21 @@ export class Lead {
       firstMessageAt: this.props.firstMessageAt ?? firstMessageAt ?? lastMessageAt,
       updatedAt: lastMessageAt,
     });
+  }
+
+  /** Records one recycling broadcast having just been sent to this lead — increments `broadcastCount`, stamps `lastBroadcastAt`/`lastBroadcastTemplateId`. Does NOT decide archiving itself (`withRecyclingArchived` is the caller's explicit, separate decision — `RecyclingService` compares the new `broadcastCount` against `RECYCLING_CRITERIA.maxBroadcastCount`). */
+  withBroadcastSent(templateId: string, sentAt: Date, updatedAt: Date): Lead {
+    return new Lead({
+      ...this.props,
+      broadcastCount: this.props.broadcastCount + 1,
+      lastBroadcastAt: sentAt,
+      lastBroadcastTemplateId: templateId,
+      updatedAt,
+    });
+  }
+
+  /** Manual or automatic (max-broadcast-count-reached) removal from the recycling pool — never reversed by score/status changes, only by this explicit call. */
+  withRecyclingArchived(archived: boolean, updatedAt: Date): Lead {
+    return new Lead({ ...this.props, recyclingArchived: archived, updatedAt });
   }
 }
