@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { LlmService } from "../llm/llm.service.js";
+import type { LookalikeService } from "../lookalike/lookalike.service.js";
 import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
@@ -161,7 +162,14 @@ function buildFakeRecyclingService(result?: RecyclingRunResult): RecyclingServic
   } as unknown as RecyclingService;
 }
 
-function buildFakeAbTestingService(result?: CalendarEventResult): AbTestingService {
+function buildFakeAbTestingService(
+  result?: CalendarEventResult,
+  completedTests: readonly {
+    readonly name: string;
+    readonly completedAt?: string;
+    readonly improvementPct?: number;
+  }[] = [],
+): AbTestingService {
   return {
     runAbTestCheck: vi.fn(
       async () =>
@@ -171,7 +179,28 @@ function buildFakeAbTestingService(result?: CalendarEventResult): AbTestingServi
           winnersDeclared: 0,
         },
     ),
+    listTests: vi.fn(async (_status?: string) => completedTests),
   } as unknown as AbTestingService;
+}
+
+function buildFakeLookalikeService(result?: CalendarEventResult): LookalikeService {
+  return {
+    runLookalikeSync: vi.fn(
+      async () =>
+        result ?? {
+          summary: "0 hot leads baru untuk disync",
+          newlySynced: 0,
+          totalSynced: 0,
+        },
+    ),
+    getStatus: vi.fn(async () => ({
+      totalHotLeads: 0,
+      syncedToMetaAudience: 0,
+      minRequiredForLookalike: 100,
+      progressPercentage: 0,
+      lookalikeEligible: false,
+    })),
+  } as unknown as LookalikeService;
 }
 
 function buildService(
@@ -184,6 +213,7 @@ function buildService(
     llmService?: LlmService;
     recyclingService?: RecyclingService;
     abTestingService?: AbTestingService;
+    lookalikeService?: LookalikeService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -199,6 +229,7 @@ function buildService(
     options.repository ?? buildFakeRepository(),
     options.recyclingService ?? buildFakeRecyclingService(),
     options.abTestingService ?? buildFakeAbTestingService(),
+    options.lookalikeService ?? buildFakeLookalikeService(),
   );
 }
 
@@ -339,6 +370,46 @@ describe("SchedulerService.executeEvent", () => {
     );
   });
 
+  it("DAILY_DIGEST extends its text with recently-completed A/B tests and the real Lookalike sync milestone", async () => {
+    const repository = buildFakeRepository();
+    const abTestingService = buildFakeAbTestingService(undefined, [
+      { name: "ABT-003 Xpander Cinere", completedAt: new Date().toISOString(), improvementPct: 28 },
+    ]);
+    const lookalikeServiceFake = {
+      runLookalikeSync: vi.fn(async () => ({ summary: "ok", newlySynced: 0, totalSynced: 0 })),
+      getStatus: vi.fn(async () => ({
+        totalHotLeads: 47,
+        syncedToMetaAudience: 38,
+        minRequiredForLookalike: 100,
+        progressPercentage: 47,
+        lookalikeEligible: false,
+      })),
+    } as unknown as LookalikeService;
+    const service = buildService({
+      repository,
+      abTestingService,
+      lookalikeService: lookalikeServiceFake,
+    });
+    await service.executeEvent(buildEvent({ eventType: "DAILY_DIGEST" }));
+
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({
+        text: expect.stringContaining("ABT-003 Xpander Cinere selesai (28% lebih efisien)"),
+      }),
+    );
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({
+        text: expect.stringContaining("47/100 hot leads terkumpul"),
+      }),
+    );
+  });
+
   it("DAILY_DIGEST fails honestly when no Objective exists for the tenant", async () => {
     const repository = buildFakeRepository();
     const service = buildService({
@@ -410,6 +481,28 @@ describe("SchedulerService.executeEvent", () => {
       expect.any(String),
       expect.any(Number),
       expect.objectContaining({ summary: "1 test di-launch · 1 winner ditemukan", launched: 1 }),
+    );
+  });
+
+  it("LOOKALIKE_SYNC delegates to LookalikeService.runLookalikeSync and marks DONE with its real summary", async () => {
+    const repository = buildFakeRepository();
+    const lookalikeService = buildFakeLookalikeService({
+      summary: "5 hot leads baru disync ke Meta Custom Audience",
+      newlySynced: 5,
+      totalSynced: 42,
+    });
+    const service = buildService({ repository, lookalikeService });
+    await service.executeEvent(buildEvent({ eventType: "LOOKALIKE_SYNC" }));
+
+    expect(lookalikeService.runLookalikeSync).toHaveBeenCalled();
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({
+        summary: "5 hot leads baru disync ke Meta Custom Audience",
+        newlySynced: 5,
+      }),
     );
   });
 

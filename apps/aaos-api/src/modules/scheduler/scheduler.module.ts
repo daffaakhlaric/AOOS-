@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
 import { LlmModule } from "../llm/llm.module.js";
+import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
 
@@ -29,7 +30,11 @@ import { SchedulerService } from "./scheduler.service.js";
  *
  * `AbTestingModule` is imported the same way, so `SchedulerService` can inject the SAME real
  * `AbTestingService` `AbTestingController` already uses for `AB_TEST_CHECK`
- * (AAOS-ABTESTING-LOOKALIKE, coordinator note section 5).
+ * (AAOS-ABTESTING-LOOKALIKE Part 1, coordinator note section 5).
+ *
+ * `LookalikeModule` is imported the same way, so `SchedulerService` can inject the SAME real
+ * `LookalikeService` `LookalikeController` already uses for `LOOKALIKE_SYNC`
+ * (AAOS-ABTESTING-LOOKALIKE Part 2, coordinator note section 5).
  *
  * `@nestjs/schedule`'s `ScheduleModule.forRoot()` is registered once, in `app.module.ts`'s
  * `AppModule.forRoot` imports (the composition root every cron-using module ultimately sits
@@ -37,7 +42,7 @@ import { SchedulerService } from "./scheduler.service.js";
  * needs `@Cron`.
  */
 @Module({
-  imports: [LlmModule, RecyclingModule, AbTestingModule],
+  imports: [LlmModule, RecyclingModule, AbTestingModule, LookalikeModule],
   controllers: [SchedulerController],
   providers: [
     SchedulerService,

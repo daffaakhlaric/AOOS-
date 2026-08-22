@@ -52,6 +52,8 @@ export function makeLeadRow(overrides: Partial<LeadRow> = {}): LeadRow {
     last_broadcast_at: null,
     last_broadcast_template_id: null,
     recycling_archived: false,
+    synced_to_meta_audience: false,
+    synced_at: null,
     created_at: FIXED_NOW.toISOString(),
     updated_at: FIXED_NOW.toISOString(),
     ...overrides,

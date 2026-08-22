@@ -66,6 +66,13 @@ describe("Sidebar", () => {
     expect(link).toHaveAttribute("href", "/meta-ads/abtesting");
   });
 
+  it("renders the Lookalike Audience nav item under TAMARA (META ADS)", () => {
+    mockSettingsFetch(undefined);
+    render(<Sidebar />);
+    const link = screen.getByText("Lookalike Audience").closest("a");
+    expect(link).toHaveAttribute("href", "/meta-ads/lookalike");
+  });
+
   it("never breaks rendering when the settings fetch fails", async () => {
     global.fetch = vi.fn(async () => {
       throw new Error("network down");

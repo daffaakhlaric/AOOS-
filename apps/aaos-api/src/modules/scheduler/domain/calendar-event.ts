@@ -15,11 +15,15 @@
  * REAL mechanism for Jessy's daily auto-recycling broadcast is this existing due-window cron, not
  * a second, parallel `@Cron`.
  *
- * `AB_TEST_CHECK` was added by AAOS-ABTESTING-LOOKALIKE (coordinator note section 5) — monitors
- * running A/B tests and launches DRAFT ones whose creative packages finished generating. It is the
- * first event type to use the new `"INTERVAL_HOURS"` recurrence below (real 6-hour cadence,
- * matching the spec's own "every 6 hours" cron intent without faking a cron-expression
+ * `AB_TEST_CHECK` was added by AAOS-ABTESTING-LOOKALIKE Part 1 (coordinator note section 5) —
+ * monitors running A/B tests and launches DRAFT ones whose creative packages finished generating.
+ * It is the first event type to use the new `"INTERVAL_HOURS"` recurrence below (real 6-hour
+ * cadence, matching the spec's own "every 6 hours" cron intent without faking a cron-expression
  * `scheduled_at`).
+ *
+ * `LOOKALIKE_SYNC` was added by AAOS-ABTESTING-LOOKALIKE Part 2 (coordinator note section 5) —
+ * uploads newly-HOT leads' phone numbers into the tenant's Meta Custom Audience. Uses a normal
+ * `"DAILY"` recurrence (seeded at 02:00) — no new recurrence type needed for this one.
  */
 export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "SCRAPER_RUN",
@@ -29,6 +33,7 @@ export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "DAILY_DIGEST",
   "RECYCLING_RUN",
   "AB_TEST_CHECK",
+  "LOOKALIKE_SYNC",
 ] as const;
 
 export type CalendarEventType = (typeof SUPPORTED_CALENDAR_EVENT_TYPES)[number];

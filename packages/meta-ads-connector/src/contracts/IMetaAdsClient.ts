@@ -7,6 +7,8 @@ import type {
   MetaAdListResponse,
   MetaAdSetListResponse,
   MetaCampaignListResponse,
+  MetaCustomAudienceCreateResponse,
+  MetaCustomAudienceUsersResponse,
   MetaImageUploadResponse,
   MetaUpdateResponse,
   MetaVideoUploadResponse,
@@ -75,6 +77,47 @@ export interface CreateAdCreativeImageSpec {
 }
 
 export type CreateAdCreativeSpec = CreateAdCreativeVideoSpec | CreateAdCreativeImageSpec;
+
+/**
+ * Input for `IMetaAdsClient.createCustomAudience` (AAOS-ABTESTING-LOOKALIKE Part 2) — mirrors
+ * Meta's real `POST /act_{ad-account-id}/customaudiences` body shape for a `subtype: "CUSTOM"`
+ * hot-leads audience. Verified 2026-08-21 against Meta's Marketing API "Custom Audiences" guide.
+ */
+export interface CreateCustomAudienceParams {
+  readonly name: string;
+  readonly description?: string;
+  /** Always `"CUSTOM"` here — Lookalikes are created via `createLookalikeAudience` instead. */
+  readonly subtype: "CUSTOM";
+  readonly customerFileSource:
+    "USER_PROVIDED_ONLY" | "PARTNER_PROVIDED_ONLY" | "BOTH_USER_AND_PARTNER_PROVIDED";
+}
+
+/**
+ * Input for `IMetaAdsClient.addUsersToCustomAudience` (AAOS-ABTESTING-LOOKALIKE Part 2) — mirrors
+ * Meta's real `POST /{custom-audience-id}/users` body shape. `hashedPhones` are already
+ * SHA256-hashed, normalized (no leading `+`, no symbols) phone numbers — hashing happens in the
+ * `SyncHotLeadsToCustomAudience` use case, not here; this method is a thin, already-hashed upload.
+ */
+export interface AddUsersToCustomAudienceParams {
+  readonly hashedPhones: ReadonlyArray<string>;
+}
+
+/**
+ * Input for `IMetaAdsClient.createLookalikeAudience` (AAOS-ABTESTING-LOOKALIKE Part 2) — mirrors
+ * Meta's real `POST /act_{ad-account-id}/customaudiences` body shape for a `subtype: "LOOKALIKE"`
+ * audience, whose `lookalike_spec` carries `{type: "similarity", ratio, country}`. Verified
+ * 2026-08-21 against Meta's Marketing API "Lookalike Audiences" guide — Lookalikes are NOT a
+ * separate endpoint from Custom Audience creation, contrary to the spec's imagined
+ * `createLookalikeAudience` Graph API method name.
+ */
+export interface CreateLookalikeAudienceParams {
+  readonly name: string;
+  readonly originAudienceId: string;
+  /** e.g. `0.01` for 1%, `0.02` for 2%, `0.03` for 3% — Meta's real `ratio` range is 0.01-0.20. */
+  readonly ratio: number;
+  /** ISO 3166-1 alpha-2 country code, e.g. `"ID"`. */
+  readonly country: string;
+}
 
 /** Input for `IMetaAdsClient.createAd` (AAOS-GO-LIVE) — mirrors Meta's `POST /{ad-account}/ads` body shape. */
 export interface CreateAdParams {
@@ -216,4 +259,38 @@ export interface IMetaAdsClient {
     imageUrl: string,
     accessToken: string,
   ): Promise<Result<MetaImageUploadResponse, MetaApiError>>;
+
+  /**
+   * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /act_{ad-account-id}/customaudiences` with
+   * `subtype: "CUSTOM"` — creates a new, empty Custom Audience (e.g. the tenant's hot-leads
+   * audience). Verified 2026-08-21 against Meta's Marketing API "Custom Audiences" guide.
+   */
+  createCustomAudience(
+    adAccountId: string,
+    params: CreateCustomAudienceParams,
+    accessToken: string,
+  ): Promise<Result<MetaCustomAudienceCreateResponse, MetaApiError>>;
+
+  /**
+   * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /{custom-audience-id}/users` — uploads already-hashed
+   * phone numbers into an existing Custom Audience (`payload.schema: ["PHONE"]`). Verified
+   * 2026-08-21 against Meta's Marketing API "Custom Audiences" guide.
+   */
+  addUsersToCustomAudience(
+    customAudienceId: string,
+    params: AddUsersToCustomAudienceParams,
+    accessToken: string,
+  ): Promise<Result<MetaCustomAudienceUsersResponse, MetaApiError>>;
+
+  /**
+   * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /act_{ad-account-id}/customaudiences` with
+   * `subtype: "LOOKALIKE"` and a `lookalike_spec` — creates a Lookalike Audience seeded from an
+   * existing Custom Audience. Verified 2026-08-21 against Meta's Marketing API "Lookalike
+   * Audiences" guide — same endpoint as `createCustomAudience`, not a separate Graph API call.
+   */
+  createLookalikeAudience(
+    adAccountId: string,
+    params: CreateLookalikeAudienceParams,
+    accessToken: string,
+  ): Promise<Result<MetaCustomAudienceCreateResponse, MetaApiError>>;
 }

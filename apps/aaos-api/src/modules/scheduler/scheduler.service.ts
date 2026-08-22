@@ -40,6 +40,7 @@ import {
 import { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import { LookalikeService } from "../lookalike/lookalike.service.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
@@ -87,6 +88,7 @@ export class SchedulerService {
     private readonly repository: CalendarEventRepository,
     private readonly recyclingService: RecyclingService,
     private readonly abTestingService: AbTestingService,
+    private readonly lookalikeService: LookalikeService,
   ) {
     this.metaAdsSyncService = new MetaAdsSyncService(this.connector.pullCampaignData);
   }
@@ -148,6 +150,9 @@ export class SchedulerService {
           break;
         case "AB_TEST_CHECK":
           result = await this.runAbTestCheck();
+          break;
+        case "LOOKALIKE_SYNC":
+          result = await this.runLookalikeSync();
           break;
       }
 
@@ -435,13 +440,23 @@ export class SchedulerService {
     }
     const digest = digestResult.value;
 
+    // AAOS-ABTESTING-LOOKALIKE coordinator note section 6: extend the digest's own real text with
+    // recently-completed A/B tests + the current Lookalike sync milestone — real data pulled
+    // fresh each run from `AbTestingService`/`LookalikeService`, never a new "log to digest"
+    // cross-handler write path (there is no persisted digest-log table anywhere — see that note).
+    const abTestSection = await this.buildAbTestDigestSection();
+    const lookalikeSection = await this.buildLookalikeDigestSection();
+    const extendedText = [digest.text, abTestSection, lookalikeSection]
+      .filter((section) => section !== undefined)
+      .join("\n\n");
+
     return {
       summary: `Hot leads ${String(digest.currentHotLeads)}/${String(digest.targetHotLeads)} (${String(digest.progressPercentage)}%)`,
       currentHotLeads: digest.currentHotLeads,
       targetHotLeads: digest.targetHotLeads,
       progressPercentage: digest.progressPercentage,
       budgetSpentPercentage: digest.budgetSpentPercentage,
-      text: digest.text,
+      text: extendedText,
     };
   }
 
@@ -471,6 +486,56 @@ export class SchedulerService {
    */
   private async runAbTestCheck(): Promise<CalendarEventResult> {
     return this.abTestingService.runAbTestCheck();
+  }
+
+  /**
+   * `LOOKALIKE_SYNC` (AAOS-ABTESTING-LOOKALIKE Part 2, coordinator note section 5) — delegates
+   * every real decision (which hot leads are unsynced, uploading their hashed phone numbers,
+   * marking them synced) to `LookalikeService.runLookalikeSync`, which returns an honest summary —
+   * never a fabricated count. Real daily 02:00 cadence via the pre-existing `"DAILY"` recurrence,
+   * checked by this SAME due-window cron rather than a second, parallel `@Cron`.
+   */
+  private async runLookalikeSync(): Promise<CalendarEventResult> {
+    return this.lookalikeService.runLookalikeSync();
+  }
+
+  /**
+   * Daily Digest extension (AAOS-ABTESTING-LOOKALIKE coordinator note section 6) — real
+   * `ab_tests` rows whose `completedAt` falls within the last 24 hours, read via
+   * `AbTestingService.listTests`. Returns `undefined` (no section) when none completed —
+   * `runDailyDigest` filters that out rather than appending an empty line.
+   */
+  private async buildAbTestDigestSection(): Promise<string | undefined> {
+    const completed = await this.abTestingService.listTests("COMPLETE");
+    const windowStart = Date.now() - 24 * 60 * 60 * 1000;
+    const recentlyCompleted = completed.filter(
+      (test) =>
+        test.completedAt !== undefined && new Date(test.completedAt).getTime() >= windowStart,
+    );
+    if (recentlyCompleted.length === 0) {
+      return undefined;
+    }
+    const lines = recentlyCompleted.map((test) => {
+      const improvement =
+        test.improvementPct !== undefined ? ` (${String(test.improvementPct)}% lebih efisien)` : "";
+      return `  ${test.name} selesai${improvement}.`;
+    });
+    return ["🔬 A/B Testing:", ...lines].join("\n");
+  }
+
+  /**
+   * Daily Digest extension (AAOS-ABTESTING-LOOKALIKE coordinator note section 6) — the current
+   * real hot-leads-synced-to-Meta count/milestone, read via `LookalikeService.getStatus`.
+   */
+  private async buildLookalikeDigestSection(): Promise<string | undefined> {
+    const status = await this.lookalikeService.getStatus();
+    if (status.totalHotLeads === 0) {
+      return undefined;
+    }
+    const line = status.lookalikeEligible
+      ? `👥 Lookalike: ${String(status.totalHotLeads)}/${String(status.minRequiredForLookalike)} hot leads terkumpul — Lookalike aktif.`
+      : `👥 Lookalike: ${String(status.totalHotLeads)}/${String(status.minRequiredForLookalike)} hot leads terkumpul (${String(Math.max(0, status.minRequiredForLookalike - status.totalHotLeads))} lagi untuk aktif Lookalike). Terus jalankan Jessy!`;
+    return line;
   }
 
   /** Sum of real `HOT`-status leads across every branch (`@aos/lead-store`'s `GetHotLeads`, per branch — there is no tenant-wide aggregate use case). A branch whose lookup fails contributes 0 and is logged, never aborts the whole digest. */

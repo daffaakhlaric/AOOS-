@@ -401,6 +401,133 @@ describe("MetaApiClient", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("createCustomAudience() POSTs subtype=CUSTOM and parses the new id (AAOS-ABTESTING-LOOKALIKE Part 2)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/customaudiences`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "audience-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createCustomAudience(
+      "act_123",
+      {
+        name: "AAOS-HotLeads-DSS-Motor-Aug26",
+        subtype: "CUSTOM",
+        description: "Hot leads dari AAOS Jessy AI (score >= 65)",
+        customerFileSource: "USER_PROVIDED_ONLY",
+      },
+      "TOKEN",
+    );
+    expect(unwrap(result).id).toBe("audience-1");
+    expect(capturedBody).toEqual({
+      name: "AAOS-HotLeads-DSS-Motor-Aug26",
+      subtype: "CUSTOM",
+      description: "Hot leads dari AAOS Jessy AI (score >= 65)",
+      customer_file_source: "USER_PROVIDED_ONLY",
+      access_token: "TOKEN",
+    });
+  });
+
+  it("createCustomAudience() returns an err Result when Meta rejects the create", async () => {
+    mswServer.use(
+      http.post(`${BASE}/act_123/customaudiences`, () =>
+        HttpResponse.json({ error: { message: "invalid params", code: 100 } }, { status: 400 }),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createCustomAudience(
+      "act_123",
+      { name: "Fail", subtype: "CUSTOM", customerFileSource: "USER_PROVIDED_ONLY" },
+      "TOKEN",
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('addUsersToCustomAudience() POSTs payload.schema=["PHONE"] with hashed phones (AAOS-ABTESTING-LOOKALIKE Part 2)', async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/audience-1/users`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ session_id: 9778993, num_received: 2, num_invalid_entries: 0 });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.addUsersToCustomAudience(
+      "audience-1",
+      { hashedPhones: ["hash-a", "hash-b"] },
+      "TOKEN",
+    );
+    expect(unwrap(result).num_received).toBe(2);
+    expect(capturedBody).toEqual({
+      payload: { schema: ["PHONE"], data: [["hash-a"], ["hash-b"]] },
+      access_token: "TOKEN",
+    });
+  });
+
+  it("addUsersToCustomAudience() returns an err Result when Meta rejects the upload", async () => {
+    mswServer.use(
+      http.post(`${BASE}/audience-1/users`, () =>
+        HttpResponse.json({ error: { message: "invalid payload", code: 100 } }, { status: 400 }),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.addUsersToCustomAudience(
+      "audience-1",
+      { hashedPhones: ["hash-a"] },
+      "TOKEN",
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("createLookalikeAudience() POSTs subtype=LOOKALIKE with a stringified lookalike_spec and parses the new id (AAOS-ABTESTING-LOOKALIKE Part 2)", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    mswServer.use(
+      http.post(`${BASE}/act_123/customaudiences`, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: "lookalike-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createLookalikeAudience(
+      "act_123",
+      {
+        name: "AAOS-Lookalike-1pct-DSS-Motor",
+        originAudienceId: "audience-1",
+        ratio: 0.01,
+        country: "ID",
+      },
+      "TOKEN",
+    );
+    expect(unwrap(result).id).toBe("lookalike-1");
+    expect(capturedBody).toEqual({
+      name: "AAOS-Lookalike-1pct-DSS-Motor",
+      subtype: "LOOKALIKE",
+      origin_audience_id: "audience-1",
+      lookalike_spec: JSON.stringify({ type: "similarity", ratio: 0.01, country: "ID" }),
+      access_token: "TOKEN",
+    });
+  });
+
+  it("createLookalikeAudience() returns an err Result when Meta rejects the create", async () => {
+    mswServer.use(
+      http.post(`${BASE}/act_123/customaudiences`, () =>
+        HttpResponse.json(
+          { error: { message: "seed audience too small", code: 100 } },
+          { status: 400 },
+        ),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.createLookalikeAudience(
+      "act_123",
+      { name: "Fail", originAudienceId: "audience-1", ratio: 0.01, country: "ID" },
+      "TOKEN",
+    );
+    expect(result.ok).toBe(false);
+  });
+
   it("maps Meta error code 190 to AuthError regardless of HTTP status", async () => {
     mswServer.use(
       http.get(`${BASE}/act_123/campaigns`, () =>

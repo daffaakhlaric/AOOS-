@@ -14,6 +14,7 @@ import { GetHotLeads } from "../application/use-cases/GetHotLeads.js";
 import { GetLead } from "../application/use-cases/GetLead.js";
 import { GetLeadsByBranch } from "../application/use-cases/GetLeadsByBranch.js";
 import { GetLeadsBySales } from "../application/use-cases/GetLeadsBySales.js";
+import { MarkLeadSyncedToMetaAudience } from "../application/use-cases/MarkLeadSyncedToMetaAudience.js";
 import { RecordAssignment } from "../application/use-cases/RecordAssignment.js";
 import { RecordClosing } from "../application/use-cases/RecordClosing.js";
 import { RecordScoreEvent } from "../application/use-cases/RecordScoreEvent.js";
@@ -69,6 +70,8 @@ export interface LeadStore {
   readonly recordClosing: RecordClosing;
   readonly subscribeToHotLeads: SubscribeToHotLeads;
   readonly getClosingStats: GetClosingStats;
+  /** AAOS-ABTESTING-LOOKALIKE Part 2: marks a HOT lead's phone number as uploaded to Meta's Custom Audience. */
+  readonly markLeadSyncedToMetaAudience: MarkLeadSyncedToMetaAudience;
   readonly leadService: LeadService;
   readonly conversationService: ConversationService;
   readonly realtimeService: RealtimeService;
@@ -122,6 +125,7 @@ export class LeadStoreFactory {
       (branchId: BranchId) => new RealtimeSubscription(client, branchId),
     );
     const getClosingStats = new GetClosingStats(closingRepository, spendProvider);
+    const markLeadSyncedToMetaAudience = new MarkLeadSyncedToMetaAudience(leadRepository, now);
 
     logger.info({ tenantId: options.config.tenantId }, "lead-store: factory composed");
 
@@ -139,6 +143,7 @@ export class LeadStoreFactory {
       recordClosing,
       subscribeToHotLeads,
       getClosingStats,
+      markLeadSyncedToMetaAudience,
       leadService: new LeadService(
         createLead,
         updateLeadStatus,

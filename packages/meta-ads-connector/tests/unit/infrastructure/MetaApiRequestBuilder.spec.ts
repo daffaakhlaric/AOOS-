@@ -103,4 +103,16 @@ describe("MetaApiRequestBuilder", () => {
   it("builds the upload-image action URL as {base}/{version}/{ad-account}/adimages (AAOS-GO-LIVE)", () => {
     expect(MetaApiRequestBuilder.uploadImageUrl("act_123")).toBe(`${BASE}/act_123/adimages`);
   });
+
+  it("builds the create-custom-audience URL as {base}/{version}/{ad-account}/customaudiences (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
+    expect(MetaApiRequestBuilder.createCustomAudienceUrl("act_123")).toBe(
+      `${BASE}/act_123/customaudiences`,
+    );
+  });
+
+  it("builds the custom-audience-users URL as {base}/{version}/{custom-audience-id}/users (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
+    expect(MetaApiRequestBuilder.customAudienceUsersUrl("audience-1")).toBe(
+      `${BASE}/audience-1/users`,
+    );
+  });
 });

@@ -41,6 +41,8 @@ export class LeadBuilder {
   private lastBroadcastAt: Date | undefined;
   private lastBroadcastTemplateId: string | undefined;
   private recyclingArchived = false;
+  private syncedToMetaAudience = false;
+  private syncedAt: Date | undefined;
   private createdAt = new Date("2026-01-01T00:00:00.000Z");
   private updatedAt = new Date("2026-01-01T00:00:00.000Z");
 
@@ -164,6 +166,16 @@ export class LeadBuilder {
     return this;
   }
 
+  withSyncedToMetaAudience(syncedToMetaAudience: boolean): this {
+    this.syncedToMetaAudience = syncedToMetaAudience;
+    return this;
+  }
+
+  withSyncedAt(syncedAt: Date | undefined): this {
+    this.syncedAt = syncedAt;
+    return this;
+  }
+
   withCreatedAt(createdAt: Date): this {
     this.createdAt = createdAt;
     return this;
@@ -209,6 +221,8 @@ export class LeadBuilder {
       lastBroadcastAt: this.lastBroadcastAt,
       lastBroadcastTemplateId: this.lastBroadcastTemplateId,
       recyclingArchived: this.recyclingArchived,
+      syncedToMetaAudience: this.syncedToMetaAudience,
+      syncedAt: this.syncedAt,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });

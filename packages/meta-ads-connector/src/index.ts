@@ -48,6 +48,21 @@ export {
 export type { SearchAdInterestsInput } from "./application/use-cases/SearchAdInterests.js";
 export { ProcessLeadWebhook } from "./application/use-cases/ProcessLeadWebhook.js";
 export type { ProcessLeadWebhookInput } from "./application/use-cases/ProcessLeadWebhook.js";
+export { CreateCustomAudience } from "./application/use-cases/CreateCustomAudience.js";
+export type {
+  CreateCustomAudienceInput,
+  CreateCustomAudienceOutput,
+} from "./application/use-cases/CreateCustomAudience.js";
+export { AddUsersToCustomAudience } from "./application/use-cases/AddUsersToCustomAudience.js";
+export type {
+  AddUsersToCustomAudienceInput,
+  AddUsersToCustomAudienceOutput,
+} from "./application/use-cases/AddUsersToCustomAudience.js";
+export { CreateLookalikeAudience } from "./application/use-cases/CreateLookalikeAudience.js";
+export type {
+  CreateLookalikeAudienceInput,
+  CreateLookalikeAudienceOutput,
+} from "./application/use-cases/CreateLookalikeAudience.js";
 
 // Services
 export { MetaAdsSyncService } from "./application/services/MetaAdsSyncService.js";
@@ -146,6 +161,9 @@ export type {
   CreateAdCreativeVideoSpec,
   CreateAdCreativeImageSpec,
   MetaCreateResponse,
+  CreateCustomAudienceParams,
+  AddUsersToCustomAudienceParams,
+  CreateLookalikeAudienceParams,
 } from "./contracts/IMetaAdsClient.js";
 export type {
   MetaAdAccountResponse,
@@ -153,6 +171,8 @@ export type {
   MetaAdInterestSearchResponse,
   MetaVideoUploadResponse,
   MetaImageUploadResponse,
+  MetaCustomAudienceCreateResponse,
+  MetaCustomAudienceUsersResponse,
 } from "./types/MetaApiTypes.js";
 export { MetaAdInterestSchema, MetaAdInterestSearchResponseSchema } from "./types/MetaApiTypes.js";
 export type { ILeadWebhookParser, RawLeadData } from "./contracts/ILeadWebhookParser.js";
@@ -194,6 +214,7 @@ export { classifyFunnel } from "./utils/FunnelClassifier.js";
 export { extractBranch } from "./utils/BranchExtractor.js";
 export { calculateActionBreakdown } from "./utils/D3Calculator.js";
 export { centsToRupiah, rupiahToCents, formatIDR } from "./utils/CurrencyUtils.js";
+export { hashPhoneForAudience, normalizePhoneForAudience } from "./utils/PhoneHasher.js";
 
 // Mappers
 export { mapCampaign } from "./mappers/CampaignMapper.js";

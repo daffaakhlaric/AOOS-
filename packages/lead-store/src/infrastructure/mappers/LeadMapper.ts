@@ -44,6 +44,9 @@ export interface LeadRow {
   readonly last_broadcast_at: string | null;
   readonly last_broadcast_template_id: string | null;
   readonly recycling_archived: boolean;
+  /** A/B Testing & Lookalike (AAOS-ABTESTING-LOOKALIKE Part 2, `006_lookalike_sync_fields.sql`). */
+  readonly synced_to_meta_audience: boolean;
+  readonly synced_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -165,6 +168,10 @@ export class LeadMapper {
       lastBroadcastAt: row.last_broadcast_at != null ? new Date(row.last_broadcast_at) : undefined,
       lastBroadcastTemplateId: row.last_broadcast_template_id ?? undefined,
       recyclingArchived: row.recycling_archived ?? false,
+      // Same tolerant `?? false`/`!= null` pattern as the recycling columns above — see that
+      // comment for why pre-existing hand-rolled `LeadRow` test fixtures may omit these keys.
+      syncedToMetaAudience: row.synced_to_meta_audience ?? false,
+      syncedAt: row.synced_at != null ? new Date(row.synced_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     });
@@ -207,6 +214,8 @@ export class LeadMapper {
       last_broadcast_at: lead.lastBroadcastAt?.toISOString() ?? null,
       last_broadcast_template_id: lead.lastBroadcastTemplateId ?? null,
       recycling_archived: lead.recyclingArchived,
+      synced_to_meta_audience: lead.syncedToMetaAudience,
+      synced_at: lead.syncedAt?.toISOString() ?? null,
       created_at: lead.createdAt.toISOString(),
       updated_at: lead.updatedAt.toISOString(),
     };

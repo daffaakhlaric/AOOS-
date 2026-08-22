@@ -77,11 +77,14 @@ describe("AppModule.forRoot", () => {
     // the same real EventBroker instance as EVENT_PUBLISHER, exposed under its subscriber-capable
     // interface for RecyclingReplyListener; LEAD_STORE_LEAD_REPOSITORY — the real
     // @aos/lead-store LeadRepository composed against the existing SUPABASE_CLIENT).
-    // AAOS-ABTESTING-LOOKALIKE: +1 import (AbTestingModule) — no new global provider (composes its
-    // 2 repositories locally from the existing SUPABASE_CLIENT, reuses the already-global
-    // META_ADS_CONNECTOR/AAOS_API_CONFIG, and CreativePackagesModule's exported
+    // AAOS-ABTESTING-LOOKALIKE Part 1: +1 import (AbTestingModule) — no new global provider
+    // (composes its 2 repositories locally from the existing SUPABASE_CLIENT, reuses the
+    // already-global META_ADS_CONNECTOR/AAOS_API_CONFIG, and CreativePackagesModule's exported
     // CreativePackagesService for creative generation).
-    expect(dynamicModule.imports).toHaveLength(24);
+    // AAOS-ABTESTING-LOOKALIKE Part 2: +1 import (LookalikeModule) — no new global provider
+    // (composes its 1 repository locally from the existing SUPABASE_CLIENT, reuses the
+    // already-global META_ADS_CONNECTOR/AAOS_API_CONFIG/LEAD_STORE).
+    expect(dynamicModule.imports).toHaveLength(25);
     expect(dynamicModule.providers).toHaveLength(20);
   });
 

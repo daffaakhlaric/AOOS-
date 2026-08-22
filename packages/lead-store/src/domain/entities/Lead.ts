@@ -47,6 +47,9 @@ export interface LeadProps {
   readonly lastBroadcastTemplateId?: string;
   /** `true` once this lead has exhausted `RECYCLING_CRITERIA.maxBroadcastCount` (or was manually archived) — excluded from the recycling pool going forward. */
   readonly recyclingArchived: boolean;
+  /** A/B Testing & Lookalike (AAOS-ABTESTING-LOOKALIKE Part 2) — `true` once this HOT lead's phone number has been uploaded (SHA256-hashed) into the tenant's Meta Custom Audience. `false` until `LookalikeService.syncHotLeadsToMeta` uploads it. */
+  readonly syncedToMetaAudience: boolean;
+  readonly syncedAt?: Date;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -163,6 +166,14 @@ export class Lead {
     return this.props.recyclingArchived;
   }
 
+  get syncedToMetaAudience(): boolean {
+    return this.props.syncedToMetaAudience;
+  }
+
+  get syncedAt(): Date | undefined {
+    return this.props.syncedAt;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -233,5 +244,15 @@ export class Lead {
   /** Manual or automatic (max-broadcast-count-reached) removal from the recycling pool — never reversed by score/status changes, only by this explicit call. */
   withRecyclingArchived(archived: boolean, updatedAt: Date): Lead {
     return new Lead({ ...this.props, recyclingArchived: archived, updatedAt });
+  }
+
+  /** Records this HOT lead's phone number having just been uploaded into the Meta Custom Audience (AAOS-ABTESTING-LOOKALIKE Part 2). */
+  withSyncedToMetaAudience(syncedAt: Date): Lead {
+    return new Lead({
+      ...this.props,
+      syncedToMetaAudience: true,
+      syncedAt,
+      updatedAt: syncedAt,
+    });
   }
 }

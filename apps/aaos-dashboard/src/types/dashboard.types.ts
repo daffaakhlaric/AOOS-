@@ -916,3 +916,38 @@ export interface CreateAbTestInput {
   readonly autoPauseLoser: boolean;
   readonly autoScaleWinner: boolean;
 }
+
+/**
+ * `/api/lookalike*` DTOs (AAOS-ABTESTING-LOOKALIKE Part 2) — client-safe mirrors of `aaos-api`'s
+ * real `lookalike` module response DTOs. Powers `/meta-ads/lookalike`'s status card + audience
+ * list + "Buat Lookalike N%" buttons.
+ */
+export interface MetaAudienceDto {
+  readonly id: string;
+  readonly metaAudienceId: string;
+  readonly audienceType: string;
+  readonly name: string;
+  readonly size?: number;
+  readonly originAudienceId?: string;
+  readonly percentage?: number;
+  readonly status: string;
+  readonly lastUpdatedAt?: string;
+  readonly createdAt: string;
+}
+
+export interface LookalikeStatusDto {
+  readonly totalHotLeads: number;
+  readonly syncedToMetaAudience: number;
+  readonly minRequiredForLookalike: number;
+  readonly progressPercentage: number;
+  readonly lookalikeEligible: boolean;
+  readonly lastSyncedAt?: string;
+  readonly customAudience?: MetaAudienceDto;
+}
+
+export interface LookalikeSyncResultDto {
+  readonly summary: string;
+  readonly newlySynced: number;
+  readonly totalSynced: number;
+  readonly customAudience?: MetaAudienceDto;
+}

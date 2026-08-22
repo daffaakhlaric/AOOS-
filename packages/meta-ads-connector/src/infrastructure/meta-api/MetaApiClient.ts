@@ -2,9 +2,12 @@ import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
 import type {
+  AddUsersToCustomAudienceParams,
   CreateAdParams,
   CreateAdSetParams,
   CreateCampaignParams,
+  CreateCustomAudienceParams,
+  CreateLookalikeAudienceParams,
   IMetaAdsClient,
   MetaCreateResponse as ClientMetaCreateResponse,
   PageCursor,
@@ -28,6 +31,10 @@ import {
   MetaCampaignListResponseSchema,
   type MetaCampaignListResponse,
   MetaCreateResponseSchema,
+  MetaCustomAudienceCreateResponseSchema,
+  type MetaCustomAudienceCreateResponse,
+  MetaCustomAudienceUsersResponseSchema,
+  type MetaCustomAudienceUsersResponse,
   MetaErrorResponseSchema,
   MetaImageUploadResponseSchema,
   type MetaImageUploadResponse,
@@ -288,6 +295,100 @@ export class MetaApiClient implements IMetaAdsClient {
       return responseResult;
     }
     return this.parseBody(responseResult.value, MetaImageUploadResponseSchema);
+  }
+
+  /**
+   * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /act_{ad-account-id}/customaudiences` with
+   * `subtype: "CUSTOM"` — see `IMetaAdsClient.createCustomAudience`.
+   */
+  async createCustomAudience(
+    adAccountId: string,
+    params: CreateCustomAudienceParams,
+    accessToken: string,
+  ): Promise<Result<MetaCustomAudienceCreateResponse, MetaApiError>> {
+    const responseResult = await this.doFetch(
+      MetaApiRequestBuilder.createCustomAudienceUrl(adAccountId),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: params.name,
+          subtype: params.subtype,
+          ...(params.description !== undefined ? { description: params.description } : {}),
+          customer_file_source: params.customerFileSource,
+          access_token: accessToken,
+        }),
+      },
+    );
+    if (!responseResult.ok) {
+      return responseResult;
+    }
+    return this.parseBody(responseResult.value, MetaCustomAudienceCreateResponseSchema);
+  }
+
+  /**
+   * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /{custom-audience-id}/users` with
+   * `payload: {schema: ["PHONE"], data: [[hash], ...]}` — see
+   * `IMetaAdsClient.addUsersToCustomAudience`. Verified 2026-08-21: Meta's real `schema` literal
+   * for phone data is `"PHONE"`, not `"PHONE_SHA256"` — the value must already be SHA256-hashed
+   * before it reaches this call, but the schema token itself stays `"PHONE"`.
+   */
+  async addUsersToCustomAudience(
+    customAudienceId: string,
+    params: AddUsersToCustomAudienceParams,
+    accessToken: string,
+  ): Promise<Result<MetaCustomAudienceUsersResponse, MetaApiError>> {
+    const responseResult = await this.doFetch(
+      MetaApiRequestBuilder.customAudienceUsersUrl(customAudienceId),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          payload: {
+            schema: ["PHONE"],
+            data: params.hashedPhones.map((hash) => [hash]),
+          },
+          access_token: accessToken,
+        }),
+      },
+    );
+    if (!responseResult.ok) {
+      return responseResult;
+    }
+    return this.parseBody(responseResult.value, MetaCustomAudienceUsersResponseSchema);
+  }
+
+  /**
+   * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /act_{ad-account-id}/customaudiences` with
+   * `subtype: "LOOKALIKE"` and a `lookalike_spec` — see `IMetaAdsClient.createLookalikeAudience`.
+   */
+  async createLookalikeAudience(
+    adAccountId: string,
+    params: CreateLookalikeAudienceParams,
+    accessToken: string,
+  ): Promise<Result<MetaCustomAudienceCreateResponse, MetaApiError>> {
+    const responseResult = await this.doFetch(
+      MetaApiRequestBuilder.createCustomAudienceUrl(adAccountId),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: params.name,
+          subtype: "LOOKALIKE",
+          origin_audience_id: params.originAudienceId,
+          lookalike_spec: JSON.stringify({
+            type: "similarity",
+            ratio: params.ratio,
+            country: params.country,
+          }),
+          access_token: accessToken,
+        }),
+      },
+    );
+    if (!responseResult.ok) {
+      return responseResult;
+    }
+    return this.parseBody(responseResult.value, MetaCustomAudienceCreateResponseSchema);
   }
 
   private async getJson<T>(

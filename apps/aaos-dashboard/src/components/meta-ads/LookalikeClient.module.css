@@ -1,0 +1,184 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  max-width: 1200px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--black);
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.card {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.statRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+.statRow strong {
+  color: var(--black);
+  font-weight: 600;
+}
+
+.progressTrack {
+  margin-top: 12px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--gray-100, #f3f4f6);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--gray-900);
+  border-radius: 999px;
+  transition: width 200ms ease;
+}
+
+.progressLabel {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 6px;
+}
+
+.warningNote {
+  font-size: 12px;
+  color: var(--gray-600);
+  margin-top: 12px;
+  padding: 10px;
+  background: var(--gray-50, #f9fafb);
+  border-radius: var(--radius);
+}
+
+.actionsRow {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.primaryButton {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.linkButton {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+  background: none;
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  padding: 6px 12px;
+}
+
+.linkButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.section {
+  margin-top: 8px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--black);
+  margin-bottom: 8px;
+}
+
+.audienceList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.audienceRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--gray-50, #f9fafb);
+  padding: 10px 12px;
+  gap: 12px;
+}
+
+.audienceStatus {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.audienceStatusActive {
+  color: var(--green-600, #16a34a);
+}
+
+.audienceStatusInactive {
+  color: var(--gray-400);
+}
+
+.audienceMeta {
+  flex: 1;
+}
+
+.audienceName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.audienceDetail {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.lookalikeButtonRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}

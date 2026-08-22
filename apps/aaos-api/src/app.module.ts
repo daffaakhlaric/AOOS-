@@ -71,6 +71,7 @@ import { HealthModule } from "./modules/health/health.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
 import { ListingsModule } from "./modules/listings/listings.module.js";
 import { LlmModule } from "./modules/llm/llm.module.js";
+import { LookalikeModule } from "./modules/lookalike/lookalike.module.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
@@ -295,11 +296,16 @@ export class AppModule {
         // import independently of array order here) so it can inject the exported
         // `RecyclingService` for its own `RECYCLING_RUN` handler.
         RecyclingModule,
-        // AAOS-ABTESTING-LOOKALIKE — new `abtesting` module (A/B test CRUD endpoints + the
+        // AAOS-ABTESTING-LOOKALIKE Part 1 — new `abtesting` module (A/B test CRUD endpoints + the
         // AB_TEST_CHECK Kalender handler's business logic). `SchedulerModule` separately imports
         // this module directly (same pattern as `RecyclingModule`) so it can inject the exported
         // `AbTestingService` for its own `AB_TEST_CHECK` handler.
         AbTestingModule,
+        // AAOS-ABTESTING-LOOKALIKE Part 2 — new `lookalike` module (Custom/Lookalike Audience
+        // endpoints + the LOOKALIKE_SYNC Kalender handler's business logic). `SchedulerModule`
+        // separately imports this module directly (same pattern as `AbTestingModule`) so it can
+        // inject the exported `LookalikeService` for its own `LOOKALIKE_SYNC` handler.
+        LookalikeModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

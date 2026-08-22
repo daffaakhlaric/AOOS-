@@ -189,6 +189,36 @@ export const MetaImageUploadResponseSchema = z.object({
 });
 export type MetaImageUploadResponse = z.infer<typeof MetaImageUploadResponseSchema>;
 
+/**
+ * Response of `POST /act_{ad-account-id}/customaudiences` (AAOS-ABTESTING-LOOKALIKE Part 2) — used
+ * both for creating a `subtype: "CUSTOM"` audience and a `subtype: "LOOKALIKE"` audience (Meta
+ * models Lookalikes as custom-audience-shaped resources, not a separate endpoint — verified
+ * 2026-08-21 against Meta's Marketing API "Custom Audiences"/"Lookalike Audiences" guides). Meta
+ * returns just the new node's `id` on success, same shape as `MetaCreateResponseSchema`.
+ */
+export const MetaCustomAudienceCreateResponseSchema = z.object({
+  id: z.string(),
+});
+export type MetaCustomAudienceCreateResponse = z.infer<
+  typeof MetaCustomAudienceCreateResponseSchema
+>;
+
+/**
+ * Response of `POST /{custom-audience-id}/users` (AAOS-ABTESTING-LOOKALIKE Part 2) — Meta's real
+ * hashed-user-upload endpoint. Verified 2026-08-21 (Meta Marketing API "Custom Audiences" guide):
+ * Meta reports `num_received`/`num_invalid_entries` plus a `session_id` echoed back. All fields
+ * kept optional here — AAOS's real interest is only "did the call succeed" (a non-2xx already
+ * short-circuits to `err()` before this schema is even reached), so this stays tolerant of Meta
+ * omitting any individual field rather than failing an otherwise-successful upload closed.
+ */
+export const MetaCustomAudienceUsersResponseSchema = z.object({
+  session_id: z.number().optional(),
+  num_received: z.number().optional(),
+  num_invalid_entries: z.number().optional(),
+  audience_id: z.union([z.string(), z.number()]).optional(),
+});
+export type MetaCustomAudienceUsersResponse = z.infer<typeof MetaCustomAudienceUsersResponseSchema>;
+
 export const MetaErrorResponseSchema = z.object({
   error: z.object({
     message: z.string(),

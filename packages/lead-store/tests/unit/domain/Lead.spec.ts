@@ -32,6 +32,7 @@ function baseProps() {
     },
     broadcastCount: 0,
     recyclingArchived: false,
+    syncedToMetaAudience: false,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -155,6 +156,18 @@ describe("Lead entity", () => {
 
     const unarchived = archived.withRecyclingArchived(false, LATER);
     expect(unarchived.recyclingArchived).toBe(false);
+  });
+
+  it("withSyncedToMetaAudience sets syncedToMetaAudience, syncedAt, and updatedAt", () => {
+    const lead = unwrap(Lead.create(baseProps()));
+    expect(lead.syncedToMetaAudience).toBe(false);
+    expect(lead.syncedAt).toBeUndefined();
+
+    const synced = lead.withSyncedToMetaAudience(LATER);
+    expect(synced.syncedToMetaAudience).toBe(true);
+    expect(synced.syncedAt).toBe(LATER);
+    expect(synced.updatedAt).toBe(LATER);
+    expect(lead.syncedToMetaAudience).toBe(false); // original untouched
   });
 
   it("exposes every getter matching the constructed props", () => {

@@ -134,6 +134,20 @@ export class MetaApiRequestBuilder {
     return `${BASE_URL}/${API_VERSION}/${adAccountId}/adimages`;
   }
 
+  /**
+   * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /act_{ad-account-id}/customaudiences` — creates a
+   * Custom Audience (`subtype: "CUSTOM"`) or a Lookalike Audience (`subtype: "LOOKALIKE"`), both
+   * on this same node URL — verified 2026-08-21 against Meta's Marketing API docs.
+   */
+  static createCustomAudienceUrl(adAccountId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${adAccountId}/customaudiences`;
+  }
+
+  /** AAOS-ABTESTING-LOOKALIKE Part 2: `POST /{custom-audience-id}/users` — Meta's real hashed-user upload endpoint. */
+  static customAudienceUsersUrl(customAudienceId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${customAudienceId}/users`;
+  }
+
   static adInterestSearchUrl(term: string, accessToken: string): string {
     const url = new URL(`${BASE_URL}/${API_VERSION}/search`);
     url.searchParams.set("type", "adinterest");

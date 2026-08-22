@@ -112,6 +112,7 @@ export class CreateLead {
       },
       broadcastCount: 0,
       recyclingArchived: false,
+      syncedToMetaAudience: false,
       createdAt: now,
       updatedAt: now,
     });

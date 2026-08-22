@@ -8,8 +8,11 @@ import { MetaAdsSyncService } from "../application/services/MetaAdsSyncService.j
 import { VerdictExecutionService } from "../application/services/VerdictExecutionService.js";
 import { ActivateAd } from "../application/use-cases/ActivateAd.js";
 import { ActivateCampaign } from "../application/use-cases/ActivateCampaign.js";
+import { AddUsersToCustomAudience } from "../application/use-cases/AddUsersToCustomAudience.js";
 import { CreateAd } from "../application/use-cases/CreateAd.js";
 import { CreateCampaign } from "../application/use-cases/CreateCampaign.js";
+import { CreateCustomAudience } from "../application/use-cases/CreateCustomAudience.js";
+import { CreateLookalikeAudience } from "../application/use-cases/CreateLookalikeAudience.js";
 import { ExecuteVerdict } from "../application/use-cases/ExecuteVerdict.js";
 import { PauseCampaign } from "../application/use-cases/PauseCampaign.js";
 import { ProcessLeadWebhook } from "../application/use-cases/ProcessLeadWebhook.js";
@@ -62,6 +65,12 @@ export interface MetaAdsConnector {
    */
   readonly searchAdInterests: SearchAdInterests;
   readonly processLeadWebhook: ProcessLeadWebhook;
+  /** AAOS-ABTESTING-LOOKALIKE Part 2: creates a new, empty Custom Audience — see `CreateCustomAudience`'s docstring. */
+  readonly createCustomAudience: CreateCustomAudience;
+  /** AAOS-ABTESTING-LOOKALIKE Part 2: SHA256-hashes and uploads phone numbers into a Custom Audience — see `AddUsersToCustomAudience`'s docstring. */
+  readonly addUsersToCustomAudience: AddUsersToCustomAudience;
+  /** AAOS-ABTESTING-LOOKALIKE Part 2: generates a Lookalike Audience from a Custom Audience — see `CreateLookalikeAudience`'s docstring. */
+  readonly createLookalikeAudience: CreateLookalikeAudience;
   readonly registry: AdAccountRegistry;
   readonly rateLimiter: TokenBucketRateLimiter;
   /**
@@ -150,6 +159,28 @@ export class MetaAdsConnectorFactory {
       tracer,
     );
 
+    const createCustomAudience = new CreateCustomAudience(
+      client,
+      rateLimiter,
+      retry,
+      logger,
+      tracer,
+    );
+    const addUsersToCustomAudience = new AddUsersToCustomAudience(
+      client,
+      rateLimiter,
+      retry,
+      logger,
+      tracer,
+    );
+    const createLookalikeAudience = new CreateLookalikeAudience(
+      client,
+      rateLimiter,
+      retry,
+      logger,
+      tracer,
+    );
+
     const syncService = new MetaAdsSyncService(pullCampaignData);
 
     return {
@@ -165,6 +196,9 @@ export class MetaAdsConnectorFactory {
       activateAd,
       searchAdInterests,
       processLeadWebhook,
+      createCustomAudience,
+      addUsersToCustomAudience,
+      createLookalikeAudience,
       registry,
       rateLimiter,
       client,

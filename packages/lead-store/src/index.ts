@@ -7,6 +7,8 @@ export { CreateLead } from "./application/use-cases/CreateLead.js";
 export type { CreateLeadInput } from "./application/use-cases/CreateLead.js";
 export { UpdateLeadStatus } from "./application/use-cases/UpdateLeadStatus.js";
 export type { UpdateLeadStatusInput } from "./application/use-cases/UpdateLeadStatus.js";
+export { MarkLeadSyncedToMetaAudience } from "./application/use-cases/MarkLeadSyncedToMetaAudience.js";
+export type { MarkLeadSyncedToMetaAudienceInput } from "./application/use-cases/MarkLeadSyncedToMetaAudience.js";
 export { GetLead } from "./application/use-cases/GetLead.js";
 export { GetLeadsByBranch } from "./application/use-cases/GetLeadsByBranch.js";
 export { GetHotLeads } from "./application/use-cases/GetHotLeads.js";
