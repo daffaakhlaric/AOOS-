@@ -81,6 +81,7 @@ import { SchedulerModule } from "./modules/scheduler/scheduler.module.js";
 import { ScraperModule } from "./modules/scraper/scraper.module.js";
 import { SettingsModule } from "./modules/settings/settings.module.js";
 import { SimulationModule } from "./modules/simulation/simulation.module.js";
+import { SosmedModule } from "./modules/sosmed/sosmed.module.js";
 import { SuperadminModule } from "./modules/superadmin/superadmin.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
 import { WhatsAppWebhookModule } from "./modules/whatsapp-webhook/whatsapp-webhook.module.js";
@@ -306,6 +307,10 @@ export class AppModule {
         // separately imports this module directly (same pattern as `AbTestingModule`) so it can
         // inject the exported `LookalikeService` for its own `LOOKALIKE_SYNC` handler.
         LookalikeModule,
+        // AAOS-SOSMED-AUTOMATION Phase 1 — new `sosmed` module (caption/hashtag generation
+        // endpoints only, per the coordinator note's risk-ordered build plan). No Kalender/
+        // scheduler wiring yet — `SchedulerModule` does not import this module in this phase.
+        SosmedModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

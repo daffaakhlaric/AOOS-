@@ -21,6 +21,16 @@ import {
   type CreativeBriefRequestDto,
   type CreativeBriefResponseDto,
 } from "./dto/creative-brief.dto.js";
+import {
+  GenerateCaptionLlmPayloadSchema,
+  type GenerateCaptionRequestDto,
+  type GenerateCaptionResponseDto,
+} from "./dto/generate-caption.dto.js";
+import {
+  GenerateHashtagsLlmPayloadSchema,
+  type GenerateHashtagsRequestDto,
+  type GenerateHashtagsResponseDto,
+} from "./dto/generate-hashtags.dto.js";
 import { unavailable, type LlmUnavailableResponseDto } from "./dto/llm-unavailable.dto.js";
 import {
   SelectTargetingLlmPayloadSchema,
@@ -92,12 +102,72 @@ const CHAT_SYSTEM_PROMPT =
   "Kamu adalah Tamara, AI Marketing Manager untuk DSS Motor (Mobix) — dealer mobil bekas di Indonesia. Jawab pertanyaan dengan jelas, actionable, dan dalam Bahasa Indonesia.";
 
 /**
+ * AAOS-SOSMED-AUTOMATION Phase 1. NOT a verbatim copy of the spec's `CAPTION_SYSTEM_PROMPT`
+ * template literal — that template interpolates `tenant.name`/`vertical`/`productData` directly
+ * into the system prompt string, which is a different LLM-calling convention than every other
+ * method on this service uses. Every real method here (`analyze`/`creativeBrief`/`selectTargeting`)
+ * instead keeps the system prompt STATIC (persona + task + output format only) and sends the
+ * per-request variable data as `JSON.stringify(body)` in the user message — so this prompt follows
+ * that same real, established shape rather than inventing a second one.
+ */
+const GENERATE_CAPTION_SYSTEM_PROMPT = `Kamu adalah Tamara, Social Media Manager untuk tenant AAOS.
+
+Tugas: buat DUA caption untuk posting organik dari satu brief konten (JSON di pesan user):
+- contentType: tipe konten (PROMO/EDUKASI/TESTIMONI/BTS/TIPS/MARKET_UPDATE)
+- productRef: deskripsi produk/unit/listing yang jadi bahan konten
+- angle: sudut pandang/pesan utama
+- tone: FRIENDLY/PROFESSIONAL/EXCITED/INFORMATIVE
+- vertical: AUTOMOTIVE (dealer mobil bekas) atau PROPERTY (agen properti)
+
+PANDUAN:
+- Bahasa Indonesia yang natural, sesuai tone yang diminta
+- Selalu ada call to action (chat, DM, kunjungi)
+- Sertakan emoji yang relevan, tidak berlebihan
+- instagramCaption: ringkas, maksimal sekitar 300 karakter sebelum "more"
+- facebookCaption: lebih panjang, gaya storytelling
+- JANGAN sertakan hashtag di caption — hashtag dibuat lewat endpoint terpisah
+
+Format response JSON:
+{
+  "instagramCaption": "...",
+  "facebookCaption": "..."
+}`;
+
+/**
+ * AAOS-SOSMED-AUTOMATION Phase 1. Same divergence-from-spec-template rationale as
+ * `GENERATE_CAPTION_SYSTEM_PROMPT` above — static persona/task/format, variable brand/location/
+ * product data sent as the user message's JSON body instead of interpolated into the prompt string.
+ */
+const GENERATE_HASHTAGS_SYSTEM_PROMPT = `Kamu adalah Tamara, Social Media Manager untuk tenant AAOS.
+
+Tugas: generate 8-12 hashtag relevan untuk satu posting organik, dari brief (JSON di pesan user):
+- productName: nama produk/unit/listing
+- brand: nama brand/tenant untuk brand hashtag
+- location: cabang/lokasi untuk location hashtag
+- vertical: AUTOMOTIVE (dealer mobil bekas) atau PROPERTY (agen properti)
+
+PANDUAN:
+- Campur: brand hashtag + product hashtag + location hashtag + generic hashtag sesuai vertical
+- Setiap hashtag diawali "#", tanpa spasi di dalamnya
+- Bahasa Indonesia, relevan untuk audiens Indonesia
+- Tepat 8 sampai 12 hashtag, tidak lebih tidak kurang
+
+Format response JSON:
+{
+  "hashtags": ["#Contoh1", "#Contoh2", "..."]
+}`;
+
+/**
  * OpenAI-backed implementation of Tamara's `analyze`/`creativeBrief`/`chat` capabilities
  * (`src/modules/llm/llm.controller.ts`'s three endpoints), plus `selectTargeting`
  * (AAOS-SIMULASI-TARGETING) which is deliberately IN-PROCESS ONLY — it is called by
  * `SimulationService`'s TAMARA stage and has no HTTP endpoint of its own, because its input
  * (the real candidate interest set) must be assembled server-side from `meta_interests`, never
- * accepted from a client. Every method follows the same shape:
+ * accepted from a client. Also `generateCaption`/`generateHashtags` (AAOS-SOSMED-AUTOMATION
+ * Phase 1) — called by `modules/sosmed`'s `SosmedController` at `POST /api/v1/sosmed/
+ * generate-caption`/`generate-hashtags`, per coordinator note #3's "add a new method to
+ * `LlmService` … rather than inventing a different LLM-calling convention". Every method follows
+ * the same shape:
  *
  * 1. Serve from `ResponseCache` if an identical request body was already answered within the last
  *    30 minutes (spec Section 6 — cache hits never touch the rate limiter or OpenAI).
@@ -266,6 +336,84 @@ export class LlmService {
 
     const response: ChatResponseDto = { available: true, reply: completion.value };
     this.cache.set("chat", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS-SOSMED-AUTOMATION Phase 1 — `POST /api/v1/sosmed/generate-caption`. Same cache/gate/
+   * call/validate/cache shape as `analyze`/`creativeBrief`/`selectTargeting` above.
+   */
+  async generateCaption(body: GenerateCaptionRequestDto): Promise<GenerateCaptionResponseDto> {
+    const cached = this.cache.get("generate-caption", body) as
+      GenerateCaptionResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: GENERATE_CAPTION_SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : GenerateCaptionLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: GenerateCaptionResponseDto = { available: true, ...validated.data };
+    this.cache.set("generate-caption", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS-SOSMED-AUTOMATION Phase 1 — `POST /api/v1/sosmed/generate-hashtags`. Same cache/gate/
+   * call/validate/cache shape as every other method on this service.
+   */
+  async generateHashtags(body: GenerateHashtagsRequestDto): Promise<GenerateHashtagsResponseDto> {
+    const cached = this.cache.get("generate-hashtags", body) as
+      GenerateHashtagsResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: GENERATE_HASHTAGS_SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : GenerateHashtagsLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: GenerateHashtagsResponseDto = { available: true, ...validated.data };
+    this.cache.set("generate-hashtags", body, response);
     return response;
   }
 

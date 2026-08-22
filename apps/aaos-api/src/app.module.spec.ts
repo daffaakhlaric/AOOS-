@@ -84,7 +84,10 @@ describe("AppModule.forRoot", () => {
     // AAOS-ABTESTING-LOOKALIKE Part 2: +1 import (LookalikeModule) — no new global provider
     // (composes its 1 repository locally from the existing SUPABASE_CLIENT, reuses the
     // already-global META_ADS_CONNECTOR/AAOS_API_CONFIG/LEAD_STORE).
-    expect(dynamicModule.imports).toHaveLength(25);
+    // AAOS-SOSMED-AUTOMATION Phase 1: +1 import (SosmedModule) — no new global provider (imports
+    // LlmModule to reuse the already-existing LlmService, composes ScheduledPostRepository
+    // locally from the existing SUPABASE_CLIENT).
+    expect(dynamicModule.imports).toHaveLength(26);
     expect(dynamicModule.providers).toHaveLength(20);
   });
 

@@ -18,6 +18,8 @@ import {
 import { ResponseCache } from "./cache/ResponseCache.js";
 import type { AnalyzeRequestDto } from "./dto/analyze.dto.js";
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
+import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
+import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js";
 import type { SelectTargetingRequestDto } from "./dto/select-targeting.dto.js";
 import {
   CHAT_COMPLETIONS_PATH,
@@ -500,6 +502,218 @@ describe("LlmService", () => {
       const service = buildService({ cache });
       await service.selectTargeting(validSelectTargetingBody);
       expect(cache.get("select-targeting", validSelectTargetingBody)).toBeUndefined();
+    });
+  });
+
+  describe("generateCaption (AAOS-SOSMED-AUTOMATION Phase 1)", () => {
+    const validCaptionBody: GenerateCaptionRequestDto = {
+      contentType: "PROMO",
+      productRef: "Xpander Cross 2019 - Cinere, DP mulai 29 juta",
+      angle: "DP Ringan",
+      tone: "FRIENDLY",
+      vertical: "AUTOMOTIVE",
+    };
+    const validCaptionLlmJson = JSON.stringify({
+      instagramCaption: "Xpander Cross 2019 siap bawa keluarga! DP mulai 29 juta. Chat sekarang!",
+      facebookCaption: "Halo sahabat Mobix! Kabar gembira untuk yang lagi cari mobil keluarga...",
+    });
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.generateCaption(validCaptionBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.generateCaption(validCaptionBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns a validated available:true payload on a well-formed OpenAI response, and caches it", async () => {
+      registerOpenAiChatHandler(validCaptionLlmJson);
+      const cache = new ResponseCache<unknown>();
+      const service = buildService({ cache });
+
+      const first = await service.generateCaption(validCaptionBody);
+      expect(first).toEqual({ available: true, ...JSON.parse(validCaptionLlmJson) });
+
+      mswServer.resetHandlers();
+      const second = await service.generateCaption(validCaptionBody);
+      expect(second).toEqual(first);
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(500);
+      const service = buildService();
+      const result = await service.generateCaption(validCaptionBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.generateCaption(validCaptionBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns valid JSON missing facebookCaption", async () => {
+      registerOpenAiChatHandler(JSON.stringify({ instagramCaption: "only IG" }));
+      const service = buildService();
+      const result = await service.generateCaption(validCaptionBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("sends the brief as JSON in the user message, with a static persona system prompt", async () => {
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            choices: [{ message: { content: validCaptionLlmJson } }],
+          });
+        }),
+      );
+      await buildService().generateCaption(validCaptionBody);
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      expect(messages[0]?.content).toContain("Tamara");
+      expect(messages[1]?.content).toContain("Xpander Cross 2019 - Cinere");
+    });
+  });
+
+  describe("generateHashtags (AAOS-SOSMED-AUTOMATION Phase 1)", () => {
+    const validHashtagsBody: GenerateHashtagsRequestDto = {
+      productName: "Xpander Cross 2019",
+      brand: "MobixCinere",
+      location: "Cinere",
+      vertical: "AUTOMOTIVE",
+    };
+    const validHashtagsLlmJson = JSON.stringify({
+      hashtags: [
+        "#MobixCinere",
+        "#XpanderCross",
+        "#MobilBekas",
+        "#DPRingan",
+        "#KreditMobil",
+        "#Cinere",
+        "#Depok",
+        "#MobilBekasDepok",
+      ],
+    });
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.generateHashtags(validHashtagsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.generateHashtags(validHashtagsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns a validated available:true payload on a well-formed OpenAI response (8-12 hashtags), and caches it", async () => {
+      registerOpenAiChatHandler(validHashtagsLlmJson);
+      const cache = new ResponseCache<unknown>();
+      const service = buildService({ cache });
+
+      const first = await service.generateHashtags(validHashtagsBody);
+      expect(first).toEqual({ available: true, ...JSON.parse(validHashtagsLlmJson) });
+
+      mswServer.resetHandlers();
+      const second = await service.generateHashtags(validHashtagsBody);
+      expect(second).toEqual(first);
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.generateHashtags(validHashtagsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE (fails closed) when OpenAI returns fewer than 8 hashtags", async () => {
+      registerOpenAiChatHandler(JSON.stringify({ hashtags: ["#OnlyOne", "#OnlyTwo"] }));
+      const service = buildService();
+      const result = await service.generateHashtags(validHashtagsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE (fails closed) when a hashtag is missing the # prefix", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          hashtags: ["MissingHash", "#B", "#C", "#D", "#E", "#F", "#G", "#H"],
+        }),
+      );
+      const service = buildService();
+      const result = await service.generateHashtags(validHashtagsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
+      registerOpenAiChatHandler("not json {{{");
+      const service = buildService();
+      const result = await service.generateHashtags(validHashtagsBody);
+      expect(result.available).toBe(false);
+    });
+
+    it("sends the brief as JSON in the user message, with a static persona system prompt", async () => {
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            choices: [{ message: { content: validHashtagsLlmJson } }],
+          });
+        }),
+      );
+      await buildService().generateHashtags(validHashtagsBody);
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      expect(messages[0]?.content).toContain("Tamara");
+      expect(messages[1]?.content).toContain("MobixCinere");
     });
   });
 
