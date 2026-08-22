@@ -29,6 +29,7 @@
     "@aos/logger": "workspace:*",
     "@aos/meta-ads-agent": "workspace:*",
     "@aos/meta-ads-connector": "workspace:*",
+    "@aos/meta-organic-connector": "workspace:*",
     "@aos/mobix-web-scraper": "workspace:*",
     "@aos/objective-engine": "workspace:*",
     "@aos/telemetry": "workspace:*",

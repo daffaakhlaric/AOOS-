@@ -6,6 +6,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
+import { SosmedPublishingService } from "./application/sosmed-publishing.service.js";
 import { ScheduledPostRepository } from "./infrastructure/scheduled-post.repository.js";
 import { SosmedController } from "./sosmed.controller.js";
 import { SosmedModule } from "./sosmed.module.js";
@@ -30,6 +31,11 @@ describe("SosmedModule", () => {
   it("registers ApiKeyGuard as a provider", () => {
     const metadata = Reflect.getMetadata("providers", SosmedModule) as unknown[];
     expect(metadata).toContain(ApiKeyGuard);
+  });
+
+  it("registers SosmedPublishingService as a provider (Phase 2, not yet wired to a controller)", () => {
+    const metadata = Reflect.getMetadata("providers", SosmedModule) as unknown[];
+    expect(metadata).toContain(SosmedPublishingService);
   });
 
   it("provides ScheduledPostRepository from the SHARED SUPABASE_CLIENT (not a second connection)", () => {
