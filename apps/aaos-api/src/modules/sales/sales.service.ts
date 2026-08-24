@@ -2,7 +2,8 @@ import { SalesHumanId } from "@aos/branch-manager";
 import { ClosingType, type IClosingRepository, type LeadStore } from "@aos/lead-store";
 import { Inject, Injectable } from "@nestjs/common";
 
-import { LEAD_STORE, LEAD_STORE_CLOSING_REPOSITORY } from "../../di-tokens.js";
+import type { AaosApiConfig } from "../../config/aaos-api.config.js";
+import { AAOS_API_CONFIG, LEAD_STORE, LEAD_STORE_CLOSING_REPOSITORY } from "../../di-tokens.js";
 import { toClosingResponseDto } from "../closings/dto/closing-response.dto.js";
 
 import type { GetSalesStatsQueryDto } from "./dto/get-sales-stats.dto.js";
@@ -29,6 +30,7 @@ function startOfCurrentMonthUtc(now: Date): Date {
 @Injectable()
 export class SalesService {
   constructor(
+    @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(LEAD_STORE) private readonly leadStore: LeadStore,
     @Inject(LEAD_STORE_CLOSING_REPOSITORY)
     private readonly closingRepository: IClosingRepository,
@@ -42,7 +44,10 @@ export class SalesService {
 
     const now = new Date();
 
-    const myLeadsResult = await this.leadStore.getLeadsBySales.execute(salesHumanIdResult.value);
+    const myLeadsResult = await this.leadStore.getLeadsBySales.execute(
+      salesHumanIdResult.value,
+      this.config.AAOS_TENANT_ID,
+    );
     if (!myLeadsResult.ok) {
       throw myLeadsResult.error;
     }

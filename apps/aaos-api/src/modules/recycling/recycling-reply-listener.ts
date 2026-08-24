@@ -70,7 +70,11 @@ export class RecyclingReplyListener implements OnModuleInit {
       return;
     }
 
-    const leadResult = await this.leadRepository.findByPhoneAndBranch(payload.from, branchId);
+    const leadResult = await this.leadRepository.findByPhoneAndBranch(
+      payload.from,
+      branchId,
+      payload.tenantId,
+    );
     if (!leadResult.ok) {
       this.logger.warn(
         `RecyclingReplyListener: findByPhoneAndBranch failed: ${leadResult.error.message}`,

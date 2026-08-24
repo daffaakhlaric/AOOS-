@@ -9,7 +9,10 @@ import type { LeadStoreError } from "../../domain/errors/LeadStoreError.js";
 export class GetLeadsByBranch {
   constructor(private readonly leadRepository: ILeadRepository) {}
 
-  async execute(branchId: BranchId): Promise<Result<readonly Lead[], LeadStoreError>> {
-    return this.leadRepository.findByBranch(branchId);
+  async execute(
+    branchId: BranchId,
+    tenantId: string,
+  ): Promise<Result<readonly Lead[], LeadStoreError>> {
+    return this.leadRepository.findByBranch(branchId, tenantId);
   }
 }

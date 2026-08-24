@@ -78,7 +78,9 @@ export class RecyclingService {
   async getPool(): Promise<readonly Lead[]> {
     const at = this.now();
     const perBranch = await Promise.all(
-      ALL_BRANCH_IDS.map((branchId) => this.leadStore.getLeadsByBranch.execute(branchId)),
+      ALL_BRANCH_IDS.map((branchId) =>
+        this.leadStore.getLeadsByBranch.execute(branchId, this.config.AAOS_TENANT_ID),
+      ),
     );
     const leads = perBranch.flatMap((result) => {
       if (!result.ok) {

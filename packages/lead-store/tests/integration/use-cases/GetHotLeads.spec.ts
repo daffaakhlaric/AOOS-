@@ -24,16 +24,27 @@ describe("GetHotLeads", () => {
       }),
     ]);
     const useCase = new GetHotLeads(new LeadRepository(client));
-    const result = unwrap(await useCase.execute(BranchId.BINTARO));
+    const result = unwrap(await useCase.execute(BranchId.BINTARO, "dss-motor"));
     expect(result).toHaveLength(1);
     expect(result[0]?.status).toBe("HOT");
+  });
+
+  it("does not return a same-branch HOT lead belonging to a different tenant (Multi-Tenant Phase 1B)", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("leads", [
+      makeLeadRow({ branch_id: BranchId.BINTARO, status: "HOT", tenant_id: "dss-motor" }),
+      makeLeadRow({ branch_id: BranchId.BINTARO, status: "HOT", tenant_id: "other-tenant" }),
+    ]);
+    const useCase = new GetHotLeads(new LeadRepository(client));
+    const result = unwrap(await useCase.execute(BranchId.BINTARO, "dss-motor"));
+    expect(result).toHaveLength(1);
   });
 
   it("surfaces a repository error", async () => {
     const client = createFakeSupabaseClient();
     client.forceErrorOnce("leads", "db down");
     const useCase = new GetHotLeads(new LeadRepository(client));
-    const result = await useCase.execute(BranchId.BINTARO);
+    const result = await useCase.execute(BranchId.BINTARO, "dss-motor");
     expect(result.ok).toBe(false);
   });
 
@@ -54,7 +65,7 @@ describe("GetHotLeads", () => {
       }),
     ]);
     const useCase = new GetHotLeads(new LeadRepository(client));
-    const result = unwrap(await useCase.execute(BranchId.BINTARO));
+    const result = unwrap(await useCase.execute(BranchId.BINTARO, "dss-motor"));
     expect(result[0]?.leadName).toBe("newer");
     expect(result[1]?.leadName).toBe("older");
   });
@@ -76,7 +87,7 @@ describe("GetHotLeads", () => {
       }),
     ]);
     const useCase = new GetHotLeads(new LeadRepository(client));
-    const result = unwrap(await useCase.execute(BranchId.BINTARO));
+    const result = unwrap(await useCase.execute(BranchId.BINTARO, "dss-motor"));
     expect(result[0]?.leadName).toBe("has-timestamp");
     expect(result[1]?.leadName).toBe("no-timestamp");
   });

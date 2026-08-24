@@ -33,12 +33,14 @@ export class LeadRepository implements ILeadRepository {
   async findByPhoneAndBranch(
     leadPhone: string,
     branchId: BranchId,
+    tenantId: string,
   ): Promise<Result<Lead | undefined, SupabaseError>> {
     const { data, error } = await this.client
       .from<LeadRow>(TABLE)
       .select("*")
       .eq("lead_phone", leadPhone)
       .eq("branch_id", branchId)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error !== null) {
       return err(new SupabaseError(`LeadRepository.findByPhoneAndBranch failed: ${error.message}`));
@@ -80,11 +82,15 @@ export class LeadRepository implements ILeadRepository {
     return mapRow(data);
   }
 
-  async findByBranch(branchId: BranchId): Promise<Result<readonly Lead[], SupabaseError>> {
+  async findByBranch(
+    branchId: BranchId,
+    tenantId: string,
+  ): Promise<Result<readonly Lead[], SupabaseError>> {
     const { data, error } = await this.client
       .from<LeadRow>(TABLE)
       .select("*")
       .eq("branch_id", branchId)
+      .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false });
     if (error !== null) {
       return err(new SupabaseError(`LeadRepository.findByBranch failed: ${error.message}`));
@@ -92,11 +98,15 @@ export class LeadRepository implements ILeadRepository {
     return mapRows(data ?? []);
   }
 
-  async findHotByBranch(branchId: BranchId): Promise<Result<readonly Lead[], SupabaseError>> {
+  async findHotByBranch(
+    branchId: BranchId,
+    tenantId: string,
+  ): Promise<Result<readonly Lead[], SupabaseError>> {
     const { data, error } = await this.client
       .from<LeadRow>(TABLE)
       .select("*")
       .eq("branch_id", branchId)
+      .eq("tenant_id", tenantId)
       .eq("status", "HOT");
     if (error !== null) {
       return err(new SupabaseError(`LeadRepository.findHotByBranch failed: ${error.message}`));
@@ -104,11 +114,15 @@ export class LeadRepository implements ILeadRepository {
     return mapRows(data ?? []);
   }
 
-  async findBySales(salesHumanId: SalesHumanId): Promise<Result<readonly Lead[], SupabaseError>> {
+  async findBySales(
+    salesHumanId: SalesHumanId,
+    tenantId: string,
+  ): Promise<Result<readonly Lead[], SupabaseError>> {
     const { data, error } = await this.client
       .from<LeadRow>(TABLE)
       .select("*")
-      .eq("assigned_sales_id", salesHumanId.toString());
+      .eq("assigned_sales_id", salesHumanId.toString())
+      .eq("tenant_id", tenantId);
     if (error !== null) {
       return err(new SupabaseError(`LeadRepository.findBySales failed: ${error.message}`));
     }

@@ -9,7 +9,10 @@ import type { LeadStoreError } from "../../domain/errors/LeadStoreError.js";
 export class GetLeadsBySales {
   constructor(private readonly leadRepository: ILeadRepository) {}
 
-  async execute(salesHumanId: SalesHumanId): Promise<Result<readonly Lead[], LeadStoreError>> {
-    return this.leadRepository.findBySales(salesHumanId);
+  async execute(
+    salesHumanId: SalesHumanId,
+    tenantId: string,
+  ): Promise<Result<readonly Lead[], LeadStoreError>> {
+    return this.leadRepository.findBySales(salesHumanId, tenantId);
   }
 }

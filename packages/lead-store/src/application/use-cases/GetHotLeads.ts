@@ -9,8 +9,11 @@ import type { LeadStoreError } from "../../domain/errors/LeadStoreError.js";
 export class GetHotLeads {
   constructor(private readonly leadRepository: ILeadRepository) {}
 
-  async execute(branchId: BranchId): Promise<Result<readonly Lead[], LeadStoreError>> {
-    const result = await this.leadRepository.findHotByBranch(branchId);
+  async execute(
+    branchId: BranchId,
+    tenantId: string,
+  ): Promise<Result<readonly Lead[], LeadStoreError>> {
+    const result = await this.leadRepository.findHotByBranch(branchId, tenantId);
     if (!result.ok) {
       return result;
     }

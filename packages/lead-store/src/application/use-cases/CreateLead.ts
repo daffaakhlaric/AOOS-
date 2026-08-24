@@ -79,6 +79,7 @@ export class CreateLead {
     const existingResult = await this.leadRepository.findByPhoneAndBranch(
       phoneResult.value.toString(),
       parsed.data.branchId,
+      parsed.data.tenantId,
     );
     if (!existingResult.ok) {
       return err(existingResult.error);

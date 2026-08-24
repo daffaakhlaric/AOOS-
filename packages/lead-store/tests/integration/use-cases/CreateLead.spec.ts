@@ -67,6 +67,15 @@ describe("CreateLead", () => {
     expect(client.rows("leads")).toHaveLength(2);
   });
 
+  it("same phone + branch under a DIFFERENT tenant creates a second, distinct lead (Multi-Tenant Phase 1B: idempotency is tenant-scoped)", async () => {
+    const { useCase, client } = setup();
+    const first = unwrap(await useCase.execute(validInput));
+    const second = unwrap(await useCase.execute({ ...validInput, tenantId: "other-tenant" }));
+
+    expect(second.id.toString()).not.toBe(first.id.toString());
+    expect(client.rows("leads")).toHaveLength(2);
+  });
+
   it("rejects an invalid leadPhone", async () => {
     const { useCase } = setup();
     const error = unwrapErr(await useCase.execute({ ...validInput, leadPhone: "0812" }));

@@ -392,7 +392,9 @@ export class IntelligenceService {
   /** Real hot leads across every branch, fanned out the same way `SchedulerService.countHotLeads()` already does. */
   private async buildLeadProfileContext(): Promise<CampaignStrategyRequestDto["leadProfile"]> {
     const perBranch = await Promise.all(
-      ALL_BRANCH_IDS.map((branchId) => this.leadStore.getHotLeads.execute(branchId)),
+      ALL_BRANCH_IDS.map((branchId) =>
+        this.leadStore.getHotLeads.execute(branchId, this.config.AAOS_TENANT_ID),
+      ),
     );
     const leads = perBranch.flatMap((result) => (result.ok ? result.value : []));
     const signal = LeadIntelService.getHotLeadProfile(leads);

@@ -39,16 +39,22 @@ export class LeadService {
     return this.getLead.execute(leadId);
   }
 
-  byBranch(branchId: BranchId): Promise<Result<readonly Lead[], LeadStoreError>> {
-    return this.getLeadsByBranch.execute(branchId);
+  byBranch(branchId: BranchId, tenantId: string): Promise<Result<readonly Lead[], LeadStoreError>> {
+    return this.getLeadsByBranch.execute(branchId, tenantId);
   }
 
-  hotByBranch(branchId: BranchId): Promise<Result<readonly Lead[], LeadStoreError>> {
-    return this.getHotLeads.execute(branchId);
+  hotByBranch(
+    branchId: BranchId,
+    tenantId: string,
+  ): Promise<Result<readonly Lead[], LeadStoreError>> {
+    return this.getHotLeads.execute(branchId, tenantId);
   }
 
-  bySales(salesHumanId: SalesHumanId): Promise<Result<readonly Lead[], LeadStoreError>> {
-    return this.getLeadsBySales.execute(salesHumanId);
+  bySales(
+    salesHumanId: SalesHumanId,
+    tenantId: string,
+  ): Promise<Result<readonly Lead[], LeadStoreError>> {
+    return this.getLeadsBySales.execute(salesHumanId, tenantId);
   }
 
   recordScore(input: RecordScoreEventInput): Promise<Result<ScoringEvent, LeadStoreError>> {

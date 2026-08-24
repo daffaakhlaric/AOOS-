@@ -78,7 +78,7 @@ function buildService(client = createFakeSupabaseClient()) {
     supabaseClient: client,
   });
   const closingRepository = new ClosingRepository(client);
-  return { service: new SalesService(leadStore, closingRepository), client };
+  return { service: new SalesService(config, leadStore, closingRepository), client };
 }
 
 describe("SalesService.getStats", () => {
@@ -136,5 +136,14 @@ describe("SalesService.getStats", () => {
   it("throws a ValidationError for an empty salesHumanId", async () => {
     const { service } = buildService();
     await expect(service.getStats({ salesHumanId: "" })).rejects.toThrow();
+  });
+
+  it("does not count a same-sales-human lead belonging to a different tenant (Multi-Tenant Phase 1B)", async () => {
+    const client = createFakeSupabaseClient();
+    const { service } = buildService(client);
+    client.seed("leads", seedLeadRow({ tenant_id: "dss-motor" }));
+    client.seed("leads", seedLeadRow({ id: "other-tenant-lead", tenant_id: "other-tenant" }));
+    const stats = await service.getStats({ salesHumanId: "sales-rina" });
+    expect(stats.leadsToday).toBe(1);
   });
 });

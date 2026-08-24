@@ -588,7 +588,7 @@ export class SchedulerService {
   private async countHotLeads(): Promise<number> {
     let total = 0;
     for (const branchId of ALL_BRANCH_IDS) {
-      const result = await this.leadStore.getHotLeads.execute(branchId);
+      const result = await this.leadStore.getHotLeads.execute(branchId, this.config.AAOS_TENANT_ID);
       if (result.ok) {
         total += result.value.length;
       } else {

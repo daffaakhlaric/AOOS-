@@ -227,7 +227,7 @@ export class LookalikeService {
   private async allHotLeads(): Promise<readonly Lead[]> {
     const leads: Lead[] = [];
     for (const branchId of ALL_BRANCH_IDS) {
-      const result = await this.leadStore.getHotLeads.execute(branchId);
+      const result = await this.leadStore.getHotLeads.execute(branchId, this.tenantId);
       if (result.ok) {
         leads.push(...result.value);
       } else {

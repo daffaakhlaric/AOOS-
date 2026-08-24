@@ -16,7 +16,27 @@ describe("GetLeadsBySales", () => {
       makeLeadRow({ assigned_sales_id: SalesHumanId.generate().toString(), status: "ASSIGNED" }),
     ]);
     const useCase = new GetLeadsBySales(new LeadRepository(client));
-    const result = unwrap(await useCase.execute(salesHumanId));
+    const result = unwrap(await useCase.execute(salesHumanId, "dss-motor"));
+    expect(result).toHaveLength(1);
+  });
+
+  it("does not return a same-sales-human lead belonging to a different tenant (Multi-Tenant Phase 1B)", async () => {
+    const client = createFakeSupabaseClient();
+    const salesHumanId = SalesHumanId.generate();
+    client.seed("leads", [
+      makeLeadRow({
+        assigned_sales_id: salesHumanId.toString(),
+        status: "ASSIGNED",
+        tenant_id: "dss-motor",
+      }),
+      makeLeadRow({
+        assigned_sales_id: salesHumanId.toString(),
+        status: "ASSIGNED",
+        tenant_id: "other-tenant",
+      }),
+    ]);
+    const useCase = new GetLeadsBySales(new LeadRepository(client));
+    const result = unwrap(await useCase.execute(salesHumanId, "dss-motor"));
     expect(result).toHaveLength(1);
   });
 });

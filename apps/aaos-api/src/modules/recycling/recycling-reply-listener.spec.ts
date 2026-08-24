@@ -155,6 +155,11 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
     await listener.handleMessageReceived(buildEvent(buildPayload()));
 
     expect(logRepository.markReplied).toHaveBeenCalledWith("log-1", NOW.toISOString());
+    expect(leadRepository.findByPhoneAndBranch).toHaveBeenCalledWith(
+      "+6281200000097",
+      expect.anything(),
+      "dss-motor",
+    );
     expect(whatsAppConnector.sendTextMessage.execute).toHaveBeenCalledTimes(1);
     const call = (whatsAppConnector.sendTextMessage.execute as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as { body: string };

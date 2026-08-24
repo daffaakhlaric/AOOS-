@@ -37,7 +37,9 @@ describe("LeadRepository", () => {
   it("findByPhoneAndBranch returns undefined when no match", async () => {
     const client = createFakeSupabaseClient();
     const repo = new LeadRepository(client);
-    const result = unwrap(await repo.findByPhoneAndBranch("+6281200000000", BranchId.BINTARO));
+    const result = unwrap(
+      await repo.findByPhoneAndBranch("+6281200000000", BranchId.BINTARO, "dss-motor"),
+    );
     expect(result).toBeUndefined();
   });
 
@@ -46,8 +48,25 @@ describe("LeadRepository", () => {
     const row = makeLeadRow({ lead_phone: "+6281234500000", branch_id: BranchId.CINERE });
     client.seed("leads", [row]);
     const repo = new LeadRepository(client);
-    const found = unwrap(await repo.findByPhoneAndBranch("+6281234500000", BranchId.CINERE));
+    const found = unwrap(
+      await repo.findByPhoneAndBranch("+6281234500000", BranchId.CINERE, "dss-motor"),
+    );
     expect(found?.leadPhone.toString()).toBe("+6281234500000");
+  });
+
+  it("findByPhoneAndBranch does NOT match a same phone+branch lead belonging to a different tenant", async () => {
+    const client = createFakeSupabaseClient();
+    const row = makeLeadRow({
+      lead_phone: "+6281234500000",
+      branch_id: BranchId.CINERE,
+      tenant_id: "other-tenant",
+    });
+    client.seed("leads", [row]);
+    const repo = new LeadRepository(client);
+    const found = unwrap(
+      await repo.findByPhoneAndBranch("+6281234500000", BranchId.CINERE, "dss-motor"),
+    );
+    expect(found).toBeUndefined();
   });
 
   it("insert adds a new row and returns the mapped lead", async () => {
@@ -86,9 +105,20 @@ describe("LeadRepository", () => {
       makeLeadRow({ branch_id: BranchId.CINERE }),
     ]);
     const repo = new LeadRepository(client);
-    const result = unwrap(await repo.findByBranch(BranchId.BINTARO));
+    const result = unwrap(await repo.findByBranch(BranchId.BINTARO, "dss-motor"));
     expect(result).toHaveLength(1);
     expect(result[0]?.branchId).toBe(BranchId.BINTARO);
+  });
+
+  it("findByBranch does NOT return a same-branch lead belonging to a different tenant", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("leads", [
+      makeLeadRow({ branch_id: BranchId.BINTARO, tenant_id: "dss-motor" }),
+      makeLeadRow({ branch_id: BranchId.BINTARO, tenant_id: "other-tenant" }),
+    ]);
+    const repo = new LeadRepository(client);
+    const result = unwrap(await repo.findByBranch(BranchId.BINTARO, "dss-motor"));
+    expect(result).toHaveLength(1);
   });
 
   it("findHotByBranch returns only HOT leads for the branch", async () => {
@@ -99,9 +129,20 @@ describe("LeadRepository", () => {
       makeLeadRow({ branch_id: BranchId.CINERE, status: "HOT" }),
     ]);
     const repo = new LeadRepository(client);
-    const result = unwrap(await repo.findHotByBranch(BranchId.BINTARO));
+    const result = unwrap(await repo.findHotByBranch(BranchId.BINTARO, "dss-motor"));
     expect(result).toHaveLength(1);
     expect(result[0]?.status).toBe("HOT");
+  });
+
+  it("findHotByBranch does NOT return a same-branch HOT lead belonging to a different tenant", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("leads", [
+      makeLeadRow({ branch_id: BranchId.BINTARO, status: "HOT", tenant_id: "dss-motor" }),
+      makeLeadRow({ branch_id: BranchId.BINTARO, status: "HOT", tenant_id: "other-tenant" }),
+    ]);
+    const repo = new LeadRepository(client);
+    const result = unwrap(await repo.findHotByBranch(BranchId.BINTARO, "dss-motor"));
+    expect(result).toHaveLength(1);
   });
 
   it("findBySales returns only leads assigned to that sales human", async () => {
@@ -112,9 +153,26 @@ describe("LeadRepository", () => {
     ]);
     const repo = new LeadRepository(client);
     const result = unwrap(
-      await repo.findBySales({ toString: () => "sales-1" } as unknown as Parameters<
-        typeof repo.findBySales
-      >[0]),
+      await repo.findBySales(
+        { toString: () => "sales-1" } as unknown as Parameters<typeof repo.findBySales>[0],
+        "dss-motor",
+      ),
+    );
+    expect(result).toHaveLength(1);
+  });
+
+  it("findBySales does NOT return a same-sales-human lead belonging to a different tenant", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("leads", [
+      makeLeadRow({ assigned_sales_id: "sales-1", tenant_id: "dss-motor" }),
+      makeLeadRow({ assigned_sales_id: "sales-1", tenant_id: "other-tenant" }),
+    ]);
+    const repo = new LeadRepository(client);
+    const result = unwrap(
+      await repo.findBySales(
+        { toString: () => "sales-1" } as unknown as Parameters<typeof repo.findBySales>[0],
+        "dss-motor",
+      ),
     );
     expect(result).toHaveLength(1);
   });
@@ -152,7 +210,7 @@ describe("LeadRepository", () => {
     const client = createFakeSupabaseClient();
     client.seed("leads", [makeLeadRow({ status: "BOGUS" })]);
     const repo = new LeadRepository(client);
-    const error = unwrapErr(await repo.findByBranch(BranchId.BINTARO));
+    const error = unwrapErr(await repo.findByBranch(BranchId.BINTARO, "dss-motor"));
     expect(error.message).toContain("row mapping failed");
   });
 });

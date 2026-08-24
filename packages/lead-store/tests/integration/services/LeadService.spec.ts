@@ -86,14 +86,14 @@ describe("LeadService facade", () => {
   it("byBranch() delegates to GetLeadsByBranch", async () => {
     const { service, client } = setup();
     client.seed("leads", [makeLeadRow({ branch_id: BranchId.BINTARO })]);
-    const leads = unwrap(await service.byBranch(BranchId.BINTARO));
+    const leads = unwrap(await service.byBranch(BranchId.BINTARO, "dss-motor"));
     expect(leads).toHaveLength(1);
   });
 
   it("hotByBranch() delegates to GetHotLeads", async () => {
     const { service, client } = setup();
     client.seed("leads", [makeLeadRow({ branch_id: BranchId.BINTARO, status: "HOT" })]);
-    const leads = unwrap(await service.hotByBranch(BranchId.BINTARO));
+    const leads = unwrap(await service.hotByBranch(BranchId.BINTARO, "dss-motor"));
     expect(leads).toHaveLength(1);
   });
 
@@ -101,7 +101,7 @@ describe("LeadService facade", () => {
     const { service, client } = setup();
     const salesHumanId = SalesHumanId.generate();
     client.seed("leads", [makeLeadRow({ assigned_sales_id: salesHumanId.toString() })]);
-    const leads = unwrap(await service.bySales(salesHumanId));
+    const leads = unwrap(await service.bySales(salesHumanId, "dss-motor"));
     expect(leads).toHaveLength(1);
   });
 

@@ -77,7 +77,10 @@ export class LeadsService {
   }
 
   async getLeadsByBranch(query: GetLeadsQueryDto): Promise<readonly LeadResponseDto[]> {
-    const result = await this.leadStore.getLeadsByBranch.execute(query.branchId);
+    const result = await this.leadStore.getLeadsByBranch.execute(
+      query.branchId,
+      this.config.AAOS_TENANT_ID,
+    );
     if (!result.ok) {
       throw result.error;
     }
@@ -150,7 +153,10 @@ export class LeadsService {
     if (!idResult.ok) {
       throw idResult.error;
     }
-    const result = await this.leadStore.getLeadsBySales.execute(idResult.value);
+    const result = await this.leadStore.getLeadsBySales.execute(
+      idResult.value,
+      this.config.AAOS_TENANT_ID,
+    );
     if (!result.ok) {
       throw result.error;
     }
@@ -340,7 +346,9 @@ export class LeadsService {
     const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const leadsByBranch = await Promise.all(
-      ALL_BRANCH_IDS.map((branchId) => this.leadStore.getLeadsByBranch.execute(branchId)),
+      ALL_BRANCH_IDS.map((branchId) =>
+        this.leadStore.getLeadsByBranch.execute(branchId, this.config.AAOS_TENANT_ID),
+      ),
     );
     const leads = leadsByBranch.flatMap((result) => {
       if (!result.ok) {
