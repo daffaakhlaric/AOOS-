@@ -5,11 +5,17 @@ import { describe, expect, it } from "vitest";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { SalesHumanRepository } from "../sales/infrastructure/sales-human.repository.js";
 
 import { PendingAccessTokenStore } from "./application/pending-access-token-store.js";
+import { SosmedOAuthService } from "./application/sosmed-oauth.service.js";
 import { SosmedPostsService } from "./application/sosmed-posts.service.js";
 import { SosmedPublishingService } from "./application/sosmed-publishing.service.js";
 import { ScheduledPostRepository } from "./infrastructure/scheduled-post.repository.js";
+import { SosmedAccountRepository } from "./infrastructure/sosmed-account.repository.js";
+import { SosmedConnectTokenRepository } from "./infrastructure/sosmed-connect-token.repository.js";
+import { OAuthStateStore } from "./oauth/oauth-state-store.js";
+import { SosmedOAuthController } from "./sosmed-oauth.controller.js";
 import { SosmedSchedulerService } from "./sosmed-scheduler.service.js";
 import { SosmedController } from "./sosmed.controller.js";
 import { SosmedModule } from "./sosmed.module.js";
@@ -21,9 +27,9 @@ type FactoryProvider = {
 };
 
 describe("SosmedModule", () => {
-  it("registers SosmedController as its controller", () => {
+  it("registers SosmedController and SosmedOAuthController as its controllers (Phase 4)", () => {
     const metadata = Reflect.getMetadata("controllers", SosmedModule) as unknown[];
-    expect(metadata).toEqual([SosmedController]);
+    expect(metadata).toEqual([SosmedController, SosmedOAuthController]);
   });
 
   it("imports LlmModule so SosmedController injects the real shared LlmService", () => {
@@ -55,5 +61,28 @@ describe("SosmedModule", () => {
     expect(provider?.inject).toEqual([SUPABASE_CLIENT]);
     const fakeClient = { from: () => undefined, channel: () => undefined } as never;
     expect(provider?.useFactory?.(fakeClient)).toBeInstanceOf(ScheduledPostRepository);
+  });
+
+  it("registers SosmedOAuthService and OAuthStateStore as providers (Phase 4)", () => {
+    const metadata = Reflect.getMetadata("providers", SosmedModule) as unknown[];
+    expect(metadata).toContain(SosmedOAuthService);
+    expect(metadata).toContain(OAuthStateStore);
+  });
+
+  it("provides SosmedAccountRepository, SosmedConnectTokenRepository, SalesHumanRepository from the SHARED SUPABASE_CLIENT (Phase 4)", () => {
+    const metadata = Reflect.getMetadata("providers", SosmedModule) as FactoryProvider[];
+    const fakeClient = { from: () => undefined, channel: () => undefined } as never;
+
+    const accountsProvider = metadata.find((p) => p.provide === SosmedAccountRepository);
+    expect(accountsProvider?.inject).toEqual([SUPABASE_CLIENT]);
+    expect(accountsProvider?.useFactory?.(fakeClient)).toBeInstanceOf(SosmedAccountRepository);
+
+    const tokensProvider = metadata.find((p) => p.provide === SosmedConnectTokenRepository);
+    expect(tokensProvider?.inject).toEqual([SUPABASE_CLIENT]);
+    expect(tokensProvider?.useFactory?.(fakeClient)).toBeInstanceOf(SosmedConnectTokenRepository);
+
+    const salesHumansProvider = metadata.find((p) => p.provide === SalesHumanRepository);
+    expect(salesHumansProvider?.inject).toEqual([SUPABASE_CLIENT]);
+    expect(salesHumansProvider?.useFactory?.(fakeClient)).toBeInstanceOf(SalesHumanRepository);
   });
 });

@@ -178,4 +178,34 @@ describe("parseAaosApiConfig", () => {
       expect(result.value.AAOS_SIMULATOR_BASE_URL).toBe("http://localhost:4100");
     }
   });
+
+  it("defaults META_APP_ID/META_APP_SECRET/AAOS_API_BASE_URL to empty strings when omitted (AAOS-SOSMED-AUTOMATION Phase 4 — the whole app must still boot with no Meta OAuth App configured)", () => {
+    const env = buildTestEnv();
+    delete env.META_APP_ID;
+    delete env.META_APP_SECRET;
+    delete env.AAOS_API_BASE_URL;
+    const result = parseAaosApiConfig(env);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.META_APP_ID).toBe("");
+      expect(result.value.META_APP_SECRET).toBe("");
+      expect(result.value.AAOS_API_BASE_URL).toBe("");
+    }
+  });
+
+  it("accepts configured META_APP_ID/META_APP_SECRET/AAOS_API_BASE_URL", () => {
+    const result = parseAaosApiConfig(
+      buildTestEnv({
+        META_APP_ID: "1234567890",
+        META_APP_SECRET: "real-app-secret",
+        AAOS_API_BASE_URL: "https://api.aaos.id",
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.META_APP_ID).toBe("1234567890");
+      expect(result.value.META_APP_SECRET).toBe("real-app-secret");
+      expect(result.value.AAOS_API_BASE_URL).toBe("https://api.aaos.id");
+    }
+  });
 });

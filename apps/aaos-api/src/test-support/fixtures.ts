@@ -65,6 +65,13 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     GO_LIVE_MIN_SCORE: 60,
     ROLLBACK_WINDOW_HOURS: 1,
     META_PAGE_ID: "test-page-id",
+    // AAOS-SOSMED-AUTOMATION Phase 4 — empty by default, same rationale as `KIE_AI_API_KEY`/
+    // `AAOS_DASHBOARD_BASE_URL`: most tests exercise the "Meta OAuth not configured" path.
+    // `SosmedOAuthService` specs needing a configured app pass these explicitly (usually alongside
+    // a `metaOAuthClientOverride` so no test ever reaches a real network call).
+    META_APP_ID: "",
+    META_APP_SECRET: "",
+    AAOS_API_BASE_URL: "",
     ...overrides,
   };
 }

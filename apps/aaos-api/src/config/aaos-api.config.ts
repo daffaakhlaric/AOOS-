@@ -138,6 +138,32 @@ export interface AaosApiConfig {
    * (status !== dry-run) and unset, rather than sending Meta a blank `page_id`.
    */
   readonly META_PAGE_ID: string;
+
+  /**
+   * AAOS-SOSMED-AUTOMATION Phase 4 — the Meta App's own `client_id`/`client_secret`, needed ONLY
+   * for the real OAuth authorization-code exchange (`GET .../oauth/access_token`) this phase
+   * introduces. Genuinely distinct from `META_ACCESS_TOKEN` (a long-lived system-user token typed
+   * once into Settings, used for the Marketing API / `meta-ads-connector`) — no prior phase in this
+   * codebase ever needed an App ID/Secret pair, since none of them perform a real user-facing OAuth
+   * consent flow. Deliberately allowed to be an empty string, same graceful-degradation discipline
+   * as `KIE_AI_API_KEY`/`OPENAI_API_KEY`: this app must still boot and serve every other endpoint
+   * on a deployment where the Meta App isn't configured yet. `SosmedOAuthService`'s OAuth-start
+   * endpoints raise an honest, explicit error naming the missing var rather than building a
+   * malformed `authorizeUrl` or silently no-op-ing.
+   */
+  readonly META_APP_ID: string;
+  readonly META_APP_SECRET: string;
+
+  /**
+   * AAOS-SOSMED-AUTOMATION Phase 4 — this app's OWN public base URL, needed to build the
+   * `redirect_uri` Meta calls back to after user consent (`.../oauth/official/callback`,
+   * `.../oauth/sales/callback`). Distinct from `AAOS_DASHBOARD_BASE_URL` (the sibling
+   * `apps/aaos-dashboard`'s URL) — the OAuth callback is an `aaos-api` HTTP endpoint, not a
+   * dashboard page. Deliberately allowed to be an empty string, same rationale as
+   * `AAOS_DASHBOARD_BASE_URL`: `SosmedOAuthService` raises an honest error naming this var when an
+   * OAuth flow is started and it's unset, rather than sending Meta a malformed/empty `redirect_uri`.
+   */
+  readonly AAOS_API_BASE_URL: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -217,6 +243,12 @@ export const AaosApiConfigSchema = z.object({
   GO_LIVE_MIN_SCORE: z.coerce.number().int().min(0).max(100).default(60),
   ROLLBACK_WINDOW_HOURS: z.coerce.number().positive().default(1),
   META_PAGE_ID: z.string().default(""),
+
+  // AAOS-SOSMED-AUTOMATION Phase 4. Intentionally NOT `.min(1, ...)` — see the `META_APP_ID`/
+  // `META_APP_SECRET`/`AAOS_API_BASE_URL` doc comments above.
+  META_APP_ID: z.string().default(""),
+  META_APP_SECRET: z.string().default(""),
+  AAOS_API_BASE_URL: z.string().default(""),
 });
 
 /**
