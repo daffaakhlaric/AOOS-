@@ -1,0 +1,103 @@
+.card {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.refreshButton {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  background: var(--white);
+  border: 1px solid var(--tamara-orange, #e8580c);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tamara-orange, #e8580c);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.refreshButton:hover {
+  background: var(--tamara-orange-light, #fef3ee);
+}
+
+.refreshButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mutedText {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.signalList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.signalRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.signalIcon {
+  flex-shrink: 0;
+}
+
+.signalLabel {
+  flex-shrink: 0;
+  width: 110px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.signalText {
+  color: var(--gray-600);
+}
+
+.strategyBlock {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.strategyLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.strategyText {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.generatedAt {
+  font-size: 11px;
+  color: var(--gray-400);
+}

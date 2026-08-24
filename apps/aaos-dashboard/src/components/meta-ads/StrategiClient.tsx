@@ -15,6 +15,7 @@ import type {
   LlmChatMessageDto,
 } from "@/types/dashboard.types";
 
+import { IntelligenceSignalsCard } from "./IntelligenceSignalsCard";
 import styles from "./StrategiClient.module.css";
 
 type Decision = "approved" | "rejected";
@@ -432,6 +433,8 @@ export function StrategiClient(): React.ReactElement {
       <Header />
 
       <ArahanTamaraCard arahan={arahan} onRequest={() => void requestArahan()} />
+
+      <IntelligenceSignalsCard />
 
       <section data-testid="strategi-kpi-strip" className={styles.kpiStrip}>
         <Kpi label="Total Usulan" value={formatNumber(actionable.length)} />

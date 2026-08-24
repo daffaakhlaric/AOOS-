@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import type { CompetitorPageDto } from "@/types/dashboard.types";
 import type { SettingsDto, TestConnectionResultDto, WabaConfigDto } from "@/types/tenant.types";
 
 import styles from "./SettingsClient.module.css";
@@ -62,6 +63,18 @@ export function SettingsClient(): React.ReactElement {
     {},
   );
 
+  const [competitors, setCompetitors] = useState<readonly CompetitorPageDto[] | undefined>(
+    undefined,
+  );
+  const [competitorError, setCompetitorError] = useState<string | undefined>(undefined);
+  const [competitorName, setCompetitorName] = useState("");
+  const [competitorPageId, setCompetitorPageId] = useState("");
+  const [competitorVertical, setCompetitorVertical] = useState<"AUTOMOTIVE" | "PROPERTY">(
+    "AUTOMOTIVE",
+  );
+  const [competitorSaving, setCompetitorSaving] = useState(false);
+  const [competitorBusyId, setCompetitorBusyId] = useState<string | undefined>(undefined);
+
   const loadSettings = useCallback(() => {
     fetch("/api/settings")
       .then(async (res) => {
@@ -96,10 +109,28 @@ export function SettingsClient(): React.ReactElement {
       });
   }, []);
 
+  const loadCompetitors = useCallback(() => {
+    fetch("/api/competitors")
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+          throw new Error(body.error?.message ?? "Gagal memuat daftar kompetitor.");
+        }
+        return (await res.json()) as { competitors: readonly CompetitorPageDto[] };
+      })
+      .then((body) => setCompetitors(body.competitors))
+      .catch((caught: unknown) => {
+        setCompetitorError(
+          caught instanceof Error ? caught.message : "Gagal memuat daftar kompetitor.",
+        );
+      });
+  }, []);
+
   useEffect(() => {
     loadSettings();
     loadWaba();
-  }, [loadSettings, loadWaba]);
+    loadCompetitors();
+  }, [loadSettings, loadWaba, loadCompetitors]);
 
   async function handleSaveMeta(): Promise<void> {
     setMetaSaving(true);
@@ -162,6 +193,47 @@ export function SettingsClient(): React.ReactElement {
       loadWaba();
     } finally {
       setWabaBusyId(undefined);
+    }
+  }
+
+  async function handleAddCompetitor(): Promise<void> {
+    if (competitorName.trim().length === 0 || competitorPageId.trim().length === 0) {
+      return;
+    }
+    setCompetitorSaving(true);
+    setCompetitorError(undefined);
+    try {
+      const response = await fetch("/api/competitors", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: competitorName.trim(),
+          pageId: competitorPageId.trim(),
+          vertical: competitorVertical,
+          active: true,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? "Gagal menambah kompetitor.");
+      }
+      setCompetitorName("");
+      setCompetitorPageId("");
+      loadCompetitors();
+    } catch (caught) {
+      setCompetitorError(caught instanceof Error ? caught.message : "Gagal menambah kompetitor.");
+    } finally {
+      setCompetitorSaving(false);
+    }
+  }
+
+  async function handleDeleteCompetitor(row: CompetitorPageDto): Promise<void> {
+    setCompetitorBusyId(row.id);
+    try {
+      await fetch(`/api/competitors/${encodeURIComponent(row.id)}`, { method: "DELETE" });
+      loadCompetitors();
+    } finally {
+      setCompetitorBusyId(undefined);
     }
   }
 
@@ -342,6 +414,119 @@ export function SettingsClient(): React.ReactElement {
               </tbody>
             </table>
           )}
+        </section>
+
+        <section className={styles.card} data-testid="competitor-pages-card">
+          <span className={styles.cardTitle}>Competitor Pages (Tamara Intelligence)</span>
+          <p className={styles.hint}>
+            Halaman Meta kompetitor yang dipantau Tamara Intelligence untuk sinyal iklan kompetitor
+            — dipakai oleh signal &quot;Kompetitor&quot; di halaman Strategi &amp; Approve.
+          </p>
+
+          {competitorError !== undefined ? <p className={styles.error}>{competitorError}</p> : null}
+
+          {competitors === undefined ? (
+            <p className={styles.emptyState}>Memuat daftar kompetitor…</p>
+          ) : competitors.length === 0 ? (
+            <p className={styles.emptyState}>Belum ada halaman kompetitor yang ditambahkan.</p>
+          ) : (
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Nama</th>
+                  <th>Page ID</th>
+                  <th>Vertical</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {competitors.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.name}</td>
+                    <td>{row.pageId}</td>
+                    <td>{row.vertical}</td>
+                    <td>
+                      <span
+                        className={`${styles.statusPill} ${
+                          row.active ? styles.statusPillActive : styles.statusPillInactive
+                        }`}
+                      >
+                        {row.active ? "Aktif" : "Nonaktif"}
+                      </span>
+                    </td>
+                    <td>
+                      <div className={styles.rowActions}>
+                        <button
+                          type="button"
+                          className={styles.smallButton}
+                          disabled={competitorBusyId === row.id}
+                          onClick={() => void handleDeleteCompetitor(row)}
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <div className={styles.row}>
+            <div className={styles.formGroup}>
+              <label htmlFor="competitor-name" className={styles.formLabel}>
+                Nama Kompetitor
+              </label>
+              <input
+                id="competitor-name"
+                className={styles.formInput}
+                value={competitorName}
+                onChange={(e) => setCompetitorName(e.target.value)}
+                placeholder="Suzuki Bintaro"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="competitor-page-id" className={styles.formLabel}>
+                Meta Page ID
+              </label>
+              <input
+                id="competitor-page-id"
+                className={styles.formInput}
+                value={competitorPageId}
+                onChange={(e) => setCompetitorPageId(e.target.value)}
+                placeholder="1234567890"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="competitor-vertical" className={styles.formLabel}>
+                Vertical
+              </label>
+              <select
+                id="competitor-vertical"
+                className={styles.formInput}
+                value={competitorVertical}
+                onChange={(e) =>
+                  setCompetitorVertical(e.target.value === "PROPERTY" ? "PROPERTY" : "AUTOMOTIVE")
+                }
+              >
+                <option value="AUTOMOTIVE">AUTOMOTIVE</option>
+                <option value="PROPERTY">PROPERTY</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => void handleAddCompetitor()}
+              disabled={
+                competitorSaving ||
+                competitorName.trim().length === 0 ||
+                competitorPageId.trim().length === 0
+              }
+            >
+              {competitorSaving ? "Menambah..." : "+ Tambah Kompetitor"}
+            </button>
+          </div>
         </section>
 
         <section className={styles.card}>

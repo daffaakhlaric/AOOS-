@@ -951,3 +951,138 @@ export interface LookalikeSyncResultDto {
   readonly totalSynced: number;
   readonly customAudience?: MetaAudienceDto;
 }
+
+/**
+ * `/api/intelligence*` + `/api/competitors*` DTOs (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 5) —
+ * client-safe mirrors of `aaos-api`'s real `intelligence` module response DTOs. Powers the
+ * Strategi page's "Intelligence Signals" card + Settings' competitor-pages management.
+ *
+ * `IntelligenceSignalsResponseDto`'s real backend type (`apps/aaos-api/src/modules/intelligence/
+ * dto/intelligence.dto.ts`) types `seasonal`/`trends`/`competitor`/`inventory`/`leadProfile`/
+ * `closing` as `unknown` — but `IntelligenceService.refresh()`'s `buildXContext` methods always
+ * write exactly the shape each `*ContextSchema` below mirrors (confirmed by direct read of
+ * `apps/aaos-api/src/modules/llm/dto/campaign-strategy.dto.ts`'s Zod schemas, the same shape those
+ * builder methods return), so these are typed here rather than left as `unknown` — never a
+ * fabricated field beyond what those schemas define.
+ */
+export interface SeasonalSignalDto {
+  readonly isSpecialPeriod: boolean;
+  readonly eventName?: string;
+  readonly budgetMultiplier?: number;
+  readonly upcomingEvent?: string;
+  readonly daysUntil?: number;
+  readonly recommendedAngles?: readonly string[];
+  readonly reasoning: string;
+}
+
+export interface TrendsSignalDto {
+  readonly available: boolean;
+  readonly shouldScaleBudget?: boolean;
+  readonly suggestedAngle?: string;
+  readonly risingKeywords?: readonly string[];
+  readonly reasoning: string;
+}
+
+export interface CompetitorSignalDto {
+  readonly available: boolean;
+  readonly saturatedAngles?: readonly string[];
+  readonly unusedAngles?: readonly string[];
+  readonly topCompetitorAngle?: string;
+  readonly reasoning: string;
+}
+
+export interface InventorySignalDto {
+  readonly available: boolean;
+  readonly hasNewArrivals?: boolean;
+  readonly newArrivalItems?: readonly string[];
+  readonly recommendedAngle?: string;
+  readonly reasoning: string;
+}
+
+export interface LeadProfileSignalDto {
+  readonly totalLeads: number;
+  readonly avgScore: number;
+  readonly topBranches: ReadonlyArray<{ readonly branchId: string; readonly count: number }>;
+  readonly peakHour?: number;
+  readonly peakDay?: number;
+}
+
+export interface ClosingSignalDto {
+  readonly totalEvents: number;
+  readonly topUnitModels: ReadonlyArray<{
+    readonly unitModel: string;
+    readonly spkCount: number;
+    readonly closingRate: number;
+  }>;
+  readonly slowUnitModels: ReadonlyArray<{
+    readonly unitModel: string;
+    readonly closingRate: number;
+  }>;
+}
+
+/** `LlmUnavailableResponseDto` union member — same "AI tidak tersedia" shape every LLM-backed endpoint in this app can return. */
+export interface CampaignStrategyUnavailableDto {
+  readonly available: false;
+  readonly reason: "NO_API_KEY" | "RATE_LIMITED" | "PROVIDER_ERROR" | "INVALID_RESPONSE";
+  readonly message: string;
+}
+
+export interface CampaignStrategyAvailableDto {
+  readonly available: true;
+  readonly campaignMode: "BRAND" | "PRODUCT" | "BOTH";
+  readonly reasoning: string;
+  readonly brandCampaign?: {
+    readonly angle: string;
+    readonly copy: string;
+    readonly objective: string;
+    readonly budgetPct: number;
+    readonly reasoning: string;
+  };
+  readonly productCampaign?: {
+    readonly angle: string;
+    readonly targetUnit: string;
+    readonly copy: string;
+    readonly objective: string;
+    readonly budgetPct: number;
+    readonly reasoning: string;
+  };
+  readonly budgetRecommendation: {
+    readonly action: "SCALE" | "REDUCE" | "MAINTAIN";
+    readonly multiplier: number;
+    readonly reasoning: string;
+  };
+  readonly summary: string;
+  readonly urgency: "HIGH" | "MEDIUM" | "LOW";
+}
+
+export type CampaignStrategyDto = CampaignStrategyAvailableDto | CampaignStrategyUnavailableDto;
+
+export interface IntelligenceSignalsDto {
+  readonly id: string;
+  readonly branchId: string | null;
+  readonly seasonal: SeasonalSignalDto;
+  readonly trends: TrendsSignalDto;
+  readonly competitor: CompetitorSignalDto;
+  readonly inventory: InventorySignalDto;
+  readonly leadProfile: LeadProfileSignalDto;
+  readonly closing: ClosingSignalDto;
+  readonly campaignStrategy?: CampaignStrategyDto;
+  readonly digestText: string | null;
+  readonly generatedAt: string;
+}
+
+export interface CompetitorPageDto {
+  readonly id: string;
+  readonly name: string;
+  readonly pageId: string;
+  readonly vertical: string;
+  readonly active: boolean;
+  readonly createdAt: string;
+}
+
+export interface CreateCompetitorPageInput {
+  readonly name: string;
+  readonly pageId: string;
+  readonly vertical: "AUTOMOTIVE" | "PROPERTY";
+  readonly active: boolean;
+}
