@@ -57,6 +57,7 @@ import {
   LEAD_STORE_MESSAGE_REPOSITORY,
   LEAD_STORE_SCORING_REPOSITORY,
   META_ADS_CONNECTOR,
+  META_ADS_CONNECTOR_REGISTRY,
   MOBIX_SCRAPER_SERVICE,
   OBJECTIVE_ENGINE,
   SUPABASE_AUTH_ADMIN,
@@ -80,6 +81,7 @@ import { LeadsModule } from "./modules/leads/leads.module.js";
 import { ListingsModule } from "./modules/listings/listings.module.js";
 import { LlmModule } from "./modules/llm/llm.module.js";
 import { LookalikeModule } from "./modules/lookalike/lookalike.module.js";
+import { MetaAdsConnectorRegistry } from "./modules/meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
@@ -91,6 +93,7 @@ import { WabaConfigRepository } from "./modules/settings/infrastructure/waba-con
 import { SettingsModule } from "./modules/settings/settings.module.js";
 import { SimulationModule } from "./modules/simulation/simulation.module.js";
 import { SosmedModule } from "./modules/sosmed/sosmed.module.js";
+import { TenantRepository } from "./modules/superadmin/infrastructure/tenant.repository.js";
 import { SuperadminModule } from "./modules/superadmin/superadmin.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
 import { WhatsAppConnectorRegistry } from "./modules/whatsapp/infrastructure/whatsapp-connector-registry.js";
@@ -184,6 +187,19 @@ export class AppModule {
       config,
       publisher,
       whatsAppConnector,
+    );
+    // AAOS-MULTI-TENANT-PHASE1B (Phase 3) — the real per-tenant Meta Ads connector resolver, same
+    // composition pattern as `whatsAppConnectorRegistry` above: a `TenantRepository` instance over
+    // the shared `leadStoreSupabaseClient` (mirrors `SuperadminModule`/`SettingsModule`'s own
+    // "each consumer composes its own instance of a shared repository class" precedent), plus the
+    // SAME `connector`/`publisher` this file already composes (the `dss-motor` fallback + shared
+    // event bus — see `MetaAdsConnectorRegistry`'s own class doc for why).
+    const tenantRepository = new TenantRepository(leadStoreSupabaseClient);
+    const metaAdsConnectorRegistry = new MetaAdsConnectorRegistry(
+      tenantRepository,
+      config,
+      publisher,
+      connector,
     );
     // AAOS-CHAT-ROOM-JESSY: `GET /leads/:id/scoring-history`'s thin read over the real
     // `scoring_events` table — same composition pattern as `messageRepository`/`closingRepository`
@@ -380,6 +396,7 @@ export class AppModule {
         // (`.subscribe`) the object genuinely has, never a fake widening.
         { provide: EVENT_BROKER, useValue: publisher as IEventBroker },
         { provide: META_ADS_CONNECTOR, useValue: connector },
+        { provide: META_ADS_CONNECTOR_REGISTRY, useValue: metaAdsConnectorRegistry },
         { provide: WHATSAPP_CONNECTOR, useValue: whatsAppConnector },
         { provide: WHATSAPP_CONNECTOR_REGISTRY, useValue: whatsAppConnectorRegistry },
         { provide: LEAD_STORE, useValue: leadStore },
@@ -414,6 +431,7 @@ export class AppModule {
         EVENT_PUBLISHER,
         EVENT_BROKER,
         META_ADS_CONNECTOR,
+        META_ADS_CONNECTOR_REGISTRY,
         WHATSAPP_CONNECTOR,
         WHATSAPP_CONNECTOR_REGISTRY,
         LEAD_STORE,

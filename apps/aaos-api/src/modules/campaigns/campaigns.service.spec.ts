@@ -1,3 +1,4 @@
+import { ok } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 import { Branch, Funnel, MetaAdsConnectorFactory } from "@aos/meta-ads-connector";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -23,7 +24,15 @@ function buildService(): CampaignsService {
     config: connectorConfig.value,
     publisher: createFakePublisher(),
   });
-  return new CampaignsService(config, connector);
+  const registry = {
+    resolve: async () =>
+      ok({
+        ...connector,
+        accessToken: config.META_ACCESS_TOKEN,
+        adAccountIds: config.META_AD_ACCOUNT_IDS,
+      }),
+  };
+  return new CampaignsService(config, registry as never);
 }
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: "error" }));

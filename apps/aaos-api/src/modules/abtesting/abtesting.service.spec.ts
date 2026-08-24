@@ -258,6 +258,19 @@ function buildFakeConnector(
   } as unknown as MetaAdsConnector;
 }
 
+function toFakeRegistry(config: ReturnType<typeof buildTestConfig>, connector: MetaAdsConnector) {
+  return {
+    resolve: vi.fn(async () => ({
+      ok: true,
+      value: {
+        ...connector,
+        accessToken: config.META_ACCESS_TOKEN,
+        adAccountIds: config.META_AD_ACCOUNT_IDS,
+      },
+    })),
+  };
+}
+
 function buildService(options: {
   testRepository?: AbTestRepository;
   variantRepository?: AbTestVariantRepository;
@@ -268,7 +281,7 @@ function buildService(options: {
   const config = buildTestConfig();
   return new AbTestingService(
     config,
-    options.connector ?? buildFakeConnector(),
+    toFakeRegistry(config, options.connector ?? buildFakeConnector()) as never,
     options.creativePackages ?? buildFakeCreativePackages(),
     options.testRepository ?? buildFakeTestRepository(),
     options.variantRepository ?? buildFakeVariantRepository(),

@@ -3,11 +3,15 @@ import { randomUUID } from "node:crypto";
 import { ALL_BRANCH_IDS } from "@aos/branch-manager";
 import { ValidationError } from "@aos/errors";
 import type { Lead, LeadStore } from "@aos/lead-store";
-import { AdAccountId, type MetaAdsConnector } from "@aos/meta-ads-connector";
+import { AdAccountId } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, LEAD_STORE, META_ADS_CONNECTOR } from "../../di-tokens.js";
+import { AAOS_API_CONFIG, LEAD_STORE, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import type {
+  MetaAdsConnectorContext,
+  MetaAdsConnectorRegistry,
+} from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import type { CalendarEventResult } from "../scheduler/domain/calendar-event.js";
 
 import { lookalikeAudienceType, type StoredMetaAudience } from "./domain/meta-audience.js";
@@ -35,7 +39,8 @@ export class LookalikeService {
 
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly connectorRegistry: MetaAdsConnectorRegistry,
     @Inject(LEAD_STORE) private readonly leadStore: LeadStore,
     private readonly audienceRepository: MetaAudienceRepository,
     // `@Optional()` — see `AbTestingService`'s own `now` param doc; a bare `Function`-typed
@@ -134,10 +139,15 @@ export class LookalikeService {
       };
     }
 
-    const audience = await this.getOrCreateCustomAudience();
-    const accessToken = this.config.META_ACCESS_TOKEN;
+    const connectorResult = await this.connectorRegistry.resolve(this.tenantId);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+    const audience = await this.getOrCreateCustomAudience(connector);
+    const accessToken = connector.accessToken;
 
-    const uploadResult = await this.connector.addUsersToCustomAudience.execute({
+    const uploadResult = await connector.addUsersToCustomAudience.execute({
       customAudienceId: audience.metaAudienceId,
       phones: unsynced.map((lead) => lead.leadPhone.toString()),
       accessToken,
@@ -191,18 +201,23 @@ export class LookalikeService {
       return existing;
     }
 
-    const adAccountIdResult = AdAccountId.create(this.requireAdAccountId());
+    const connectorResult = await this.connectorRegistry.resolve(this.tenantId);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+    const adAccountIdResult = AdAccountId.create(this.requireAdAccountId(connector.adAccountIds));
     if (!adAccountIdResult.ok) {
       throw adAccountIdResult.error;
     }
 
-    const result = await this.connector.createLookalikeAudience.execute({
+    const result = await connector.createLookalikeAudience.execute({
       adAccountId: adAccountIdResult.value,
       name: `AAOS-Lookalike-${String(percentage)}pct-${this.tenantId}`,
       originAudienceId: origin.metaAudienceId,
       percentage,
       country: COUNTRY,
-      accessToken: this.config.META_ACCESS_TOKEN,
+      accessToken: connector.accessToken,
     });
     if (!result.ok) {
       throw new Error(result.error.message);
@@ -239,23 +254,25 @@ export class LookalikeService {
     return leads;
   }
 
-  private async getOrCreateCustomAudience(): Promise<StoredMetaAudience> {
+  private async getOrCreateCustomAudience(
+    connector: MetaAdsConnectorContext,
+  ): Promise<StoredMetaAudience> {
     const existing = await this.audienceRepository.findByTenantAndType(this.tenantId, "HOT_LEADS");
     if (existing !== undefined) {
       return existing;
     }
 
-    const adAccountIdResult = AdAccountId.create(this.requireAdAccountId());
+    const adAccountIdResult = AdAccountId.create(this.requireAdAccountId(connector.adAccountIds));
     if (!adAccountIdResult.ok) {
       throw adAccountIdResult.error;
     }
 
     const monthYear = formatMonthYear(this.now());
-    const result = await this.connector.createCustomAudience.execute({
+    const result = await connector.createCustomAudience.execute({
       adAccountId: adAccountIdResult.value,
       name: `AAOS-HotLeads-${this.tenantId}-${monthYear}`,
       description: "Hot leads dari AAOS Jessy AI (score >= 65)",
-      accessToken: this.config.META_ACCESS_TOKEN,
+      accessToken: connector.accessToken,
     });
     if (!result.ok) {
       throw new Error(result.error.message);
@@ -270,8 +287,8 @@ export class LookalikeService {
     });
   }
 
-  private requireAdAccountId(): string {
-    const id = this.config.META_AD_ACCOUNT_IDS[0];
+  private requireAdAccountId(adAccountIds: readonly string[]): string {
+    const id = adAccountIds[0];
     if (id === undefined) {
       throw new ValidationError("No META_AD_ACCOUNT_IDS configured");
     }

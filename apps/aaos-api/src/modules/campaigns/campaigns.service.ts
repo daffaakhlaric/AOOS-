@@ -1,9 +1,9 @@
-import type { MetaAdsConnector } from "@aos/meta-ads-connector";
 import { AdAccountId } from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
+import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 
 import type {
   CreateCampaignBodyDto,
@@ -16,12 +16,20 @@ import type {
  * pattern as `modules/meta-ads/meta-ads.service.ts` (re-throws the raw `@aos/errors`/connector
  * error instance on `Result.err(...)`, never a Nest `HttpException`, so `AaosExceptionFilter` is
  * the single place deciding the resulting HTTP status).
+ *
+ * AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves the caller's tenant's own `MetaAdsConnector`
+ * (accessToken + ad-account-ids) from `MetaAdsConnectorRegistry` rather than the single static
+ * connector — `config.AAOS_TENANT_ID` today (this app has no per-request tenant context on this
+ * endpoint yet), same "static default until request-scoped tenant exists" approach every other
+ * converted consumer in this phase uses. `ConnectorNotConfiguredError` is re-thrown as-is
+ * (`AaosExceptionFilter` already maps it to a real HTTP status via its `UnavailableError` base).
  */
 @Injectable()
 export class CampaignsService {
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly connectorRegistry: MetaAdsConnectorRegistry,
   ) {}
 
   async createCampaign(
@@ -33,12 +41,18 @@ export class CampaignsService {
       throw adAccountIdResult.error;
     }
 
-    const result = await this.connector.createCampaign.execute({
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+
+    const result = await connector.createCampaign.execute({
       adAccountId: adAccountIdResult.value,
       name: body.name,
       branch: body.branch,
       funnel: body.funnel,
-      accessToken: this.config.META_ACCESS_TOKEN,
+      accessToken: connector.accessToken,
       tenantId: this.config.AAOS_TENANT_ID,
       correlationId,
       dailyBudgetIDR: body.dailyBudgetIDR,

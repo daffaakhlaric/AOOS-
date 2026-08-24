@@ -115,9 +115,19 @@ function buildService(options: {
   connector?: MetaAdsConnector;
 }): LookalikeService {
   const config = buildTestConfig();
+  const connector = options.connector ?? buildFakeConnector();
+  const connectorRegistry = {
+    resolve: vi.fn(async () =>
+      ok({
+        ...connector,
+        accessToken: config.META_ACCESS_TOKEN,
+        adAccountIds: config.META_AD_ACCOUNT_IDS,
+      }),
+    ),
+  };
   return new LookalikeService(
     config,
-    options.connector ?? buildFakeConnector(),
+    connectorRegistry as never,
     options.leadStore ?? buildFakeLeadStore(),
     options.audienceRepository ?? buildFakeAudienceRepository(),
     () => NOW,

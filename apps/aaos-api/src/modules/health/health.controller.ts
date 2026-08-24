@@ -3,7 +3,8 @@ import { Controller, Get, Inject } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { readAppVersion } from "../../config/version.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
+import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 
 export interface HealthResponse {
   readonly status: "ok";
@@ -23,7 +24,8 @@ export class HealthController {
 
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly connectorRegistry: MetaAdsConnectorRegistry,
   ) {}
 
   @Get("health")
@@ -39,15 +41,17 @@ export class HealthController {
    * Real readiness checks, not a hardcoded stub: "config loaded successfully" (the `AaosApiConfig`
    * this controller was constructed with is fully validated — Nest DI would never have reached
    * this constructor otherwise, since `main.ts` fails fast on an invalid config before the app
-   * bootstraps) and "meta-ads-connector factory constructed successfully" (the injected
-   * `MetaAdsConnector` exposes every use case the factory wires — checking a representative
-   * subset confirms the whole composition succeeded).
+   * bootstraps) and "meta-ads-connector factory constructed successfully" for the seeded
+   * `dss-motor` tenant (AAOS-MULTI-TENANT-PHASE1B Phase 3 — `MetaAdsConnectorRegistry.resolve`'s
+   * own `dss-motor` fallback returns the SAME statically-composed connector this check used to
+   * receive directly, so this stays a synchronous, no-Supabase-call check exactly as before).
    */
   @Get("ready")
-  getReady(): ReadyResponse {
+  async getReady(): Promise<ReadyResponse> {
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
     const checks: Record<string, boolean> = {
       config: isConfigLoaded(this.config),
-      metaAdsConnector: isConnectorReady(this.connector),
+      metaAdsConnector: connectorResult.ok && isConnectorReady(connectorResult.value),
     };
     const ready = Object.values(checks).every(Boolean);
     return {

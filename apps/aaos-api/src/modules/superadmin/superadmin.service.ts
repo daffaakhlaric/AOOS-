@@ -3,7 +3,12 @@ import { createLogger } from "@aos/logger";
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, SUPABASE_AUTH_ADMIN } from "../../di-tokens.js";
+import {
+  AAOS_API_CONFIG,
+  META_ADS_CONNECTOR_REGISTRY,
+  SUPABASE_AUTH_ADMIN,
+} from "../../di-tokens.js";
+import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import type { SupabaseAuthAdminLike } from "../sales/infrastructure/supabase-auth-admin.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
 
@@ -41,6 +46,8 @@ export class SuperadminService {
     private readonly wabaConfigs: WabaConfigRepository,
     @Inject(SUPABASE_AUTH_ADMIN) private readonly authAdmin: SupabaseAuthAdminLike,
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly metaAdsConnectorRegistry: MetaAdsConnectorRegistry,
   ) {}
 
   private async toDto(row: TenantRow): Promise<TenantResponseDto> {
@@ -165,6 +172,10 @@ export class SuperadminService {
       ...(dto.metaApiVersion !== undefined ? { meta_api_version: dto.metaApiVersion } : {}),
       updated_at: new Date().toISOString(),
     });
+    // Real cache invalidation (AAOS-MULTI-TENANT-PHASE1B Phase 3) — Super Admin editing a
+    // tenant's Meta token/ad-account-id is a second real place this data changes (Settings'
+    // `updateMeta` is the other) — a stale cached `MetaAdsConnector` must not linger past either.
+    this.metaAdsConnectorRegistry.invalidate(tenantId);
     logger.info(`SuperadminService.update: tenant "${tenantId}" updated (status: ${row.status})`);
     return this.toDto(row);
   }

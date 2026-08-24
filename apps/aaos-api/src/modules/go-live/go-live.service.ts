@@ -4,12 +4,12 @@ import {
   AdStatus,
   CampaignObjective,
   AdDestinationType,
-  type MetaAdsConnector,
 } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
+import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
 import type {
   GoLiveRollbackData,
@@ -54,7 +54,8 @@ export class GoLiveService {
 
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly repository: SimulationRepository,
     private readonly wabaConfigRepository: WabaConfigRepository,
     // REAL BUG FIX (found via independent e2e verification): a bare `Function`-typed constructor
@@ -74,6 +75,17 @@ export class GoLiveService {
     correlationId: string,
   ): Promise<SimulationStatusResponseDto> {
     const simulation = await this.findOrThrow(id);
+
+    // AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves this tenant's own MetaAdsConnector
+    // (accessToken + ad-account-ids) up front — `config.AAOS_TENANT_ID` today (no per-request
+    // tenant context on this endpoint yet, same static-default approach every other converted
+    // consumer in this phase uses). Resolved before the guards below since one of them reads the
+    // tenant's own default ad account id.
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
 
     // --- Guards: fail closed, ALL checked before any external call (coordinator note section 6) ---
     if (body.confirmation !== GO_LIVE_CONFIRMATION_TEXT) {
@@ -109,7 +121,7 @@ export class GoLiveService {
         `dailyBudgetIDR (${body.dailyBudgetIDR}) exceeds the daily cap of objective.budget / 30 (${budgetCap})`,
       );
     }
-    const rawAdAccountId = this.config.META_AD_ACCOUNT_IDS[0];
+    const rawAdAccountId = connector.adAccountIds[0];
     if (rawAdAccountId === undefined) {
       throw new ValidationError("No META_AD_ACCOUNT_IDS is configured");
     }
@@ -162,9 +174,9 @@ export class GoLiveService {
     }
 
     // --- Real execution ---
-    const accessToken = this.config.META_ACCESS_TOKEN;
+    const accessToken = connector.accessToken;
     try {
-      const campaignResult = await this.connector.client.createCampaign(
+      const campaignResult = await connector.client.createCampaign(
         adAccountIdResult.value.toString(),
         {
           name: `GoLive-${simulation.branch ?? "UMUM"}-${id.slice(0, 8)}`,
@@ -184,7 +196,7 @@ export class GoLiveService {
       const campaignId = campaignResult.value.id;
       await this.log(id, "INFO", `Campaign dibuat: ${campaignId} (status ACTIVE).`, { campaignId });
 
-      const adSetResult = await this.connector.client.createAdSet(
+      const adSetResult = await connector.client.createAdSet(
         adAccountIdResult.value.toString(),
         {
           campaignId,
@@ -209,7 +221,7 @@ export class GoLiveService {
         adSetId,
       });
 
-      const uploadResult = await this.connector.uploadCreativeAsset.execute({
+      const uploadResult = await connector.uploadCreativeAsset.execute({
         adAccountId: adAccountIdResult.value,
         assetType: body.creative.assetType,
         hostedUrl: body.creative.hostedUrl,
@@ -231,7 +243,7 @@ export class GoLiveService {
 
       const waLink =
         body.creative.assetType === "IMAGE" ? await this.resolveWaLink(id, simulation) : undefined;
-      const createAdResult = await this.connector.createAd.execute({
+      const createAdResult = await connector.createAd.execute({
         adAccountId: adAccountIdResult.value,
         adSetId,
         name: `GoLive-${simulation.branch ?? "UMUM"}-${id.slice(0, 8)}-ad`,
@@ -321,8 +333,13 @@ export class GoLiveService {
 
     await this.log(id, "INFO", "ROLLBACK_START", { correlationId });
 
-    const accessToken = this.config.META_ACCESS_TOKEN;
-    const pauseResult = await this.connector.pauseCampaign.execute({
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+    const accessToken = connector.accessToken;
+    const pauseResult = await connector.pauseCampaign.execute({
       campaignId: simulation.rollbackData.newCampaignId,
       accessToken,
     });
@@ -340,7 +357,7 @@ export class GoLiveService {
       if (!entry.reversible || entry.targetType !== "ad") {
         continue;
       }
-      const reactivateResult = await this.connector.activateAd.execute({
+      const reactivateResult = await connector.activateAd.execute({
         adId: entry.targetId,
         accessToken,
       });
@@ -378,9 +395,13 @@ export class GoLiveService {
     if (simulation.status !== "LIVE" || simulation.liveCampaignId === undefined) {
       throw new ConflictError(`Simulation "${id}" has no live campaign to pause`);
     }
-    const result = await this.connector.pauseCampaign.execute({
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const result = await connectorResult.value.pauseCampaign.execute({
       campaignId: simulation.liveCampaignId,
-      accessToken: this.config.META_ACCESS_TOKEN,
+      accessToken: connectorResult.value.accessToken,
     });
     if (!result.ok) {
       await this.log(id, "ERROR", `Pause (manual) gagal: ${result.error.message}`, {

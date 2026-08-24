@@ -22,7 +22,6 @@ import {
   type IntelVertical,
   type PropertyListingSnapshot,
 } from "@aos/meta-ads-agent";
-import type { MetaAdsConnector } from "@aos/meta-ads-connector";
 import { AdAccountId } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
@@ -32,7 +31,7 @@ import {
   CAPI_CONNECTOR,
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
-  META_ADS_CONNECTOR,
+  META_ADS_CONNECTOR_REGISTRY,
 } from "../../di-tokens.js";
 import type { ListingRow } from "../listings/infrastructure/listing.repository.js";
 import { ListingRepository } from "../listings/infrastructure/listing.repository.js";
@@ -41,6 +40,7 @@ import type {
   CampaignStrategyResponseDto,
 } from "../llm/dto/campaign-strategy.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import type { TenantRow } from "../superadmin/infrastructure/tenant.repository.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -168,7 +168,8 @@ export class IntelligenceService {
     // AAOS-META-MCP-BONUS-TOOLS (Tool 1) — the same real, already-global `MetaAdsConnector` every
     // other Meta Ads feature in this app uses, reused here (not re-composed) to pull real
     // `AdMetrics.frequency` for `AnomalyDetector.detectFrequencyHigh`.
-    @Inject(META_ADS_CONNECTOR) private readonly metaAdsConnector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly metaAdsConnectorRegistry: MetaAdsConnectorRegistry,
     // `@Optional()` — a bare `Function`-typed constructor param with a default value still gets a
     // real DI resolution attempt from Nest (this session's recurring DI gotcha — see
     // `RecyclingService`'s own `now` param for the original fix). Without this, real bootstrap
@@ -480,7 +481,19 @@ export class IntelligenceService {
    */
   private async buildAnomalyContext(): Promise<AnomalyContext> {
     const ads: AdFrequencySignal[] = [];
-    for (const rawAccountId of this.config.META_AD_ACCOUNT_IDS) {
+    const connectorResult = await this.metaAdsConnectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      this.logger.warn(
+        `IntelligenceService.buildAnomalyContext: connector resolution failed: ${connectorResult.error.message}`,
+      );
+      return {
+        available: true,
+        anomalies: [],
+        reasoning: "Meta Ads connector belum terkonfigurasi untuk tenant ini.",
+      };
+    }
+    const connector = connectorResult.value;
+    for (const rawAccountId of connector.adAccountIds) {
       const accountIdResult = AdAccountId.create(rawAccountId);
       if (!accountIdResult.ok) {
         this.logger.warn(
@@ -488,10 +501,10 @@ export class IntelligenceService {
         );
         continue;
       }
-      const result = await this.metaAdsConnector.pullCampaignData.execute({
+      const result = await connector.pullCampaignData.execute({
         adAccountId: accountIdResult.value,
         datePreset: ANOMALY_DATE_PRESET,
-        accessToken: this.config.META_ACCESS_TOKEN,
+        accessToken: connector.accessToken,
         tenantId: this.config.AAOS_TENANT_ID,
         correlationId: this.generateCorrelationId(),
       });

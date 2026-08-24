@@ -1,7 +1,9 @@
+import { ok } from "@aos/common";
 import { ValidationError } from "@aos/errors";
-import { MetaAdsConnectorFactory, Verdict } from "@aos/meta-ads-connector";
+import { MetaAdsConnectorFactory, Verdict, type MetaAdsConnector } from "@aos/meta-ads-connector";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { toConnectorConfig } from "../../config/to-connector-config.js";
 import { createFakePublisher } from "../../test-support/fake-publisher.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
@@ -15,6 +17,18 @@ import {
 
 import { MetaAdsService } from "./meta-ads.service.js";
 
+/** Minimal registry test double — mirrors `MetaAdsConnectorRegistry.resolve`'s real shape, always resolving to the given connector+config's own token/ad-account-ids regardless of tenantId. */
+function toRegistry(config: AaosApiConfig, connector: MetaAdsConnector) {
+  return {
+    resolve: async () =>
+      ok({
+        ...connector,
+        accessToken: config.META_ACCESS_TOKEN,
+        adAccountIds: config.META_AD_ACCOUNT_IDS,
+      }),
+  };
+}
+
 function buildService(): MetaAdsService {
   const config = buildTestConfig();
   const connectorConfig = toConnectorConfig(config);
@@ -25,7 +39,7 @@ function buildService(): MetaAdsService {
     config: connectorConfig.value,
     publisher: createFakePublisher(),
   });
-  return new MetaAdsService(config, connector);
+  return new MetaAdsService(config, toRegistry(config, connector) as never);
 }
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: "error" }));
@@ -82,7 +96,7 @@ describe("MetaAdsService", () => {
         config: connectorConfig.value,
         publisher: createFakePublisher(),
       });
-      const service = new MetaAdsService(config, connector);
+      const service = new MetaAdsService(config, toRegistry(config, connector) as never);
       await expect(
         service.pullCampaigns({ datePreset: "last_30d" }, "corr-5"),
       ).rejects.toBeInstanceOf(ValidationError);
@@ -106,7 +120,7 @@ describe("MetaAdsService", () => {
         config: connectorConfig.value,
         publisher: createFakePublisher(),
       });
-      const service = new MetaAdsService(config, connector);
+      const service = new MetaAdsService(config, toRegistry(config, connector) as never);
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
         { id: "act_752604553578354", name: "DSS Motor" },
@@ -127,7 +141,7 @@ describe("MetaAdsService", () => {
         config: connectorConfig.value,
         publisher: createFakePublisher(),
       });
-      const service = new MetaAdsService(config, connector);
+      const service = new MetaAdsService(config, toRegistry(config, connector) as never);
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
         { id: "act_752604553578354", name: "DSS Motor" },

@@ -29,6 +29,7 @@ function buildService(connectorOverrides: Partial<MetaAdsConnector["client"]> = 
   const wabaConfigs = new WabaConfigRepository(client);
   const connector = buildFakeConnector(connectorOverrides);
   const whatsAppConnectorRegistry = buildFakeRegistry();
+  const metaAdsConnectorRegistry = buildFakeRegistry();
   const service = new SettingsService(
     tenants,
     wabaConfigs,
@@ -36,8 +37,18 @@ function buildService(connectorOverrides: Partial<MetaAdsConnector["client"]> = 
     buildTestConfig(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal registry test double
     whatsAppConnectorRegistry as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal registry test double
+    metaAdsConnectorRegistry as any,
   );
-  return { service, tenants, wabaConfigs, connector, client, whatsAppConnectorRegistry };
+  return {
+    service,
+    tenants,
+    wabaConfigs,
+    connector,
+    client,
+    whatsAppConnectorRegistry,
+    metaAdsConnectorRegistry,
+  };
 }
 
 async function seedTenant(tenants: TenantRepository, overrides: Record<string, unknown> = {}) {

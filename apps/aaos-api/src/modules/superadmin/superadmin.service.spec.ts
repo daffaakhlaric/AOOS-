@@ -70,8 +70,16 @@ function buildService() {
   const tenants = new TenantRepository(client);
   const wabaConfigs = new WabaConfigRepository(client);
   const authAdmin = buildFakeAuthAdmin();
-  const service = new SuperadminService(tenants, wabaConfigs, authAdmin, buildTestConfig());
-  return { service, tenants, wabaConfigs, authAdmin, client };
+  const metaAdsConnectorRegistry = { invalidate: vi.fn() };
+  const service = new SuperadminService(
+    tenants,
+    wabaConfigs,
+    authAdmin,
+    buildTestConfig(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal registry test double
+    metaAdsConnectorRegistry as any,
+  );
+  return { service, tenants, wabaConfigs, authAdmin, client, metaAdsConnectorRegistry };
 }
 
 describe("SuperadminService", () => {

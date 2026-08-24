@@ -1,8 +1,8 @@
-import type { MetaAdsConnector } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
+import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 
 import type { StoredMetaInterest } from "./domain/meta-interest.js";
 import {
@@ -38,7 +38,8 @@ export class MetaInterestsService {
 
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly repository: MetaInterestRepository,
   ) {}
 
@@ -46,14 +47,20 @@ export class MetaInterestsService {
     body: SyncInterestsBodyDto,
     now: Date = new Date(),
   ): Promise<SyncInterestsResponseDto> {
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+
     const terms = body.terms ?? INTERESTS_BY_VERTICAL[body.vertical ?? "AUTOMOTIVE"];
     const fetchedAt = now.toISOString();
     const results: SyncInterestsTermResultDto[] = [];
 
     for (const term of terms) {
-      const searchResult = await this.connector.searchAdInterests.execute({
+      const searchResult = await connector.searchAdInterests.execute({
         term,
-        accessToken: this.config.META_ACCESS_TOKEN,
+        accessToken: connector.accessToken,
         ...(body.limitPerTerm !== undefined ? { limit: body.limitPerTerm } : {}),
       });
 

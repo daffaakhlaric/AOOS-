@@ -21,7 +21,6 @@ import {
   Verdict,
   type Ad,
   type AdAccount,
-  type MetaAdsConnector,
 } from "@aos/meta-ads-connector";
 import type { MobixScraperService } from "@aos/mobix-web-scraper";
 import type { ObjectiveEngine } from "@aos/objective-engine";
@@ -33,7 +32,7 @@ import {
   AAOS_API_CONFIG,
   EVENT_PUBLISHER,
   LEAD_STORE,
-  META_ADS_CONNECTOR,
+  META_ADS_CONNECTOR_REGISTRY,
   MOBIX_SCRAPER_SERVICE,
   OBJECTIVE_ENGINE,
 } from "../../di-tokens.js";
@@ -42,6 +41,7 @@ import { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { LookalikeService } from "../lookalike/lookalike.service.js";
+import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
@@ -76,11 +76,11 @@ const DEFAULT_DATE_PRESET = "last_30d";
 @Injectable()
 export class SchedulerService {
   private readonly logger = new Logger(SchedulerService.name);
-  private readonly metaAdsSyncService: MetaAdsSyncService;
 
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly connectorRegistry: MetaAdsConnectorRegistry,
     @Inject(MOBIX_SCRAPER_SERVICE) private readonly scraper: MobixScraperService,
     @Inject(OBJECTIVE_ENGINE) private readonly objectiveEngine: ObjectiveEngine,
     @Inject(LEAD_STORE) private readonly leadStore: LeadStore,
@@ -91,9 +91,7 @@ export class SchedulerService {
     private readonly abTestingService: AbTestingService,
     private readonly lookalikeService: LookalikeService,
     private readonly intelligenceService: IntelligenceService,
-  ) {
-    this.metaAdsSyncService = new MetaAdsSyncService(this.connector.pullCampaignData);
-  }
+  ) {}
 
   /** Checked every minute (spec: `@Cron('* * * * *')`) — every `PENDING` event due within the last minute is run, detached, so a slow handler never blocks the next tick. */
   @Cron("* * * * *")
@@ -600,9 +598,22 @@ export class SchedulerService {
     return total;
   }
 
-  /** Pulls every configured ad account's real campaign hierarchy (`MetaAdsSyncService.syncAccounts` — one `PullCampaignData` call per account, independent failures). Throws only when EVERY account failed. */
+  /**
+   * Pulls every configured ad account's real campaign hierarchy (`MetaAdsSyncService.syncAccounts`
+   * — one `PullCampaignData` call per account, independent failures). Throws only when EVERY
+   * account failed. AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves this tenant's own
+   * `MetaAdsConnector` per call (was a constructor-time `this.metaAdsSyncService = new
+   * MetaAdsSyncService(this.connector.pullCampaignData)` before this phase — moved here since
+   * `MetaAdsConnectorRegistry.resolve` is async).
+   */
   private async pullAdAccounts(correlationId: string): Promise<readonly AdAccount[]> {
-    const inputs = this.config.META_AD_ACCOUNT_IDS.map((rawId) => {
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+    const metaAdsSyncService = new MetaAdsSyncService(connector.pullCampaignData);
+    const inputs = connector.adAccountIds.map((rawId) => {
       const idResult = AdAccountId.create(rawId);
       if (!idResult.ok) {
         throw idResult.error;
@@ -610,13 +621,13 @@ export class SchedulerService {
       return {
         adAccountId: idResult.value,
         datePreset: DEFAULT_DATE_PRESET,
-        accessToken: this.config.META_ACCESS_TOKEN,
+        accessToken: connector.accessToken,
         tenantId: this.config.AAOS_TENANT_ID,
         correlationId,
       } as const;
     });
 
-    const results = await this.metaAdsSyncService.syncAccounts(inputs);
+    const results = await metaAdsSyncService.syncAccounts(inputs);
     const adAccounts: AdAccount[] = [];
     const errors: string[] = [];
     for (const result of results) {

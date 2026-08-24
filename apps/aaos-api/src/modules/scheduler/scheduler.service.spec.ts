@@ -242,9 +242,20 @@ function buildService(
 ): SchedulerService {
   const config = buildTestConfig();
   const publisher = { publish: vi.fn(async () => undefined) };
+  const connector = options.connector ?? buildFakeConnector();
+  const connectorRegistry = {
+    resolve: vi.fn(async () => ({
+      ok: true,
+      value: {
+        ...connector,
+        accessToken: config.META_ACCESS_TOKEN,
+        adAccountIds: config.META_AD_ACCOUNT_IDS,
+      },
+    })),
+  };
   return new SchedulerService(
     config,
-    options.connector ?? buildFakeConnector(),
+    connectorRegistry as never,
     options.scraper ?? buildFakeScraper(),
     options.objectiveEngine ?? buildFakeObjectiveEngine(),
     options.leadStore ?? buildFakeLeadStore(),

@@ -44,7 +44,16 @@ function buildConnector(
 function buildService(connector: MetaAdsConnector) {
   const client = createFakeSupabaseClient();
   const repository = new MetaInterestRepository(client);
-  const service = new MetaInterestsService(buildTestConfig(), connector, repository);
+  const config = buildTestConfig();
+  const registry = {
+    resolve: async () =>
+      ok({
+        ...connector,
+        accessToken: config.META_ACCESS_TOKEN,
+        adAccountIds: config.META_AD_ACCOUNT_IDS,
+      }),
+  };
+  const service = new MetaInterestsService(config, registry as never, repository);
   return { service, client, repository };
 }
 

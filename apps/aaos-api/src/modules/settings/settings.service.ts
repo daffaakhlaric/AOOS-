@@ -6,8 +6,10 @@ import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import {
   AAOS_API_CONFIG,
   META_ADS_CONNECTOR,
+  META_ADS_CONNECTOR_REGISTRY,
   WHATSAPP_CONNECTOR_REGISTRY,
 } from "../../di-tokens.js";
+import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { maskTail } from "../superadmin/dto/tenant-response.dto.js";
 import type { TenantRow } from "../superadmin/infrastructure/tenant.repository.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
@@ -62,6 +64,15 @@ function toWabaDto(row: WabaConfigRow): WabaConfigResponseDto {
  * requires it now: `testMetaConnection` below deliberately does NOT fall back to the env-var
  * token (unlike `getMeta`'s read view, which is allowed to report the env default exists) —
  * testing the env default would defeat the purpose of a per-tenant connectivity check.
+ *
+ * AAOS-MULTI-TENANT-PHASE1B (Phase 3) — deliberately KEEPS injecting the static `META_ADS_CONNECTOR`
+ * (not `MetaAdsConnectorRegistry`) here: `testMetaConnection` already calls
+ * `connector.client.getAdAccount(tenant.meta_ad_account_id, tenant.meta_access_token)` with the
+ * tenant's own token/ad-account-id passed EXPLICITLY per call (confirmed by direct read of
+ * `IMetaAdsClient` — every real Meta Ads Platform method takes `accessToken` as a parameter, never
+ * a connector-level baked-in credential), so this method was already fully tenant-correct before
+ * this phase. Composing a whole extra per-tenant `MetaAdsConnector` via the registry just to reach
+ * the same stateless `.client.getAdAccount` call would be pure overhead, not a correctness fix.
  */
 @Injectable()
 export class SettingsService {
@@ -72,6 +83,8 @@ export class SettingsService {
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(WHATSAPP_CONNECTOR_REGISTRY)
     private readonly whatsAppConnectorRegistry: WhatsAppConnectorRegistry,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly metaAdsConnectorRegistry: MetaAdsConnectorRegistry,
   ) {}
 
   private async requireTenant(tenantId: string): Promise<TenantRow> {
@@ -115,6 +128,11 @@ export class SettingsService {
       ...(dto.apiVersion !== undefined ? { meta_api_version: dto.apiVersion } : {}),
       updated_at: new Date().toISOString(),
     });
+    // Real cache invalidation (AAOS-MULTI-TENANT-PHASE1B Phase 3, same discipline as
+    // `whatsAppConnectorRegistry.invalidate` below) — a saved token/ad-account-id/api-version
+    // means the tenant's next-resolved `MetaAdsConnector` must reflect it, never a stale cached
+    // instance built from the row's PREVIOUS values.
+    this.metaAdsConnectorRegistry.invalidate(tenantId);
     return this.getSettings(tenantId);
   }
 

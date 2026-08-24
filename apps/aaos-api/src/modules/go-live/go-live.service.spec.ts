@@ -124,8 +124,23 @@ function makeService(
   const wabaRepository = buildFakeWabaRepository([wabaRow]);
   const connector = buildFakeConnector(connectorOverrides);
   const config = buildTestConfig({ GO_LIVE_DRY_RUN: false, ...configOverrides });
-  const service = new GoLiveService(config, connector, repository, wabaRepository, () => NOW);
-  return { service, repository, connector };
+  const connectorRegistry = {
+    resolve: vi.fn(async () =>
+      ok({
+        ...connector,
+        accessToken: config.META_ACCESS_TOKEN,
+        adAccountIds: config.META_AD_ACCOUNT_IDS,
+      }),
+    ),
+  };
+  const service = new GoLiveService(
+    config,
+    connectorRegistry as never,
+    repository,
+    wabaRepository,
+    () => NOW,
+  );
+  return { service, repository, connector, connectorRegistry };
 }
 
 describe("GoLiveService.execute — guards (fail closed, before any external call)", () => {

@@ -1,15 +1,16 @@
 import { ValidationError } from "@aos/errors";
-import type { ExecutionResult, MetaAdsConnector } from "@aos/meta-ads-connector";
+import type { ExecutionResult } from "@aos/meta-ads-connector";
 import { AdAccountId, Verdict } from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
+import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import { toAdAccountResponseDto, type AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import type { ExecuteVerdictBodyDto } from "./dto/execute-verdict.dto.js";
 import type { PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
+import type { MetaAdsConnectorRegistry } from "./infrastructure/meta-ads-connector-registry.js";
 
 /**
  * Wires `PullCampaignData` and `ExecuteVerdict` from `@aos/meta-ads-connector`, translating
@@ -17,19 +18,31 @@ import type { PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
  * pattern with `modules/webhook/webhook.service.ts`: on `Result.err(...)`, this service
  * re-throws the raw `@aos/errors` / connector error instance — never a Nest `HttpException` —
  * so `AaosExceptionFilter` is the single place deciding the resulting HTTP status.
+ *
+ * AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves the caller's tenant's own `MetaAdsConnector`
+ * (accessToken + ad-account-ids) from `MetaAdsConnectorRegistry` rather than the single static
+ * connector — `config.AAOS_TENANT_ID` today (no per-request tenant context on this endpoint yet),
+ * same static-default approach every other converted consumer in this phase uses.
  */
 @Injectable()
 export class MetaAdsService {
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly connectorRegistry: MetaAdsConnectorRegistry,
   ) {}
 
   async pullCampaigns(
     query: PullCampaignsQueryDto,
     correlationId: string,
   ): Promise<AdAccountResponseDto> {
-    const rawAdAccountId = query.adAccountId ?? this.config.META_AD_ACCOUNT_IDS[0];
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+
+    const rawAdAccountId = query.adAccountId ?? connector.adAccountIds[0];
     if (rawAdAccountId === undefined) {
       throw new ValidationError(
         "No adAccountId was provided and no default ad account is configured",
@@ -41,10 +54,10 @@ export class MetaAdsService {
       throw adAccountIdResult.error;
     }
 
-    const result = await this.connector.pullCampaignData.execute({
+    const result = await connector.pullCampaignData.execute({
       adAccountId: adAccountIdResult.value,
       datePreset: query.datePreset,
-      accessToken: this.config.META_ACCESS_TOKEN,
+      accessToken: connector.accessToken,
       tenantId: this.config.AAOS_TENANT_ID,
       correlationId,
     });
@@ -56,8 +69,8 @@ export class MetaAdsService {
   }
 
   /**
-   * `GET /api/v1/meta-ads/accounts` — resolves the display `name` for every configured
-   * `META_AD_ACCOUNT_IDS` entry, backing the dashboard's multi-account pill selector
+   * `GET /api/v1/meta-ads/accounts` — resolves the display `name` for every configured ad
+   * account entry, backing the dashboard's multi-account pill selector
    * (`docs/PROMPT-AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE.md` coordinator note #6). Deliberately
    * one lightweight `getAdAccount` call per configured id, never the full `getCampaigns` pull.
    *
@@ -71,9 +84,15 @@ export class MetaAdsService {
    * degrade to.)
    */
   async getAdAccounts(): Promise<readonly AdAccountOptionDto[]> {
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+
     const results = await Promise.all(
-      this.config.META_AD_ACCOUNT_IDS.map(async (id) => {
-        const result = await this.connector.client.getAdAccount(id, this.config.META_ACCESS_TOKEN);
+      connector.adAccountIds.map(async (id) => {
+        const result = await connector.client.getAdAccount(id, connector.accessToken);
         return { id, name: result.ok ? result.value.name : id };
       }),
     );
@@ -84,11 +103,17 @@ export class MetaAdsService {
     body: ExecuteVerdictBodyDto,
     correlationId: string,
   ): Promise<ExecutionResult> {
-    const result = await this.connector.executeVerdict.execute({
+    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+
+    const result = await connector.executeVerdict.execute({
       verdict: Verdict[body.verdict],
       targetId: body.targetId,
       targetType: body.targetType,
-      accessToken: this.config.META_ACCESS_TOKEN,
+      accessToken: connector.accessToken,
       tenantId: this.config.AAOS_TENANT_ID,
       correlationId,
     });

@@ -112,6 +112,15 @@ function buildService(
   const seasonalCalendarService = new SeasonalCalendarService();
   const trendsService = new GoogleTrendsService({ fetchImpl: alwaysFailingFetch() });
   const metaAdsConnector = overrides.metaAdsConnector ?? buildFakeMetaAdsConnector();
+  const metaAdsConnectorRegistry = {
+    resolve: vi.fn(async () =>
+      ok({
+        ...metaAdsConnector,
+        accessToken: config.META_ACCESS_TOKEN,
+        adAccountIds: config.META_AD_ACCOUNT_IDS,
+      }),
+    ),
+  };
 
   const service = new IntelligenceService(
     config,
@@ -125,7 +134,7 @@ function buildService(
     seasonalCalendarService,
     trendsService,
     overrides.capiConnector,
-    metaAdsConnector,
+    metaAdsConnectorRegistry as never,
     () => NOW,
     () => "test-correlation-id",
   );

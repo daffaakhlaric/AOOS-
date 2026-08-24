@@ -7,13 +7,16 @@ import {
   MetaAdsSyncService,
   Verdict,
   type AdAccount,
-  type MetaAdsConnector,
 } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
+import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
+import type {
+  MetaAdsConnectorContext,
+  MetaAdsConnectorRegistry,
+} from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import type { CalendarEventResult } from "../scheduler/domain/calendar-event.js";
 
 import type { AbTestStatus, StoredAbTest, StoredAbTestVariant } from "./domain/ab-test.js";
@@ -41,11 +44,11 @@ const MS_PER_DAY = 86_400_000;
 @Injectable()
 export class AbTestingService {
   private readonly logger = new Logger(AbTestingService.name);
-  private readonly syncService: MetaAdsSyncService;
 
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
+    @Inject(META_ADS_CONNECTOR_REGISTRY)
+    private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly creativePackages: CreativePackagesService,
     private readonly testRepository: AbTestRepository,
     private readonly variantRepository: AbTestVariantRepository,
@@ -53,12 +56,32 @@ export class AbTestingService {
     // constructor param with only a default value still gets a real DI resolution attempt from
     // Nest without this, crashing bootstrap.
     @Optional() private readonly now: () => Date = () => new Date(),
-  ) {
-    this.syncService = new MetaAdsSyncService(this.connector.pullCampaignData);
-  }
+  ) {}
 
   private get tenantId(): string {
     return this.config.AAOS_TENANT_ID;
+  }
+
+  /**
+   * AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves this tenant's own `MetaAdsConnector` (real
+   * `Result.err(ConnectorNotConfiguredError)` re-thrown as-is on an unconfigured tenant, never a
+   * thrown-away exception). Was a constructor-time `this.syncService = new
+   * MetaAdsSyncService(this.connector.pullCampaignData)` before this phase — moved to a per-call
+   * resolve since `MetaAdsConnectorRegistry.resolve` is async and the old static connector no
+   * longer exists to compose from eagerly at construction time.
+   */
+  private async resolveConnector(): Promise<{
+    readonly connector: MetaAdsConnectorContext;
+    readonly syncService: MetaAdsSyncService;
+  }> {
+    const result = await this.connectorRegistry.resolve(this.tenantId);
+    if (!result.ok) {
+      throw result.error;
+    }
+    return {
+      connector: result.value,
+      syncService: new MetaAdsSyncService(result.value.pullCampaignData),
+    };
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -203,12 +226,13 @@ export class AbTestingService {
     test: StoredAbTest,
     variants: readonly StoredAbTestVariant[],
   ): Promise<boolean> {
-    const adAccountIdResult = AdAccountId.create(this.requireAdAccountId());
+    const { connector } = await this.resolveConnector();
+    const adAccountIdResult = AdAccountId.create(this.requireAdAccountId(connector.adAccountIds));
     if (!adAccountIdResult.ok) {
       await this.testRepository.markFailed(test.id, adAccountIdResult.error.message);
       return false;
     }
-    const accessToken = this.config.META_ACCESS_TOKEN;
+    const accessToken = connector.accessToken;
 
     for (const variant of variants) {
       const detail = await this.creativePackages.byId(variant.creativePackageId);
@@ -232,7 +256,7 @@ export class AbTestingService {
       }
 
       const assetType = detail.package.videoUrl !== undefined ? "VIDEO" : "IMAGE";
-      const uploadResult = await this.connector.uploadCreativeAsset.execute({
+      const uploadResult = await connector.uploadCreativeAsset.execute({
         adAccountId: adAccountIdResult.value,
         assetType,
         hostedUrl,
@@ -244,7 +268,7 @@ export class AbTestingService {
         return false;
       }
 
-      const createAdResult = await this.connector.createAd.execute({
+      const createAdResult = await connector.createAd.execute({
         adAccountId: adAccountIdResult.value,
         adSetId: test.adSetId,
         name: `${test.name}-Variant${variant.variantLabel}`,
@@ -286,6 +310,7 @@ export class AbTestingService {
     if (runningTests.length === 0) {
       return 0;
     }
+    const { connector } = await this.resolveConnector();
     const adAccounts = await this.pullAdAccounts();
     const allAds = adAccounts.flatMap((account) =>
       account.campaigns.flatMap((campaign) =>
@@ -346,11 +371,11 @@ export class AbTestingService {
           if (loser?.metaAdId === undefined) {
             continue;
           }
-          const pauseResult = await this.connector.verdictService.execute({
+          const pauseResult = await connector.verdictService.execute({
             verdict: Verdict.PAUSE,
             targetId: loser.metaAdId,
             targetType: "ad",
-            accessToken: this.config.META_ACCESS_TOKEN,
+            accessToken: connector.accessToken,
           });
           if (!pauseResult.ok) {
             this.logger.warn(
@@ -366,11 +391,11 @@ export class AbTestingService {
             entry.ad.metaId === variants.find((v) => v.id === decision.winnerVariantId)?.metaAdId,
         )?.adSet;
         if (winnerAdSet !== undefined) {
-          const scaleResult = await this.connector.verdictService.execute({
+          const scaleResult = await connector.verdictService.execute({
             verdict: Verdict.SCALE,
             targetId: test.adSetId,
             targetType: "adset",
-            accessToken: this.config.META_ACCESS_TOKEN,
+            accessToken: connector.accessToken,
             currentDailyBudgetIDR: winnerAdSet.dailyBudget.toNumber(),
           });
           if (!scaleResult.ok) {
@@ -411,8 +436,8 @@ export class AbTestingService {
     return keys;
   }
 
-  private requireAdAccountId(): string {
-    const id = this.config.META_AD_ACCOUNT_IDS[0];
+  private requireAdAccountId(adAccountIds: readonly string[]): string {
+    const id = adAccountIds[0];
     if (id === undefined) {
       throw new ValidationError("No META_AD_ACCOUNT_IDS configured");
     }
@@ -420,8 +445,9 @@ export class AbTestingService {
   }
 
   private async pullAdAccounts(): Promise<readonly AdAccount[]> {
+    const { connector, syncService } = await this.resolveConnector();
     const correlationId = randomUUID();
-    const inputs = this.config.META_AD_ACCOUNT_IDS.map((rawId) => {
+    const inputs = connector.adAccountIds.map((rawId) => {
       const idResult = AdAccountId.create(rawId);
       if (!idResult.ok) {
         throw idResult.error;
@@ -429,12 +455,12 @@ export class AbTestingService {
       return {
         adAccountId: idResult.value,
         datePreset: "last_30d",
-        accessToken: this.config.META_ACCESS_TOKEN,
+        accessToken: connector.accessToken,
         tenantId: this.tenantId,
         correlationId,
       } as const;
     });
-    const results = await this.syncService.syncAccounts(inputs);
+    const results = await syncService.syncAccounts(inputs);
     const adAccounts: AdAccount[] = [];
     for (const result of results) {
       if (result.ok) {

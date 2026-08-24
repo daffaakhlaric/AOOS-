@@ -141,3 +141,12 @@ export const CAPI_CONNECTOR = Symbol("CAPI_CONNECTOR");
  * removed, so this is an ADDITIVE token, not a replacement of an existing one.
  */
 export const WHATSAPP_CONNECTOR_REGISTRY = Symbol("WHATSAPP_CONNECTOR_REGISTRY");
+/**
+ * AAOS-MULTI-TENANT-PHASE1B (Phase 3) addition — the real per-tenant `MetaAdsConnectorRegistry`
+ * (`modules/meta-ads/infrastructure/meta-ads-connector-registry.ts`), replacing `META_ADS_CONNECTOR`
+ * as the injection point for every consumer that needs to call Meta Ads for a SPECIFIC tenant
+ * rather than the one static, boot-composed connector. `META_ADS_CONNECTOR` itself is kept,
+ * unchanged, as the registry's own real `dss-motor` fallback (see that class's doc) — not
+ * removed, so this is an ADDITIVE token, not a replacement of an existing one.
+ */
+export const META_ADS_CONNECTOR_REGISTRY = Symbol("META_ADS_CONNECTOR_REGISTRY");
