@@ -1057,6 +1057,44 @@ export interface CampaignStrategyAvailableDto {
 
 export type CampaignStrategyDto = CampaignStrategyAvailableDto | CampaignStrategyUnavailableDto;
 
+/**
+ * AAOS-META-MCP-BONUS-TOOLS (Tool 4 — "CAPI Health") — real `EmqReport`-backed shape from
+ * `apps/aaos-api`'s `IntelligenceService.buildCapiHealthContext`. Deliberately renders ONLY what
+ * the real `EmqReport` entity has (`pixelId`/`score`/`eventsReceived`/`capturedAt`) — no
+ * per-event-type breakdown or issues list (neither exists on the real entity).
+ */
+export type CapiHealthSignalDto =
+  | {
+      readonly available: true;
+      readonly pixelId: string;
+      readonly score: number;
+      readonly eventsReceived: number;
+      readonly capturedAt: string;
+      readonly reasoning: string;
+    }
+  | { readonly available: false; readonly reasoning: string };
+
+/**
+ * AAOS-META-MCP-BONUS-TOOLS (Tool 1 — "Anomaly Signal", honestly scoped down) — real
+ * `FREQUENCY_HIGH`-only anomalies from `IntelligenceService.buildAnomalyContext`. Every other
+ * anomaly type from the original spec is deferred (no historical persistence exists to compute
+ * them honestly) — see `@aos/meta-ads-agent`'s `AnomalyDetector` docstring.
+ */
+export interface AnomalySignalDto {
+  readonly adId: string;
+  readonly adName: string;
+  readonly anomalyType: "FREQUENCY_HIGH";
+  readonly severity: "HIGH" | "MEDIUM";
+  readonly frequency: number;
+  readonly message: string;
+}
+
+export interface AnomalySignalsDto {
+  readonly available: true;
+  readonly anomalies: readonly AnomalySignalDto[];
+  readonly reasoning: string;
+}
+
 export interface IntelligenceSignalsDto {
   readonly id: string;
   readonly branchId: string | null;
@@ -1066,6 +1104,8 @@ export interface IntelligenceSignalsDto {
   readonly inventory: InventorySignalDto;
   readonly leadProfile: LeadProfileSignalDto;
   readonly closing: ClosingSignalDto;
+  readonly capiHealth: CapiHealthSignalDto;
+  readonly anomalies: AnomalySignalsDto;
   readonly campaignStrategy?: CampaignStrategyDto;
   readonly digestText: string | null;
   readonly generatedAt: string;

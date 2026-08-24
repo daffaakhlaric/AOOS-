@@ -13,6 +13,10 @@ export interface IntelligenceSignalsRow {
   readonly inventory_data: unknown;
   readonly lead_profile_data: unknown;
   readonly closing_data: unknown;
+  /** AAOS-META-MCP-BONUS-TOOLS (Tool 4) — `IntelligenceService.buildCapiHealthContext`'s real, or honestly-unavailable, result. Nullable: rows written before this column existed have `null` here. */
+  readonly capi_health_data: unknown;
+  /** AAOS-META-MCP-BONUS-TOOLS (Tool 1) — `IntelligenceService.buildAnomalyContext`'s real, or honestly-unavailable, result. Nullable: rows written before this column existed have `null` here. */
+  readonly anomaly_data: unknown;
   readonly campaign_strategy: unknown;
   readonly digest_text: string | null;
   readonly generated_at: string;

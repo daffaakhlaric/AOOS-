@@ -1,9 +1,13 @@
+import { randomUUID } from "node:crypto";
+
 import { ALL_BRANCH_IDS, BranchId } from "@aos/branch-manager";
+import type { CapiConnector } from "@aos/capi-connector";
 import { NotFoundError } from "@aos/errors";
 import type { IClosingRepository, LeadStore } from "@aos/lead-store";
 import {
   ALL_AUTOMOTIVE_ANGLE_VALUES,
   ALL_PROPERTY_ANGLE_VALUES,
+  AnomalyDetector,
   ClosingIntelService,
   CompetitorIntelService,
   GoogleTrendsService,
@@ -12,14 +16,24 @@ import {
   SeasonalCalendarService,
   getBrandAngleIds,
   interpretForCampaign,
+  type AdFrequencySignal,
   type CompetitorPageConfig,
+  type FrequencyHighAnomaly,
   type IntelVertical,
   type PropertyListingSnapshot,
 } from "@aos/meta-ads-agent";
+import type { MetaAdsConnector } from "@aos/meta-ads-connector";
+import { AdAccountId } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, LEAD_STORE, LEAD_STORE_CLOSING_REPOSITORY } from "../../di-tokens.js";
+import {
+  AAOS_API_CONFIG,
+  CAPI_CONNECTOR,
+  LEAD_STORE,
+  LEAD_STORE_CLOSING_REPOSITORY,
+  META_ADS_CONNECTOR,
+} from "../../di-tokens.js";
 import type { ListingRow } from "../listings/infrastructure/listing.repository.js";
 import { ListingRepository } from "../listings/infrastructure/listing.repository.js";
 import type {
@@ -42,6 +56,27 @@ import { IntelligenceSignalsRepository } from "./infrastructure/intelligence-sig
 const CLOSING_LOOKBACK_DAYS = 90;
 /** Nationwide Google Trends geo — see class docstring's "single-tenant, single-run" scoping note. */
 const TRENDS_BRANCH = BranchId.UMUM;
+/** Matches `SchedulerService`'s own `DEFAULT_DATE_PRESET` — `buildAnomalyContext` only needs the CURRENT `frequency` figure, not a specific window, so it reuses the same default every other real pull in this app uses. */
+const ANOMALY_DATE_PRESET = "last_30d" as const;
+
+/** AAOS-META-MCP-BONUS-TOOLS (Tool 4) — real `EmqReport`-backed shape, or an honest `available:false` degrade. See `IntelligenceService.buildCapiHealthContext`. */
+export type CapiHealthContext =
+  | {
+      readonly available: true;
+      readonly pixelId: string;
+      readonly score: number;
+      readonly eventsReceived: number;
+      readonly capturedAt: string;
+      readonly reasoning: string;
+    }
+  | { readonly available: false; readonly reasoning: string };
+
+/** AAOS-META-MCP-BONUS-TOOLS (Tool 1) — real `FREQUENCY_HIGH`-only anomaly list. `available` is always `true` here (an empty list is still a real, honest result) — kept as a discriminated shape for symmetry with `CapiHealthContext` and every other signal context in this file. */
+export interface AnomalyContext {
+  readonly available: true;
+  readonly anomalies: ReadonlyArray<FrequencyHighAnomaly>;
+  readonly reasoning: string;
+}
 
 function toPropertyListingSnapshot(row: ListingRow): PropertyListingSnapshot {
   return {
@@ -98,6 +133,16 @@ function toIntelVertical(rawVertical: string): IntelVertical {
  *   `CompetitorIntelService.getCompetitorAds` — only when `META_APP_ID`/`META_APP_SECRET` are both
  *   configured (the real Meta App Access Token this service needs); otherwise an honest
  *   `available: false` signal, no network call attempted.
+ * - **CAPI Health** (AAOS-META-MCP-BONUS-TOOLS Tool 4): real `EmqReport` via the composed
+ *   `CapiConnector.getEmqScore`, only when `CAPI_PIXEL_ID`/`CAPI_ACCESS_TOKEN` are both configured
+ *   — otherwise an honest `available: false` signal. Renders only `EmqReport`'s real fields
+ *   (`pixelId`/`score`/`eventsReceived`/`capturedAt`) — no fabricated per-event-type breakdown.
+ * - **Anomaly Signal** (AAOS-META-MCP-BONUS-TOOLS Tool 1, honestly scoped down): real
+ *   `FREQUENCY_HIGH`-only anomalies (`@aos/meta-ads-agent`'s `AnomalyDetector.detectFrequencyHigh`)
+ *   from every configured ad account's current `AdMetrics.frequency`, pulled via the same,
+ *   already-global `MetaAdsConnector.pullCampaignData` every other Meta Ads feature uses. Every
+ *   other anomaly type from the original spec is DEFERRED — this app has no historical/time-series
+ *   metrics storage to compute a "current vs. expected" comparison from honestly.
  */
 @Injectable()
 export class IntelligenceService {
@@ -114,11 +159,25 @@ export class IntelligenceService {
     private readonly competitorPageRepository: CompetitorPageRepository,
     private readonly seasonalCalendarService: SeasonalCalendarService,
     private readonly trendsService: GoogleTrendsService,
+    // AAOS-META-MCP-BONUS-TOOLS (Tool 4) — the composed `@aos/capi-connector` `CapiConnector`,
+    // `undefined` on a deployment with no CAPI pixel/token configured (see `di-tokens.ts`'s
+    // `CAPI_CONNECTOR` doc). A real, always-registered `useValue` provider (even when the value
+    // itself is `undefined`), so plain `@Inject` resolves fine without `@Optional()` — same
+    // pattern already established for `ASSET_LIBRARY`/`KAI_AGENT_RUNTIME` elsewhere in this app.
+    @Inject(CAPI_CONNECTOR) private readonly capiConnector: CapiConnector | undefined,
+    // AAOS-META-MCP-BONUS-TOOLS (Tool 1) — the same real, already-global `MetaAdsConnector` every
+    // other Meta Ads feature in this app uses, reused here (not re-composed) to pull real
+    // `AdMetrics.frequency` for `AnomalyDetector.detectFrequencyHigh`.
+    @Inject(META_ADS_CONNECTOR) private readonly metaAdsConnector: MetaAdsConnector,
     // `@Optional()` — a bare `Function`-typed constructor param with a default value still gets a
     // real DI resolution attempt from Nest (this session's recurring DI gotcha — see
     // `RecyclingService`'s own `now` param for the original fix). Without this, real bootstrap
     // fails with "Nest can't resolve dependencies of the IntelligenceService (..., ?)".
     @Optional() private readonly now: () => Date = () => new Date(),
+    // `@Optional()`, same rationale as `now` above — injectable so tests can generate
+    // deterministic ids for `GetEmqScore`'s required `correlationId`, defaulting to the real
+    // `crypto.randomUUID` at runtime.
+    @Optional() private readonly generateCorrelationId: () => string = () => randomUUID(),
   ) {}
 
   /** `GET /api/v1/intelligence/signals` — the latest real persisted row for this tenant, or `undefined` when none has ever been generated. */
@@ -138,6 +197,8 @@ export class IntelligenceService {
     const inventoryContext = await this.buildInventoryContext(tenant, vertical);
     const leadProfileContext = await this.buildLeadProfileContext();
     const closingContext = await this.buildClosingContext();
+    const capiHealthContext = await this.buildCapiHealthContext();
+    const anomalyContext = await this.buildAnomalyContext();
 
     const brandAngleIds = getBrandAngleIds(vertical);
     const productAngleValues =
@@ -167,6 +228,8 @@ export class IntelligenceService {
       inventoryContext,
       leadProfileContext,
       closingContext,
+      capiHealthContext,
+      anomalyContext,
       campaignStrategy,
     );
 
@@ -179,6 +242,8 @@ export class IntelligenceService {
       inventory_data: inventoryContext,
       lead_profile_data: leadProfileContext,
       closing_data: closingContext,
+      capi_health_data: capiHealthContext,
+      anomaly_data: anomalyContext,
       campaign_strategy: campaignStrategy,
       digest_text: digestText,
     });
@@ -363,6 +428,100 @@ export class IntelligenceService {
     };
   }
 
+  /**
+   * AAOS-META-MCP-BONUS-TOOLS (Tool 4 — "CAPI Health") — real `EmqReport` via
+   * `capiConnector.getEmqScore`, or an honest `available:false` shape when CAPI isn't configured
+   * or the real Meta call failed. Deliberately renders ONLY what `EmqReport` actually has
+   * (`pixelId`/`score`/`eventsReceived`/`capturedAt`) — no fabricated per-event-type breakdown or
+   * issues list (neither field exists on the real entity; see `docs/PROMPT-AAOS-META-MCP-BONUS-
+   * TOOLS.md`'s coordinator note point 3).
+   */
+  private async buildCapiHealthContext(): Promise<CapiHealthContext> {
+    if (this.capiConnector === undefined) {
+      return {
+        available: false,
+        reasoning: "CAPI_PIXEL_ID/CAPI_ACCESS_TOKEN belum dikonfigurasi.",
+      };
+    }
+    const result = await this.capiConnector.getEmqScore.execute({
+      correlationId: this.generateCorrelationId(),
+    });
+    if (!result.ok) {
+      this.logger.warn(
+        `IntelligenceService.buildCapiHealthContext: getEmqScore failed: ${result.error.message}`,
+      );
+      return { available: false, reasoning: result.error.message };
+    }
+    const report = result.value;
+    return {
+      available: true,
+      pixelId: report.pixelId,
+      score: report.score.value,
+      eventsReceived: report.eventsReceived,
+      capturedAt: report.capturedAt.toISOString(),
+      reasoning: `CAPI Event Match Quality score ${report.score.value.toFixed(1)}/10, ${String(report.eventsReceived)} event diterima.`,
+    };
+  }
+
+  /**
+   * AAOS-META-MCP-BONUS-TOOLS (Tool 1 — "Anomaly Signal", honestly scoped down) — real
+   * `FREQUENCY_HIGH` anomalies from every configured ad account's already-pulled real
+   * `AdMetrics.frequency`, via `AnomalyDetector.detectFrequencyHigh`. Every other anomaly type
+   * from the original spec (`SPEND_DROP`/`SPEND_SPIKE`/`CPL_INCREASE`/`CTR_DROP`/
+   * `DELIVERY_ISSUE`/`LOW_QUALITY_SCORE`) is deferred — this app has no historical/time-series
+   * metrics storage to honestly compute them from (see `AnomalyDetector`'s own docstring).
+   *
+   * Sequential per-account pulls (not `Promise.all`) — same rationale as
+   * `MetaAdsSyncService.syncAccounts`: respects the shared rate limiter's single-threaded token
+   * accounting. A single account's pull failing is logged and skipped, never fails the whole
+   * signal (same degrade-per-source discipline as `buildCompetitorContext`/`buildClosingContext`).
+   */
+  private async buildAnomalyContext(): Promise<AnomalyContext> {
+    const ads: AdFrequencySignal[] = [];
+    for (const rawAccountId of this.config.META_AD_ACCOUNT_IDS) {
+      const accountIdResult = AdAccountId.create(rawAccountId);
+      if (!accountIdResult.ok) {
+        this.logger.warn(
+          `IntelligenceService.buildAnomalyContext: invalid ad account id "${rawAccountId}": ${accountIdResult.error.message}`,
+        );
+        continue;
+      }
+      const result = await this.metaAdsConnector.pullCampaignData.execute({
+        adAccountId: accountIdResult.value,
+        datePreset: ANOMALY_DATE_PRESET,
+        accessToken: this.config.META_ACCESS_TOKEN,
+        tenantId: this.config.AAOS_TENANT_ID,
+        correlationId: this.generateCorrelationId(),
+      });
+      if (!result.ok) {
+        this.logger.warn(
+          `IntelligenceService.buildAnomalyContext: pullCampaignData failed for "${rawAccountId}": ${result.error.message}`,
+        );
+        continue;
+      }
+      for (const campaign of result.value.campaigns) {
+        for (const adSet of campaign.adSets) {
+          for (const ad of adSet.ads) {
+            ads.push({
+              adId: ad.id.toString(),
+              adName: ad.name,
+              frequency: ad.metrics.frequency,
+            });
+          }
+        }
+      }
+    }
+    const anomalies = AnomalyDetector.detectFrequencyHigh(ads);
+    return {
+      available: true,
+      anomalies,
+      reasoning:
+        anomalies.length === 0
+          ? "Tidak ada anomali frequency terdeteksi."
+          : `${String(anomalies.length)} iklan dengan frequency tinggi (creative fatigue) terdeteksi.`,
+    };
+  }
+
   private async findTenantOrThrow(): Promise<TenantRow> {
     const tenant = await this.tenantRepository.findByTenantId(this.config.AAOS_TENANT_ID);
     if (tenant === undefined) {
@@ -381,6 +540,8 @@ function buildDigestText(
   inventory: CampaignStrategyRequestDto["inventory"],
   leadProfile: CampaignStrategyRequestDto["leadProfile"],
   closing: CampaignStrategyRequestDto["closing"],
+  capiHealth: CapiHealthContext,
+  anomaly: AnomalyContext,
   strategy: CampaignStrategyResponseDto,
 ): string {
   const lines = [
@@ -391,6 +552,8 @@ function buildDigestText(
     `📦 Stok/Listing: ${inventory.reasoning}`,
     `👥 Hot leads: ${String(leadProfile.totalLeads)} lead, avg score ${leadProfile.avgScore.toFixed(1)}`,
     `💰 Closing (90 hari): ${String(closing.totalEvents)} event`,
+    `📡 CAPI Health: ${capiHealth.reasoning}`,
+    `⚠ Anomali: ${anomaly.reasoning}`,
     strategy.available
       ? `🎯 Rekomendasi: ${strategy.summary}`
       : `🎯 Rekomendasi: AI tidak tersedia (${strategy.reason}) — ${strategy.message}`,

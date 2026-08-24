@@ -17,6 +17,10 @@ export interface IntelligenceSignalsResponseDto {
   readonly inventory: unknown;
   readonly leadProfile: unknown;
   readonly closing: unknown;
+  /** AAOS-META-MCP-BONUS-TOOLS (Tool 4) — real `EmqReport`-backed CAPI health, or an honest `available:false` shape. See `IntelligenceService.buildCapiHealthContext`. */
+  readonly capiHealth: unknown;
+  /** AAOS-META-MCP-BONUS-TOOLS (Tool 1) — real `FREQUENCY_HIGH` anomalies only, or an honest `available:false` shape. See `IntelligenceService.buildAnomalyContext`. */
+  readonly anomalies: unknown;
   readonly campaignStrategy: CampaignStrategyResponseDto | undefined;
   readonly digestText: string | null;
   readonly generatedAt: string;
@@ -34,6 +38,8 @@ export function toIntelligenceSignalsResponseDto(
     inventory: row.inventory_data,
     leadProfile: row.lead_profile_data,
     closing: row.closing_data,
+    capiHealth: row.capi_health_data,
+    anomalies: row.anomaly_data,
     campaignStrategy: row.campaign_strategy as CampaignStrategyResponseDto | undefined,
     digestText: row.digest_text,
     generatedAt: row.generated_at,

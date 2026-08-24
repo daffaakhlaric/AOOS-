@@ -73,6 +73,8 @@ describe("toIntelligenceSignalsResponseDto", () => {
       inventory_data: { available: false },
       lead_profile_data: { totalLeads: 0 },
       closing_data: { totalEvents: 0 },
+      capi_health_data: { available: false, reasoning: "CAPI belum dikonfigurasi." },
+      anomaly_data: { available: true, anomalies: [], reasoning: "Tidak ada anomali." },
       campaign_strategy: { available: false, reason: "NO_API_KEY", message: "x" },
       digest_text: "digest",
       generated_at: "2026-01-01T00:00:00.000Z",
@@ -80,6 +82,12 @@ describe("toIntelligenceSignalsResponseDto", () => {
     const dto = toIntelligenceSignalsResponseDto(row);
     expect(dto.id).toBe("s-1");
     expect(dto.digestText).toBe("digest");
+    expect(dto.capiHealth).toEqual({ available: false, reasoning: "CAPI belum dikonfigurasi." });
+    expect(dto.anomalies).toEqual({
+      available: true,
+      anomalies: [],
+      reasoning: "Tidak ada anomali.",
+    });
     expect(dto.campaignStrategy).toEqual({
       available: false,
       reason: "NO_API_KEY",

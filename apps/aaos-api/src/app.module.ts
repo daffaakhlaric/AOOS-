@@ -1,6 +1,7 @@
 import { AssetLibraryFactory, type AssetLibrary } from "@aos/asset-library";
 import type { BranchManager } from "@aos/branch-manager";
 import { BranchManagerFactory } from "@aos/branch-manager";
+import { CapiConnectorFactory, type CapiConnector } from "@aos/capi-connector";
 import { KaiAgentFactory, type KaiAgentRuntime } from "@aos/creative-agent";
 import { CreativeConnectorFactory } from "@aos/creative-connector";
 import { EventBroker, type IEventBroker, type IPublisher } from "@aos/event-bus";
@@ -30,6 +31,10 @@ import {
   toAssetLibraryConfig,
 } from "./config/to-asset-library-config.js";
 import { toBranchManagerConfig } from "./config/to-branch-manager-config.js";
+import {
+  isCapiConnectorConfigured,
+  toCapiConnectorConfig,
+} from "./config/to-capi-connector-config.js";
 import { toConnectorConfig } from "./config/to-connector-config.js";
 import {
   isCreativePipelineConfigured,
@@ -42,6 +47,7 @@ import {
   AAOS_API_CONFIG,
   ASSET_LIBRARY,
   BRANCH_MANAGER,
+  CAPI_CONNECTOR,
   EVENT_BROKER,
   EVENT_PUBLISHER,
   KAI_AGENT_RUNTIME,
@@ -124,7 +130,12 @@ export class AppModule {
       throw branchManagerConfigResult.error;
     }
 
-    const publisher: IPublisher = new EventBroker();
+    // Kept as a concrete `EventBroker` (not just `IPublisher`) so its own `.subscriptions` member
+    // (a real `SubscriptionManager`, which genuinely `implements ISubscriptionManager`) can be
+    // handed to `CapiConnectorFactory` below — `IPublisher`/`IEventBroker` don't declare `.match`/
+    // `.count`, so neither type structurally satisfies `ISubscriptionManager` on its own.
+    const eventBroker = new EventBroker();
+    const publisher: IPublisher = eventBroker;
     const connector: MetaAdsConnector = MetaAdsConnectorFactory.create({
       config: connectorConfigResult.value,
       publisher,
@@ -253,6 +264,26 @@ export class AppModule {
       supabaseServiceKey: config.SUPABASE_SERVICE_KEY,
     });
 
+    // AAOS-META-MCP-BONUS-TOOLS (Tool 4 — CAPI Health): the FIRST real composition of
+    // `@aos/capi-connector` in this app. Composed ONLY when a real `CAPI_PIXEL_ID`/
+    // `CAPI_ACCESS_TOKEN` pair is configured — same graceful-degradation discipline as
+    // `assetLibrary`/`kaiRuntime` above. See `di-tokens.ts`'s `CAPI_CONNECTOR` doc for why
+    // `eventListenerService.start()` is deliberately never called.
+    let capiConnector: CapiConnector | undefined;
+    if (isCapiConnectorConfigured(config)) {
+      const capiConnectorConfigResult = toCapiConnectorConfig(config);
+      if (!capiConnectorConfigResult.ok) {
+        throw capiConnectorConfigResult.error;
+      }
+      capiConnector = CapiConnectorFactory.create({
+        config: capiConnectorConfigResult.value,
+        publisher,
+        subscriptionManager: eventBroker.subscriptions,
+        getLead: leadStore.getLead,
+        closingRepository,
+      });
+    }
+
     return {
       module: AppModule,
       global: true,
@@ -347,6 +378,11 @@ export class AppModule {
         // above — an injectable token that resolves to `undefined` on a deployment with no Kie AI
         // key, rather than a missing provider that would fail Nest's resolution at boot.
         { provide: KAI_AGENT_RUNTIME, useValue: kaiRuntime },
+        // `useValue: undefined` is intentional and load-bearing, same rationale as `ASSET_LIBRARY`/
+        // `KAI_AGENT_RUNTIME` above — an injectable token that resolves to `undefined` on a
+        // deployment with no CAPI pixel/token configured, rather than a missing provider that
+        // would fail Nest's resolution at boot.
+        { provide: CAPI_CONNECTOR, useValue: capiConnector },
         { provide: APP_FILTER, useValue: new AaosExceptionFilter() },
         { provide: APP_INTERCEPTOR, useValue: new LoggingInterceptor() },
         { provide: APP_INTERCEPTOR, useValue: new TracingInterceptor() },
@@ -369,6 +405,7 @@ export class AppModule {
         ASSET_LIBRARY,
         MOBIX_SCRAPER_SERVICE,
         KAI_AGENT_RUNTIME,
+        CAPI_CONNECTOR,
       ],
     };
   }

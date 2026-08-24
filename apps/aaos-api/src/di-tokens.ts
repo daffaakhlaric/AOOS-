@@ -112,3 +112,23 @@ export const SUPABASE_AUTH_ADMIN = Symbol("SUPABASE_AUTH_ADMIN");
  */
 export const LEAD_STORE_LEAD_REPOSITORY = Symbol("LEAD_STORE_LEAD_REPOSITORY");
 export const EVENT_BROKER = Symbol("EVENT_BROKER");
+/**
+ * AAOS-META-MCP-BONUS-TOOLS (Tool 4 — CAPI Health) addition — the composed `@aos/capi-connector`
+ * `CapiConnector` (`CapiConnectorFactory.create`), the first real wiring of that package into this
+ * app (`GetEmqScore` had zero usage anywhere before this).
+ *
+ * Provided as `CapiConnector | undefined`: `app.module.ts` composes it only when
+ * `isCapiConnectorConfigured(config)` holds (real `CAPI_PIXEL_ID`/`CAPI_ACCESS_TOKEN`), same
+ * graceful-degradation discipline as `ASSET_LIBRARY`/`KAI_AGENT_RUNTIME` — the whole app still
+ * boots, and `IntelligenceService`'s CAPI-health signal reports an honest `available: false`
+ * rather than a fabricated score when it's `undefined`.
+ *
+ * Only `capiConnector.getEmqScore` is ever called by this app — `capiConnector.eventListenerService`
+ * is composed (mirroring `CapiConnectorFactory`'s own all-or-nothing composition) but its
+ * `.start()` is deliberately NEVER invoked here: that would begin subscribing to real
+ * lead/closing domain events and sending live Lead/Purchase/Contact events to Meta's Conversions
+ * API — a distinct, larger feature (real-time CAPI event forwarding) genuinely out of scope for
+ * "Tool 4: CAPI Health", not something to silently switch on as a side effect of composing the
+ * factory for its `getEmqScore` use case.
+ */
+export const CAPI_CONNECTOR = Symbol("CAPI_CONNECTOR");

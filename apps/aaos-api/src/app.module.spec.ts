@@ -6,6 +6,7 @@ import {
   AAOS_API_CONFIG,
   ASSET_LIBRARY,
   BRANCH_MANAGER,
+  CAPI_CONNECTOR,
   EVENT_BROKER,
   EVENT_PUBLISHER,
   KAI_AGENT_RUNTIME,
@@ -91,8 +92,12 @@ describe("AppModule.forRoot", () => {
     // provider (composes TenantRepository/ListingRepository/IntelligenceSignalsRepository/
     // CompetitorPageRepository locally from the existing SUPABASE_CLIENT, imports LlmModule to
     // reuse the already-existing LlmService, same pattern as SosmedModule/RecyclingModule).
+    // AAOS-META-MCP-BONUS-TOOLS (Tool 4 — CAPI Health): +1 provider (CAPI_CONNECTOR, the composed
+    // @aos/capi-connector CapiConnector — undefined when CAPI_PIXEL_ID/CAPI_ACCESS_TOKEN aren't
+    // configured, same pattern as KAI_AGENT_RUNTIME) — no new import (IntelligenceModule already
+    // existed).
     expect(dynamicModule.imports).toHaveLength(27);
-    expect(dynamicModule.providers).toHaveLength(20);
+    expect(dynamicModule.providers).toHaveLength(21);
   });
 
   it("provides KAI_AGENT_RUNTIME as undefined when no Kie AI key / asset library is configured, so the app still boots", () => {
@@ -142,7 +147,7 @@ describe("AppModule.forRoot", () => {
     );
   });
 
-  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN tokens", () => {
+  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN/CAPI_CONNECTOR tokens", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.exports).toEqual([
       AAOS_API_CONFIG,
@@ -162,7 +167,28 @@ describe("AppModule.forRoot", () => {
       ASSET_LIBRARY,
       MOBIX_SCRAPER_SERVICE,
       KAI_AGENT_RUNTIME,
+      CAPI_CONNECTOR,
     ]);
+  });
+
+  it("provides CAPI_CONNECTOR as undefined when no CAPI pixel/token is configured, so the app still boots", () => {
+    const dynamicModule = AppModule.forRoot(buildTestConfig());
+    const provider = findValueProvider(dynamicModule.providers, CAPI_CONNECTOR);
+    expect(provider).toBeDefined();
+    expect(provider?.useValue).toBeUndefined();
+  });
+
+  it("composes a real CAPI_CONNECTOR when CAPI_PIXEL_ID and CAPI_ACCESS_TOKEN are both configured", () => {
+    const dynamicModule = AppModule.forRoot(
+      buildTestConfig({ CAPI_PIXEL_ID: "pixel-1", CAPI_ACCESS_TOKEN: "capi-token" }),
+    );
+    const provider = findValueProvider(dynamicModule.providers, CAPI_CONNECTOR);
+    expect(provider?.useValue).toBeDefined();
+  });
+
+  it("leaves CAPI_CONNECTOR undefined when only CAPI_PIXEL_ID is set (both are required)", () => {
+    const dynamicModule = AppModule.forRoot(buildTestConfig({ CAPI_PIXEL_ID: "pixel-1" }));
+    expect(findValueProvider(dynamicModule.providers, CAPI_CONNECTOR)?.useValue).toBeUndefined();
   });
 
   it("provides AAOS_API_CONFIG as the exact config value passed in", () => {

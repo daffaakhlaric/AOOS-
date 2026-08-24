@@ -50,6 +50,9 @@ importers:
       '@aos/branch-manager':
         specifier: workspace:*
         version: link:../../packages/branch-manager
+      '@aos/capi-connector':
+        specifier: workspace:*
+        version: link:../../packages/capi-connector
       '@aos/common':
         specifier: workspace:*
         version: link:../../packages/common

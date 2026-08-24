@@ -16,6 +16,8 @@ const BASE_INSERT = {
   inventory_data: { available: false },
   lead_profile_data: { totalLeads: 0 },
   closing_data: { totalEvents: 0 },
+  capi_health_data: { available: false, reasoning: "CAPI belum dikonfigurasi." },
+  anomaly_data: { available: true, anomalies: [], reasoning: "Tidak ada anomali." },
   campaign_strategy: { available: false, reason: "NO_API_KEY", message: "x" },
   digest_text: "digest",
 };

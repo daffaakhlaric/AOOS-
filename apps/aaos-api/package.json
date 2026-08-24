@@ -19,6 +19,7 @@
   "dependencies": {
     "@aos/asset-library": "workspace:*",
     "@aos/branch-manager": "workspace:*",
+    "@aos/capi-connector": "workspace:*",
     "@aos/common": "workspace:*",
     "@aos/config": "workspace:*",
     "@aos/creative-agent": "workspace:*",

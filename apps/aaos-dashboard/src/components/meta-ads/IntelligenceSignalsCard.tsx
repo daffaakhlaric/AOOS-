@@ -6,6 +6,8 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { formatDateId } from "@/lib/formatters";
 import type { IntelligenceSignalsDto } from "@/types/dashboard.types";
 
+import { AnomalyAlert } from "./AnomalyAlert";
+import { CapiHealthCard } from "./CapiHealthCard";
 import styles from "./IntelligenceSignalsCard.module.css";
 
 type LoadState =
@@ -220,6 +222,10 @@ export function IntelligenceSignalsCard(): React.ReactElement {
             <p className={styles.strategyLabel}>Tamara suggest:</p>
             <p className={styles.strategyText}>{strategyLine(state.signals)}</p>
           </div>
+
+          <AnomalyAlert anomalies={state.signals.anomalies} />
+
+          <CapiHealthCard capiHealth={state.signals.capiHealth} />
 
           <p className={styles.generatedAt}>
             Terakhir diperbarui: {formatDateId(state.signals.generatedAt)}

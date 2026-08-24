@@ -152,6 +152,12 @@ export { BudgetOptimizer } from "./intelligence/BudgetOptimizer.js";
 export { AudienceInsightEngine } from "./intelligence/AudienceInsightEngine.js";
 export { CreativeIntelligence } from "./intelligence/CreativeIntelligence.js";
 export { CampaignHealthAnalyzer } from "./intelligence/CampaignHealthAnalyzer.js";
+export { AnomalyDetector } from "./intelligence/AnomalyDetector.js";
+export type {
+  AdFrequencySignal,
+  AnomalySeverity,
+  FrequencyHighAnomaly,
+} from "./intelligence/AnomalyDetector.js";
 export { OptimizationPipeline } from "./intelligence/OptimizationPipeline.js";
 
 // AAOS-TAMARA-INTELLIGENCE-LAYER Phase 1 — Seasonal Calendar + Inventory/Lead/Closing signals

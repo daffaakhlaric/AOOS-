@@ -155,6 +155,18 @@ export interface AaosApiConfig {
   readonly META_APP_SECRET: string;
 
   /**
+   * AAOS-META-MCP-BONUS-TOOLS (Tool 4 — CAPI Health) — this tenant's real Meta Pixel id and a
+   * real CAPI-scoped access token, the two required fields `@aos/capi-connector`'s
+   * `CapiConnectorConfigSchema` needs beyond what `parseCapiConnectorConfig` already defaults.
+   * Deliberately allowed to be an empty string, same graceful-degradation discipline as
+   * `KIE_AI_API_KEY`/`META_APP_ID`: `app.module.ts` composes `CapiConnectorFactory` only when
+   * BOTH are non-empty (`isCapiConnectorConfigured`), and `IntelligenceService`'s CAPI-health
+   * signal reports an honest `available: false` when it isn't — never a fabricated score.
+   */
+  readonly CAPI_PIXEL_ID: string;
+  readonly CAPI_ACCESS_TOKEN: string;
+
+  /**
    * AAOS-SOSMED-AUTOMATION Phase 4 — this app's OWN public base URL, needed to build the
    * `redirect_uri` Meta calls back to after user consent (`.../oauth/official/callback`,
    * `.../oauth/sales/callback`). Distinct from `AAOS_DASHBOARD_BASE_URL` (the sibling
@@ -249,6 +261,11 @@ export const AaosApiConfigSchema = z.object({
   META_APP_ID: z.string().default(""),
   META_APP_SECRET: z.string().default(""),
   AAOS_API_BASE_URL: z.string().default(""),
+
+  // AAOS-META-MCP-BONUS-TOOLS (Tool 4). Intentionally NOT `.min(1, ...)` — see the
+  // `AaosApiConfig.CAPI_PIXEL_ID`/`CAPI_ACCESS_TOKEN` doc comments above.
+  CAPI_PIXEL_ID: z.string().default(""),
+  CAPI_ACCESS_TOKEN: z.string().default(""),
 });
 
 /**

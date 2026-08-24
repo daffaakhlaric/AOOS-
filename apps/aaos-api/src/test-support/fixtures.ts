@@ -72,6 +72,12 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     META_APP_ID: "",
     META_APP_SECRET: "",
     AAOS_API_BASE_URL: "",
+    // AAOS-META-MCP-BONUS-TOOLS (Tool 4) — empty by default, same rationale as `KIE_AI_API_KEY`/
+    // `META_APP_ID`: most tests exercise the "CAPI not configured" path. Tests needing a composed
+    // `CapiConnectorFactory` pass both explicitly (usually alongside a `capiClient` override so no
+    // test ever reaches a real Meta Conversions API call).
+    CAPI_PIXEL_ID: "",
+    CAPI_ACCESS_TOKEN: "",
     ...overrides,
   };
 }

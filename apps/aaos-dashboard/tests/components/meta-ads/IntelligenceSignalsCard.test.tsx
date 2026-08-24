@@ -35,6 +35,19 @@ function buildSignals(overrides: Partial<IntelligenceSignalsDto> = {}): Intellig
       topUnitModels: [{ unitModel: "Avanza", spkCount: 10, closingRate: 0.72 }],
       slowUnitModels: [],
     },
+    capiHealth: {
+      available: true,
+      pixelId: "pixel-1",
+      score: 7.2,
+      eventsReceived: 12,
+      capturedAt: "2026-08-24T05:00:00.000Z",
+      reasoning: "CAPI Event Match Quality score 7.2/10, 12 event diterima.",
+    },
+    anomalies: {
+      available: true,
+      anomalies: [],
+      reasoning: "Tidak ada anomali frequency terdeteksi.",
+    },
     campaignStrategy: {
       available: true,
       campaignMode: "BOTH",

@@ -1,8 +1,10 @@
 import { BranchId } from "@aos/branch-manager";
-import { ok } from "@aos/common";
+import type { CapiConnector } from "@aos/capi-connector";
+import { err, ok } from "@aos/common";
 import { NotFoundError } from "@aos/errors";
 import type { IClosingRepository, Lead, LeadStore } from "@aos/lead-store";
 import { GoogleTrendsService, SeasonalCalendarService } from "@aos/meta-ads-agent";
+import type { MetaAdsConnector } from "@aos/meta-ads-connector";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
@@ -50,6 +52,12 @@ function alwaysFailingFetch(): typeof fetch {
   return vi.fn(async () => new Response("", { status: 503 })) as unknown as typeof fetch;
 }
 
+function buildFakeMetaAdsConnector(): MetaAdsConnector {
+  return {
+    pullCampaignData: { execute: vi.fn(async () => ok({ campaigns: [] })) },
+  } as unknown as MetaAdsConnector;
+}
+
 function buildService(
   overrides: {
     readonly tenant?: TenantRow;
@@ -59,6 +67,8 @@ function buildService(
     readonly listingRepository?: ListingRepository;
     readonly signalsRepository?: IntelligenceSignalsRepository;
     readonly competitorPageRepository?: CompetitorPageRepository;
+    readonly capiConnector?: CapiConnector;
+    readonly metaAdsConnector?: MetaAdsConnector;
   } = {},
 ): {
   readonly service: IntelligenceService;
@@ -101,6 +111,7 @@ function buildService(
     } as unknown as CompetitorPageRepository)) as CompetitorPageRepository;
   const seasonalCalendarService = new SeasonalCalendarService();
   const trendsService = new GoogleTrendsService({ fetchImpl: alwaysFailingFetch() });
+  const metaAdsConnector = overrides.metaAdsConnector ?? buildFakeMetaAdsConnector();
 
   const service = new IntelligenceService(
     config,
@@ -113,7 +124,10 @@ function buildService(
     competitorPageRepository,
     seasonalCalendarService,
     trendsService,
+    overrides.capiConnector,
+    metaAdsConnector,
     () => NOW,
+    () => "test-correlation-id",
   );
   return { service, llmService, signalsRepository, tenantRepository };
 }
@@ -246,6 +260,95 @@ describe("IntelligenceService", () => {
       const { service } = buildService({ leadStore });
       const result = await service.refresh();
       expect(result.leadProfile).toMatchObject({ totalLeads: 1, avgScore: 90 });
+    });
+
+    it("capiHealth: honestly unavailable when CAPI_CONNECTOR is undefined (not configured)", async () => {
+      const { service } = buildService({ capiConnector: undefined });
+      const result = await service.refresh();
+      expect(result.capiHealth).toEqual({
+        available: false,
+        reasoning: "CAPI_PIXEL_ID/CAPI_ACCESS_TOKEN belum dikonfigurasi.",
+      });
+    });
+
+    it("capiHealth: real score/eventsReceived/capturedAt from a configured CapiConnector.getEmqScore", async () => {
+      const capturedAt = new Date("2026-08-20T09:00:00.000Z");
+      const capiConnector = {
+        getEmqScore: {
+          execute: vi.fn(async () =>
+            ok({
+              pixelId: "pixel-1",
+              score: { value: 7.2 },
+              eventsReceived: 12,
+              capturedAt,
+            }),
+          ),
+        },
+      } as unknown as CapiConnector;
+      const { service } = buildService({ capiConnector });
+      const result = await service.refresh();
+      expect(result.capiHealth).toEqual({
+        available: true,
+        pixelId: "pixel-1",
+        score: 7.2,
+        eventsReceived: 12,
+        capturedAt: capturedAt.toISOString(),
+        reasoning: "CAPI Event Match Quality score 7.2/10, 12 event diterima.",
+      });
+    });
+
+    it("capiHealth: honestly degrades to available:false when getEmqScore fails", async () => {
+      const capiConnector = {
+        getEmqScore: {
+          execute: vi.fn(async () => err(new Error("Meta API down"))),
+        },
+      } as unknown as CapiConnector;
+      const { service } = buildService({ capiConnector });
+      const result = await service.refresh();
+      expect(result.capiHealth).toMatchObject({ available: false, reasoning: "Meta API down" });
+    });
+
+    it("anomalies: empty (but available:true) when no ad crosses the frequency threshold", async () => {
+      const { service } = buildService();
+      const result = await service.refresh();
+      expect(result.anomalies).toMatchObject({ available: true, anomalies: [] });
+    });
+
+    it("anomalies: real FREQUENCY_HIGH signals from pulled AdMetrics.frequency across every configured ad account", async () => {
+      const metaAdsConnector = {
+        pullCampaignData: {
+          execute: vi.fn(async () =>
+            ok({
+              campaigns: [
+                {
+                  adSets: [
+                    {
+                      ads: [
+                        {
+                          id: { toString: () => "ad-1" },
+                          name: "Xpander Cinere",
+                          metrics: { frequency: 5.5 },
+                        },
+                        {
+                          id: { toString: () => "ad-2" },
+                          name: "Brio Bintaro",
+                          metrics: { frequency: 1.1 },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            }),
+          ),
+        },
+      } as unknown as MetaAdsConnector;
+      const { service } = buildService({ metaAdsConnector });
+      const result = await service.refresh();
+      expect(result.anomalies).toMatchObject({
+        available: true,
+        anomalies: [{ adId: "ad-1", adName: "Xpander Cinere", severity: "HIGH" }],
+      });
     });
   });
 
