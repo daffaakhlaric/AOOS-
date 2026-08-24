@@ -2,7 +2,20 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getSession } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/superadmin/login", "/auth/callback"];
+/**
+ * AAOS-SOSMED-AUTOMATION Phase 5: `/connect/sales` (the page) and `/api/sosmed/public` (the one
+ * proxy route it calls) are the ONLY public sosmed paths — a sales human's own un-authenticated
+ * phone browser reaches both via the connect-link Ahmad/Budi is sent over WhatsApp, mirroring
+ * `/auth/callback`'s existing "public page + its own narrow API surface" precedent above. Every
+ * other `/sosmed/*` page and `/api/sosmed/*` route stays behind the default session gate.
+ */
+const PUBLIC_PATHS = [
+  "/login",
+  "/superadmin/login",
+  "/auth/callback",
+  "/connect/sales",
+  "/api/sosmed/public",
+];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));

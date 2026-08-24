@@ -64,6 +64,22 @@ const SIMULATOR: NavItem = { href: "/jessy/simulator", label: "Simulator", icon:
 /** AAOS-LEAD-RECYCLING-BROADCAST — Jessy's COLD/WARM lead re-engagement broadcast page. */
 const RECYCLING: NavItem = { href: "/jessy/recycling", label: "Lead Recycling", icon: "♻️" };
 
+/** SOSIAL MEDIA group — AAOS-SOSMED-AUTOMATION Phase 5, per the spec's own menu mockup ("📱 SOSIAL MEDIA ← BARU (section terpisah)", placed between JESSY and KAI). */
+const SOSMED_DASHBOARD: NavItem = { href: "/sosmed", label: "Dashboard Sosmed", icon: "📊" };
+const SOSMED_CALENDAR: NavItem = {
+  href: "/sosmed/calendar",
+  label: "Content Calendar",
+  icon: "📅",
+};
+const SOSMED_STUDIO: NavItem = { href: "/sosmed/studio", label: "Content Studio", icon: "✍️" };
+const SOSMED_POSTS: NavItem = { href: "/sosmed/posts", label: "Post Manager", icon: "📤" };
+const SOSMED_ANALYTICS: NavItem = {
+  href: "/sosmed/analytics",
+  label: "Analytics Sosmed",
+  icon: "📈",
+};
+const SOSMED_ACCOUNTS: NavItem = { href: "/sosmed/accounts", label: "Akun Terhubung", icon: "⚙️" };
+
 /**
  * Flat list of every nav item — the order `MobileNav.tsx` slices `[0, 5)` from for its bottom tab
  * bar. Deliberately NOT the same order as the desktop `Sidebar`'s group order below
@@ -132,6 +148,18 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
       items: [JESSY_ANALYTICS, JESSY_INBOX, JESSY_CONTACTS, KNOWLEDGE, SIMULATOR, RECYCLING],
     },
     {
+      key: "sosmed",
+      label: "SOSIAL MEDIA",
+      items: [
+        SOSMED_DASHBOARD,
+        SOSMED_CALENDAR,
+        SOSMED_STUDIO,
+        SOSMED_POSTS,
+        SOSMED_ANALYTICS,
+        SOSMED_ACCOUNTS,
+      ],
+    },
+    {
       key: "kai",
       label: isProperty ? "KAI (CREATIVE) — PROPERTI" : "KAI (CREATIVE)",
       items: isProperty
@@ -159,6 +187,7 @@ function isActive(pathname: string | null, href: string): boolean {
 const STORAGE_KEY_BY_GROUP: Readonly<Record<string, string>> = {
   tamara: "sidebar_tamara",
   jessy: "sidebar_jessy",
+  sosmed: "sidebar_sosmed",
   kai: "sidebar_kai",
   operasional: "sidebar_ops",
 };

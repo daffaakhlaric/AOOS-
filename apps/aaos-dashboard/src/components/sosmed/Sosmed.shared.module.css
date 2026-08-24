@@ -1,0 +1,355 @@
+/* Shared CSS module for every `/sosmed/*` page component (AAOS-SOSMED-AUTOMATION Phase 5) — one
+   file rather than 6 near-identical per-component modules, since every page here shares the exact
+   same KPI-strip/card/tab/form vocabulary `RecyclingClient.module.css`/`LookalikeClient.module.css`
+   already establish. CSS Modules scope classnames per-importer, so sharing this file across
+   `DashboardSosmedClient`/`PostManagerClient`/etc carries no collision risk. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  max-width: 1200px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--black);
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .kpiStrip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.kpiCell {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.kpiLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+}
+
+.kpiValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--black);
+  margin-top: 4px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--black);
+}
+
+.card {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--black);
+  margin-bottom: 8px;
+}
+
+.tabRow {
+  display: flex;
+  gap: 4px;
+  border-bottom: var(--border);
+}
+
+.tab,
+.tabActive {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab {
+  color: var(--gray-500);
+}
+
+.tabActive {
+  color: var(--black);
+  border-bottom-color: var(--black);
+}
+
+.primaryButton {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.secondaryButton {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  background: var(--white);
+  color: var(--gray-700);
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.linkButton {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dangerLinkButton {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--red-600, #dc2626);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rowList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--white);
+  padding: 12px 14px;
+}
+
+.rowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rowTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.rowDetail {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.rowActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.platformBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--white);
+  text-transform: uppercase;
+}
+
+.formGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+}
+
+.input,
+.select,
+.textarea {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--white);
+  color: var(--black);
+  font-family: inherit;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip,
+.chipActive {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: var(--border);
+  background: var(--white);
+  color: var(--gray-600);
+  cursor: pointer;
+}
+
+.chipActive {
+  background: var(--gray-900);
+  color: var(--white);
+  border-color: var(--gray-900);
+}
+
+.captionBox {
+  font-size: 13px;
+  color: var(--gray-700);
+  white-space: pre-wrap;
+  padding: 12px;
+  background: var(--gray-50, #f9fafb);
+  border-radius: var(--radius);
+  border: var(--border);
+}
+
+.mutedText {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.warningNote {
+  font-size: 12px;
+  color: var(--amber-700, #b45309);
+  background: var(--amber-50, #fffbeb);
+  border: 1px solid var(--amber-200, #fde68a);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+
+.stepRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.stepDot,
+.stepDotActive,
+.stepDotDone {
+  font-size: 11px;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border);
+  color: var(--gray-400);
+  background: var(--white);
+}
+
+.stepDotActive {
+  background: var(--gray-900);
+  color: var(--white);
+  border-color: var(--gray-900);
+}
+
+.stepDotDone {
+  background: var(--green-50, #ecfdf5);
+  color: var(--green-700, #047857);
+  border-color: var(--green-200, #a7f3d0);
+}
+
+.dateGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dateGroupHeading {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 8px;
+}

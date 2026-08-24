@@ -73,6 +73,30 @@ describe("Sidebar", () => {
     expect(link).toHaveAttribute("href", "/meta-ads/lookalike");
   });
 
+  it("renders the SOSIAL MEDIA section with its 6 sub-items (AAOS-SOSMED-AUTOMATION Phase 5)", () => {
+    mockSettingsFetch(undefined);
+    render(<Sidebar />);
+    expect(screen.getByText("SOSIAL MEDIA")).toBeInTheDocument();
+    expect(screen.getByText("Dashboard Sosmed").closest("a")).toHaveAttribute("href", "/sosmed");
+    expect(screen.getByText("Content Calendar").closest("a")).toHaveAttribute(
+      "href",
+      "/sosmed/calendar",
+    );
+    expect(screen.getByText("Content Studio").closest("a")).toHaveAttribute(
+      "href",
+      "/sosmed/studio",
+    );
+    expect(screen.getByText("Post Manager").closest("a")).toHaveAttribute("href", "/sosmed/posts");
+    expect(screen.getByText("Analytics Sosmed").closest("a")).toHaveAttribute(
+      "href",
+      "/sosmed/analytics",
+    );
+    expect(screen.getByText("Akun Terhubung").closest("a")).toHaveAttribute(
+      "href",
+      "/sosmed/accounts",
+    );
+  });
+
   it("never breaks rendering when the settings fetch fails", async () => {
     global.fetch = vi.fn(async () => {
       throw new Error("network down");
