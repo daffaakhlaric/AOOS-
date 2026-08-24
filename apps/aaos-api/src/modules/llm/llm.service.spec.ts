@@ -17,6 +17,7 @@ import {
 
 import { ResponseCache } from "./cache/ResponseCache.js";
 import type { AnalyzeRequestDto } from "./dto/analyze.dto.js";
+import type { CampaignStrategyRequestDto } from "./dto/campaign-strategy.dto.js";
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
 import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
 import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js";
@@ -714,6 +715,170 @@ describe("LlmService", () => {
         .messages;
       expect(messages[0]?.content).toContain("Tamara");
       expect(messages[1]?.content).toContain("MobixCinere");
+    });
+  });
+
+  describe("campaignStrategy (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4)", () => {
+    const validCampaignStrategyBody: CampaignStrategyRequestDto = {
+      vertical: "AUTOMOTIVE",
+      tenantName: "DSS Motor",
+      branchId: "BINTARO",
+      brandAngleIds: ["BRAND_TRUST", "JUAL_BELI", "TUKAR_TAMBAH", "BENGKEL_GRATIS", "KOMUNITAS"],
+      productAngleValues: [
+        "DP_RINGAN",
+        "KREDIT_SYARIAH",
+        "GUDANGNYA",
+        "QNA",
+        "DISCOVERY",
+        "TESTIMONIAL",
+        "WEBSITE_REDIRECT",
+      ],
+      seasonal: { isSpecialPeriod: false, reasoning: "Periode normal" },
+      trends: { available: false, reasoning: "Google Trends tidak tersedia" },
+      competitor: { available: false, reasoning: "Data kompetitor tidak tersedia" },
+      inventory: { available: true, hasLowStock: false, reasoning: "Stok normal" },
+      leadProfile: {
+        totalLeads: 10,
+        avgScore: 70,
+        topBranches: [{ branchId: "BINTARO", count: 10 }],
+      },
+      closing: { totalEvents: 5, topUnitModels: [], slowUnitModels: [] },
+    };
+
+    const validCampaignStrategyLlmJson = JSON.stringify({
+      campaignMode: "BOTH",
+      reasoning: "Stok normal, brand awareness tetap penting",
+      brandCampaign: {
+        angle: "BRAND_TRUST",
+        copy: "Mobix dealer mobil bekas terpercaya",
+        objective: "OUTCOME_AWARENESS",
+        budgetPct: 30,
+        reasoning: "Bangun awareness",
+      },
+      productCampaign: {
+        angle: "DP_RINGAN",
+        targetUnit: "Xpander",
+        copy: "DP ringan mulai 10 juta",
+        objective: "OUTCOME_LEADS",
+        budgetPct: 70,
+        reasoning: "Angle evergreen performa terbaik",
+      },
+      budgetRecommendation: { action: "MAINTAIN", multiplier: 1.0, reasoning: "Performa stabil" },
+      targeting: {
+        locations: ["Bintaro"],
+        ageMin: 22,
+        ageMax: 55,
+        interests: ["family cars"],
+        reasoning: "Berdasarkan profil hot lead",
+      },
+      timing: { bestHours: [10, 19], reasoning: "Peak engagement" },
+      urgency: "MEDIUM",
+      summary: "Brand 30% TRUST + Product 70% DP_RINGAN Xpander",
+    });
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns a validated available:true payload on a well-formed OpenAI response, and caches it", async () => {
+      registerOpenAiChatHandler(validCampaignStrategyLlmJson);
+      const cache = new ResponseCache<unknown>();
+      const service = buildService({ cache });
+      const first = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(first).toEqual({ available: true, ...JSON.parse(validCampaignStrategyLlmJson) });
+
+      mswServer.resetHandlers();
+      const second = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(second).toEqual(first);
+    });
+
+    it("returns INVALID_RESPONSE (fails closed) when brandCampaign.angle is outside the real brandAngleIds sent in the request", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          ...JSON.parse(validCampaignStrategyLlmJson),
+          brandCampaign: {
+            ...JSON.parse(validCampaignStrategyLlmJson).brandCampaign,
+            angle: "MADE_UP_BRAND_ANGLE",
+          },
+        }),
+      );
+      const service = buildService();
+      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE (fails closed) when productCampaign.angle is outside the real productAngleValues sent in the request", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          ...JSON.parse(validCampaignStrategyLlmJson),
+          productCampaign: {
+            ...JSON.parse(validCampaignStrategyLlmJson).productCampaign,
+            angle: "MADE_UP_PRODUCT_ANGLE",
+          },
+        }),
+      );
+      const service = buildService();
+      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when campaignMode is BOTH but brandCampaign is missing", async () => {
+      const payload = JSON.parse(validCampaignStrategyLlmJson) as Record<string, unknown>;
+      delete payload.brandCampaign;
+      registerOpenAiChatHandler(JSON.stringify(payload));
+      const service = buildService();
+      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
     });
   });
 

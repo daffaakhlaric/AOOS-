@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
+import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
@@ -36,13 +37,18 @@ import { SchedulerService } from "./scheduler.service.js";
  * `LookalikeService` `LookalikeController` already uses for `LOOKALIKE_SYNC`
  * (AAOS-ABTESTING-LOOKALIKE Part 2, coordinator note section 5).
  *
+ * `IntelligenceModule` is imported the same way, so `SchedulerService` can inject the SAME real
+ * `IntelligenceService` `IntelligenceController` already uses for `TAMARA_INTELLIGENCE_REFRESH`
+ * (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4, coordinator note section 7), and for the Daily Digest
+ * extension.
+ *
  * `@nestjs/schedule`'s `ScheduleModule.forRoot()` is registered once, in `app.module.ts`'s
  * `AppModule.forRoot` imports (the composition root every cron-using module ultimately sits
  * under) — not here, to avoid double-registering the scheduler registry if a future module also
  * needs `@Cron`.
  */
 @Module({
-  imports: [LlmModule, RecyclingModule, AbTestingModule, LookalikeModule],
+  imports: [LlmModule, RecyclingModule, AbTestingModule, LookalikeModule, IntelligenceModule],
   controllers: [SchedulerController],
   providers: [
     SchedulerService,

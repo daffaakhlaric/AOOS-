@@ -87,7 +87,11 @@ describe("AppModule.forRoot", () => {
     // AAOS-SOSMED-AUTOMATION Phase 1: +1 import (SosmedModule) — no new global provider (imports
     // LlmModule to reuse the already-existing LlmService, composes ScheduledPostRepository
     // locally from the existing SUPABASE_CLIENT).
-    expect(dynamicModule.imports).toHaveLength(26);
+    // AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4: +1 import (IntelligenceModule) — no new global
+    // provider (composes TenantRepository/ListingRepository/IntelligenceSignalsRepository/
+    // CompetitorPageRepository locally from the existing SUPABASE_CLIENT, imports LlmModule to
+    // reuse the already-existing LlmService, same pattern as SosmedModule/RecyclingModule).
+    expect(dynamicModule.imports).toHaveLength(27);
     expect(dynamicModule.providers).toHaveLength(20);
   });
 

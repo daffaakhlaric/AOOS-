@@ -38,6 +38,7 @@ import {
   OBJECTIVE_ENGINE,
 } from "../../di-tokens.js";
 import { AbTestingService } from "../abtesting/abtesting.service.js";
+import { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { LookalikeService } from "../lookalike/lookalike.service.js";
@@ -89,6 +90,7 @@ export class SchedulerService {
     private readonly recyclingService: RecyclingService,
     private readonly abTestingService: AbTestingService,
     private readonly lookalikeService: LookalikeService,
+    private readonly intelligenceService: IntelligenceService,
   ) {
     this.metaAdsSyncService = new MetaAdsSyncService(this.connector.pullCampaignData);
   }
@@ -153,6 +155,9 @@ export class SchedulerService {
           break;
         case "LOOKALIKE_SYNC":
           result = await this.runLookalikeSync();
+          break;
+        case "TAMARA_INTELLIGENCE_REFRESH":
+          result = await this.runTamaraIntelligenceRefresh();
           break;
       }
 
@@ -446,7 +451,12 @@ export class SchedulerService {
     // cross-handler write path (there is no persisted digest-log table anywhere — see that note).
     const abTestSection = await this.buildAbTestDigestSection();
     const lookalikeSection = await this.buildLookalikeDigestSection();
-    const extendedText = [digest.text, abTestSection, lookalikeSection]
+    // AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 coordinator note section 7: extend the digest's own
+    // real text with the latest real `intelligence_signals` row's key points — real data pulled
+    // fresh each run from `IntelligenceService`, same "no new parallel digest-writing path"
+    // discipline as the A/B test/Lookalike sections above.
+    const intelligenceSection = await this.buildIntelligenceDigestSection();
+    const extendedText = [digest.text, abTestSection, lookalikeSection, intelligenceSection]
       .filter((section) => section !== undefined)
       .join("\n\n");
 
@@ -500,6 +510,25 @@ export class SchedulerService {
   }
 
   /**
+   * `TAMARA_INTELLIGENCE_REFRESH` (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4, coordinator note
+   * section 7) — delegates every real decision (which signals to aggregate, how to synthesize
+   * them) to `IntelligenceService.refresh()`, which returns an honest, real, persisted result —
+   * never a fabricated count. Real daily 06:00 cadence via the pre-existing `"DAILY"` recurrence,
+   * checked by this SAME due-window cron rather than a second, parallel `@Cron` (same choice as
+   * `LOOKALIKE_SYNC`).
+   */
+  private async runTamaraIntelligenceRefresh(): Promise<CalendarEventResult> {
+    const signals = await this.intelligenceService.refresh();
+    const strategySummary = signals.campaignStrategy?.available
+      ? signals.campaignStrategy.summary
+      : "AI campaign strategy tidak tersedia";
+    return {
+      summary: strategySummary,
+      generatedAt: signals.generatedAt,
+    };
+  }
+
+  /**
    * Daily Digest extension (AAOS-ABTESTING-LOOKALIKE coordinator note section 6) — real
    * `ab_tests` rows whose `completedAt` falls within the last 24 hours, read via
    * `AbTestingService.listTests`. Returns `undefined` (no section) when none completed —
@@ -536,6 +565,23 @@ export class SchedulerService {
       ? `👥 Lookalike: ${String(status.totalHotLeads)}/${String(status.minRequiredForLookalike)} hot leads terkumpul — Lookalike aktif.`
       : `👥 Lookalike: ${String(status.totalHotLeads)}/${String(status.minRequiredForLookalike)} hot leads terkumpul (${String(Math.max(0, status.minRequiredForLookalike - status.totalHotLeads))} lagi untuk aktif Lookalike). Terus jalankan Jessy!`;
     return line;
+  }
+
+  /**
+   * Daily Digest extension (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4, coordinator note section 7) —
+   * the latest real `intelligence_signals` row's real campaign-strategy summary, read via
+   * `IntelligenceService.getLatest()`. Returns `undefined` (no section) when no Tamara
+   * Intelligence run has ever completed for this tenant, rather than appending an empty line.
+   */
+  private async buildIntelligenceDigestSection(): Promise<string | undefined> {
+    const latest = await this.intelligenceService.getLatest();
+    if (latest === undefined) {
+      return undefined;
+    }
+    const strategyLine = latest.campaignStrategy?.available
+      ? `  Rekomendasi Tamara: ${latest.campaignStrategy.summary}`
+      : "  Rekomendasi Tamara: AI campaign strategy tidak tersedia saat ini.";
+    return ["🧠 Tamara Intelligence:", strategyLine].join("\n");
   }
 
   /** Sum of real `HOT`-status leads across every branch (`@aos/lead-store`'s `GetHotLeads`, per branch — there is no tenant-wide aggregate use case). A branch whose lookup fails contributes 0 and is logged, never aborts the whole digest. */

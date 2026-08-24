@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
+import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
@@ -21,9 +22,15 @@ type FactoryProvider = {
 };
 
 describe("SchedulerModule", () => {
-  it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule so SchedulerService can inject the real LlmService/RecyclingService/AbTestingService/LookalikeService", () => {
+  it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule/IntelligenceModule so SchedulerService can inject the real LlmService/RecyclingService/AbTestingService/LookalikeService/IntelligenceService", () => {
     const metadata = Reflect.getMetadata("imports", SchedulerModule) as unknown[];
-    expect(metadata).toEqual([LlmModule, RecyclingModule, AbTestingModule, LookalikeModule]);
+    expect(metadata).toEqual([
+      LlmModule,
+      RecyclingModule,
+      AbTestingModule,
+      LookalikeModule,
+      IntelligenceModule,
+    ]);
   });
 
   it("registers SchedulerController as its controller", () => {

@@ -68,6 +68,7 @@ import { ClosingsModule } from "./modules/closings/closings.module.js";
 import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
 import { GoLiveModule } from "./modules/go-live/go-live.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
+import { IntelligenceModule } from "./modules/intelligence/intelligence.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
 import { ListingsModule } from "./modules/listings/listings.module.js";
 import { LlmModule } from "./modules/llm/llm.module.js";
@@ -311,6 +312,12 @@ export class AppModule {
         // endpoints only, per the coordinator note's risk-ordered build plan). No Kalender/
         // scheduler wiring yet — `SchedulerModule` does not import this module in this phase.
         SosmedModule,
+        // AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — new `intelligence` module (signals/refresh +
+        // competitor_pages CRUD endpoints + the TAMARA_INTELLIGENCE_REFRESH Kalender handler's
+        // business logic + the Daily Digest extension). `SchedulerModule` separately imports this
+        // module directly (same pattern as `RecyclingModule`/`AbTestingModule`/`LookalikeModule`)
+        // so it can inject the exported `IntelligenceService`.
+        IntelligenceModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

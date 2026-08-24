@@ -127,8 +127,14 @@ export interface CompetitorSignal {
   readonly reasoning: string;
 }
 
-/** All 8 real `PropertyAdAngle` string values, kept byte-identical without importing the enum — see `SeasonalCalendarService`'s file docstring for why this package can't depend on `@aos/creative-agent`. */
-const ALL_PROPERTY_ANGLE_VALUES: readonly string[] = [
+/**
+ * All 8 real `PropertyAdAngle` string values, kept byte-identical without importing the enum — see
+ * `SeasonalCalendarService`'s file docstring for why this package can't depend on
+ * `@aos/creative-agent`. Exported (Phase 4) so `apps/aaos-api`'s new `intelligence` module can
+ * build the REAL `productAngleValues` vocabulary it sends to `LlmService.campaignStrategy` for the
+ * PROPERTY vertical, without re-declaring this list a third time.
+ */
+export const ALL_PROPERTY_ANGLE_VALUES: readonly string[] = [
   "DP_RINGAN",
   "READY_HUNI",
   "INVESTASI",
@@ -139,7 +145,8 @@ const ALL_PROPERTY_ANGLE_VALUES: readonly string[] = [
   "VIRTUAL_TOUR",
 ];
 
-const ALL_AUTOMOTIVE_ANGLE_VALUES: readonly string[] = Object.values(AdAngle);
+/** All 7 real `AdAngle` enum values — exported (Phase 4) for the same reason as `ALL_PROPERTY_ANGLE_VALUES` above, for the AUTOMOTIVE vertical. */
+export const ALL_AUTOMOTIVE_ANGLE_VALUES: readonly string[] = Object.values(AdAngle);
 
 const AdArchiveEntrySchema = z.object({
   id: z.string(),

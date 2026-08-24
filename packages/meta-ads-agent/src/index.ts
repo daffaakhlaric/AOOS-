@@ -178,6 +178,26 @@ export type {
   ClosingIntelSignal,
 } from "./intelligence/ClosingIntelService.js";
 
+// AAOS-TAMARA-INTELLIGENCE-LAYER Phase 2 — Competitor Intel (Meta Ad Library). Not previously
+// re-exported from this public index (an oversight left over from Phase 2) — added here in Phase
+// 4 so `apps/aaos-api`'s new `intelligence` module can compose it without a disallowed deep import
+// into this package's internals.
+export {
+  CompetitorIntelService,
+  CompetitorIntelError,
+  classifyAutomotiveAngle,
+  classifyPropertyAngle,
+  ALL_PROPERTY_ANGLE_VALUES,
+  ALL_AUTOMOTIVE_ANGLE_VALUES,
+} from "./intelligence/CompetitorIntelService.js";
+export type {
+  AdActiveStatus,
+  CompetitorPageConfig,
+  CompetitorAd,
+  CompetitorSignal,
+  CompetitorIntelServiceOptions,
+} from "./intelligence/CompetitorIntelService.js";
+
 // AAOS-TAMARA-INTELLIGENCE-LAYER Phase 3 — Google Trends signal service
 export {
   GoogleTrendsService,
@@ -191,3 +211,8 @@ export type {
   TrendSignal,
   GoogleTrendsServiceOptions,
 } from "./intelligence/GoogleTrendsService.js";
+
+// AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — brand-campaign angle vocabulary (spec PART 2's
+// `BRAND_ANGLES`, corrected onto a real, typed home — see BrandAngles.ts docstring).
+export { BRAND_ANGLES, getBrandAngleIds } from "./intelligence/BrandAngles.js";
+export type { BrandAngleDefinition, BrandCampaignObjective } from "./intelligence/BrandAngles.js";

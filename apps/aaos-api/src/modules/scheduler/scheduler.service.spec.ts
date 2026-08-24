@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { AbTestingService } from "../abtesting/abtesting.service.js";
+import type { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { LookalikeService } from "../lookalike/lookalike.service.js";
 import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
@@ -203,6 +204,28 @@ function buildFakeLookalikeService(result?: CalendarEventResult): LookalikeServi
   } as unknown as LookalikeService;
 }
 
+function buildFakeIntelligenceService(result?: CalendarEventResult): IntelligenceService {
+  return {
+    refresh: vi.fn(
+      async () =>
+        result ?? {
+          id: "sig-1",
+          branchId: null,
+          seasonal: { isSpecialPeriod: false },
+          trends: { available: false },
+          competitor: { available: false },
+          inventory: { available: false },
+          leadProfile: { totalLeads: 0 },
+          closing: { totalEvents: 0 },
+          campaignStrategy: { available: false, reason: "NO_API_KEY", message: "x" },
+          digestText: "digest",
+          generatedAt: "2026-08-19T06:00:00.000Z",
+        },
+    ),
+    getLatest: vi.fn(async () => undefined),
+  } as unknown as IntelligenceService;
+}
+
 function buildService(
   options: {
     repository?: CalendarEventRepository;
@@ -214,6 +237,7 @@ function buildService(
     recyclingService?: RecyclingService;
     abTestingService?: AbTestingService;
     lookalikeService?: LookalikeService;
+    intelligenceService?: IntelligenceService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -230,6 +254,7 @@ function buildService(
     options.recyclingService ?? buildFakeRecyclingService(),
     options.abTestingService ?? buildFakeAbTestingService(),
     options.lookalikeService ?? buildFakeLookalikeService(),
+    options.intelligenceService ?? buildFakeIntelligenceService(),
   );
 }
 
@@ -502,6 +527,92 @@ describe("SchedulerService.executeEvent", () => {
       expect.objectContaining({
         summary: "5 hot leads baru disync ke Meta Custom Audience",
         newlySynced: 5,
+      }),
+    );
+  });
+
+  it("TAMARA_INTELLIGENCE_REFRESH delegates to IntelligenceService.refresh and marks DONE with its real summary", async () => {
+    const repository = buildFakeRepository();
+    const intelligenceService = buildFakeIntelligenceService({
+      id: "sig-1",
+      branchId: null,
+      seasonal: { isSpecialPeriod: false },
+      trends: { available: false },
+      competitor: { available: false },
+      inventory: { available: false },
+      leadProfile: { totalLeads: 0 },
+      closing: { totalEvents: 0 },
+      campaignStrategy: { available: true, summary: "Brand 30% + Product 70%" },
+      digestText: "digest",
+      generatedAt: "2026-08-19T06:00:00.000Z",
+    } as unknown as CalendarEventResult);
+    const service = buildService({ repository, intelligenceService });
+    await service.executeEvent(buildEvent({ eventType: "TAMARA_INTELLIGENCE_REFRESH" }));
+
+    expect(intelligenceService.refresh).toHaveBeenCalled();
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ summary: "Brand 30% + Product 70%" }),
+    );
+  });
+
+  it("TAMARA_INTELLIGENCE_REFRESH reports an honest summary when the AI strategy is unavailable", async () => {
+    const repository = buildFakeRepository();
+    const service = buildService({ repository });
+    await service.executeEvent(buildEvent({ eventType: "TAMARA_INTELLIGENCE_REFRESH" }));
+
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ summary: "AI campaign strategy tidak tersedia" }),
+    );
+  });
+
+  it("DAILY_DIGEST extends its text with the latest Tamara Intelligence run's real campaign-strategy summary", async () => {
+    const repository = buildFakeRepository();
+    const intelligenceService = {
+      refresh: vi.fn(),
+      getLatest: vi.fn(async () => ({
+        id: "sig-1",
+        branchId: null,
+        seasonal: { isSpecialPeriod: false },
+        trends: { available: false },
+        competitor: { available: false },
+        inventory: { available: false },
+        leadProfile: { totalLeads: 0 },
+        closing: { totalEvents: 0 },
+        campaignStrategy: { available: true, summary: "Brand 30% TRUST + Product 70% DP_RINGAN" },
+        digestText: "digest",
+        generatedAt: "2026-08-19T06:00:00.000Z",
+      })),
+    } as unknown as IntelligenceService;
+    const service = buildService({ repository, intelligenceService });
+    await service.executeEvent(buildEvent({ eventType: "DAILY_DIGEST" }));
+
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({
+        text: expect.stringContaining("Brand 30% TRUST + Product 70% DP_RINGAN"),
+      }),
+    );
+  });
+
+  it("DAILY_DIGEST omits the Tamara Intelligence section when no run has ever completed", async () => {
+    const repository = buildFakeRepository();
+    const service = buildService({ repository });
+    await service.executeEvent(buildEvent({ eventType: "DAILY_DIGEST" }));
+
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({
+        text: expect.not.stringContaining("🧠 Tamara Intelligence"),
       }),
     );
   });

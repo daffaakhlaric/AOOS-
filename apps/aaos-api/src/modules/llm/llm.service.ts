@@ -15,6 +15,11 @@ import {
   type AnalyzeRequestDto,
   type AnalyzeResponseDto,
 } from "./dto/analyze.dto.js";
+import {
+  CampaignStrategyLlmPayloadSchema,
+  type CampaignStrategyRequestDto,
+  type CampaignStrategyResponseDto,
+} from "./dto/campaign-strategy.dto.js";
 import type { ChatRequestDto, ChatResponseDto } from "./dto/chat.dto.js";
 import {
   CreativeBriefLlmPayloadSchema,
@@ -96,6 +101,70 @@ Format response JSON:
   "interestIds": ["<id dari daftar kandidat>", "..."],
   "reasoning": "alasan singkat dalam Bahasa Indonesia"
 }`;
+
+/**
+ * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — `LlmService.campaignStrategy`, the ONE genuinely
+ * LLM-dependent step of that effort (coordinator note point 4). Adapted from the spec's
+ * `TAMARA_CAMPAIGN_DECISION_PROMPT`, corrected onto real angle vocabulary: the AUTOMOTIVE product
+ * angles are the real 7-member `AdAngle` enum, the PROPERTY product angles are the real 8-member
+ * `PropertyAdAngle` string values, and the brand angles are `@aos/meta-ads-agent`'s new real
+ * `BRAND_ANGLES` constant — never the spec's fictional `STOK_TERBATAS`/`PRICE_FOCUS`/
+ * `BRAND_AWARENESS`/etc. The request body (`CampaignStrategyRequestDto`) explicitly carries the
+ * real, request-specific `brandAngleIds`/`productAngleValues` for whichever vertical this call is
+ * for, so the prompt's own "pilih HANYA dari daftar berikut" instruction always matches what
+ * `LlmService.campaignStrategy` will actually accept post-parse (see that method's angle
+ * membership check — belt-and-braces, same as `selectTargeting`'s candidate-id intersection).
+ */
+const CAMPAIGN_STRATEGY_SYSTEM_PROMPT = `Kamu adalah Tamara, AI Campaign Manager untuk dealer mobil bekas (AUTOMOTIVE) atau platform properti (PROPERTY) di Indonesia — vertical yang sedang ditangani ada di field "vertical" pada data JSON yang diberikan.
+
+TUGASMU: berdasarkan semua real signal yang diberikan (seasonal, Google Trends, kompetitor, stok/listing, profil hot lead, riwayat closing), tentukan strategi campaign terbaik.
+
+ATURAN KERAS SOAL ANGLE:
+- "brandCampaign.angle" HANYA boleh salah satu dari daftar "brandAngleIds" pada data JSON. Dilarang mengarang id baru.
+- "productCampaign.angle" HANYA boleh salah satu dari daftar "productAngleValues" pada data JSON. Dilarang mengarang angle baru.
+
+OUTPUT FORMAT (JSON):
+{
+  "campaignMode": "BRAND" | "PRODUCT" | "BOTH",
+  "reasoning": "kenapa memilih mode ini",
+
+  "brandCampaign": {
+    "angle": "salah satu dari brandAngleIds",
+    "copy": "teks iklan yang disarankan",
+    "objective": "OUTCOME_AWARENESS" | "OUTCOME_LEADS" | "OUTCOME_ENGAGEMENT",
+    "budgetPct": 30,
+    "reasoning": "kenapa angle ini"
+  },
+
+  "productCampaign": {
+    "angle": "salah satu dari productAngleValues",
+    "targetUnit": "nama unit atau listing",
+    "copy": "teks iklan",
+    "objective": "OUTCOME_LEADS",
+    "budgetPct": 70,
+    "reasoning": "kenapa unit/angle ini"
+  },
+
+  "budgetRecommendation": { "action": "SCALE" | "REDUCE" | "MAINTAIN", "multiplier": 1.0, "reasoning": "kenapa" },
+
+  "targeting": { "locations": ["area1"], "ageMin": 22, "ageMax": 55, "interests": ["interest1"], "reasoning": "based on hot lead profile" },
+
+  "timing": { "bestHours": [10, 13, 19], "reasoning": "peak engagement dari lead data" },
+
+  "urgency": "HIGH" | "MEDIUM" | "LOW",
+  "summary": "1 kalimat ringkasan strategi"
+}
+
+"brandCampaign" WAJIB diisi jika campaignMode BRAND atau BOTH. "productCampaign" WAJIB diisi jika campaignMode PRODUCT atau BOTH.
+
+PANDUAN KEPUTUSAN:
+- Jika stok/listing menipis atau ada unit baru → PRODUCT dengan angle yang relevan dari productAngleValues.
+- Jika seasonal event aktif → scale budget, pertimbangkan angle event tersebut.
+- Jika kompetitor sudah saturasi satu angle → hindari angle itu, cari angle lain dari productAngleValues yang belum jenuh.
+- Jika Google Trends menunjukkan tren naik tapi belum ada campaign untuk itu → pertimbangkan launch segera.
+- Jika tidak ada unit/listing spesifik yang mendesak → BRAND campaign lebih aman.
+- Mix BRAND + PRODUCT umum: 30% brand (awareness) + 70% product (leads), boleh disesuaikan alasan konkret.
+- Jangan selalu fokus produk — brand awareness penting untuk jangka panjang.`;
 
 /** Not a literal spec quote (the spec's `/llm/chat` section has no system-prompt block of its own) — derived from the same "Kamu adalah Tamara..." persona used by the other two prompts, for general free-text conversation. */
 const CHAT_SYSTEM_PROMPT =
@@ -249,6 +318,64 @@ export class LlmService {
 
     const response: CreativeBriefResponseDto = { available: true, ...validated.data };
     this.cache.set("creative-brief", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — the campaign-strategy decision-synthesis step
+   * (coordinator note point 4). Same cache/gate/call/validate/cache shape as every other method on
+   * this service, plus one extra, load-bearing step mirroring `selectTargeting`'s candidate-set
+   * intersection: `brandCampaign.angle`/`productCampaign.angle` are checked against the REAL
+   * `brandAngleIds`/`productAngleValues` the request itself supplied (the caller,
+   * `IntelligenceService`, builds those from `@aos/meta-ads-agent`'s real `BRAND_ANGLES`/`AdAngle`/
+   * `PropertyAdAngle`) — an LLM is not trusted to only pick from the vocabulary the prompt asked
+   * for, no matter what the prompt says. Any angle outside those real sets fails the whole response
+   * as `INVALID_RESPONSE`, same as a schema-validation failure.
+   */
+  async campaignStrategy(body: CampaignStrategyRequestDto): Promise<CampaignStrategyResponseDto> {
+    const cached = this.cache.get("campaign-strategy", body) as
+      CampaignStrategyResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: CAMPAIGN_STRATEGY_SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : CampaignStrategyLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const brandAngleIds = new Set(body.brandAngleIds);
+    const productAngleValues = new Set(body.productAngleValues);
+    const brandAngleOk =
+      validated.data.brandCampaign === undefined ||
+      brandAngleIds.has(validated.data.brandCampaign.angle);
+    const productAngleOk =
+      validated.data.productCampaign === undefined ||
+      productAngleValues.has(validated.data.productCampaign.angle);
+    if (!brandAngleOk || !productAngleOk) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: CampaignStrategyResponseDto = { available: true, ...validated.data };
+    this.cache.set("campaign-strategy", body, response);
     return response;
   }
 
