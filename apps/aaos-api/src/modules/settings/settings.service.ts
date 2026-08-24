@@ -3,10 +3,15 @@ import type { MetaAdsConnector } from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR } from "../../di-tokens.js";
+import {
+  AAOS_API_CONFIG,
+  META_ADS_CONNECTOR,
+  WHATSAPP_CONNECTOR_REGISTRY,
+} from "../../di-tokens.js";
 import { maskTail } from "../superadmin/dto/tenant-response.dto.js";
 import type { TenantRow } from "../superadmin/infrastructure/tenant.repository.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
+import type { WhatsAppConnectorRegistry } from "../whatsapp/infrastructure/whatsapp-connector-registry.js";
 
 import type { SettingsResponseDto } from "./dto/settings-response.dto.js";
 import type {
@@ -65,6 +70,8 @@ export class SettingsService {
     private readonly wabaConfigs: WabaConfigRepository,
     @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
+    @Inject(WHATSAPP_CONNECTOR_REGISTRY)
+    private readonly whatsAppConnectorRegistry: WhatsAppConnectorRegistry,
   ) {}
 
   private async requireTenant(tenantId: string): Promise<TenantRow> {
@@ -166,6 +173,10 @@ export class SettingsService {
       access_token: dto.accessToken,
       status: "ACTIVE",
     });
+    // Real cache invalidation (coordinator note point 2's "wire cache invalidation into it") —
+    // a brand-new WABA card means the tenant's next-resolved `WhatsAppConnector` must include it,
+    // never a stale cached instance built before this row existed.
+    this.whatsAppConnectorRegistry.invalidate(tenantId);
     return toWabaDto(row);
   }
 
@@ -192,12 +203,18 @@ export class SettingsService {
       ...(dto.status !== undefined ? { status: dto.status } : {}),
       updated_at: new Date().toISOString(),
     });
+    // Real cache invalidation — an edited token/phone_number_id/branch must never keep serving
+    // through a stale cached `WhatsAppConnector` built from the row's PREVIOUS values.
+    this.whatsAppConnectorRegistry.invalidate(tenantId);
     return toWabaDto(row);
   }
 
   async deleteWaba(tenantId: string, id: string): Promise<void> {
     await this.requireWaba(tenantId, id);
     await this.wabaConfigs.deleteById(id);
+    // Real cache invalidation — a deleted WABA card must be gone from the tenant's next-resolved
+    // connector too (its `wabaAccounts[]` should no longer register that branch/phone number).
+    this.whatsAppConnectorRegistry.invalidate(tenantId);
   }
 
   /**
@@ -214,6 +231,12 @@ export class SettingsService {
       last_test_result: result.message,
       ...(result.success ? {} : { status: "INACTIVE" }),
     });
+    // Real cache invalidation — a failed test flips this row to INACTIVE, which the registry
+    // filters out of the connector it composes (see `WhatsAppConnectorRegistry.resolve`'s doc);
+    // a stale cached connector must not keep routing to a branch this tenant just marked broken.
+    if (!result.success) {
+      this.whatsAppConnectorRegistry.invalidate(tenantId);
+    }
     return result;
   }
 }

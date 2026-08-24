@@ -15,7 +15,9 @@ import { RecyclingService } from "./recycling.service.js";
  * `modules/recycling` (AAOS-LEAD-RECYCLING-BROADCAST) — mirrors `SchedulerModule`/
  * `SuperadminModule`'s wiring: 3 Supabase-backed repositories built from the shared
  * `SUPABASE_CLIENT`, with `AAOS_API_CONFIG`/`LEAD_STORE`/`LEAD_STORE_LEAD_REPOSITORY`/
- * `WHATSAPP_CONNECTOR`/`EVENT_BROKER` injected from `AppModule.forRoot`'s global provider set.
+ * `WHATSAPP_CONNECTOR_REGISTRY`/`EVENT_BROKER` injected from `AppModule.forRoot`'s global provider
+ * set (AAOS-MULTI-TENANT-PHASE1B Phase 2 — replaces the old static `WHATSAPP_CONNECTOR` injection
+ * with the real per-tenant registry; see `WhatsAppConnectorRegistry`'s own class doc).
  *
  * `RecyclingService` is exported so `SchedulerModule` can inject it for the `RECYCLING_RUN`
  * Kalender handler (coordinator note section 7) without a second, parallel `@Cron`.

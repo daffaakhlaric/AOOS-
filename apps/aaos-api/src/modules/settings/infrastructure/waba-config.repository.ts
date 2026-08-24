@@ -79,6 +79,30 @@ export class WabaConfigRepository {
     return data ?? undefined;
   }
 
+  /**
+   * AAOS-MULTI-TENANT-PHASE1B (Phase 2) addition — the real tenant-resolution lookup an incoming
+   * WhatsApp webhook uses: Meta's payload carries `entry[].changes[].value.metadata
+   * .phone_number_id`, never a tenant id directly, so `WhatsAppWebhookService` matches it against
+   * this column to find WHICH tenant/branch a message belongs to. Mirrors `findById`'s shape
+   * exactly (a single unique-ish lookup, `undefined` on no match) — `phone_number_id` has no
+   * `UNIQUE` constraint of its own in `007_tenants_waba.sql` (only `UNIQUE(tenant_id, branch_id)`
+   * does), but a real Meta phone number is only ever registered to one WABA/tenant in practice, so
+   * `.maybeSingle()` is the correct real query shape here, same as `findById`.
+   */
+  async findByPhoneNumberId(phoneNumberId: string): Promise<WabaConfigRow | undefined> {
+    const { data, error } = await this.client
+      .from<WabaConfigRow>(TABLE)
+      .select("*")
+      .eq("phone_number_id", phoneNumberId)
+      .maybeSingle();
+    if (error !== null) {
+      throw new WabaConfigRepositoryError(
+        `WabaConfigRepository.findByPhoneNumberId failed: ${error.message}`,
+      );
+    }
+    return data ?? undefined;
+  }
+
   async listByTenant(tenantId: string): Promise<readonly WabaConfigRow[]> {
     const { data, error } = await this.client
       .from<WabaConfigRow>(TABLE)

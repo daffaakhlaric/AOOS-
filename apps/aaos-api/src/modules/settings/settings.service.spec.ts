@@ -19,13 +19,25 @@ function buildFakeConnector(overrides: Partial<MetaAdsConnector["client"]> = {})
   } as unknown as MetaAdsConnector;
 }
 
+function buildFakeRegistry(): { invalidate: ReturnType<typeof vi.fn> } {
+  return { invalidate: vi.fn() };
+}
+
 function buildService(connectorOverrides: Partial<MetaAdsConnector["client"]> = {}) {
   const client = createFakeSupabaseClient();
   const tenants = new TenantRepository(client);
   const wabaConfigs = new WabaConfigRepository(client);
   const connector = buildFakeConnector(connectorOverrides);
-  const service = new SettingsService(tenants, wabaConfigs, connector, buildTestConfig());
-  return { service, tenants, wabaConfigs, connector, client };
+  const whatsAppConnectorRegistry = buildFakeRegistry();
+  const service = new SettingsService(
+    tenants,
+    wabaConfigs,
+    connector,
+    buildTestConfig(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal registry test double
+    whatsAppConnectorRegistry as any,
+  );
+  return { service, tenants, wabaConfigs, connector, client, whatsAppConnectorRegistry };
 }
 
 async function seedTenant(tenants: TenantRepository, overrides: Record<string, unknown> = {}) {
@@ -106,8 +118,8 @@ describe("SettingsService", () => {
     expect(result.message).toContain("Invalid token");
   });
 
-  it("createWaba()/listWaba() round-trip a WABA config for the tenant", async () => {
-    const { service, tenants } = buildService();
+  it("createWaba()/listWaba() round-trip a WABA config for the tenant, invalidating the tenant's cached connector", async () => {
+    const { service, tenants, whatsAppConnectorRegistry } = buildService();
     await seedTenant(tenants);
     await service.createWaba("dss-motor", {
       branchId: "bintaro",
@@ -120,6 +132,7 @@ describe("SettingsService", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.branchId).toBe("BINTARO");
     expect(rows[0]?.maskedAccessToken).not.toBe("token-1");
+    expect(whatsAppConnectorRegistry.invalidate).toHaveBeenCalledWith("dss-motor");
   });
 
   it("deleteWaba() throws NotFoundError for a config belonging to a different tenant", async () => {
@@ -138,8 +151,24 @@ describe("SettingsService", () => {
     await expect(service.deleteWaba("dss-motor", row.id)).rejects.toThrow(NotFoundError);
   });
 
+  it("deleteWaba() invalidates the tenant's cached connector on a real delete", async () => {
+    const { service, tenants, wabaConfigs, whatsAppConnectorRegistry } = buildService();
+    await seedTenant(tenants);
+    const row = await wabaConfigs.insert({
+      tenant_id: "dss-motor",
+      branch_id: "BINTARO",
+      phone_number: "+1",
+      waba_id: "w",
+      phone_number_id: "p",
+      access_token: "t",
+      status: "ACTIVE",
+    });
+    await service.deleteWaba("dss-motor", row.id);
+    expect(whatsAppConnectorRegistry.invalidate).toHaveBeenCalledWith("dss-motor");
+  });
+
   it("testWaba() runs the real connection test and persists the result", async () => {
-    const { service, tenants, wabaConfigs } = buildService();
+    const { service, tenants, wabaConfigs, whatsAppConnectorRegistry } = buildService();
     await seedTenant(tenants);
     const row = await wabaConfigs.insert({
       tenant_id: "dss-motor",
@@ -158,5 +187,28 @@ describe("SettingsService", () => {
     expect(result.success).toBe(true);
     const updated = await wabaConfigs.findById(row.id);
     expect(updated?.last_test_result).toContain("DSS Motor Bintaro");
+    // A successful test doesn't change any connector-relevant field (status stays ACTIVE), so no
+    // invalidation is needed — see settings.service.ts's testWaba() doc.
+    expect(whatsAppConnectorRegistry.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("testWaba() invalidates the tenant's cached connector when the test fails (row flips to INACTIVE)", async () => {
+    const { service, tenants, wabaConfigs, whatsAppConnectorRegistry } = buildService();
+    await seedTenant(tenants);
+    const row = await wabaConfigs.insert({
+      tenant_id: "dss-motor",
+      branch_id: "BINTARO",
+      phone_number: "+628110000001",
+      waba_id: "waba-1",
+      phone_number_id: "phone-1",
+      access_token: "token-1",
+      status: "ACTIVE",
+    });
+    global.fetch = vi.fn(
+      async () => new Response("Unauthorized", { status: 401 }),
+    ) as unknown as typeof fetch;
+    const result = await service.testWaba("dss-motor", row.id);
+    expect(result.success).toBe(false);
+    expect(whatsAppConnectorRegistry.invalidate).toHaveBeenCalledWith("dss-motor");
   });
 });

@@ -6,7 +6,6 @@ import {
   type Lead,
   type LeadStore,
 } from "@aos/lead-store";
-import type { WhatsAppConnector } from "@aos/whatsapp-connector";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
@@ -14,8 +13,9 @@ import {
   AAOS_API_CONFIG,
   LEAD_STORE,
   LEAD_STORE_LEAD_REPOSITORY,
-  WHATSAPP_CONNECTOR,
+  WHATSAPP_CONNECTOR_REGISTRY,
 } from "../../di-tokens.js";
+import type { WhatsAppConnectorRegistry } from "../whatsapp/infrastructure/whatsapp-connector-registry.js";
 
 import {
   isInRecyclingPool,
@@ -59,7 +59,8 @@ export class RecyclingService {
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(LEAD_STORE) private readonly leadStore: LeadStore,
     @Inject(LEAD_STORE_LEAD_REPOSITORY) private readonly leadRepository: ILeadRepository,
-    @Inject(WHATSAPP_CONNECTOR) private readonly whatsAppConnector: WhatsAppConnector,
+    @Inject(WHATSAPP_CONNECTOR_REGISTRY)
+    private readonly whatsAppConnectorRegistry: WhatsAppConnectorRegistry,
     private readonly templateRepository: BroadcastTemplateRepository,
     private readonly logRepository: BroadcastLogRepository,
     private readonly settingsRepository: RecyclingSettingsRepository,
@@ -259,7 +260,14 @@ export class RecyclingService {
     const message = renderTemplate(template.content, lead);
     const at = this.now();
 
-    const sendResult = await this.whatsAppConnector.sendTextMessage.execute({
+    const connectorResult = await this.whatsAppConnectorRegistry.resolve(
+      this.config.AAOS_TENANT_ID,
+    );
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+
+    const sendResult = await connectorResult.value.sendTextMessage.execute({
       branch: toBranch(lead.branchId),
       to: lead.leadPhone.toString(),
       body: message,

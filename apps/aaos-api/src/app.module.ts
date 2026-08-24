@@ -62,6 +62,7 @@ import {
   SUPABASE_AUTH_ADMIN,
   SUPABASE_CLIENT,
   WHATSAPP_CONNECTOR,
+  WHATSAPP_CONNECTOR_REGISTRY,
 } from "./di-tokens.js";
 import { AaosExceptionFilter } from "./filters/aaos-exception.filter.js";
 import { LoggingInterceptor } from "./interceptors/logging.interceptor.js";
@@ -86,11 +87,13 @@ import { RecyclingModule } from "./modules/recycling/recycling.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
 import { SchedulerModule } from "./modules/scheduler/scheduler.module.js";
 import { ScraperModule } from "./modules/scraper/scraper.module.js";
+import { WabaConfigRepository } from "./modules/settings/infrastructure/waba-config.repository.js";
 import { SettingsModule } from "./modules/settings/settings.module.js";
 import { SimulationModule } from "./modules/simulation/simulation.module.js";
 import { SosmedModule } from "./modules/sosmed/sosmed.module.js";
 import { SuperadminModule } from "./modules/superadmin/superadmin.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
+import { WhatsAppConnectorRegistry } from "./modules/whatsapp/infrastructure/whatsapp-connector-registry.js";
 import { WhatsAppWebhookModule } from "./modules/whatsapp-webhook/whatsapp-webhook.module.js";
 
 /**
@@ -151,6 +154,13 @@ export class AppModule {
     // internal default) so `MessageRepository`/`ClosingRepository` below can share the exact same
     // client/connection `LeadStore`'s own repositories use — one Supabase client for the whole
     // `leads`/`closings`/`messages` schema, not two.
+    // AAOS-MULTI-TENANT-PHASE1B (Phase 2) — the real per-tenant WhatsApp connector resolver.
+    // Built here (not inside a feature module) because it needs the SAME `whatsAppConnector`/
+    // `publisher` this file already composes (the `dss-motor` fallback + shared event bus — see
+    // `WhatsAppConnectorRegistry`'s own class doc for why), plus a `WabaConfigRepository` instance
+    // over the shared `leadStoreSupabaseClient` (built right below) — mirroring the exact
+    // "each consumer composes its own instance of a shared repository class over one shared
+    // connection" pattern `SettingsModule`/`RecyclingModule` already establish.
     const leadStoreSupabaseClient = createSupabaseClient(leadStoreConfigResult.value);
     const leadStore: LeadStore = LeadStoreFactory.create({
       config: leadStoreConfigResult.value,
@@ -164,6 +174,17 @@ export class AppModule {
     const closingRepository = new ClosingRepository(leadStoreSupabaseClient);
     // AAOS-LEAD-RECYCLING-BROADCAST addition — see di-tokens.ts's `LEAD_STORE_LEAD_REPOSITORY` doc.
     const leadRepository = new LeadRepository(leadStoreSupabaseClient);
+    // AAOS-MULTI-TENANT-PHASE1B (Phase 2) — see the import-site comment above and
+    // `WhatsAppConnectorRegistry`'s own class doc for the full design rationale (per-tenant
+    // resolve/cache, `dss-motor` static fallback, real `Result.err(ConnectorNotConfiguredError)`
+    // for an unconfigured tenant).
+    const wabaConfigRepository = new WabaConfigRepository(leadStoreSupabaseClient);
+    const whatsAppConnectorRegistry = new WhatsAppConnectorRegistry(
+      wabaConfigRepository,
+      config,
+      publisher,
+      whatsAppConnector,
+    );
     // AAOS-CHAT-ROOM-JESSY: `GET /leads/:id/scoring-history`'s thin read over the real
     // `scoring_events` table — same composition pattern as `messageRepository`/`closingRepository`
     // above.
@@ -360,6 +381,7 @@ export class AppModule {
         { provide: EVENT_BROKER, useValue: publisher as IEventBroker },
         { provide: META_ADS_CONNECTOR, useValue: connector },
         { provide: WHATSAPP_CONNECTOR, useValue: whatsAppConnector },
+        { provide: WHATSAPP_CONNECTOR_REGISTRY, useValue: whatsAppConnectorRegistry },
         { provide: LEAD_STORE, useValue: leadStore },
         { provide: OBJECTIVE_ENGINE, useValue: objectiveEngine },
         { provide: BRANCH_MANAGER, useValue: branchManager },
@@ -393,6 +415,7 @@ export class AppModule {
         EVENT_BROKER,
         META_ADS_CONNECTOR,
         WHATSAPP_CONNECTOR,
+        WHATSAPP_CONNECTOR_REGISTRY,
         LEAD_STORE,
         OBJECTIVE_ENGINE,
         BRANCH_MANAGER,

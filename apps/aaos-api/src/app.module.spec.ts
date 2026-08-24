@@ -21,6 +21,7 @@ import {
   SUPABASE_AUTH_ADMIN,
   SUPABASE_CLIENT,
   WHATSAPP_CONNECTOR,
+  WHATSAPP_CONNECTOR_REGISTRY,
 } from "./di-tokens.js";
 import { buildTestConfig } from "./test-support/fixtures.js";
 
@@ -96,8 +97,11 @@ describe("AppModule.forRoot", () => {
     // @aos/capi-connector CapiConnector — undefined when CAPI_PIXEL_ID/CAPI_ACCESS_TOKEN aren't
     // configured, same pattern as KAI_AGENT_RUNTIME) — no new import (IntelligenceModule already
     // existed).
+    // AAOS-MULTI-TENANT-PHASE1B Phase 2: +1 provider (WHATSAPP_CONNECTOR_REGISTRY, the real
+    // per-tenant WhatsAppConnector resolver — composed from the existing whatsAppConnector/
+    // publisher/leadStoreSupabaseClient, no new import).
     expect(dynamicModule.imports).toHaveLength(27);
-    expect(dynamicModule.providers).toHaveLength(21);
+    expect(dynamicModule.providers).toHaveLength(22);
   });
 
   it("provides KAI_AGENT_RUNTIME as undefined when no Kie AI key / asset library is configured, so the app still boots", () => {
@@ -129,6 +133,12 @@ describe("AppModule.forRoot", () => {
     expect(provider?.useValue).toBeDefined();
   });
 
+  it("always provides a composed WHATSAPP_CONNECTOR_REGISTRY (its dss-motor fallback needs only the already-composed static connector)", () => {
+    const dynamicModule = AppModule.forRoot(buildTestConfig());
+    const provider = findValueProvider(dynamicModule.providers, WHATSAPP_CONNECTOR_REGISTRY);
+    expect(provider?.useValue).toBeDefined();
+  });
+
   it("throws the raw ConnectorConfigError when META_API_VERSION is not the literal v21.0", () => {
     expect(() => AppModule.forRoot(buildTestConfig({ META_API_VERSION: "v20.0" }))).toThrow(
       /MetaAdsConnectorConfig validation failed/,
@@ -147,7 +157,7 @@ describe("AppModule.forRoot", () => {
     );
   });
 
-  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN/CAPI_CONNECTOR tokens", () => {
+  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/WHATSAPP_CONNECTOR/WHATSAPP_CONNECTOR_REGISTRY/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN/CAPI_CONNECTOR tokens", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.exports).toEqual([
       AAOS_API_CONFIG,
@@ -155,6 +165,7 @@ describe("AppModule.forRoot", () => {
       EVENT_BROKER,
       META_ADS_CONNECTOR,
       WHATSAPP_CONNECTOR,
+      WHATSAPP_CONNECTOR_REGISTRY,
       LEAD_STORE,
       OBJECTIVE_ENGINE,
       BRANCH_MANAGER,

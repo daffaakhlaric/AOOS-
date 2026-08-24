@@ -1,7 +1,7 @@
 import { fromBranch } from "@aos/branch-manager";
 import type { BaseEventShape, IEventBroker } from "@aos/event-bus";
 import type { ILeadRepository } from "@aos/lead-store";
-import type { MessageReceived, WhatsAppConnector } from "@aos/whatsapp-connector";
+import type { MessageReceived } from "@aos/whatsapp-connector";
 import { Inject, Injectable, Logger, Optional, type OnModuleInit } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
@@ -9,8 +9,9 @@ import {
   AAOS_API_CONFIG,
   EVENT_BROKER,
   LEAD_STORE_LEAD_REPOSITORY,
-  WHATSAPP_CONNECTOR,
+  WHATSAPP_CONNECTOR_REGISTRY,
 } from "../../di-tokens.js";
+import type { WhatsAppConnectorRegistry } from "../whatsapp/infrastructure/whatsapp-connector-registry.js";
 
 import { BroadcastLogRepository } from "./infrastructure/broadcast-log.repository.js";
 
@@ -44,7 +45,8 @@ export class RecyclingReplyListener implements OnModuleInit {
     @Inject(EVENT_BROKER) private readonly eventBroker: IEventBroker,
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(LEAD_STORE_LEAD_REPOSITORY) private readonly leadRepository: ILeadRepository,
-    @Inject(WHATSAPP_CONNECTOR) private readonly whatsAppConnector: WhatsAppConnector,
+    @Inject(WHATSAPP_CONNECTOR_REGISTRY)
+    private readonly whatsAppConnectorRegistry: WhatsAppConnectorRegistry,
     private readonly logRepository: BroadcastLogRepository,
     // `@Optional()` — same real DI-resolution gotcha as `RecyclingService.now`, see its doc.
     @Optional() private readonly now: () => Date = () => new Date(),
@@ -99,7 +101,17 @@ export class RecyclingReplyListener implements OnModuleInit {
     );
 
     const greeting = buildReEngagementGreeting(lead.leadName);
-    const sendResult = await this.whatsAppConnector.sendTextMessage.execute({
+    const connectorResult = await this.whatsAppConnectorRegistry.resolve(
+      this.config.AAOS_TENANT_ID,
+    );
+    if (!connectorResult.ok) {
+      this.logger.warn(
+        `RecyclingReplyListener: no connector configured for tenant ${this.config.AAOS_TENANT_ID}, re-engagement greeting not sent for lead ${lead.id.toString()}: ${connectorResult.error.message}`,
+      );
+      return;
+    }
+
+    const sendResult = await connectorResult.value.sendTextMessage.execute({
       branch: payload.branch,
       to: payload.from,
       body: greeting,

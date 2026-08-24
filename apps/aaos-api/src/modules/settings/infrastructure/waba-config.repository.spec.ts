@@ -54,6 +54,22 @@ describe("WabaConfigRepository", () => {
     expect(rows[0]?.id).toBe("waba-1");
   });
 
+  it("findByPhoneNumberId returns the matching row", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("waba_configs", seedRow());
+    client.seed("waba_configs", seedRow({ id: "waba-2", phone_number_id: "phone-def" }));
+    const repo = new WabaConfigRepository(client);
+    const row = await repo.findByPhoneNumberId("phone-abc");
+    expect(row?.id).toBe("waba-1");
+  });
+
+  it("findByPhoneNumberId returns undefined for an unrecognized phone_number_id", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("waba_configs", seedRow());
+    const repo = new WabaConfigRepository(client);
+    expect(await repo.findByPhoneNumberId("unknown-phone-id")).toBeUndefined();
+  });
+
   it("countByTenant returns the number of configs for the tenant", async () => {
     const client = createFakeSupabaseClient();
     client.seed("waba_configs", seedRow());

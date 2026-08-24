@@ -132,3 +132,12 @@ export const EVENT_BROKER = Symbol("EVENT_BROKER");
  * factory for its `getEmqScore` use case.
  */
 export const CAPI_CONNECTOR = Symbol("CAPI_CONNECTOR");
+/**
+ * AAOS-MULTI-TENANT-PHASE1B (Phase 2) addition — the real per-tenant `WhatsAppConnectorRegistry`
+ * (`modules/whatsapp/infrastructure/whatsapp-connector-registry.ts`), replacing `WHATSAPP_CONNECTOR`
+ * as the injection point for every consumer that needs to send/process WhatsApp messages for a
+ * SPECIFIC tenant rather than the one static, boot-composed connector. `WHATSAPP_CONNECTOR` itself
+ * is kept, unchanged, as the registry's own real `dss-motor` fallback (see that class's doc) — not
+ * removed, so this is an ADDITIVE token, not a replacement of an existing one.
+ */
+export const WHATSAPP_CONNECTOR_REGISTRY = Symbol("WHATSAPP_CONNECTOR_REGISTRY");

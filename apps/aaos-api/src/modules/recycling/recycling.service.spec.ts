@@ -10,6 +10,7 @@ import {
   type FakeSupabaseClient,
 } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import type { WhatsAppConnectorRegistry } from "../whatsapp/infrastructure/whatsapp-connector-registry.js";
 
 import { BroadcastLogRepository } from "./infrastructure/broadcast-log.repository.js";
 import { BroadcastTemplateRepository } from "./infrastructure/broadcast-template.repository.js";
@@ -35,6 +36,14 @@ function buildFakeWhatsAppConnector(): WhatsAppConnector {
       })),
     },
   } as unknown as WhatsAppConnector;
+}
+
+/** A minimal fake `WhatsAppConnectorRegistry` — `resolve()` always succeeds with the given fake connector, mirroring the real dss-motor static-fallback path every `RecyclingService` test exercises. */
+function buildFakeRegistry(connector: WhatsAppConnector): WhatsAppConnectorRegistry {
+  return {
+    resolve: vi.fn(async () => ({ ok: true, value: connector })),
+    invalidate: vi.fn(),
+  } as unknown as WhatsAppConnectorRegistry;
 }
 
 type Row = Record<string, unknown>;
@@ -118,7 +127,7 @@ function buildService(
     config,
     leadStore,
     new LeadRepository(client),
-    whatsAppConnector,
+    buildFakeRegistry(whatsAppConnector),
     new BroadcastTemplateRepository(client),
     new BroadcastLogRepository(client),
     new RecyclingSettingsRepository(client),

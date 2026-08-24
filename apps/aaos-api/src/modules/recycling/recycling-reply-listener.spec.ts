@@ -1,4 +1,4 @@
-import {
+﻿import {
   EventCategory,
   EventPriority,
   type BaseEventShape,
@@ -10,6 +10,7 @@ import { MessageType, type MessageReceived, type WhatsAppConnector } from "@aos/
 import { describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import type { WhatsAppConnectorRegistry } from "../whatsapp/infrastructure/whatsapp-connector-registry.js";
 
 import type {
   BroadcastLogRepository,
@@ -49,6 +50,14 @@ function buildFakeWhatsAppConnector(): WhatsAppConnector {
       execute: vi.fn(async () => ({ ok: true, value: {} })),
     },
   } as unknown as WhatsAppConnector;
+}
+
+/** A minimal fake `WhatsAppConnectorRegistry` — `resolve()` always succeeds with the given fake connector, mirroring the real dss-motor static-fallback path every test here exercises. */
+function buildFakeRegistry(connector: WhatsAppConnector): WhatsAppConnectorRegistry {
+  return {
+    resolve: vi.fn(async () => ({ ok: true, value: connector })),
+    invalidate: vi.fn(),
+  } as unknown as WhatsAppConnectorRegistry;
 }
 
 function buildFakeLogRepository(logs: readonly BroadcastLogRow[]): BroadcastLogRepository {
@@ -120,7 +129,7 @@ describe("RecyclingReplyListener.onModuleInit", () => {
       eventBroker,
       buildTestConfig(),
       buildFakeLeadRepository(undefined),
-      buildFakeWhatsAppConnector(),
+      buildFakeRegistry(buildFakeWhatsAppConnector()),
       buildFakeLogRepository([]),
       () => NOW,
     );
@@ -147,7 +156,7 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
       buildFakeEventBroker(),
       buildTestConfig(),
       leadRepository,
-      whatsAppConnector,
+      buildFakeRegistry(whatsAppConnector),
       logRepository,
       () => NOW,
     );
@@ -166,6 +175,32 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
     expect(call.body).toContain("Pak Hendra");
   });
 
+  it("marks the log replied but logs (never throws) when the tenant has no configured connector", async () => {
+    const lead = unwrap(new LeadBuilder().withBroadcastCount(1).build());
+    const leadRepository = buildFakeLeadRepository(lead);
+    const logRepository = buildFakeLogRepository([buildLog({ replied: false })]);
+    const unconfiguredRegistry = {
+      resolve: vi.fn(async () => ({
+        ok: false,
+        error: new Error("no connector configured"),
+      })),
+      invalidate: vi.fn(),
+    } as unknown as WhatsAppConnectorRegistry;
+    const listener = new RecyclingReplyListener(
+      buildFakeEventBroker(),
+      buildTestConfig(),
+      leadRepository,
+      unconfiguredRegistry,
+      logRepository,
+      () => NOW,
+    );
+
+    await expect(
+      listener.handleMessageReceived(buildEvent(buildPayload())),
+    ).resolves.toBeUndefined();
+    expect(logRepository.markReplied).toHaveBeenCalledWith("log-1", NOW.toISOString());
+  });
+
   it("does nothing for a lead with broadcastCount=0 (never in the recycling pool)", async () => {
     const lead = unwrap(new LeadBuilder().withBroadcastCount(0).build());
     const leadRepository = buildFakeLeadRepository(lead);
@@ -175,7 +210,7 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
       buildFakeEventBroker(),
       buildTestConfig(),
       leadRepository,
-      whatsAppConnector,
+      buildFakeRegistry(whatsAppConnector),
       logRepository,
       () => NOW,
     );
@@ -197,7 +232,7 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
       buildFakeEventBroker(),
       buildTestConfig(),
       leadRepository,
-      whatsAppConnector,
+      buildFakeRegistry(whatsAppConnector),
       logRepository,
       () => NOW,
     );
@@ -214,7 +249,7 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
       buildFakeEventBroker(),
       buildTestConfig(),
       leadRepository,
-      whatsAppConnector,
+      buildFakeRegistry(whatsAppConnector),
       logRepository,
       () => NOW,
     );
@@ -232,7 +267,7 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
       buildFakeEventBroker(),
       buildTestConfig(),
       leadRepository,
-      whatsAppConnector,
+      buildFakeRegistry(whatsAppConnector),
       logRepository,
       () => NOW,
     );
@@ -250,7 +285,7 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
       buildFakeEventBroker(),
       buildTestConfig(),
       leadRepository,
-      whatsAppConnector,
+      buildFakeRegistry(whatsAppConnector),
       logRepository,
       () => NOW,
     );
@@ -265,7 +300,7 @@ describe("RecyclingReplyListener.handleMessageReceived", () => {
       buildFakeEventBroker(),
       buildTestConfig(),
       leadRepository,
-      buildFakeWhatsAppConnector(),
+      buildFakeRegistry(buildFakeWhatsAppConnector()),
       buildFakeLogRepository([]),
       () => NOW,
     );

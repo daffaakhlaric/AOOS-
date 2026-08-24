@@ -15,6 +15,7 @@ import { toLeadStoreConfig } from "../../config/to-lead-store-config.js";
 import { createFakePublisher } from "../../test-support/fake-publisher.js";
 import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import type { WhatsAppConnectorRegistry } from "../whatsapp/infrastructure/whatsapp-connector-registry.js";
 
 import { LeadsService } from "./leads.service.js";
 
@@ -38,6 +39,14 @@ function buildFakeWhatsAppConnector(execute?: () => Promise<unknown>): WhatsAppC
         })),
     },
   } as unknown as WhatsAppConnector;
+}
+
+/** A minimal fake `WhatsAppConnectorRegistry` — `resolve()` always succeeds with the given fake connector, mirroring the real dss-motor static-fallback path every `LeadsService` test exercises (no test here needs the `ConnectorNotConfiguredError` path — see `whatsapp-connector-registry.spec.ts` for that). */
+function buildFakeRegistry(connector: WhatsAppConnector): WhatsAppConnectorRegistry {
+  return {
+    resolve: vi.fn(async () => ({ ok: true, value: connector })),
+    invalidate: vi.fn(),
+  } as unknown as WhatsAppConnectorRegistry;
 }
 
 type Row = Record<string, unknown>;
@@ -158,7 +167,7 @@ function buildService(
     leadStore,
     new MessageRepository(client),
     new ScoringRepository(client),
-    whatsAppConnector,
+    buildFakeRegistry(whatsAppConnector),
   );
 }
 
@@ -188,7 +197,7 @@ function buildServiceWithPersistentUpdates(
     leadStore,
     new MessageRepository(client),
     new ScoringRepository(client),
-    whatsAppConnector,
+    buildFakeRegistry(whatsAppConnector),
   );
   return { service, client };
 }
@@ -640,6 +649,42 @@ describe("LeadsService.sendMessage (AAOS-CHAT-ROOM-JESSY coordinator note #5)", 
         "corr-msg-3",
       ),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("propagates the real ConnectorNotConfiguredError honestly when the tenant has no configured WhatsApp connector", async () => {
+    const client = createFakeSupabaseClient();
+    const config = buildTestConfig();
+    const leadStoreConfig = toLeadStoreConfig(config);
+    if (!leadStoreConfig.ok) {
+      throw new Error("test setup failed");
+    }
+    const leadStore = LeadStoreFactory.create({
+      config: leadStoreConfig.value,
+      publisher: createFakePublisher(),
+      supabaseClient: client,
+    });
+    const notConfiguredError = new Error("no WhatsApp connector configured for tenant");
+    const unconfiguredRegistry = {
+      resolve: vi.fn(async () => ({ ok: false, error: notConfiguredError })),
+      invalidate: vi.fn(),
+    } as unknown as WhatsAppConnectorRegistry;
+    const service = new LeadsService(
+      config,
+      leadStore,
+      new MessageRepository(client),
+      new ScoringRepository(client),
+      unconfiguredRegistry,
+    );
+    client.seed("leads", seedLeadRow({ assigned_sales_id: SALES_HUMAN_ID }));
+    client.seed("conversations", seedConversationRow());
+
+    await expect(
+      service.sendMessage(
+        LEAD_ID,
+        { salesHumanId: SALES_HUMAN_ID, salesName: "Ahmad Fauzi", message: "halo pak" },
+        "corr-msg-4",
+      ),
+    ).rejects.toBe(notConfiguredError);
   });
 });
 
