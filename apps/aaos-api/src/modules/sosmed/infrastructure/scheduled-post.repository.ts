@@ -52,6 +52,22 @@ export interface CreateScheduledPostInput {
   readonly generatedBy?: string;
   readonly kaiPackageId?: string;
   readonly scheduledAt?: string;
+  /** Phase 3 addition — defaults to `"DRAFT"` (the only value Phase 1 ever wrote) when omitted. */
+  readonly status?: "DRAFT" | "SCHEDULED";
+}
+
+/** Phase 3 addition — `PUT /api/v1/sosmed/posts/:id`'s patch payload. Only supplied fields change. */
+export interface UpdateScheduledPostInput {
+  readonly caption?: string;
+  readonly mediaUrl?: string;
+  readonly mediaType?: SosmedMediaType;
+  readonly hashtags?: readonly string[];
+  readonly contentType?: SosmedContentType;
+  readonly productId?: string;
+  readonly angle?: string;
+  readonly accountId?: string;
+  readonly scheduledAt?: string;
+  readonly status?: ScheduledPostStatus;
 }
 
 export interface UpdateScheduledPostStatusInput {
@@ -109,15 +125,15 @@ function toDomain(row: ScheduledPostRow): StoredScheduledPost {
 }
 
 /**
- * Supabase-backed persistence for `scheduled_posts` (AAOS-SOSMED-AUTOMATION Phase 1), on the same
- * shared `SupabaseClientLike` port + `SUPABASE_CLIENT` DI token every other `aaos-api` repository
- * uses.
+ * Supabase-backed persistence for `scheduled_posts` (AAOS-SOSMED-AUTOMATION Phase 1, CRUD/cron
+ * methods added Phase 3), on the same shared `SupabaseClientLike` port + `SUPABASE_CLIENT` DI
+ * token every other `aaos-api` repository uses.
  *
- * Not wired to any controller endpoint in Phase 1 — `SosmedController` only exposes
- * `generate-caption`/`generate-hashtags`, neither of which persists a post. This repository exists
- * as the stable, already-tested foundation a later phase's Content Studio "save draft"/"schedule"
- * endpoints build on, per the coordinator note's "domain + schema … lowest risk, most reusable
- * regardless of what happens with OAuth" framing for Phase 1.
+ * Phase 3 wires this into real controller endpoints (`SosmedPostsService`) and the `@Cron`
+ * scheduler (`SosmedSchedulerService`) — Phase 1 built it unwired ("domain + schema … lowest risk,
+ * most reusable regardless of what happens with OAuth"); Phase 2 added `SosmedPublishingService`,
+ * also unwired. Neither this repository nor the controller reads/writes `sosmed_accounts` — still
+ * no OAuth flow exists to populate it safely (coordinator note point 2).
  */
 export class ScheduledPostRepository {
   constructor(private readonly client: SupabaseClientLike) {}
@@ -139,7 +155,7 @@ export class ScheduledPostRepository {
         generated_by: input.generatedBy ?? "TAMARA",
         kai_package_id: input.kaiPackageId ?? null,
         scheduled_at: input.scheduledAt ?? null,
-        status: "DRAFT",
+        status: input.status ?? "DRAFT",
         published_at: null,
         platform_post_id: null,
         error_message: null,
@@ -192,6 +208,51 @@ export class ScheduledPostRepository {
     if (error !== null) {
       throw new ScheduledPostRepositoryError(
         `ScheduledPostRepository.listByTenant failed: ${error.message}`,
+      );
+    }
+    return (data ?? []).map(toDomain);
+  }
+
+  /** `PUT /api/v1/sosmed/posts/:id` — patches only the supplied fields (spec's Post Manager "Edit"). */
+  async update(id: string, input: UpdateScheduledPostInput): Promise<void> {
+    const { error } = await this.client
+      .from<ScheduledPostRow>(TABLE)
+      .update({
+        ...(input.caption !== undefined ? { caption: input.caption } : {}),
+        ...(input.mediaUrl !== undefined ? { media_url: input.mediaUrl } : {}),
+        ...(input.mediaType !== undefined ? { media_type: input.mediaType } : {}),
+        ...(input.hashtags !== undefined ? { hashtags: [...input.hashtags] } : {}),
+        ...(input.contentType !== undefined ? { content_type: input.contentType } : {}),
+        ...(input.productId !== undefined ? { product_id: input.productId } : {}),
+        ...(input.angle !== undefined ? { angle: input.angle } : {}),
+        ...(input.accountId !== undefined ? { account_id: input.accountId } : {}),
+        ...(input.scheduledAt !== undefined ? { scheduled_at: input.scheduledAt } : {}),
+        ...(input.status !== undefined ? { status: input.status } : {}),
+      })
+      .eq("id", id);
+    if (error !== null) {
+      throw new ScheduledPostRepositoryError(
+        `ScheduledPostRepository.update failed: ${error.message}`,
+      );
+    }
+  }
+
+  /** `SCHEDULED` posts due to publish — the `@Cron` scheduler's own read (`SosmedSchedulerService.checkAndPublishScheduled`), mirroring `CalendarEventRepository.listDuePending`'s shape. */
+  async listDueScheduled(
+    tenantId: string,
+    nowIso: string,
+  ): Promise<readonly StoredScheduledPost[]> {
+    const { data, error } = await this.client
+      .from<ScheduledPostRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("status", "SCHEDULED")
+      .lte("scheduled_at", nowIso)
+      .order("scheduled_at", { ascending: true })
+      .limit(200);
+    if (error !== null) {
+      throw new ScheduledPostRepositoryError(
+        `ScheduledPostRepository.listDueScheduled failed: ${error.message}`,
       );
     }
     return (data ?? []).map(toDomain);

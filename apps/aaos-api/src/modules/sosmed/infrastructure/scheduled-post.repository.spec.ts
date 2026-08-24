@@ -121,4 +121,59 @@ describe("ScheduledPostRepository", () => {
     await repo.delete(created.id);
     expect(await repo.findById("dss-motor", created.id)).toBeUndefined();
   });
+
+  it("create persists SCHEDULED status when explicitly requested", async () => {
+    const repo = new ScheduledPostRepository(createFakeSupabaseClient());
+    const created = await repo.create({ ...BASE_INPUT, status: "SCHEDULED" });
+    expect(created.status).toBe("SCHEDULED");
+  });
+
+  it("update patches only the supplied content fields", async () => {
+    const repo = new ScheduledPostRepository(createFakeSupabaseClient());
+    const created = await repo.create(BASE_INPUT);
+    await repo.update(created.id, { caption: "Updated caption", angle: "Cicilan Ringan" });
+
+    const found = await repo.findById("dss-motor", created.id);
+    expect(found?.caption).toBe("Updated caption");
+    expect(found?.angle).toBe("Cicilan Ringan");
+    expect(found?.contentType).toBe("PROMO");
+  });
+
+  it("update can transition status and set scheduledAt", async () => {
+    const repo = new ScheduledPostRepository(createFakeSupabaseClient());
+    const created = await repo.create(BASE_INPUT);
+    await repo.update(created.id, {
+      status: "SCHEDULED",
+      scheduledAt: "2026-08-25T03:00:00.000Z",
+    });
+
+    const found = await repo.findById("dss-motor", created.id);
+    expect(found?.status).toBe("SCHEDULED");
+    expect(found?.scheduledAt).toBe("2026-08-25T03:00:00.000Z");
+  });
+
+  it("listDueScheduled returns only SCHEDULED posts due at or before the given instant", async () => {
+    const repo = new ScheduledPostRepository(createFakeSupabaseClient());
+    const due = await repo.create({
+      ...BASE_INPUT,
+      id: "44444444-4444-4444-4444-444444444444",
+      status: "SCHEDULED",
+      scheduledAt: "2026-08-25T03:00:00.000Z",
+    });
+    await repo.create({
+      ...BASE_INPUT,
+      id: "55555555-5555-5555-5555-555555555555",
+      status: "SCHEDULED",
+      scheduledAt: "2026-08-25T05:00:00.000Z",
+    });
+    await repo.create({
+      ...BASE_INPUT,
+      id: "66666666-6666-6666-6666-666666666666",
+      status: "DRAFT",
+    });
+
+    const dueRows = await repo.listDueScheduled("dss-motor", "2026-08-25T04:00:00.000Z");
+    expect(dueRows).toHaveLength(1);
+    expect(dueRows[0]?.id).toBe(due.id);
+  });
 });
