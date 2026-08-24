@@ -153,3 +153,27 @@ export { AudienceInsightEngine } from "./intelligence/AudienceInsightEngine.js";
 export { CreativeIntelligence } from "./intelligence/CreativeIntelligence.js";
 export { CampaignHealthAnalyzer } from "./intelligence/CampaignHealthAnalyzer.js";
 export { OptimizationPipeline } from "./intelligence/OptimizationPipeline.js";
+
+// AAOS-TAMARA-INTELLIGENCE-LAYER Phase 1 — Seasonal Calendar + Inventory/Lead/Closing signals
+export { SeasonalCalendarService } from "./intelligence/SeasonalCalendarService.js";
+export type {
+  IntelVertical,
+  SeasonalEventType,
+  SeasonalEventAngles,
+  SeasonalEvent,
+  SeasonalRecommendation,
+} from "./intelligence/SeasonalCalendarService.js";
+export { InventoryIntelService } from "./intelligence/InventoryIntelService.js";
+export type {
+  PropertyListingSnapshot,
+  AutomotiveInventorySignal,
+  PropertyInventorySignal,
+} from "./intelligence/InventoryIntelService.js";
+export { LeadIntelService } from "./intelligence/LeadIntelService.js";
+export type { LeadIntelSignal } from "./intelligence/LeadIntelService.js";
+export { ClosingIntelService } from "./intelligence/ClosingIntelService.js";
+export type {
+  UnitClosingSignal,
+  BranchClosingSignal,
+  ClosingIntelSignal,
+} from "./intelligence/ClosingIntelService.js";
