@@ -2074,6 +2074,9 @@ importers:
 
   packages/meta-ads-agent:
     dependencies:
+      '@aos/branch-manager':
+        specifier: workspace:*
+        version: link:../branch-manager
       '@aos/common':
         specifier: workspace:*
         version: link:../common
@@ -2114,9 +2117,6 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
-      '@aos/branch-manager':
-        specifier: workspace:*
-        version: link:../branch-manager
       '@aos/eslint-config':
         specifier: workspace:*
         version: link:../../configs/eslint-config

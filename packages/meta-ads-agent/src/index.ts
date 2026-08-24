@@ -177,3 +177,17 @@ export type {
   BranchClosingSignal,
   ClosingIntelSignal,
 } from "./intelligence/ClosingIntelService.js";
+
+// AAOS-TAMARA-INTELLIGENCE-LAYER Phase 3 — Google Trends signal service
+export {
+  GoogleTrendsService,
+  GoogleTrendsError,
+  interpretForCampaign,
+  trendToAngle,
+} from "./intelligence/GoogleTrendsService.js";
+export type {
+  TrendDirection,
+  TrendsData,
+  TrendSignal,
+  GoogleTrendsServiceOptions,
+} from "./intelligence/GoogleTrendsService.js";

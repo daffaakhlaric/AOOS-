@@ -25,6 +25,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aos/branch-manager": "workspace:*",
     "@aos/common": "workspace:*",
     "@aos/config": "workspace:*",
     "@aos/dss-inventory-connector": "workspace:*",
@@ -40,7 +41,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@aos/branch-manager": "workspace:*",
     "@aos/eslint-config": "workspace:*",
     "@aos/testing": "workspace:*",
     "@aos/tsconfig": "workspace:*",
