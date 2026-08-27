@@ -3,8 +3,8 @@ import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { Inject, Injectable } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";
 
-import type { AaosApiConfig } from "../../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, WHATSAPP_WEBHOOK_VERIFIER } from "../../../di-tokens.js";
+import { WEBHOOK_SECRETS_SERVICE, WHATSAPP_WEBHOOK_VERIFIER } from "../../../di-tokens.js";
+import type { WebhookSecretsService } from "../../webhook-config/webhook-secrets.service.js";
 
 const SIGNATURE_HEADER = "x-hub-signature-256";
 
@@ -27,11 +27,18 @@ export interface RequestWithRawBody extends FastifyRequest {
 @Injectable()
 export class WhatsAppSignatureGuard implements CanActivate {
   constructor(
-    @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(WHATSAPP_WEBHOOK_VERIFIER) private readonly verifier: WebhookVerifier,
+    @Inject(WEBHOOK_SECRETS_SERVICE) private readonly webhookSecrets: WebhookSecretsService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  /**
+   * Now `async` (coordinator note Part C item 4 — NestJS's guard contract accepts both sync and
+   * async `canActivate` uniformly) so the real app-secret comes from
+   * `WebhookSecretsService.getWhatsappSecrets()` (DB-override-first, `.env`-fallback) instead of
+   * `this.config.WHATSAPP_WEBHOOK_APP_SECRET` directly. Still deliberately NON-BLOCKING — see class
+   * doc: this guard always resolves `true` regardless of what `verifySignature` reports.
+   */
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithRawBody>();
     const signatureHeader = request.headers[SIGNATURE_HEADER];
     const signature = typeof signatureHeader === "string" ? signatureHeader : undefined;
@@ -39,7 +46,8 @@ export class WhatsAppSignatureGuard implements CanActivate {
 
     // Result intentionally discarded here — see class doc. The real gate is inside
     // `ProcessIncomingWebhook`, not this guard.
-    this.verifier.verifySignature(rawBody, signature, this.config.WHATSAPP_WEBHOOK_APP_SECRET);
+    const { appSecret } = await this.webhookSecrets.getWhatsappSecrets();
+    this.verifier.verifySignature(rawBody, signature, appSecret);
 
     return true;
   }

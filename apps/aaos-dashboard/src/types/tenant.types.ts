@@ -121,3 +121,31 @@ export interface UpdateWabaConfigInput {
   readonly accessToken?: string;
   readonly status?: "ACTIVE" | "INACTIVE";
 }
+
+/**
+ * `GET/PUT /api/v1/superadmin/webhook-config` (AAOS-SETTINGS-WEBHOOK-CONFIG, Part C) — GLOBAL
+ * (not per-tenant) Meta/WhatsApp webhook verify-token + app-secret override status. NEVER carries
+ * a real secret value — only whether an override is set and a masked tail.
+ */
+export interface WebhookSecretStatusDto {
+  readonly verifyTokenSet: boolean;
+  readonly appSecretSet: boolean;
+  readonly verifyTokenMasked?: string;
+  readonly appSecretMasked?: string;
+}
+
+export interface WebhookConfigDto {
+  readonly whatsapp: WebhookSecretStatusDto;
+  readonly meta: WebhookSecretStatusDto;
+}
+
+export interface UpdateWebhookConfigInput {
+  readonly whatsapp?: {
+    readonly verifyToken?: string;
+    readonly appSecret?: string;
+  };
+  readonly meta?: {
+    readonly verifyToken?: string;
+    readonly appSecret?: string;
+  };
+}

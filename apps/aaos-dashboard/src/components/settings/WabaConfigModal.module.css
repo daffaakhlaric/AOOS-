@@ -109,3 +109,38 @@
   opacity: 0.6;
   cursor: default;
 }
+
+.testButton {
+  font-size: 13px;
+  padding: 7px 14px;
+  background: var(--white);
+  color: var(--gray-600);
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  margin-right: auto;
+}
+
+.testButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.testResult {
+  font-size: 12px;
+  margin: 0;
+}
+
+.testResultSuccess {
+  color: #166534;
+}
+
+.testResultFailure {
+  color: var(--red);
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin: 0;
+}

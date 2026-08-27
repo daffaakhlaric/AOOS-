@@ -33,6 +33,14 @@ function buildFakeService(): SuperadminService {
       adminEmail: "admin@dss-motor.id",
       actionLink: "https://example.test/verify",
     })),
+    getWebhookConfig: vi.fn(async () => ({
+      whatsapp: { verifyTokenSet: false, appSecretSet: false },
+      meta: { verifyTokenSet: false, appSecretSet: false },
+    })),
+    updateWebhookConfig: vi.fn(async () => ({
+      whatsapp: { verifyTokenSet: true, appSecretSet: false, verifyTokenMasked: "test-xxxx" },
+      meta: { verifyTokenSet: false, appSecretSet: false },
+    })),
   } as unknown as SuperadminService;
 }
 
@@ -76,6 +84,23 @@ describe("SuperadminController", () => {
     const result = await controller.impersonate(body);
     expect(service.impersonate).toHaveBeenCalledWith(body);
     expect(result.actionLink).toContain("https://");
+  });
+
+  it("GET /api/v1/superadmin/webhook-config delegates to service.getWebhookConfig", async () => {
+    const service = buildFakeService();
+    const controller = new SuperadminController(service);
+    const result = await controller.getWebhookConfig();
+    expect(service.getWebhookConfig).toHaveBeenCalled();
+    expect(result.whatsapp.verifyTokenSet).toBe(false);
+  });
+
+  it("PUT /api/v1/superadmin/webhook-config delegates to service.updateWebhookConfig", async () => {
+    const service = buildFakeService();
+    const controller = new SuperadminController(service);
+    const body = { whatsapp: { verifyToken: "new-verify-token" } };
+    const result = await controller.updateWebhookConfig(body);
+    expect(service.updateWebhookConfig).toHaveBeenCalledWith(body);
+    expect(result.whatsapp.verifyTokenSet).toBe(true);
   });
 
   it("guards the whole controller with ApiKeyGuard", () => {

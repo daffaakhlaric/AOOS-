@@ -11,6 +11,7 @@ import type { ImpersonateResponseDto, ListTenantsDto, TenantDto } from "@/types/
 import { CreateTenantModal } from "./CreateTenantModal";
 import { EditTenantModal } from "./EditTenantModal";
 import styles from "./SuperadminClient.module.css";
+import { WebhookConfigCard } from "./WebhookConfigCard";
 
 function badgeClass(status: TenantDto["status"]): string {
   if (status === "ACTIVE") {
@@ -139,6 +140,8 @@ export function SuperadminClient(): React.ReactElement {
           Logout
         </button>
       </div>
+
+      <WebhookConfigCard />
 
       <div className={styles.kpiStrip}>
         <div className={styles.kpiCard}>

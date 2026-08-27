@@ -10,11 +10,13 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import {
   AAOS_API_CONFIG,
+  WEBHOOK_SECRETS_SERVICE,
   WHATSAPP_CONNECTOR,
   WHATSAPP_CONNECTOR_REGISTRY,
   WHATSAPP_WEBHOOK_VERIFIER,
 } from "../../di-tokens.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
+import type { WebhookSecretsService } from "../webhook-config/webhook-secrets.service.js";
 import type { WhatsAppConnectorRegistry } from "../whatsapp/infrastructure/whatsapp-connector-registry.js";
 
 /**
@@ -72,9 +74,12 @@ export function extractPhoneNumberId(rawBody: string): string | undefined {
  * by the time this resolves (or fails).
  *
  * AAOS-MULTI-TENANT-PHASE1B (Phase 2) real tenant resolution (coordinator note point 3):
- * signature verification stays exactly as before — the GLOBAL `WHATSAPP_WEBHOOK_APP_SECRET`,
- * unchanged, still enforced inside `ProcessIncomingWebhook.execute` itself (never made per-tenant,
- * per the coordinator note's finding #4: one Meta App receives every tenant's webhook traffic).
+ * signature verification stays GLOBAL (never made per-tenant, per the coordinator note's finding
+ * #4: one Meta App receives every tenant's webhook traffic under one shared secret), still
+ * enforced inside `ProcessIncomingWebhook.execute` itself — but the app-secret VALUE now comes
+ * from `WebhookSecretsService.getWhatsappSecrets()` (AAOS-SETTINGS-WEBHOOK-CONFIG Part C:
+ * DB-override-first, `.env`-fallback), not `this.config.WHATSAPP_WEBHOOK_APP_SECRET` read
+ * directly — a superadmin-saved override now genuinely takes effect here.
  * BEFORE calling that, this service peeks the raw payload's own `phone_number_id` (real field,
  * verified above), looks it up via the real `WabaConfigRepository.findByPhoneNumberId`, and
  * resolves that row's `tenant_id` through the real `WhatsAppConnectorRegistry` — so the payload is
@@ -87,8 +92,9 @@ export function extractPhoneNumberId(rawBody: string): string | undefined {
  * table predates `dss-motor`'s env-var-configured WABAs — see `WhatsAppConnectorRegistry`'s own
  * class doc) is checked against the STATIC connector's own registry before being dropped — if it
  * matches one of `dss-motor`'s `.env`-configured phone numbers, this resolves to
- * `config.AAOS_TENANT_ID` (which `WhatsAppConnectorRegistry.resolve` special-cases to the same
- * static connector, no DB query needed).
+ * `config.AAOS_TENANT_ID` (which `WhatsAppConnectorRegistry.resolve` now tries the real DB path
+ * for FIRST too, same as every other tenant — see that class's own doc — falling back to the
+ * static connector only once `waba_configs` genuinely has nothing for it).
  */
 @Injectable()
 export class WhatsAppWebhookService {
@@ -100,19 +106,22 @@ export class WhatsAppWebhookService {
     @Inject(WHATSAPP_CONNECTOR_REGISTRY) private readonly registry: WhatsAppConnectorRegistry,
     @Inject(WHATSAPP_WEBHOOK_VERIFIER) private readonly verifier: WebhookVerifier,
     private readonly wabaConfigs: WabaConfigRepository,
+    @Inject(WEBHOOK_SECRETS_SERVICE) private readonly webhookSecrets: WebhookSecretsService,
   ) {}
 
-  verifyHandshake(
+  /**
+   * Now `async` (coordinator note Part C item 4 — NestJS's guard/handler contract accepts both
+   * sync and async uniformly) so the real verify-token can come from `WebhookSecretsService`
+   * (DB-override-first/`.env`-fallback) instead of `this.config.WHATSAPP_WEBHOOK_VERIFY_TOKEN`
+   * directly.
+   */
+  async verifyHandshake(
     mode: string | undefined,
     token: string | undefined,
     challenge: string | undefined,
-  ): Result<string, TokenVerificationError> {
-    return this.verifier.verifyHandshake(
-      mode,
-      token,
-      challenge,
-      this.config.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
-    );
+  ): Promise<Result<string, TokenVerificationError>> {
+    const { verifyToken } = await this.webhookSecrets.getWhatsappSecrets();
+    return this.verifier.verifyHandshake(mode, token, challenge, verifyToken);
   }
 
   async processIncomingWebhookAsync(
@@ -144,10 +153,11 @@ export class WhatsAppWebhookService {
       return;
     }
 
+    const { appSecret } = await this.webhookSecrets.getWhatsappSecrets();
     await connectorResult.value.processIncomingWebhook.execute({
       rawBody,
       signature,
-      webhookAppSecret: this.config.WHATSAPP_WEBHOOK_APP_SECRET,
+      webhookAppSecret: appSecret,
       tenantId,
       correlationId,
     });

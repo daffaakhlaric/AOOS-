@@ -7,7 +7,13 @@ import type {
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR, WEBHOOK_VERIFIER } from "../../di-tokens.js";
+import {
+  AAOS_API_CONFIG,
+  META_ADS_CONNECTOR,
+  WEBHOOK_SECRETS_SERVICE,
+  WEBHOOK_VERIFIER,
+} from "../../di-tokens.js";
+import type { WebhookSecretsService } from "../webhook-config/webhook-secrets.service.js";
 
 export interface WebhookReceivedResponse {
   readonly received: true;
@@ -26,10 +32,15 @@ export interface WebhookReceivedResponse {
  * deciding (mirroring Phase 2's own care for the WhatsApp webhook, per the coordinator note's
  * explicit instruction not to rush a wrong default into a webhook handler):
  *
- * - Signature verification here is genuinely global (`WEBHOOK_VERIFIER`/`META_WEBHOOK_APP_SECRET`,
- *   one Meta App receiving every tenant's lead-webhook traffic under one shared secret) — same
- *   correct, deliberately-NOT-per-tenant shape the coordinator note's finding #4 already
- *   established for WhatsApp's webhook. Nothing to change there.
+ * - Signature verification here is genuinely global (`WEBHOOK_VERIFIER`/the Meta webhook app
+ *   secret, one Meta App receiving every tenant's lead-webhook traffic under one shared secret) —
+ *   same correct, deliberately-NOT-per-tenant shape the coordinator note's finding #4 already
+ *   established for WhatsApp's webhook. Nothing to change about THAT shape — but
+ *   AAOS-SETTINGS-WEBHOOK-CONFIG (Part C) does change WHERE the secret VALUE comes from: both
+ *   `verifyHandshake`/`processLeadWebhook` below now resolve it through
+ *   `WebhookSecretsService.getMetaSecrets()` (DB-override-first, `.env`-fallback) instead of
+ *   reading `this.config.META_WEBHOOK_VERIFY_TOKEN`/`META_WEBHOOK_APP_SECRET` directly, so a
+ *   superadmin-saved override genuinely takes effect here.
  * - UNLIKE WhatsApp's webhook, this payload carries NO usable per-request tenant signal before
  *   processing: WhatsApp's `phone_number_id` is a direct, ownership-scoped field a `waba_configs`
  *   lookup resolves BEFORE any Meta call. Meta's lead-webhook payload's only ad-scoped identifier
@@ -58,19 +69,22 @@ export class WebhookService {
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(META_ADS_CONNECTOR) private readonly connector: MetaAdsConnector,
     @Inject(WEBHOOK_VERIFIER) private readonly verifier: WebhookVerifier,
+    @Inject(WEBHOOK_SECRETS_SERVICE) private readonly webhookSecrets: WebhookSecretsService,
   ) {}
 
-  verifyHandshake(
+  /**
+   * Now `async` (coordinator note Part C item 4 — NestJS's guard/handler contract accepts both
+   * sync and async uniformly) so the real verify-token can come from
+   * `WebhookSecretsService.getMetaSecrets()` (DB-override-first/`.env`-fallback) instead of
+   * `this.config.META_WEBHOOK_VERIFY_TOKEN` directly.
+   */
+  async verifyHandshake(
     mode: string | undefined,
     token: string | undefined,
     challenge: string | undefined,
-  ): Result<string, TokenVerificationError> {
-    return this.verifier.verifyHandshake(
-      mode,
-      token,
-      challenge,
-      this.config.META_WEBHOOK_VERIFY_TOKEN,
-    );
+  ): Promise<Result<string, TokenVerificationError>> {
+    const { verifyToken } = await this.webhookSecrets.getMetaSecrets();
+    return this.verifier.verifyHandshake(mode, token, challenge, verifyToken);
   }
 
   async processLeadWebhook(
@@ -78,10 +92,11 @@ export class WebhookService {
     signature: string | undefined,
     correlationId: string,
   ): Promise<WebhookReceivedResponse> {
+    const { appSecret } = await this.webhookSecrets.getMetaSecrets();
     const result = await this.connector.processLeadWebhook.execute({
       rawBody,
       signature,
-      webhookAppSecret: this.config.META_WEBHOOK_APP_SECRET,
+      webhookAppSecret: appSecret,
       tenantId: this.config.AAOS_TENANT_ID,
       correlationId,
     });

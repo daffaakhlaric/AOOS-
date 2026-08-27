@@ -11,11 +11,26 @@ import { createFakePublisher } from "../../../test-support/fake-publisher.js";
 import { createFakeSupabaseClient } from "../../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../../test-support/fixtures.js";
 import { WabaConfigRepository } from "../../settings/infrastructure/waba-config.repository.js";
+import type { WebhookSecretsService } from "../../webhook-config/webhook-secrets.service.js";
 
 import {
   ConnectorNotConfiguredError,
   WhatsAppConnectorRegistry,
 } from "./whatsapp-connector-registry.js";
+
+function buildFakeWebhookSecrets(): WebhookSecretsService {
+  return {
+    getMetaSecrets: vi.fn(async () => ({
+      verifyToken: "test-verify-token",
+      appSecret: "test-app-secret",
+    })),
+    getWhatsappSecrets: vi.fn(async () => ({
+      verifyToken: "test-whatsapp-verify-token",
+      appSecret: "test-whatsapp-app-secret",
+    })),
+    invalidate: vi.fn(),
+  } as unknown as WebhookSecretsService;
+}
 
 function seedRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -48,7 +63,7 @@ function buildStaticConnector(): WhatsAppConnector {
 }
 
 describe("WhatsAppConnectorRegistry", () => {
-  it("resolves the static connector for the config's own AAOS_TENANT_ID, without querying waba_configs", async () => {
+  it("dss-motor (AAOS_TENANT_ID) with NO waba_configs rows still falls back to the static connector (regression guard for the live tenant's current real state) — but the DB IS queried first", async () => {
     const config = buildTestConfig();
     const client = createFakeSupabaseClient();
     const wabaConfigs = new WabaConfigRepository(client);
@@ -59,6 +74,7 @@ describe("WhatsAppConnectorRegistry", () => {
       config,
       createFakePublisher(),
       staticConnector,
+      buildFakeWebhookSecrets(),
     );
 
     const result = await registry.resolve(config.AAOS_TENANT_ID);
@@ -66,7 +82,33 @@ describe("WhatsAppConnectorRegistry", () => {
     if (result.ok) {
       expect(result.value).toBe(staticConnector);
     }
-    expect(listSpy).not.toHaveBeenCalled();
+    // DB-first: the real waba_configs lookup IS attempted for dss-motor now, same as every other
+    // tenant — only after it comes back empty does the static fallback kick in.
+    expect(listSpy).toHaveBeenCalledWith(config.AAOS_TENANT_ID);
+  });
+
+  it("dss-motor (AAOS_TENANT_ID) with a real, populated ACTIVE waba_configs row resolves to the DB-backed connector, not the static one", async () => {
+    const config = buildTestConfig();
+    const client = createFakeSupabaseClient();
+    client.seed(
+      "waba_configs",
+      seedRow({ tenant_id: config.AAOS_TENANT_ID, access_token: "dss-motor-real-token" }),
+    );
+    const wabaConfigs = new WabaConfigRepository(client);
+    const staticConnector = buildStaticConnector();
+    const registry = new WhatsAppConnectorRegistry(
+      wabaConfigs,
+      config,
+      createFakePublisher(),
+      staticConnector,
+      buildFakeWebhookSecrets(),
+    );
+
+    const result = await registry.resolve(config.AAOS_TENANT_ID);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).not.toBe(staticConnector);
+    }
   });
 
   it("returns err(ConnectorNotConfiguredError) for a tenant with no waba_configs rows — never falls back to the static connector", async () => {
@@ -79,6 +121,7 @@ describe("WhatsAppConnectorRegistry", () => {
       config,
       createFakePublisher(),
       staticConnector,
+      buildFakeWebhookSecrets(),
     );
 
     const result = await registry.resolve("unconfigured-tenant");
@@ -103,6 +146,7 @@ describe("WhatsAppConnectorRegistry", () => {
       config,
       createFakePublisher(),
       staticConnector,
+      buildFakeWebhookSecrets(),
     );
 
     const result = await registry.resolve("other-tenant");
@@ -132,6 +176,7 @@ describe("WhatsAppConnectorRegistry", () => {
       config,
       createFakePublisher(),
       staticConnector,
+      buildFakeWebhookSecrets(),
     );
 
     const first = await registry.resolve("other-tenant");
@@ -165,6 +210,7 @@ describe("WhatsAppConnectorRegistry", () => {
       config,
       createFakePublisher(),
       staticConnector,
+      buildFakeWebhookSecrets(),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal Logger test double
       logger as any,
     );
@@ -172,6 +218,54 @@ describe("WhatsAppConnectorRegistry", () => {
     const result = await registry.resolve("other-tenant");
     expect(result.ok).toBe(true);
     expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it("dss-motor (AAOS_TENANT_ID) falls back to the static connector, without throwing, when wabaConfigs.listByTenant itself fails (DB outage resilience)", async () => {
+    const config = buildTestConfig();
+    const wabaConfigs = {
+      listByTenant: vi.fn(async () => {
+        throw new Error("network error");
+      }),
+    };
+    const staticConnector = buildStaticConnector();
+    const registry = new WhatsAppConnectorRegistry(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal repository test double
+      wabaConfigs as any,
+      config,
+      createFakePublisher(),
+      staticConnector,
+      buildFakeWebhookSecrets(),
+    );
+
+    const result = await registry.resolve(config.AAOS_TENANT_ID);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toBe(staticConnector);
+    }
+  });
+
+  it("a regular (non-dss-motor) tenant gets a real ConnectorNotConfiguredError, never an unhandled throw, when wabaConfigs.listByTenant fails", async () => {
+    const config = buildTestConfig();
+    const wabaConfigs = {
+      listByTenant: vi.fn(async () => {
+        throw new Error("network error");
+      }),
+    };
+    const staticConnector = buildStaticConnector();
+    const registry = new WhatsAppConnectorRegistry(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal repository test double
+      wabaConfigs as any,
+      config,
+      createFakePublisher(),
+      staticConnector,
+      buildFakeWebhookSecrets(),
+    );
+
+    const result = await registry.resolve("other-tenant");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(ConnectorNotConfiguredError);
+    }
   });
 
   it("invalidate() clears the cache so the next resolve() re-queries waba_configs", async () => {
@@ -186,6 +280,7 @@ describe("WhatsAppConnectorRegistry", () => {
       config,
       createFakePublisher(),
       staticConnector,
+      buildFakeWebhookSecrets(),
     );
 
     await registry.resolve("other-tenant");
@@ -194,24 +289,23 @@ describe("WhatsAppConnectorRegistry", () => {
     expect(listSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("invalidate() is a no-op for the AAOS_TENANT_ID (dss-motor's static fallback never goes stale via waba_configs)", async () => {
+  it("invalidate() now DOES clear the AAOS_TENANT_ID (dss-motor) cache entry too — a saved DB row must not keep serving a stale cached connector", async () => {
     const config = buildTestConfig();
     const client = createFakeSupabaseClient();
     const wabaConfigs = new WabaConfigRepository(client);
+    const listSpy = vi.spyOn(wabaConfigs, "listByTenant");
     const staticConnector = buildStaticConnector();
     const registry = new WhatsAppConnectorRegistry(
       wabaConfigs,
       config,
       createFakePublisher(),
       staticConnector,
+      buildFakeWebhookSecrets(),
     );
 
     await registry.resolve(config.AAOS_TENANT_ID);
     registry.invalidate(config.AAOS_TENANT_ID);
-    const result = await registry.resolve(config.AAOS_TENANT_ID);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value).toBe(staticConnector);
-    }
+    await registry.resolve(config.AAOS_TENANT_ID);
+    expect(listSpy).toHaveBeenCalledTimes(2);
   });
 });

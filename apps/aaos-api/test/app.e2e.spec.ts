@@ -25,6 +25,15 @@ describe("app e2e — health, readiness, cross-cutting concerns", () => {
     expect(typeof response.body.timestamp).toBe("string");
   });
 
+  // AAOS-SETTINGS-WEBHOOK-CONFIG (Part B) — `/ready`'s `metaAdsConnector` check now resolves
+  // `MetaAdsConnectorRegistry` for `dss-motor`, which (correctly, per Part B's DB-first fix)
+  // attempts a REAL `tenants` lookup before falling back to `.env`. In THIS sandboxed test
+  // environment the fake `SUPABASE_URL` fixture (`test-project.supabase.co`) has no real DNS
+  // record, and Node's `fetch` takes several real seconds to report the resolution failure
+  // (verified directly: ~7s, not a hang) — a one-time cost paid once per bootstrapped test app
+  // (the registry then caches the static fallback, per its own doc), never a production concern
+  // (a real deployed Supabase project resolves in well under a second). Bumped past the default
+  // 5000ms so this test measures real behavior rather than sandbox DNS latency.
   it("GET /ready -> 200 { status: ready, checks: {...} }", async () => {
     const response = await request(app.getHttpServer()).get("/ready");
     expect(response.status).toBe(200);
@@ -32,7 +41,7 @@ describe("app e2e — health, readiness, cross-cutting concerns", () => {
       status: "ready",
       checks: { config: true, metaAdsConnector: true },
     });
-  });
+  }, 15000);
 
   it("an unknown route -> 404 via AaosExceptionFilter's consistent error shape", async () => {
     const response = await request(app.getHttpServer()).get("/this-route-does-not-exist");

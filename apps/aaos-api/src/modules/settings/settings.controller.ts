@@ -22,8 +22,10 @@ import {
 } from "./dto/update-meta-settings.dto.js";
 import {
   CreateWabaConfigBodySchema,
+  TestDraftWabaConnectionBodySchema,
   UpdateWabaConfigBodySchema,
   type CreateWabaConfigBodyDto,
+  type TestDraftWabaConnectionBodyDto,
   type TestWabaConnectionResponseDto,
   type UpdateWabaConfigBodyDto,
   type WabaConfigResponseDto,
@@ -101,5 +103,19 @@ export class SettingsController {
     @Param("id") id: string,
   ): Promise<TestWabaConnectionResponseDto> {
     return this.service.testWaba(tenantId, id);
+  }
+
+  /**
+   * Tests a raw, UNSAVED `phoneNumberId`/`accessToken` pair from `WabaConfigModal`'s Add/Edit
+   * form — distinct path from `waba/:id/test` above, which stays untouched and still serves the
+   * saved-row test on the main Settings page's WABA list. No DB read, no DB write.
+   */
+  @Post("waba/test-draft")
+  @HttpCode(200)
+  async testWabaDraft(
+    @Body(new ZodValidationPipe(TestDraftWabaConnectionBodySchema))
+    body: TestDraftWabaConnectionBodyDto,
+  ): Promise<TestWabaConnectionResponseDto> {
+    return this.service.testWabaDraft(body.phoneNumberId, body.accessToken);
   }
 }

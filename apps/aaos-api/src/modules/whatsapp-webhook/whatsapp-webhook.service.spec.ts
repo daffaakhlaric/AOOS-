@@ -8,6 +8,8 @@ import { createFakePublisher, type FakePublisher } from "../../test-support/fake
 import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
+import { SystemWebhookConfigRepository } from "../superadmin/infrastructure/system-webhook-config.repository.js";
+import { WebhookSecretsService } from "../webhook-config/webhook-secrets.service.js";
 import { WhatsAppConnectorRegistry } from "../whatsapp/infrastructure/whatsapp-connector-registry.js";
 
 import { extractPhoneNumberId, WhatsAppWebhookService } from "./whatsapp-webhook.service.js";
@@ -29,13 +31,24 @@ function buildService(): {
   });
   const client = createFakeSupabaseClient();
   const wabaConfigs = new WabaConfigRepository(client);
-  const registry = new WhatsAppConnectorRegistry(wabaConfigs, config, publisher, staticConnector);
+  const webhookSecrets = new WebhookSecretsService(
+    new SystemWebhookConfigRepository(client),
+    config,
+  );
+  const registry = new WhatsAppConnectorRegistry(
+    wabaConfigs,
+    config,
+    publisher,
+    staticConnector,
+    webhookSecrets,
+  );
   const service = new WhatsAppWebhookService(
     config,
     staticConnector,
     registry,
     new WebhookVerifier(),
     wabaConfigs,
+    webhookSecrets,
   );
   return { service, publisher, wabaConfigs };
 }
@@ -71,9 +84,9 @@ describe("extractPhoneNumberId", () => {
 
 describe("WhatsAppWebhookService", () => {
   describe("verifyHandshake", () => {
-    it("returns ok(challenge) for a valid subscribe handshake", () => {
+    it("returns ok(challenge) for a valid subscribe handshake", async () => {
       const { service } = buildService();
-      const result = service.verifyHandshake(
+      const result = await service.verifyHandshake(
         "subscribe",
         "test-whatsapp-verify-token",
         "challenge-xyz",
@@ -84,15 +97,15 @@ describe("WhatsAppWebhookService", () => {
       }
     });
 
-    it("returns err(TokenVerificationError) for a wrong verify token", () => {
+    it("returns err(TokenVerificationError) for a wrong verify token", async () => {
       const { service } = buildService();
-      const result = service.verifyHandshake("subscribe", "wrong-token", "challenge-xyz");
+      const result = await service.verifyHandshake("subscribe", "wrong-token", "challenge-xyz");
       expect(result.ok).toBe(false);
     });
 
-    it("returns err(TokenVerificationError) for a non-subscribe mode", () => {
+    it("returns err(TokenVerificationError) for a non-subscribe mode", async () => {
       const { service } = buildService();
-      const result = service.verifyHandshake(
+      const result = await service.verifyHandshake(
         "unsubscribe",
         "test-whatsapp-verify-token",
         "challenge-xyz",

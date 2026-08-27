@@ -31,6 +31,14 @@ describe("webhook e2e — GET/POST /webhooks/meta", () => {
     await app.close();
   });
 
+  // AAOS-SETTINGS-WEBHOOK-CONFIG (Part C) — `WebhookSignatureGuard`/`WebhookService` now resolve
+  // secrets through `WebhookSecretsService`, which reads `system_webhook_config` on its first
+  // call. In THIS sandboxed test environment the fake `SUPABASE_URL` fixture has no real DNS
+  // record, and Node's `fetch` takes several real seconds (verified directly: ~7s) to report the
+  // resolution failure — a one-time cost paid once per bootstrapped test app (the service then
+  // caches the `.env` fallback, per its own doc), never a production concern (a real deployed
+  // Supabase project resolves in well under a second). The 3 tests below are bumped past the
+  // default 5000ms so they measure real behavior rather than sandbox DNS latency.
   describe("GET /webhooks/meta (hub verify handshake)", () => {
     it("responds 200 with the plain-text challenge for a valid handshake, no auth required", async () => {
       const response = await request(app.getHttpServer()).get("/webhooks/meta").query({
@@ -42,7 +50,7 @@ describe("webhook e2e — GET/POST /webhooks/meta", () => {
       expect(response.status).toBe(200);
       expect(response.text).toBe("e2e-challenge-123");
       expect(response.headers["content-type"]).toContain("text/plain");
-    });
+    }, 15000);
 
     it("responds 403 for a mismatched verify token", async () => {
       const response = await request(app.getHttpServer()).get("/webhooks/meta").query({
@@ -52,7 +60,7 @@ describe("webhook e2e — GET/POST /webhooks/meta", () => {
       });
 
       expect(response.status).toBe(403);
-    });
+    }, 15000);
   });
 
   describe("POST /webhooks/meta (inbound lead delivery)", () => {
@@ -94,7 +102,7 @@ describe("webhook e2e — GET/POST /webhooks/meta", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ received: true });
-    });
+    }, 15000);
 
     it("invalid signature -> 401", async () => {
       const rawBody = JSON.stringify({ object: "whatsapp_business_account", entry: [] });

@@ -7,10 +7,12 @@ import {
   AAOS_API_CONFIG,
   META_ADS_CONNECTOR_REGISTRY,
   SUPABASE_AUTH_ADMIN,
+  WEBHOOK_SECRETS_SERVICE,
 } from "../../di-tokens.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import type { SupabaseAuthAdminLike } from "../sales/infrastructure/supabase-auth-admin.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
+import type { WebhookSecretsService } from "../webhook-config/webhook-secrets.service.js";
 
 import type { CreateTenantBodyDto } from "./dto/create-tenant.dto.js";
 import type { ImpersonateBodyDto, ImpersonateResponseDto } from "./dto/impersonate.dto.js";
@@ -20,6 +22,12 @@ import {
   type TenantResponseDto,
 } from "./dto/tenant-response.dto.js";
 import type { UpdateTenantBodyDto } from "./dto/update-tenant.dto.js";
+import type {
+  PutWebhookConfigBodyDto,
+  WebhookConfigResponseDto,
+} from "./dto/webhook-config.dto.js";
+import type { SystemWebhookConfigRow } from "./infrastructure/system-webhook-config.repository.js";
+import { SystemWebhookConfigRepository } from "./infrastructure/system-webhook-config.repository.js";
 import type { TenantRow } from "./infrastructure/tenant.repository.js";
 import { TenantRepository } from "./infrastructure/tenant.repository.js";
 
@@ -48,6 +56,8 @@ export class SuperadminService {
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly metaAdsConnectorRegistry: MetaAdsConnectorRegistry,
+    private readonly webhookConfigs: SystemWebhookConfigRepository,
+    @Inject(WEBHOOK_SECRETS_SERVICE) private readonly webhookSecrets: WebhookSecretsService,
   ) {}
 
   private async toDto(row: TenantRow): Promise<TenantResponseDto> {
@@ -231,5 +241,96 @@ export class SuperadminService {
       adminEmail: adminUser.email,
       actionLink: linkResult.data.properties.action_link,
     };
+  }
+
+  private toSecretStatus(value: string | null | undefined): {
+    readonly set: boolean;
+    readonly masked?: string;
+  } {
+    if (value === null || value === undefined || value.length === 0) {
+      return { set: false };
+    }
+    return { set: true, masked: maskTail(value, 4) };
+  }
+
+  /**
+   * `GET /api/v1/superadmin/webhook-config` (AAOS-SETTINGS-WEBHOOK-CONFIG, Part C) — NEVER returns
+   * a real secret value, only whether an override exists (`*Set`) and a masked tail (`maskTail`,
+   * the SAME helper `maskedMetaAdAccountId` already uses). Reads `SystemWebhookConfigRepository`
+   * directly (not `WebhookSecretsService`, which resolves the LIVE-EFFECTIVE value including the
+   * `.env` fallback — this endpoint's whole point is showing only what's been explicitly
+   * OVERRIDDEN in the DB, so a fresh install with no row yet correctly reports every field unset,
+   * never a masked `.env` value the superadmin never actually saved).
+   */
+  async getWebhookConfig(): Promise<WebhookConfigResponseDto> {
+    const row = await this.webhookConfigs.get();
+    const whatsappVerify = this.toSecretStatus(row?.whatsapp_webhook_verify_token);
+    const whatsappSecret = this.toSecretStatus(row?.whatsapp_webhook_app_secret);
+    const metaVerify = this.toSecretStatus(row?.meta_webhook_verify_token);
+    const metaSecret = this.toSecretStatus(row?.meta_webhook_app_secret);
+    return {
+      whatsapp: {
+        verifyTokenSet: whatsappVerify.set,
+        appSecretSet: whatsappSecret.set,
+        ...(whatsappVerify.masked !== undefined
+          ? { verifyTokenMasked: whatsappVerify.masked }
+          : {}),
+        ...(whatsappSecret.masked !== undefined ? { appSecretMasked: whatsappSecret.masked } : {}),
+      },
+      meta: {
+        verifyTokenSet: metaVerify.set,
+        appSecretSet: metaSecret.set,
+        ...(metaVerify.masked !== undefined ? { verifyTokenMasked: metaVerify.masked } : {}),
+        ...(metaSecret.masked !== undefined ? { appSecretMasked: metaSecret.masked } : {}),
+      },
+    };
+  }
+
+  /**
+   * `PUT /api/v1/superadmin/webhook-config` — an explicitly-provided empty string OR `null` CLEARS
+   * that field's override (reverts to `.env`); `undefined` (the field simply omitted) leaves it
+   * unchanged (see `PutWebhookConfigBodySchema`'s own doc). Always calls
+   * `WebhookSecretsService.invalidate()` on success — same "never let a stale cached value survive
+   * past a save" discipline every other settings-write path in this app already follows.
+   */
+  async updateWebhookConfig(dto: PutWebhookConfigBodyDto): Promise<WebhookConfigResponseDto> {
+    const patch: {
+      -readonly [
+        K in
+          | "whatsapp_webhook_verify_token"
+          | "whatsapp_webhook_app_secret"
+          | "meta_webhook_verify_token"
+          | "meta_webhook_app_secret"
+      ]?: SystemWebhookConfigRow[K];
+    } = {};
+    if (dto.whatsapp?.verifyToken !== undefined) {
+      patch.whatsapp_webhook_verify_token =
+        dto.whatsapp.verifyToken === null || dto.whatsapp.verifyToken.length === 0
+          ? null
+          : dto.whatsapp.verifyToken;
+    }
+    if (dto.whatsapp?.appSecret !== undefined) {
+      patch.whatsapp_webhook_app_secret =
+        dto.whatsapp.appSecret === null || dto.whatsapp.appSecret.length === 0
+          ? null
+          : dto.whatsapp.appSecret;
+    }
+    if (dto.meta?.verifyToken !== undefined) {
+      patch.meta_webhook_verify_token =
+        dto.meta.verifyToken === null || dto.meta.verifyToken.length === 0
+          ? null
+          : dto.meta.verifyToken;
+    }
+    if (dto.meta?.appSecret !== undefined) {
+      patch.meta_webhook_app_secret =
+        dto.meta.appSecret === null || dto.meta.appSecret.length === 0 ? null : dto.meta.appSecret;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await this.webhookConfigs.upsert(patch);
+    }
+    this.webhookSecrets.invalidate();
+    logger.info("SuperadminService.updateWebhookConfig: global webhook config saved");
+    return this.getWebhookConfig();
   }
 }

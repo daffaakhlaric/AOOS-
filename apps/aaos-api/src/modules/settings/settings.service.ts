@@ -257,4 +257,17 @@ export class SettingsService {
     }
     return result;
   }
+
+  /**
+   * Real "Test Koneksi" for `WabaConfigModal`'s Add/Edit form — Part A of the coordinator note.
+   * Tests the raw, UNSAVED `phoneNumberId`/`accessToken` the user has currently typed, via the
+   * exact same `testWabaConnection` free function `testWaba` above uses for a saved row. No DB
+   * read, no DB write — there is nothing to persist a result onto yet (this is a pre-save probe).
+   */
+  async testWabaDraft(
+    phoneNumberId: string,
+    accessToken: string,
+  ): Promise<TestWabaConnectionResponseDto> {
+    return testWabaConnection(phoneNumberId, accessToken);
+  }
 }

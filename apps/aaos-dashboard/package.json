@@ -5,9 +5,9 @@
   "description": "AAOS Dashboard — the primary management web app for DSS Motor managers/owners (Meta Ads insight, Objective tracking, Creative review, Branch settings, Knowledge base). Proxies all data to apps/aaos-api; talks to Supabase Auth directly for authentication.",
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3001",
     "lint": "next lint",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

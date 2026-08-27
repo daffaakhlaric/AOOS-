@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
 
+import { SystemWebhookConfigRepository } from "./infrastructure/system-webhook-config.repository.js";
 import { TenantRepository } from "./infrastructure/tenant.repository.js";
 import { SuperadminController } from "./superadmin.controller.js";
 import { SuperadminModule } from "./superadmin.module.js";
@@ -16,11 +17,11 @@ describe("SuperadminModule", () => {
     expect(metadata).toEqual([SuperadminController]);
   });
 
-  it("registers SuperadminService, ApiKeyGuard, and TenantRepository/WabaConfigRepository factories as providers", () => {
+  it("registers SuperadminService, ApiKeyGuard, and TenantRepository/WabaConfigRepository/SystemWebhookConfigRepository factories as providers", () => {
     const metadata = Reflect.getMetadata("providers", SuperadminModule) as Array<
       { provide?: unknown } | unknown
     >;
-    expect(metadata).toHaveLength(4);
+    expect(metadata).toHaveLength(5);
     expect(metadata).toContain(SuperadminService);
     expect(metadata).toContain(ApiKeyGuard);
     const tenantRepoProvider = metadata.find(
@@ -33,6 +34,14 @@ describe("SuperadminModule", () => {
         typeof p === "object" && p !== null && "provide" in p && p.provide === WabaConfigRepository,
     );
     expect(wabaRepoProvider).toBeDefined();
+    const webhookConfigRepoProvider = metadata.find(
+      (p) =>
+        typeof p === "object" &&
+        p !== null &&
+        "provide" in p &&
+        p.provide === SystemWebhookConfigRepository,
+    );
+    expect(webhookConfigRepoProvider).toBeDefined();
   });
 
   it("exports TenantRepository", () => {

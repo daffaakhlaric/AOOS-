@@ -21,6 +21,7 @@ import {
   OBJECTIVE_ENGINE,
   SUPABASE_AUTH_ADMIN,
   SUPABASE_CLIENT,
+  WEBHOOK_SECRETS_SERVICE,
   WHATSAPP_CONNECTOR,
   WHATSAPP_CONNECTOR_REGISTRY,
 } from "./di-tokens.js";
@@ -104,8 +105,12 @@ describe("AppModule.forRoot", () => {
     // AAOS-MULTI-TENANT-PHASE1B Phase 3: +1 provider (META_ADS_CONNECTOR_REGISTRY, the real
     // per-tenant MetaAdsConnector resolver — composed from the existing connector/publisher/
     // leadStoreSupabaseClient via a new local TenantRepository instance, no new import).
+    // AAOS-SETTINGS-WEBHOOK-CONFIG Part C: +1 provider (WEBHOOK_SECRETS_SERVICE, the real global
+    // Meta/WhatsApp webhook secret resolver — composed here alongside both connector registries
+    // via a new local SystemWebhookConfigRepository instance, no new import; see di-tokens.ts's
+    // WEBHOOK_SECRETS_SERVICE doc for why it's global instead of module-scoped).
     expect(dynamicModule.imports).toHaveLength(27);
-    expect(dynamicModule.providers).toHaveLength(23);
+    expect(dynamicModule.providers).toHaveLength(24);
   });
 
   it("provides KAI_AGENT_RUNTIME as undefined when no Kie AI key / asset library is configured, so the app still boots", () => {
@@ -167,7 +172,7 @@ describe("AppModule.forRoot", () => {
     );
   });
 
-  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/META_ADS_CONNECTOR_REGISTRY/WHATSAPP_CONNECTOR/WHATSAPP_CONNECTOR_REGISTRY/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN/CAPI_CONNECTOR tokens", () => {
+  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/META_ADS_CONNECTOR_REGISTRY/WHATSAPP_CONNECTOR/WHATSAPP_CONNECTOR_REGISTRY/WEBHOOK_SECRETS_SERVICE/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN/CAPI_CONNECTOR tokens", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.exports).toEqual([
       AAOS_API_CONFIG,
@@ -177,6 +182,7 @@ describe("AppModule.forRoot", () => {
       META_ADS_CONNECTOR_REGISTRY,
       WHATSAPP_CONNECTOR,
       WHATSAPP_CONNECTOR_REGISTRY,
+      WEBHOOK_SECRETS_SERVICE,
       LEAD_STORE,
       OBJECTIVE_ENGINE,
       BRANCH_MANAGER,

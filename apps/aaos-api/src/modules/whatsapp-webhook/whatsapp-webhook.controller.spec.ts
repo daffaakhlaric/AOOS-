@@ -12,35 +12,35 @@ import type { WhatsAppWebhookService } from "./whatsapp-webhook.service.js";
 
 function buildFakeService(): WhatsAppWebhookService {
   return {
-    verifyHandshake: vi.fn(),
+    verifyHandshake: vi.fn(async () => ok("unused")),
     processIncomingWebhookAsync: vi.fn(async () => undefined),
   } as unknown as WhatsAppWebhookService;
 }
 
 describe("WhatsAppWebhookController", () => {
   describe("GET /webhooks/whatsapp (handshake)", () => {
-    it("responds 200 with the plain-text challenge on success", () => {
+    it("responds 200 with the plain-text challenge on success", async () => {
       const service = buildFakeService();
-      (service.verifyHandshake as ReturnType<typeof vi.fn>).mockReturnValue(ok("challenge-abc"));
+      (service.verifyHandshake as ReturnType<typeof vi.fn>).mockResolvedValue(ok("challenge-abc"));
       const controller = new WhatsAppWebhookController(service);
       const reply = buildFakeReply();
 
-      controller.handshake("subscribe", "verify-token", "challenge-abc", reply as never);
+      await controller.handshake("subscribe", "verify-token", "challenge-abc", reply as never);
 
       expect(reply.statusCode).toBe(200);
       expect(reply.headers["content-type"]).toBe("text/plain");
       expect(reply.body[0]).toBe("challenge-abc");
     });
 
-    it("responds 403 with the verifier's error message on failure", () => {
+    it("responds 403 with the verifier's error message on failure", async () => {
       const service = buildFakeService();
-      (service.verifyHandshake as ReturnType<typeof vi.fn>).mockReturnValue(
+      (service.verifyHandshake as ReturnType<typeof vi.fn>).mockResolvedValue(
         err(new TokenVerificationError("bad token")),
       );
       const controller = new WhatsAppWebhookController(service);
       const reply = buildFakeReply();
 
-      controller.handshake("subscribe", "wrong-token", "challenge-abc", reply as never);
+      await controller.handshake("subscribe", "wrong-token", "challenge-abc", reply as never);
 
       expect(reply.statusCode).toBe(403);
       expect(reply.body[0]).toBe("bad token");

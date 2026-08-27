@@ -8,7 +8,9 @@ import type {
   SupabaseAuthUserLike,
 } from "../sales/infrastructure/supabase-auth-admin.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
+import { WebhookSecretsService } from "../webhook-config/webhook-secrets.service.js";
 
+import { SystemWebhookConfigRepository } from "./infrastructure/system-webhook-config.repository.js";
 import { TenantRepository } from "./infrastructure/tenant.repository.js";
 import { SuperadminService } from "./superadmin.service.js";
 
@@ -71,15 +73,29 @@ function buildService() {
   const wabaConfigs = new WabaConfigRepository(client);
   const authAdmin = buildFakeAuthAdmin();
   const metaAdsConnectorRegistry = { invalidate: vi.fn() };
+  const config = buildTestConfig();
+  const webhookConfigs = new SystemWebhookConfigRepository(client);
+  const webhookSecrets = new WebhookSecretsService(webhookConfigs, config);
   const service = new SuperadminService(
     tenants,
     wabaConfigs,
     authAdmin,
-    buildTestConfig(),
+    config,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal registry test double
     metaAdsConnectorRegistry as any,
+    webhookConfigs,
+    webhookSecrets,
   );
-  return { service, tenants, wabaConfigs, authAdmin, client, metaAdsConnectorRegistry };
+  return {
+    service,
+    tenants,
+    wabaConfigs,
+    authAdmin,
+    client,
+    metaAdsConnectorRegistry,
+    webhookConfigs,
+    webhookSecrets,
+  };
 }
 
 describe("SuperadminService", () => {
@@ -213,5 +229,49 @@ describe("SuperadminService", () => {
     await expect(
       service.impersonate({ tenantId: "missing", actorEmail: "s@a.com", actorId: "s-1" }),
     ).rejects.toThrow(NotFoundError);
+  });
+
+  describe("getWebhookConfig() / updateWebhookConfig()", () => {
+    it("getWebhookConfig() reports every field unset when no override row exists yet", async () => {
+      const { service } = buildService();
+      const result = await service.getWebhookConfig();
+      expect(result).toEqual({
+        whatsapp: { verifyTokenSet: false, appSecretSet: false },
+        meta: { verifyTokenSet: false, appSecretSet: false },
+      });
+    });
+
+    it("updateWebhookConfig() saves a real override, masks it on read-back, and NEVER returns the real value", async () => {
+      const { service } = buildService();
+      const result = await service.updateWebhookConfig({
+        meta: { verifyToken: "test-verify-token" },
+      });
+      expect(result.meta.verifyTokenSet).toBe(true);
+      expect(result.meta.verifyTokenMasked).toBeDefined();
+      expect(JSON.stringify(result)).not.toContain("test-verify-token");
+    });
+
+    it("updateWebhookConfig() invalidates WebhookSecretsService's cache on every save", async () => {
+      const { service, webhookSecrets } = buildService();
+      const invalidateSpy = vi.spyOn(webhookSecrets, "invalidate");
+      await service.updateWebhookConfig({ whatsapp: { appSecret: "test-whatsapp-app-secret" } });
+      expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("updateWebhookConfig() with an empty string CLEARS an existing override back to unset", async () => {
+      const { service } = buildService();
+      await service.updateWebhookConfig({ meta: { appSecret: "a-real-secret" } });
+      const cleared = await service.updateWebhookConfig({ meta: { appSecret: "" } });
+      expect(cleared.meta.appSecretSet).toBe(false);
+      expect(cleared.meta.appSecretMasked).toBeUndefined();
+    });
+
+    it("updateWebhookConfig() leaves an omitted field unchanged", async () => {
+      const { service } = buildService();
+      await service.updateWebhookConfig({ meta: { verifyToken: "test-verify-token" } });
+      const result = await service.updateWebhookConfig({ whatsapp: { verifyToken: "wa-token" } });
+      expect(result.meta.verifyTokenSet).toBe(true);
+      expect(result.whatsapp.verifyTokenSet).toBe(true);
+    });
   });
 });

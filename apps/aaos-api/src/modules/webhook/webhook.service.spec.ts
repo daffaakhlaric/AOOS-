@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { toConnectorConfig } from "../../config/to-connector-config.js";
 import { createFakePublisher, type FakePublisher } from "../../test-support/fake-publisher.js";
+import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import { SystemWebhookConfigRepository } from "../superadmin/infrastructure/system-webhook-config.repository.js";
+import { WebhookSecretsService } from "../webhook-config/webhook-secrets.service.js";
 
 import { WebhookService } from "./webhook.service.js";
 
@@ -17,36 +20,48 @@ function buildService(): { service: WebhookService; publisher: FakePublisher } {
   }
   const publisher = createFakePublisher();
   const connector = MetaAdsConnectorFactory.create({ config: connectorConfig.value, publisher });
-  const service = new WebhookService(config, connector, new WebhookVerifier());
+  const webhookSecrets = new WebhookSecretsService(
+    new SystemWebhookConfigRepository(createFakeSupabaseClient()),
+    config,
+  );
+  const service = new WebhookService(config, connector, new WebhookVerifier(), webhookSecrets);
   return { service, publisher };
 }
 
 describe("WebhookService", () => {
   describe("verifyHandshake", () => {
-    it("returns ok(challenge) for a valid subscribe handshake", () => {
+    it("returns ok(challenge) for a valid subscribe handshake", async () => {
       const { service } = buildService();
-      const result = service.verifyHandshake("subscribe", "test-verify-token", "challenge-xyz");
+      const result = await service.verifyHandshake(
+        "subscribe",
+        "test-verify-token",
+        "challenge-xyz",
+      );
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value).toBe("challenge-xyz");
       }
     });
 
-    it("returns err(TokenVerificationError) for a wrong verify token", () => {
+    it("returns err(TokenVerificationError) for a wrong verify token", async () => {
       const { service } = buildService();
-      const result = service.verifyHandshake("subscribe", "wrong-token", "challenge-xyz");
+      const result = await service.verifyHandshake("subscribe", "wrong-token", "challenge-xyz");
       expect(result.ok).toBe(false);
     });
 
-    it("returns err(TokenVerificationError) for a non-subscribe mode", () => {
+    it("returns err(TokenVerificationError) for a non-subscribe mode", async () => {
       const { service } = buildService();
-      const result = service.verifyHandshake("unsubscribe", "test-verify-token", "challenge-xyz");
+      const result = await service.verifyHandshake(
+        "unsubscribe",
+        "test-verify-token",
+        "challenge-xyz",
+      );
       expect(result.ok).toBe(false);
     });
 
-    it("returns err(TokenVerificationError) when the challenge is missing", () => {
+    it("returns err(TokenVerificationError) when the challenge is missing", async () => {
       const { service } = buildService();
-      const result = service.verifyHandshake("subscribe", "test-verify-token", undefined);
+      const result = await service.verifyHandshake("subscribe", "test-verify-token", undefined);
       expect(result.ok).toBe(false);
     });
   });

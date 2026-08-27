@@ -10,6 +10,7 @@ import {
 
 import type { AaosApiConfig } from "../../../config/aaos-api.config.js";
 import type { TenantRepository } from "../../superadmin/infrastructure/tenant.repository.js";
+import type { WebhookSecretsService } from "../../webhook-config/webhook-secrets.service.js";
 
 const META_BASE_URL = "https://graph.facebook.com";
 
@@ -48,13 +49,20 @@ export interface MetaAdsConnectorContext extends MetaAdsConnector {
  * fan-out, no multi-token-per-tenant question, no webhook-signature complexity (the coordinator
  * note's finding #5 confirms Meta Ads has no per-tenant webhook secret question in this app).
  *
- * DSS-MOTOR BACKWARD COMPAT: `resolve(tenantId)` special-cases `tenantId ===
- * config.AAOS_TENANT_ID` to return the SAME statically-composed `MetaAdsConnector`
- * `app.module.ts` already builds from `.env` (`META_ACCESS_TOKEN`/`META_AD_ACCOUNT_IDS`) — the
- * one seeded, already-live `dss-motor` tenant predates this registry and has never had its Meta
- * config backfilled into `tenants.meta_access_token`. This avoids both a redundant live Supabase
- * query for the one tenant already known at boot, and a real behavior change/outage for
- * `dss-motor`'s live Meta Ads traffic the day this phase ships.
+ * DSS-MOTOR REAL DB-FIRST RESOLUTION (coordinator note, Part B — corrects the Phase 1B/Phase 3
+ * decision below): `resolve(tenantId)` no longer special-cases `tenantId === config.AAOS_TENANT_ID`
+ * to unconditionally short-circuit to the static, `.env`-composed connector. Live Supabase
+ * confirmed `dss-motor`'s `tenants` row already carries a real, correctly-set
+ * `meta_access_token`/`meta_ad_account_id` — the Settings page's save flow for `dss-motor` was
+ * silently writing a row nothing ever read. Every tenant, INCLUDING `dss-motor`, now attempts the
+ * real `tenants` lookup + `parseMetaAdsConnectorConfig` path FIRST. Only when that path reports
+ * `ConnectorNotConfiguredError` (no token/ad-account-id saved yet, or the saved values fail
+ * validation) AND the tenant is `dss-motor` does this fall back to composing the static context
+ * from `config.META_ACCESS_TOKEN`/`config.META_AD_ACCOUNT_IDS` — `.env` is now a pure fallback
+ * default for the one pre-existing tenant that predates this registry, never a permanent override.
+ * (Historical note: the original Phase 1B/Phase 3 version of this doc justified the unconditional
+ * short-circuit as "avoid a redundant query + avoid a live-traffic behavior change on ship day" —
+ * that justification no longer holds now that `dss-motor`'s DB row is real and correctly set.)
  */
 export class MetaAdsConnectorRegistry {
   private readonly cache = new Map<string, MetaAdsConnectorContext>();
@@ -65,6 +73,7 @@ export class MetaAdsConnectorRegistry {
     private readonly config: AaosApiConfig,
     private readonly publisher: IPublisher,
     private readonly staticConnector: MetaAdsConnector,
+    private readonly webhookSecrets: WebhookSecretsService,
     logger?: Logger,
   ) {
     this.logger = logger ?? createLogger({ serviceName: "meta-ads-connector-registry" });
@@ -78,6 +87,74 @@ export class MetaAdsConnectorRegistry {
       return ok(cached);
     }
 
+    // A `tenants` read failure (DB outage, network hiccup) must never make Meta Ads permanently
+    // unusable for `dss-motor` — it is still allowed to fall back to `.env` on any DB error, not
+    // only "no row"/"empty fields", same "an optional DB layer failing must degrade, not break"
+    // discipline `WebhookSecretsService.getRowSafely()` establishes. Any OTHER tenant still gets a
+    // real, honest `ConnectorNotConfiguredError` below (never an unhandled 500).
+    let tenant: Awaited<ReturnType<TenantRepository["findByTenantId"]>>;
+    try {
+      tenant = await this.tenants.findByTenantId(tenantId);
+    } catch (caught) {
+      this.logger.warn(
+        { tenantId, error: caught instanceof Error ? caught.message : String(caught) },
+        "MetaAdsConnectorRegistry: tenants.findByTenantId failed — treating as unconfigured for this resolution",
+      );
+      tenant = undefined;
+    }
+    const hasRealDbConfig =
+      tenant !== undefined &&
+      tenant.meta_access_token !== null &&
+      tenant.meta_access_token.length > 0 &&
+      tenant.meta_ad_account_id !== null &&
+      tenant.meta_ad_account_id.length > 0;
+
+    // The global webhook verify-token/app-secret pair (coordinator note finding #4 — resolved via
+    // `WebhookSecretsService`, DB-override-first/`.env`-fallback, NEVER read from `this.config`
+    // directly here anymore) is baked into every composed `MetaAdsConnectorConfig` — even though no
+    // currently-exercised call site reads these two fields back off a registry-resolved connector
+    // (see `webhook.service.ts`'s own doc for why Meta's lead webhook stays on the STATIC
+    // `META_ADS_CONNECTOR`, not this registry), keeping the composed config internally consistent
+    // with the real, live-editable secret pair is still correct and cheap (cached by
+    // `WebhookSecretsService` itself).
+    let dbResult: ReturnType<typeof parseMetaAdsConnectorConfig> | undefined;
+    if (hasRealDbConfig && tenant !== undefined) {
+      const webhookSecrets = await this.webhookSecrets.getMetaSecrets();
+      dbResult = parseMetaAdsConnectorConfig({
+        apiVersion: tenant.meta_api_version ?? this.config.META_API_VERSION,
+        baseUrl: META_BASE_URL,
+        accessToken: tenant.meta_access_token as string,
+        adAccountIds: [tenant.meta_ad_account_id as string],
+        webhookVerifyToken: webhookSecrets.verifyToken,
+        webhookAppSecret: webhookSecrets.appSecret,
+        tenantId,
+      });
+    }
+
+    if (dbResult !== undefined && !dbResult.ok) {
+      this.logger.warn(
+        { tenantId, error: dbResult.error.message },
+        "MetaAdsConnectorRegistry: tenant's saved Meta config failed MetaAdsConnectorConfig validation",
+      );
+    }
+
+    if (dbResult !== undefined && dbResult.ok) {
+      const connector = MetaAdsConnectorFactory.create({
+        config: dbResult.value,
+        publisher: this.publisher,
+      });
+      const context: MetaAdsConnectorContext = {
+        ...connector,
+        accessToken: dbResult.value.accessToken,
+        adAccountIds: dbResult.value.adAccountIds,
+      };
+      this.cache.set(tenantId, context);
+      return ok(context);
+    }
+
+    // DB path unavailable or invalid — fall back to the static, `.env`-composed connector ONLY
+    // for the one pre-existing tenant that predates this registry (`dss-motor`). Any other tenant
+    // with no real DB config gets a real, honest `ConnectorNotConfiguredError`.
     if (tenantId === this.config.AAOS_TENANT_ID) {
       const context: MetaAdsConnectorContext = {
         ...this.staticConnector,
@@ -88,52 +165,16 @@ export class MetaAdsConnectorRegistry {
       return ok(context);
     }
 
-    const tenant = await this.tenants.findByTenantId(tenantId);
-    if (
-      tenant === undefined ||
-      tenant.meta_access_token === null ||
-      tenant.meta_access_token.length === 0 ||
-      tenant.meta_ad_account_id === null ||
-      tenant.meta_ad_account_id.length === 0
-    ) {
-      return err(new ConnectorNotConfiguredError(tenantId));
-    }
-
-    const configResult = parseMetaAdsConnectorConfig({
-      apiVersion: tenant.meta_api_version ?? this.config.META_API_VERSION,
-      baseUrl: META_BASE_URL,
-      accessToken: tenant.meta_access_token,
-      adAccountIds: [tenant.meta_ad_account_id],
-      webhookVerifyToken: this.config.META_WEBHOOK_VERIFY_TOKEN,
-      webhookAppSecret: this.config.META_WEBHOOK_APP_SECRET,
-      tenantId,
-    });
-    if (!configResult.ok) {
-      this.logger.warn(
-        { tenantId, error: configResult.error.message },
-        "MetaAdsConnectorRegistry: tenant's saved Meta config failed MetaAdsConnectorConfig validation",
-      );
-      return err(new ConnectorNotConfiguredError(tenantId, configResult.error));
-    }
-
-    const connector = MetaAdsConnectorFactory.create({
-      config: configResult.value,
-      publisher: this.publisher,
-    });
-    const context: MetaAdsConnectorContext = {
-      ...connector,
-      accessToken: configResult.value.accessToken,
-      adAccountIds: configResult.value.adAccountIds,
-    };
-    this.cache.set(tenantId, context);
-    return ok(context);
+    return err(
+      new ConnectorNotConfiguredError(
+        tenantId,
+        dbResult !== undefined && !dbResult.ok ? dbResult.error : undefined,
+      ),
+    );
   }
 
-  /** Real cache invalidation — wired into `SettingsService.updateMeta` and `SuperadminService.update`/`.create` (see each's own comment) so a stale cached connector (old token/ad-account-id) never lingers past a tenant's own save. Safe to call for a tenant with nothing cached (a no-op `Map.delete`). Deliberately never invalidates the `dss-motor` static-fallback entry — that connector is process-boot-composed from `.env`, not from `tenants.meta_access_token`, so no `tenants` write can make it stale. */
+  /** Real cache invalidation — wired into `SettingsService.updateMeta` and `SuperadminService.update`/`.create` (see each's own comment) so a stale cached connector (old token/ad-account-id) never lingers past a tenant's own save. Safe to call for a tenant with nothing cached (a no-op `Map.delete`). Now DOES invalidate `dss-motor` too (coordinator note, Part B) — since `resolve` can cache a genuine DB-backed connector context for `dss-motor`, a save to its `tenants` row must invalidate that cache exactly like any other tenant; the old "never invalidate dss-motor, it's always the static env connector" reasoning no longer holds. */
   invalidate(tenantId: string): void {
-    if (tenantId === this.config.AAOS_TENANT_ID) {
-      return;
-    }
     this.cache.delete(tenantId);
   }
 }

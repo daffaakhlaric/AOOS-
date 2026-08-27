@@ -62,6 +62,7 @@ import {
   OBJECTIVE_ENGINE,
   SUPABASE_AUTH_ADMIN,
   SUPABASE_CLIENT,
+  WEBHOOK_SECRETS_SERVICE,
   WHATSAPP_CONNECTOR,
   WHATSAPP_CONNECTOR_REGISTRY,
 } from "./di-tokens.js";
@@ -93,9 +94,11 @@ import { WabaConfigRepository } from "./modules/settings/infrastructure/waba-con
 import { SettingsModule } from "./modules/settings/settings.module.js";
 import { SimulationModule } from "./modules/simulation/simulation.module.js";
 import { SosmedModule } from "./modules/sosmed/sosmed.module.js";
+import { SystemWebhookConfigRepository } from "./modules/superadmin/infrastructure/system-webhook-config.repository.js";
 import { TenantRepository } from "./modules/superadmin/infrastructure/tenant.repository.js";
 import { SuperadminModule } from "./modules/superadmin/superadmin.module.js";
 import { WebhookModule } from "./modules/webhook/webhook.module.js";
+import { WebhookSecretsService } from "./modules/webhook-config/webhook-secrets.service.js";
 import { WhatsAppConnectorRegistry } from "./modules/whatsapp/infrastructure/whatsapp-connector-registry.js";
 import { WhatsAppWebhookModule } from "./modules/whatsapp-webhook/whatsapp-webhook.module.js";
 
@@ -182,11 +185,22 @@ export class AppModule {
     // resolve/cache, `dss-motor` static fallback, real `Result.err(ConnectorNotConfiguredError)`
     // for an unconfigured tenant).
     const wabaConfigRepository = new WabaConfigRepository(leadStoreSupabaseClient);
+    // AAOS-SETTINGS-WEBHOOK-CONFIG (Part C) — the real, DB-first/`.env`-fallback resolver for the
+    // GLOBAL Meta/WhatsApp webhook verify-token + app-secret pairs. Composed here, alongside both
+    // connector registries, for the SAME reason they are (see `di-tokens.ts`'s
+    // `WEBHOOK_SECRETS_SERVICE` doc): one instance, shared by every real consumer, both the
+    // Nest-DI-injected ones (guards/webhook services, via the global token below) and these two
+    // plain-constructed registries.
+    const systemWebhookConfigRepository = new SystemWebhookConfigRepository(
+      leadStoreSupabaseClient,
+    );
+    const webhookSecretsService = new WebhookSecretsService(systemWebhookConfigRepository, config);
     const whatsAppConnectorRegistry = new WhatsAppConnectorRegistry(
       wabaConfigRepository,
       config,
       publisher,
       whatsAppConnector,
+      webhookSecretsService,
     );
     // AAOS-MULTI-TENANT-PHASE1B (Phase 3) — the real per-tenant Meta Ads connector resolver, same
     // composition pattern as `whatsAppConnectorRegistry` above: a `TenantRepository` instance over
@@ -200,6 +214,7 @@ export class AppModule {
       config,
       publisher,
       connector,
+      webhookSecretsService,
     );
     // AAOS-CHAT-ROOM-JESSY: `GET /leads/:id/scoring-history`'s thin read over the real
     // `scoring_events` table — same composition pattern as `messageRepository`/`closingRepository`
@@ -399,6 +414,7 @@ export class AppModule {
         { provide: META_ADS_CONNECTOR_REGISTRY, useValue: metaAdsConnectorRegistry },
         { provide: WHATSAPP_CONNECTOR, useValue: whatsAppConnector },
         { provide: WHATSAPP_CONNECTOR_REGISTRY, useValue: whatsAppConnectorRegistry },
+        { provide: WEBHOOK_SECRETS_SERVICE, useValue: webhookSecretsService },
         { provide: LEAD_STORE, useValue: leadStore },
         { provide: OBJECTIVE_ENGINE, useValue: objectiveEngine },
         { provide: BRANCH_MANAGER, useValue: branchManager },
@@ -434,6 +450,7 @@ export class AppModule {
         META_ADS_CONNECTOR_REGISTRY,
         WHATSAPP_CONNECTOR,
         WHATSAPP_CONNECTOR_REGISTRY,
+        WEBHOOK_SECRETS_SERVICE,
         LEAD_STORE,
         OBJECTIVE_ENGINE,
         BRANCH_MANAGER,

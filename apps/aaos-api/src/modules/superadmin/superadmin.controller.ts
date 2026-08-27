@@ -11,6 +11,11 @@ import {
 } from "./dto/impersonate.dto.js";
 import type { ListTenantsResponseDto, TenantResponseDto } from "./dto/tenant-response.dto.js";
 import { UpdateTenantBodySchema, type UpdateTenantBodyDto } from "./dto/update-tenant.dto.js";
+import {
+  PutWebhookConfigBodySchema,
+  type PutWebhookConfigBodyDto,
+  type WebhookConfigResponseDto,
+} from "./dto/webhook-config.dto.js";
 import { SuperadminService } from "./superadmin.service.js";
 
 /**
@@ -59,5 +64,24 @@ export class SuperadminController {
     @Body(new ZodValidationPipe(ImpersonateBodySchema)) body: ImpersonateBodyDto,
   ): Promise<ImpersonateResponseDto> {
     return this.service.impersonate(body);
+  }
+
+  /**
+   * `GET /api/v1/superadmin/webhook-config` (AAOS-SETTINGS-WEBHOOK-CONFIG, Part C) — the GLOBAL
+   * (not per-tenant) Meta/WhatsApp webhook verify-token + app-secret override status. Same
+   * perimeter as every other endpoint on this controller (`ApiKeyGuard`, the real
+   * `role === 'superadmin'` check happening one layer up in `apps/aaos-dashboard`'s
+   * `/api/superadmin/*` route — see class doc).
+   */
+  @Get("webhook-config")
+  async getWebhookConfig(): Promise<WebhookConfigResponseDto> {
+    return this.service.getWebhookConfig();
+  }
+
+  @Put("webhook-config")
+  async updateWebhookConfig(
+    @Body(new ZodValidationPipe(PutWebhookConfigBodySchema)) body: PutWebhookConfigBodyDto,
+  ): Promise<WebhookConfigResponseDto> {
+    return this.service.updateWebhookConfig(body);
   }
 }

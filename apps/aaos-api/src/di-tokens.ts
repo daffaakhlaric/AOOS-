@@ -150,3 +150,19 @@ export const WHATSAPP_CONNECTOR_REGISTRY = Symbol("WHATSAPP_CONNECTOR_REGISTRY")
  * removed, so this is an ADDITIVE token, not a replacement of an existing one.
  */
 export const META_ADS_CONNECTOR_REGISTRY = Symbol("META_ADS_CONNECTOR_REGISTRY");
+/**
+ * AAOS-SETTINGS-WEBHOOK-CONFIG (Part C) addition — the real, DB-first/`.env`-fallback resolver for
+ * the GLOBAL Meta/WhatsApp webhook verify-token + app-secret pairs (`system_webhook_config`, one
+ * row, superadmin-editable). Provided here (not inside a per-feature module) for the SAME reason
+ * `META_ADS_CONNECTOR_REGISTRY`/`WHATSAPP_CONNECTOR_REGISTRY` are: both connector registries are
+ * plain-constructed in `app.module.ts`'s `forRoot` (composition root, before Nest's DI container
+ * exists), not managed by a dedicated Nest module, so this service is composed and shared the same
+ * way — one instance, injected via this global token into `WebhookSignatureGuard`/
+ * `WhatsAppSignatureGuard`/`WebhookService`/`WhatsAppWebhookService` (real Nest DI), and passed
+ * directly into `MetaAdsConnectorRegistry`/`WhatsAppConnectorRegistry`'s constructors (plain JS,
+ * composed alongside them in the same `forRoot` call) — never a second instance, so its in-memory
+ * cache is genuinely global. This sidesteps the circular-import risk a `SuperadminModule`-hosted
+ * service would have created for `WebhookModule`/`WhatsAppWebhookModule` (see
+ * `docs/PROMPT-AAOS-SETTINGS-WEBHOOK-CONFIG.md` Part C item 3).
+ */
+export const WEBHOOK_SECRETS_SERVICE = Symbol("WEBHOOK_SECRETS_SERVICE");

@@ -15,6 +15,7 @@ import type {
   WabaConfigRepository,
   WabaConfigRow,
 } from "../../settings/infrastructure/waba-config.repository.js";
+import type { WebhookSecretsService } from "../../webhook-config/webhook-secrets.service.js";
 
 const WHATSAPP_BASE_URL = "https://graph.facebook.com";
 const BRANCH_VALUES = new Set<string>(Object.values(Branch));
@@ -50,13 +51,19 @@ export class ConnectorNotConfiguredError extends UnavailableError {
  * config problem to fix in Settings, not a reason to refuse composing a connector for every OTHER
  * correctly-configured branch).
  *
- * DSS-MOTOR BACKWARD COMPAT: `resolve(tenantId)` special-cases `tenantId ===
- * config.AAOS_TENANT_ID` to return the SAME statically-composed `WhatsAppConnector` `app.module.ts`
- * already builds from `.env` (`WHATSAPP_ACCESS_TOKEN`/`WABA_ID_*`/etc.) — the one seeded, already-
- * live `dss-motor` tenant predates `waba_configs` and has never had its WABA rows backfilled into
- * that table. This avoids BOTH a redundant live Supabase query for the one tenant whose config is
- * already known at boot, AND a real behavior change/outage for `dss-motor`'s live WhatsApp traffic
- * the day this phase ships.
+ * DSS-MOTOR REAL DB-FIRST RESOLUTION (coordinator note, Part B — corrects the Phase 1B/Phase 2
+ * decision below): `resolve(tenantId)` no longer special-cases `tenantId === config.AAOS_TENANT_ID`
+ * to unconditionally short-circuit to the static, `.env`-composed connector. Every tenant,
+ * INCLUDING `dss-motor`, now attempts the real `waba_configs` lookup FIRST. Only when zero ACTIVE
+ * rows exist for that tenant AND the tenant is `dss-motor` does this fall back to the static
+ * env-composed connector. Live Supabase confirmed `waba_configs` has zero rows for `dss-motor`
+ * today, so this fallback path is exactly what keeps firing for it right now — zero behavior
+ * change until/unless someone adds real WABA rows for `dss-motor` via Settings, at which point it
+ * correctly starts using them, closing the gap for real. (Historical note: the original Phase
+ * 1B/Phase 2 version of this doc justified the unconditional short-circuit as "avoid a redundant
+ * query + avoid a live-traffic behavior change on ship day" — that justification no longer holds:
+ * `dss-motor` genuinely has no DB-backed alternative to `.env` yet, so this reorder is a no-op for
+ * it today while remaining ready for the day rows are added.)
  */
 export class WhatsAppConnectorRegistry {
   private readonly cache = new Map<string, WhatsAppConnector>();
@@ -67,6 +74,7 @@ export class WhatsAppConnectorRegistry {
     private readonly config: AaosApiConfig,
     private readonly publisher: IPublisher,
     private readonly staticConnector: WhatsAppConnector,
+    private readonly webhookSecrets: WebhookSecretsService,
     logger?: Logger,
   ) {
     this.logger = logger ?? createLogger({ serviceName: "whatsapp-connector-registry" });
@@ -78,18 +86,33 @@ export class WhatsAppConnectorRegistry {
       return ok(cached);
     }
 
-    if (tenantId === this.config.AAOS_TENANT_ID) {
-      this.cache.set(tenantId, this.staticConnector);
-      return ok(this.staticConnector);
-    }
-
     // Only real, currently-ACTIVE rows are registered — `status` exists precisely so a tenant (or
     // a failed "Test Koneksi") can mark a WABA card unusable without deleting it; an INACTIVE row
     // should not be sendable/routable, same discipline as `SettingsService.getSettings` already
-    // applies to `hasOwnToken`.
-    const allRows = await this.wabaConfigs.listByTenant(tenantId);
+    // applies to `hasOwnToken`. Tried for EVERY tenant, including `dss-motor` (see class doc).
+    // A `waba_configs` read failure (DB outage, network hiccup) must never make WhatsApp
+    // permanently unusable for `dss-motor` — treated the same as "zero ACTIVE rows" below, same
+    // "an optional DB layer failing must degrade, not break" discipline
+    // `WebhookSecretsService.getRowSafely()` establishes.
+    let allRows: Awaited<ReturnType<WabaConfigRepository["listByTenant"]>>;
+    try {
+      allRows = await this.wabaConfigs.listByTenant(tenantId);
+    } catch (caught) {
+      this.logger.warn(
+        { tenantId, error: caught instanceof Error ? caught.message : String(caught) },
+        "WhatsAppConnectorRegistry: wabaConfigs.listByTenant failed — treating as unconfigured for this resolution",
+      );
+      allRows = [];
+    }
     const rows = allRows.filter((row) => row.status === "ACTIVE");
     if (rows.length === 0) {
+      // DB path has nothing configured — fall back to the static, `.env`-composed connector ONLY
+      // for the one pre-existing tenant that predates `waba_configs` (`dss-motor`). Any other
+      // tenant with zero ACTIVE rows gets a real, honest `ConnectorNotConfiguredError`.
+      if (tenantId === this.config.AAOS_TENANT_ID) {
+        this.cache.set(tenantId, this.staticConnector);
+        return ok(this.staticConnector);
+      }
       return err(new ConnectorNotConfiguredError(tenantId));
     }
 
@@ -101,12 +124,16 @@ export class WhatsAppConnectorRegistry {
       );
     }
 
+    // Global webhook verify-token/app-secret pair (coordinator note finding #4 — resolved via
+    // `WebhookSecretsService`, DB-override-first/`.env`-fallback, NEVER read from `this.config`
+    // directly here anymore).
+    const webhookSecrets = await this.webhookSecrets.getWhatsappSecrets();
     const configResult = parseWhatsAppConnectorConfig({
       apiVersion: "v21.0",
       baseUrl: WHATSAPP_BASE_URL,
       accessToken: rows[0]?.access_token ?? "",
-      webhookVerifyToken: this.config.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
-      webhookAppSecret: this.config.WHATSAPP_WEBHOOK_APP_SECRET,
+      webhookVerifyToken: webhookSecrets.verifyToken,
+      webhookAppSecret: webhookSecrets.appSecret,
       tenantId,
       wabaAccounts: rows.map(toWabaAccountConfig),
     });
@@ -126,11 +153,8 @@ export class WhatsAppConnectorRegistry {
     return ok(connector);
   }
 
-  /** Real cache invalidation — wired into Settings' WABA create/update/delete/test flow (see `SettingsService`) so a stale cached connector (old token/phone numbers) never lingers past a tenant's own save. Safe to call for a tenant with nothing cached (a no-op `Map.delete`). Deliberately never invalidates the `dss-motor` static-fallback entry — that connector is process-boot-composed from `.env`, not from `waba_configs`, so no `waba_configs` write can make it stale. */
+  /** Real cache invalidation — wired into Settings' WABA create/update/delete/test flow (see `SettingsService`) so a stale cached connector (old token/phone numbers) never lingers past a tenant's own save. Safe to call for a tenant with nothing cached (a no-op `Map.delete`). Now DOES invalidate `dss-motor` too (coordinator note, Part B) — since `resolve` can cache a genuine DB-backed connector for `dss-motor` once real `waba_configs` rows exist, a save to those rows must invalidate that cache exactly like any other tenant; the old "never invalidate dss-motor, it's always the static env connector" reasoning no longer holds. */
   invalidate(tenantId: string): void {
-    if (tenantId === this.config.AAOS_TENANT_ID) {
-      return;
-    }
     this.cache.delete(tenantId);
   }
 }

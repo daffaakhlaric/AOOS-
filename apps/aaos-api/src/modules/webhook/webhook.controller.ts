@@ -19,13 +19,13 @@ export class WebhookController {
   constructor(private readonly webhookService: WebhookService) {}
 
   @Get()
-  handshake(
+  async handshake(
     @Query("hub.mode") mode: string | undefined,
     @Query("hub.verify_token") token: string | undefined,
     @Query("hub.challenge") challenge: string | undefined,
     @Res() reply: FastifyReply,
-  ): void {
-    const result = this.webhookService.verifyHandshake(mode, token, challenge);
+  ): Promise<void> {
+    const result = await this.webhookService.verifyHandshake(mode, token, challenge);
     if (result.ok) {
       void reply.status(200).type("text/plain").send(result.value);
       return;

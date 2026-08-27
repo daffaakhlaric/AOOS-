@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type {
   CreateWabaConfigInput,
+  TestConnectionResultDto,
   UpdateWabaConfigInput,
   WabaConfigDto,
 } from "@/types/tenant.types";
@@ -31,6 +32,13 @@ export function WabaConfigModal({
   const [accessToken, setAccessToken] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestConnectionResultDto | undefined>(undefined);
+
+  // There is no unsaved token to test once Simpan has been clicked — testing the OLD saved token
+  // (Edit mode, token left blank) would need the existing `waba/:id/test` endpoint, not this
+  // draft-test one; do not conflate the two.
+  const canTest = phoneNumberId.trim().length > 0 && accessToken.trim().length > 0;
 
   function validate(): string | undefined {
     if (branchId.trim().length === 0) {
@@ -49,6 +57,30 @@ export function WabaConfigModal({
       return "Access Token wajib diisi.";
     }
     return undefined;
+  }
+
+  async function handleTestKoneksi(): Promise<void> {
+    if (!canTest) {
+      return;
+    }
+    setTesting(true);
+    setTestResult(undefined);
+    try {
+      const response = await fetch("/api/settings/waba/test-draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phoneNumberId, accessToken }),
+      });
+      const body = (await response.json().catch(() => ({}))) as TestConnectionResultDto;
+      setTestResult(body);
+    } catch (caught) {
+      setTestResult({
+        success: false,
+        message: caught instanceof Error ? caught.message : "Gagal menguji koneksi WABA.",
+      });
+    } finally {
+      setTesting(false);
+    }
   }
 
   async function handleSave(): Promise<void> {
@@ -162,10 +194,36 @@ export function WabaConfigModal({
             />
           </div>
 
+          {isEdit && accessToken.trim().length === 0 ? (
+            <p className={styles.hint}>
+              Isi Access Token baru untuk bisa menguji koneksi (token lama tersimpan dapat diuji
+              lewat tombol [Test] di daftar WABA).
+            </p>
+          ) : null}
+
+          {testResult !== undefined ? (
+            <p
+              className={`${styles.testResult} ${
+                testResult.success ? styles.testResultSuccess : styles.testResultFailure
+              }`}
+            >
+              {testResult.success ? "✓ " : "✕ "}
+              {testResult.message}
+            </p>
+          ) : null}
+
           {error !== undefined ? <p className={styles.error}>{error}</p> : null}
         </div>
 
         <div className={styles.footer}>
+          <button
+            type="button"
+            className={styles.testButton}
+            onClick={() => void handleTestKoneksi()}
+            disabled={!canTest || testing}
+          >
+            {testing ? "Menguji..." : "🔌 Test Koneksi"}
+          </button>
           <button type="button" className={styles.cancelButton} onClick={onClose}>
             Batal
           </button>

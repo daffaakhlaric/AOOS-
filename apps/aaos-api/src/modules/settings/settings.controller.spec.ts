@@ -36,6 +36,7 @@ function buildFakeService(): SettingsService {
     updateWaba: vi.fn(async () => ({ ...WABA_SAMPLE, status: "INACTIVE" })),
     deleteWaba: vi.fn(async () => undefined),
     testWaba: vi.fn(async () => ({ success: true, message: "Terhubung" })),
+    testWabaDraft: vi.fn(async () => ({ success: true, message: "Terhubung" })),
   } as unknown as SettingsService;
 }
 
@@ -107,6 +108,17 @@ describe("SettingsController", () => {
     const controller = new SettingsController(service);
     const result = await controller.testWaba("dss-motor", "waba-1");
     expect(service.testWaba).toHaveBeenCalledWith("dss-motor", "waba-1");
+    expect(result.success).toBe(true);
+  });
+
+  it("POST /api/v1/settings/waba/test-draft delegates to service.testWabaDraft (no tenant/DB read)", async () => {
+    const service = buildFakeService();
+    const controller = new SettingsController(service);
+    const result = await controller.testWabaDraft({
+      phoneNumberId: "phone-1",
+      accessToken: "draft-token",
+    });
+    expect(service.testWabaDraft).toHaveBeenCalledWith("phone-1", "draft-token");
     expect(result.success).toBe(true);
   });
 

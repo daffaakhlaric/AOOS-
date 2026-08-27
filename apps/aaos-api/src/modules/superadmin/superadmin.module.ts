@@ -5,6 +5,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
 
+import { SystemWebhookConfigRepository } from "./infrastructure/system-webhook-config.repository.js";
 import { TenantRepository } from "./infrastructure/tenant.repository.js";
 import { SuperadminController } from "./superadmin.controller.js";
 import { SuperadminService } from "./superadmin.service.js";
@@ -35,6 +36,18 @@ import { SuperadminService } from "./superadmin.service.js";
       provide: WabaConfigRepository,
       useFactory: (client: SupabaseClientLike): WabaConfigRepository =>
         new WabaConfigRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    // AAOS-SETTINGS-WEBHOOK-CONFIG (Part C) — the real `GET/PUT /api/v1/superadmin/webhook-config`
+    // endpoints' persistence, same "each consumer composes its own instance of a shared repository
+    // class over one shared connection" pattern as `TenantRepository`/`WabaConfigRepository` above.
+    // Deliberately NOT `WebhookSecretsService` itself — that lives in its own small, standalone
+    // `modules/webhook-config/` (see its own class doc) precisely so `WebhookModule`/
+    // `WhatsAppWebhookModule` never need to import THIS module to reach it.
+    {
+      provide: SystemWebhookConfigRepository,
+      useFactory: (client: SupabaseClientLike): SystemWebhookConfigRepository =>
+        new SystemWebhookConfigRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

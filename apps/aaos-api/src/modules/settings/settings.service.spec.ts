@@ -222,4 +222,16 @@ describe("SettingsService", () => {
     expect(result.success).toBe(false);
     expect(whatsAppConnectorRegistry.invalidate).toHaveBeenCalledWith("dss-motor");
   });
+
+  it("testWabaDraft() tests a raw, unsaved phoneNumberId+accessToken pair with no DB read/write", async () => {
+    const { service, wabaConfigs } = buildService();
+    global.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ verified_name: "Draft Test" }), { status: 200 }),
+    ) as unknown as typeof fetch;
+    const result = await service.testWabaDraft("draft-phone-id", "draft-token");
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("Draft Test");
+    // No `waba_configs` row exists at all for this pair — proves no DB read/write happened.
+    expect(await wabaConfigs.listByTenant("dss-motor")).toEqual([]);
+  });
 });
