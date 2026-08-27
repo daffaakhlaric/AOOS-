@@ -29,6 +29,14 @@ function toRegistry(config: AaosApiConfig, connector: MetaAdsConnector) {
   };
 }
 
+/** Minimal `AdTenantIndexRepository` test double — AAOS-MULTI-TENANT-PHASE1C's best-effort indexing side effect, irrelevant to this file's own `pullCampaigns`/`getAdAccounts`/`executeVerdict` assertions. */
+function buildFakeAdTenantIndex() {
+  return {
+    upsertMany: async () => undefined,
+    findTenantByAdMetaId: async () => undefined,
+  };
+}
+
 function buildService(): MetaAdsService {
   const config = buildTestConfig();
   const connectorConfig = toConnectorConfig(config);
@@ -39,7 +47,11 @@ function buildService(): MetaAdsService {
     config: connectorConfig.value,
     publisher: createFakePublisher(),
   });
-  return new MetaAdsService(config, toRegistry(config, connector) as never);
+  return new MetaAdsService(
+    config,
+    toRegistry(config, connector) as never,
+    buildFakeAdTenantIndex() as never,
+  );
 }
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: "error" }));
@@ -96,7 +108,11 @@ describe("MetaAdsService", () => {
         config: connectorConfig.value,
         publisher: createFakePublisher(),
       });
-      const service = new MetaAdsService(config, toRegistry(config, connector) as never);
+      const service = new MetaAdsService(
+        config,
+        toRegistry(config, connector) as never,
+        buildFakeAdTenantIndex() as never,
+      );
       await expect(
         service.pullCampaigns({ datePreset: "last_30d" }, "corr-5"),
       ).rejects.toBeInstanceOf(ValidationError);
@@ -120,7 +136,11 @@ describe("MetaAdsService", () => {
         config: connectorConfig.value,
         publisher: createFakePublisher(),
       });
-      const service = new MetaAdsService(config, toRegistry(config, connector) as never);
+      const service = new MetaAdsService(
+        config,
+        toRegistry(config, connector) as never,
+        buildFakeAdTenantIndex() as never,
+      );
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
         { id: "act_752604553578354", name: "DSS Motor" },
@@ -141,7 +161,11 @@ describe("MetaAdsService", () => {
         config: connectorConfig.value,
         publisher: createFakePublisher(),
       });
-      const service = new MetaAdsService(config, toRegistry(config, connector) as never);
+      const service = new MetaAdsService(
+        config,
+        toRegistry(config, connector) as never,
+        buildFakeAdTenantIndex() as never,
+      );
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
         { id: "act_752604553578354", name: "DSS Motor" },

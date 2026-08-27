@@ -18,6 +18,7 @@ import type { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { LookalikeService } from "../lookalike/lookalike.service.js";
+import type { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
@@ -90,6 +91,13 @@ function buildFakeConnector(adAccount: AdAccount = buildAdAccount(), ok = true):
     executeVerdict: { execute: vi.fn() },
     client: {},
   } as unknown as MetaAdsConnector;
+}
+
+function buildFakeAdTenantIndex(): AdTenantIndexRepository {
+  return {
+    upsertMany: vi.fn(async () => undefined),
+    findTenantByAdMetaId: vi.fn(async () => undefined),
+  } as unknown as AdTenantIndexRepository;
 }
 
 function buildFakeScraper(ok = true): MobixScraperService {
@@ -238,6 +246,7 @@ function buildService(
     abTestingService?: AbTestingService;
     lookalikeService?: LookalikeService;
     intelligenceService?: IntelligenceService;
+    adTenantIndex?: AdTenantIndexRepository;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -266,6 +275,7 @@ function buildService(
     options.abTestingService ?? buildFakeAbTestingService(),
     options.lookalikeService ?? buildFakeLookalikeService(),
     options.intelligenceService ?? buildFakeIntelligenceService(),
+    options.adTenantIndex ?? buildFakeAdTenantIndex(),
   );
 }
 

@@ -10,6 +10,10 @@ import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import { toAdAccountResponseDto, type AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import type { ExecuteVerdictBodyDto } from "./dto/execute-verdict.dto.js";
 import type { PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
+import {
+  AdTenantIndexRepository,
+  indexPulledAdAccount,
+} from "./infrastructure/ad-tenant-index.repository.js";
 import type { MetaAdsConnectorRegistry } from "./infrastructure/meta-ads-connector-registry.js";
 
 /**
@@ -30,6 +34,7 @@ export class MetaAdsService {
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
+    private readonly adTenantIndex: AdTenantIndexRepository,
   ) {}
 
   async pullCampaigns(
@@ -64,6 +69,10 @@ export class MetaAdsService {
     if (!result.ok) {
       throw result.error;
     }
+
+    // AAOS-MULTI-TENANT-PHASE1C — best-effort, never-throwing index of this pull's real ads, so a
+    // later Meta lead webhook can resolve this tenant honestly.
+    await indexPulledAdAccount(this.adTenantIndex, this.config.AAOS_TENANT_ID, result.value);
 
     return toAdAccountResponseDto(result.value);
   }

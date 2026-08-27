@@ -41,6 +41,10 @@ import { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { LookalikeService } from "../lookalike/lookalike.service.js";
+import {
+  AdTenantIndexRepository,
+  indexPulledAdAccount,
+} from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
 
@@ -91,6 +95,7 @@ export class SchedulerService {
     private readonly abTestingService: AbTestingService,
     private readonly lookalikeService: LookalikeService,
     private readonly intelligenceService: IntelligenceService,
+    private readonly adTenantIndex: AdTenantIndexRepository,
   ) {}
 
   /** Checked every minute (spec: `@Cron('* * * * *')`) — every `PENDING` event due within the last minute is run, detached, so a slow handler never blocks the next tick. */
@@ -641,6 +646,11 @@ export class SchedulerService {
       throw new Error(
         `Gagal menarik data dari semua ad account: ${errors.join("; ") || "unknown error"}`,
       );
+    }
+    // AAOS-MULTI-TENANT-PHASE1C — best-effort, never-throwing index of every successfully-pulled
+    // ad's real Meta id -> tenant, so a later Meta lead webhook can resolve this tenant honestly.
+    for (const adAccount of adAccounts) {
+      await indexPulledAdAccount(this.adTenantIndex, this.config.AAOS_TENANT_ID, adAccount);
     }
     return adAccounts;
   }

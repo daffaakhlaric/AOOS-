@@ -7,6 +7,7 @@ import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
 
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
@@ -57,6 +58,12 @@ import { SchedulerService } from "./scheduler.service.js";
       provide: CalendarEventRepository,
       useFactory: (client: SupabaseClientLike): CalendarEventRepository =>
         new CalendarEventRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: AdTenantIndexRepository,
+      useFactory: (client: SupabaseClientLike): AdTenantIndexRepository =>
+        new AdTenantIndexRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

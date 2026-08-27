@@ -13,6 +13,10 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
+import {
+  AdTenantIndexRepository,
+  indexPulledAdAccount,
+} from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type {
   MetaAdsConnectorContext,
   MetaAdsConnectorRegistry,
@@ -52,6 +56,7 @@ export class AbTestingService {
     private readonly creativePackages: CreativePackagesService,
     private readonly testRepository: AbTestRepository,
     private readonly variantRepository: AbTestVariantRepository,
+    private readonly adTenantIndex: AdTenantIndexRepository,
     // `@Optional()` — see `RecyclingService`'s own `now` param doc; a bare `Function`-typed
     // constructor param with only a default value still gets a real DI resolution attempt from
     // Nest without this, crashing bootstrap.
@@ -468,6 +473,11 @@ export class AbTestingService {
       } else {
         this.logger.warn(`AbTestingService.pullAdAccounts: ${result.error.message}`);
       }
+    }
+    // AAOS-MULTI-TENANT-PHASE1C — best-effort, never-throwing index of every successfully-pulled
+    // ad's real Meta id -> tenant, so a later Meta lead webhook can resolve this tenant honestly.
+    for (const adAccount of adAccounts) {
+      await indexPulledAdAccount(this.adTenantIndex, this.tenantId, adAccount);
     }
     return adAccounts;
   }

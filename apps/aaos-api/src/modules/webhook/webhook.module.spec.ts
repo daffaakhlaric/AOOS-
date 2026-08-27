@@ -15,9 +15,9 @@ describe("WebhookModule", () => {
     expect(metadata).toEqual([WebhookController]);
   });
 
-  it("registers WebhookService, WebhookSignatureGuard, and a WEBHOOK_VERIFIER factory as providers", () => {
+  it("registers WebhookService, WebhookSignatureGuard, a WEBHOOK_VERIFIER factory, and an AdTenantIndexRepository factory as providers", () => {
     const metadata = Reflect.getMetadata("providers", WebhookModule) as unknown[];
-    expect(metadata).toHaveLength(3);
+    expect(metadata).toHaveLength(4);
     expect(metadata).toContain(WebhookService);
     expect(metadata).toContain(WebhookSignatureGuard);
     expect(metadata).toContainEqual(expect.objectContaining({ provide: WEBHOOK_VERIFIER }));

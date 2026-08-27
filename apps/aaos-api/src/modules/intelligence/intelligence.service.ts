@@ -40,6 +40,10 @@ import type {
   CampaignStrategyResponseDto,
 } from "../llm/dto/campaign-strategy.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import {
+  AdTenantIndexRepository,
+  indexPulledAdAccount,
+} from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import type { TenantRow } from "../superadmin/infrastructure/tenant.repository.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
@@ -170,6 +174,7 @@ export class IntelligenceService {
     // `AdMetrics.frequency` for `AnomalyDetector.detectFrequencyHigh`.
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly metaAdsConnectorRegistry: MetaAdsConnectorRegistry,
+    private readonly adTenantIndex: AdTenantIndexRepository,
     // `@Optional()` — a bare `Function`-typed constructor param with a default value still gets a
     // real DI resolution attempt from Nest (this session's recurring DI gotcha — see
     // `RecyclingService`'s own `now` param for the original fix). Without this, real bootstrap
@@ -514,6 +519,9 @@ export class IntelligenceService {
         );
         continue;
       }
+      // AAOS-MULTI-TENANT-PHASE1C — best-effort, never-throwing index of this pull's real ads, so
+      // a later Meta lead webhook can resolve this tenant honestly.
+      await indexPulledAdAccount(this.adTenantIndex, this.config.AAOS_TENANT_ID, result.value);
       for (const campaign of result.value.campaigns) {
         for (const adSet of campaign.adSets) {
           for (const ad of adSet.ads) {

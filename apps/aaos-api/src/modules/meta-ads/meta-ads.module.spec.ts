@@ -13,8 +13,10 @@ describe("MetaAdsModule", () => {
     expect(metadata).toEqual([MetaAdsController]);
   });
 
-  it("registers MetaAdsService and ApiKeyGuard as providers", () => {
+  it("registers MetaAdsService, ApiKeyGuard, and the AdTenantIndexRepository factory as providers", () => {
     const metadata = Reflect.getMetadata("providers", MetaAdsModule) as unknown[];
-    expect(metadata).toEqual([MetaAdsService, ApiKeyGuard]);
+    expect(metadata).toHaveLength(3);
+    expect(metadata[0]).toBe(MetaAdsService);
+    expect(metadata[1]).toBe(ApiKeyGuard);
   });
 });

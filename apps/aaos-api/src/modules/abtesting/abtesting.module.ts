@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { CreativePackagesModule } from "../creative-packages/creative-packages.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 
 import { AbTestingController } from "./abtesting.controller.js";
 import { AbTestingService } from "./abtesting.service.js";
@@ -37,6 +38,12 @@ import { AbTestRepository } from "./infrastructure/ab-test.repository.js";
       provide: AbTestVariantRepository,
       useFactory: (client: SupabaseClientLike): AbTestVariantRepository =>
         new AbTestVariantRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: AdTenantIndexRepository,
+      useFactory: (client: SupabaseClientLike): AdTenantIndexRepository =>
+        new AdTenantIndexRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

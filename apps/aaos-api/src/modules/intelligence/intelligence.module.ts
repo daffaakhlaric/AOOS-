@@ -6,6 +6,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ListingRepository } from "../listings/infrastructure/listing.repository.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import { CompetitorPageRepository } from "./infrastructure/competitor-page.repository.js";
@@ -72,6 +73,12 @@ import { IntelligenceService } from "./intelligence.service.js";
     {
       provide: GoogleTrendsService,
       useFactory: (): GoogleTrendsService => new GoogleTrendsService(),
+    },
+    {
+      provide: AdTenantIndexRepository,
+      useFactory: (client: SupabaseClientLike): AdTenantIndexRepository =>
+        new AdTenantIndexRepository(client),
+      inject: [SUPABASE_CLIENT],
     },
   ],
   exports: [IntelligenceService],

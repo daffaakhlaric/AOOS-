@@ -17,6 +17,12 @@ import type { SupabaseClientLike } from "@aos/lead-store";
  * AAOS-KALENDER-AKTIVITAS extended it (additively) with `.delete()` — `CalendarEventRepository`
  * is the first repository that needs a real row delete (see its own docstring for why the shared
  * `SupabaseClientLike` port deliberately doesn't declare `.delete()`).
+ *
+ * AAOS-MULTI-TENANT-PHASE1C extended it (additively) with `.upsert()` — `AdTenantIndexRepository`
+ * is the first repository that needs a real batched upsert (see its own docstring for why the
+ * shared `SupabaseClientLike` port deliberately doesn't declare `.upsert()`). Real
+ * insert-or-update-by-conflict-column semantics: a value whose conflict-column matches an existing
+ * row is merged into it in place; otherwise a new row is appended.
  */
 export type Row = Record<string, unknown>;
 
@@ -164,6 +170,24 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
       insert: (values: Row) => builder(table, "insert", values),
       update: (values: Row) => builder(table, "update", values),
       delete: () => builder(table, "delete"),
+      upsert: (values: readonly Row[], options: { readonly onConflict: string }) => {
+        const forced = forcedErrors.get(table);
+        if (forced !== undefined) {
+          forcedErrors.delete(table);
+          return Promise.resolve({ error: { message: forced } });
+        }
+        const conflictColumn = options.onConflict;
+        const rows = tableRows(table);
+        for (const value of values) {
+          const existing = rows.find((row) => row[conflictColumn] === value[conflictColumn]);
+          if (existing !== undefined) {
+            Object.assign(existing, value);
+          } else {
+            rows.push({ ...value });
+          }
+        }
+        return Promise.resolve({ error: null });
+      },
     }),
     channel: () => ({
       on: () => ({ subscribe: () => ({}) }) as never,

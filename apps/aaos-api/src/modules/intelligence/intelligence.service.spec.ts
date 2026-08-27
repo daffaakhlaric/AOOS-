@@ -135,6 +135,7 @@ function buildService(
     trendsService,
     overrides.capiConnector,
     metaAdsConnectorRegistry as never,
+    { upsertMany: async () => undefined, findTenantByAdMetaId: async () => undefined } as never,
     () => NOW,
     () => "test-correlation-id",
   );

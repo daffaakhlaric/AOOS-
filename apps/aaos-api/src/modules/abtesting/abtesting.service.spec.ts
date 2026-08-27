@@ -285,6 +285,7 @@ function buildService(options: {
     options.creativePackages ?? buildFakeCreativePackages(),
     options.testRepository ?? buildFakeTestRepository(),
     options.variantRepository ?? buildFakeVariantRepository(),
+    { upsertMany: async () => undefined, findTenantByAdMetaId: async () => undefined } as never,
     options.now ?? (() => new Date("2026-08-19T06:00:00.000Z")),
   );
 }
