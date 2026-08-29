@@ -9,13 +9,18 @@ export type MessageDirection = "INCOMING" | "OUTGOING";
 export type MessageContentType = "TEXT" | "TEMPLATE" | "INTERACTIVE" | "IMAGE";
 export type MessageDeliveryStatus = "SENT" | "DELIVERED" | "READ" | "FAILED";
 /**
- * AAOS-CHAT-ROOM-JESSY (coordinator note #2) — who actually authored an OUTGOING message.
+ * AAOS-CHAT-ROOM-CLARA (coordinator note #2) — who actually authored an OUTGOING message.
  * `undefined`/`null` for every INCOMING message (the lead is always the sender there — no column
  * needed) and for OUTGOING rows persisted before this migration (backfilled to `"JESSY"` by
  * `004_message_sender.sql`, but a defensive `undefined` is still valid here for any row that
  * predates that backfill in a not-yet-migrated environment).
+ *
+ * `"JESSY"` is a permanent, READ-only backward-compat literal (agent rename: Jessy→Clara) — real
+ * production `messages` rows already contain `sender_type = 'JESSY'` from the `004_message_sender.sql`
+ * backfill, so this value must never be removed from the union even though no code writes it anymore.
+ * Every new OUTGOING AI-sent message is stamped `"CLARA"` going forward.
  */
-export type MessageSenderType = "JESSY" | "SALES_HUMAN" | "MANAGER_INTERVENTION";
+export type MessageSenderType = "CLARA" | "SALES_HUMAN" | "MANAGER_INTERVENTION" | "JESSY";
 
 export interface MessageProps {
   readonly id: MessageId;
@@ -32,7 +37,7 @@ export interface MessageProps {
   readonly readAt?: Date;
   readonly createdAt: Date;
   readonly senderType?: MessageSenderType;
-  /** Human display name — populated for `SALES_HUMAN`/`MANAGER_INTERVENTION`, `undefined` for `JESSY`. */
+  /** Human display name — populated for `SALES_HUMAN`/`MANAGER_INTERVENTION`, `undefined` for `CLARA`/`JESSY`. */
   readonly senderName?: string;
 }
 

@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
-/** Why a lead's score changed (spec schema `scoring_events.reason`) — mirrors the qualification signals `@aos/sales-agent`'s Jessy already tracks (budget/unit/area/payment/timeline/name), plus two negative signals (no reply, not serious). */
+/** Why a lead's score changed (spec schema `scoring_events.reason`) — mirrors the qualification signals `@aos/sales-agent`'s Clara already tracks (budget/unit/area/payment/timeline/name), plus two negative signals (no reply, not serious). */
 export enum ScoreReason {
   BUDGET = "BUDGET",
   UNIT = "UNIT",

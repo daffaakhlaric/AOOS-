@@ -20,9 +20,10 @@ const VALID_DELIVERY_STATUSES: ReadonlySet<string> = new Set([
   "FAILED",
 ]);
 const VALID_SENDER_TYPES: ReadonlySet<string> = new Set([
-  "JESSY",
+  "CLARA",
   "SALES_HUMAN",
   "MANAGER_INTERVENTION",
+  "JESSY",
 ]);
 
 /** Exact shape of the `messages` table (spec `001_initial_schema.sql` + `004_message_sender.sql`). */
@@ -40,7 +41,7 @@ export interface MessageRow {
   readonly delivered_at: string | null;
   readonly read_at: string | null;
   readonly created_at: string;
-  /** AAOS-CHAT-ROOM-JESSY (`004_message_sender.sql`) — `null` for INCOMING rows and for any OUTGOING row predating the backfill. */
+  /** AAOS-CHAT-ROOM-CLARA (`004_message_sender.sql`) — `null` for INCOMING rows and for any OUTGOING row predating the backfill. */
   readonly sender_type: string | null;
   readonly sender_name: string | null;
 }

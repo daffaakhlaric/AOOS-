@@ -25,7 +25,7 @@ export interface ClosingProps {
   readonly createdAt: Date;
 }
 
-/** One immutable record of a test drive, SPK, or cancellation (spec table `closings`) — carries campaign attribution for Tamara's feed-back loop (`GetClosingStats`). */
+/** One immutable record of a test drive, SPK, or cancellation (spec table `closings`) — carries campaign attribution for Samantha's feed-back loop (`GetClosingStats`). */
 export class Closing {
   private constructor(private readonly props: ClosingProps) {}
 

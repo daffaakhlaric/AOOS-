@@ -43,7 +43,7 @@ const HOT_THRESHOLD = 65;
 const WARM_THRESHOLD = 31;
 
 /**
- * Called by Jessy after each score change. Design resolution #6: the persisted score is always
+ * Called by Clara after each score change. Design resolution #6: the persisted score is always
  * `clamp(scoreAfter, 0, 100)` — the caller-supplied `scoreAfter` is treated as a hint, never
  * trusted un-clamped (pin: "100 + NOT_SERIOUS(-20) = 80, never below 0").
  *

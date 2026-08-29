@@ -17,7 +17,7 @@ export interface GetClosingStatsInput {
 }
 
 /**
- * Called by Tamara for feed-back optimization. Design resolution #3: `rphSpkByCampaign[campaignId]
+ * Called by Samantha for feed-back optimization. Design resolution #3: `rphSpkByCampaign[campaignId]
  * = spend / closingsCount`, where `spend` comes from the injected `ISpendProvider`
  * (`@aos/meta-ads-connector` in production) and `closingsCount` comes from this package's own
  * `closings` table. Only campaigns with at least 1 closing in the filtered window appear in

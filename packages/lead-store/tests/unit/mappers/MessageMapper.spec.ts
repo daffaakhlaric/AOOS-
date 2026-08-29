@@ -94,7 +94,7 @@ describe("MessageMapper.toDomain", () => {
     expect(error.message).toContain("sender_type");
   });
 
-  it("maps sender_type/sender_name (AAOS-CHAT-ROOM-JESSY coordinator note #2)", () => {
+  it("maps sender_type/sender_name (AAOS-CHAT-ROOM-CLARA coordinator note #2)", () => {
     const message = unwrap(
       MessageMapper.toDomain(
         makeMessageRow({
@@ -106,6 +106,18 @@ describe("MessageMapper.toDomain", () => {
     );
     expect(message.senderType).toBe("SALES_HUMAN");
     expect(message.senderName).toBe("Ahmad Fauzi");
+  });
+
+  it("still maps a legacy sender_type of 'JESSY' (agent rename backward-compat: pre-rename rows backfilled by 004_message_sender.sql must remain readable)", () => {
+    const message = unwrap(
+      MessageMapper.toDomain(
+        makeMessageRow({
+          direction: "OUTGOING",
+          sender_type: "JESSY",
+        }),
+      ),
+    );
+    expect(message.senderType).toBe("JESSY");
   });
 
   it("maps a null sender_type/sender_name to undefined", () => {

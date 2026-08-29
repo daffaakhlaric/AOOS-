@@ -91,7 +91,7 @@ CREATE TABLE conversations (
   d3_count        INTEGER DEFAULT 0,   -- 3 exchanges = primary metric
   d5_count        INTEGER DEFAULT 0,
 
-  -- Jessy state
+  -- Clara state
   current_stage   TEXT DEFAULT 'GREETING',
   last_intent     TEXT,
 
@@ -174,7 +174,7 @@ CREATE TABLE closings (
   unit_model      TEXT,               -- "Xpander Cross AT 2019"
   unit_price      BIGINT,             -- IDR
 
-  -- Campaign attribution (for Tamara feed-back)
+  -- Campaign attribution (for Samantha feed-back)
   campaign_id     TEXT,
   ad_id           TEXT,
 

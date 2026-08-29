@@ -36,7 +36,7 @@ describe("RecordClosing", () => {
     expect(client.rows("leads")[0]?.status).toBe("CLOSED");
   });
 
-  it("emits ClosingRecorded (Tamara can listen)", async () => {
+  it("emits ClosingRecorded (Samantha can listen)", async () => {
     const { useCase, row, publisher } = setup();
     await useCase.execute({
       leadId: row.id,

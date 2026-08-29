@@ -1,13 +1,13 @@
--- AAOS-CHAT-ROOM-JESSY @aos/lead-store — 004_message_sender.sql
+-- AAOS-CHAT-ROOM-CLARA @aos/lead-store — 004_message_sender.sql
 -- Per docs/PROMPT-AAOS-CHAT-ROOM-JESSY.md COORDINATOR NOTE #2: the real `messages` table has no
--- way to tell Jessy's own automated replies apart from a sales human's reply or a manager's
--- "intervene as Jessy" message (`direction` alone only distinguishes IN/OUT). Purely additive —
+-- way to tell Clara's own automated replies apart from a sales human's reply or a manager's
+-- "intervene as Clara" message (`direction` alone only distinguishes IN/OUT). Purely additive —
 -- no existing column is touched.
 
 ALTER TABLE messages ADD COLUMN sender_type TEXT; -- JESSY | SALES_HUMAN | MANAGER_INTERVENTION (NULL for INCOMING)
 ALTER TABLE messages ADD COLUMN sender_name TEXT; -- populated for SALES_HUMAN / MANAGER_INTERVENTION, NULL otherwise
 
--- Backfill: every OUTGOING row that predates this migration was sent by Jessy's own automation
+-- Backfill: every OUTGOING row that predates this migration was sent by Clara's own automation
 -- (this feature is the first thing that can ever produce a SALES_HUMAN/MANAGER_INTERVENTION row).
 -- INCOMING rows are always from the lead — left NULL, per the entity/mapper's documented
 -- convention (coordinator note #2: "no column needed for that case").

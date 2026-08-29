@@ -35,7 +35,7 @@ import { ScoringRepository } from "../infrastructure/supabase/ScoringRepository.
 import { createSupabaseClient } from "../infrastructure/supabase/SupabaseClient.js";
 import type { SupabaseClientLike } from "../infrastructure/supabase/SupabaseTypes.js";
 
-/** A `ISpendProvider` that reports 0 spend for every campaign — the safe default when no `@aos/meta-ads-connector` registry is wired in (e.g. a deployment that doesn't run Tamara). `GetClosingStats` still returns correct `closingsByCampaign` counts either way; only `rphSpkByCampaign` amounts are 0. */
+/** A `ISpendProvider` that reports 0 spend for every campaign — the safe default when no `@aos/meta-ads-connector` registry is wired in (e.g. a deployment that doesn't run Samantha). `GetClosingStats` still returns correct `closingsByCampaign` counts either way; only `rphSpkByCampaign` amounts are 0. */
 class ZeroSpendProvider implements ISpendProvider {
   async getSpendByCampaign(campaignIds: readonly string[]): Promise<ReadonlyMap<string, number>> {
     return Promise.resolve(new Map(campaignIds.map((id) => [id, 0])));

@@ -1,5 +1,5 @@
 -- AAOS-LEAD-RECYCLING-BROADCAST -- 005_recycling_fields.sql
--- Additive columns on `leads` for Jessy's Lead Recycling & Broadcast feature
+-- Additive columns on `leads` for Clara's Lead Recycling & Broadcast feature
 -- (docs/PROMPT-AAOS-LEAD-RECYCLING-BROADCAST.md). Lives HERE, in @aos/lead-store's own migration
 -- folder, not apps/aaos-api/supabase/migrations -- per the coordinator note's section 1: `leads`
 -- itself (and every column on it) is owned by @aos/lead-store, exactly like 001-004 before it.

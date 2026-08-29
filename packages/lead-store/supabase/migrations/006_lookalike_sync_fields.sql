@@ -1,5 +1,5 @@
 -- AAOS-ABTESTING-LOOKALIKE Part 2 -- 006_lookalike_sync_fields.sql
--- Additive columns on `leads` for Tamara's Lookalike Audience feature
+-- Additive columns on `leads` for Samantha's Lookalike Audience feature
 -- (docs/PROMPT-AAOS-ABTESTING-LOOKALIKE.md). Lives HERE, in @aos/lead-store's own migration
 -- folder, not apps/aaos-api/supabase/migrations -- per the coordinator note's section 7: `leads`
 -- itself (and every column on it) is owned by @aos/lead-store, exactly like 001-005 before it.

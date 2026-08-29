@@ -47,7 +47,7 @@ const RecordClosingInputSchema = z.object({
 /**
  * Called by a sales human via the CRM app. This is the ONLY way a lead's `status` becomes
  * `CLOSED` (design resolution #4 — `UpdateLeadStatus` explicitly rejects that target). Stores
- * campaign attribution + commission fields so Tamara (`@aos/meta-ads-agent`) can compute Rp/SPK
+ * campaign attribution + commission fields so Samantha (`@aos/meta-ads-agent`) can compute Rp/SPK
  * feed-back via `GetClosingStats`.
  */
 export class RecordClosing {

@@ -27,11 +27,12 @@ export interface SaveMessageInput {
   readonly tenantId: string;
   readonly correlationId: string;
   /**
-   * AAOS-CHAT-ROOM-JESSY — who authored an OUTGOING message. Callers persisting an INCOMING
+   * AAOS-CHAT-ROOM-CLARA — who authored an OUTGOING message. Callers persisting an INCOMING
    * message never set this (the lead is always the sender there); `aaos-api`'s
    * `POST /leads/:id/message`/`POST /leads/:id/intervene` set it to `"SALES_HUMAN"` /
-   * `"MANAGER_INTERVENTION"` respectively, and the webhook path that saves Jessy's own automated
-   * replies sets `"JESSY"`.
+   * `"MANAGER_INTERVENTION"` respectively, and the webhook path that saves Clara's own automated
+   * replies sets `"CLARA"`. `"JESSY"` remains a permanently valid legacy value here purely for
+   * backward-compat reads/re-saves of pre-rename rows — no caller should write it anymore.
    */
   readonly senderType?: MessageSenderType;
   readonly senderName?: string;
@@ -49,7 +50,12 @@ const SaveMessageInputSchema = z.object({
   tenantId: z.string().min(1),
   correlationId: z.string().min(1),
   senderType: z
-    .union([z.literal("JESSY"), z.literal("SALES_HUMAN"), z.literal("MANAGER_INTERVENTION")])
+    .union([
+      z.literal("CLARA"),
+      z.literal("SALES_HUMAN"),
+      z.literal("MANAGER_INTERVENTION"),
+      z.literal("JESSY"),
+    ])
     .optional(),
   senderName: z.string().optional(),
 });

@@ -183,7 +183,7 @@ describe("SaveMessage — general behavior", () => {
     expect(error.message).toContain("db error");
   });
 
-  it("persists senderType/senderName for an OUTGOING message (AAOS-CHAT-ROOM-JESSY coordinator note #2)", async () => {
+  it("persists senderType/senderName for an OUTGOING message (AAOS-CHAT-ROOM-CLARA coordinator note #2)", async () => {
     const { useCase, client, conversationRow } = setup();
     await useCase.execute({
       ...base(conversationRow.id, "OUTGOING"),
@@ -193,6 +193,17 @@ describe("SaveMessage — general behavior", () => {
     const stored = client.rows("messages")[0];
     expect(stored?.sender_type).toBe("SALES_HUMAN");
     expect(stored?.sender_name).toBe("Ahmad Fauzi");
+  });
+
+  it("still accepts a legacy senderType of 'JESSY' (agent rename backward-compat)", async () => {
+    const { useCase, client, conversationRow } = setup();
+    const result = await useCase.execute({
+      ...base(conversationRow.id, "OUTGOING"),
+      senderType: "JESSY",
+    });
+    expect(result.ok).toBe(true);
+    const stored = client.rows("messages")[0];
+    expect(stored?.sender_type).toBe("JESSY");
   });
 
   it("leaves sender_type/sender_name null when omitted (e.g. an INCOMING message from the lead)", async () => {

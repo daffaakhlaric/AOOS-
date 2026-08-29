@@ -41,7 +41,7 @@ const CreateLeadInputSchema = z.object({
 });
 
 /**
- * Called when Jessy starts a new conversation with a lead. Idempotent on `(leadPhone, branchId)`
+ * Called when Clara starts a new conversation with a lead. Idempotent on `(leadPhone, branchId)`
  * — design resolution #5: if a lead already exists for that pair, returns it as `Ok` WITHOUT
  * inserting a duplicate or emitting `LeadCreated`. Only a genuine new insert emits the event.
  */

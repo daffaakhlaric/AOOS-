@@ -71,7 +71,7 @@ describe("Message entity", () => {
     expect(message.templateName).toBeUndefined();
   });
 
-  it("exposes senderType/senderName when set (AAOS-CHAT-ROOM-JESSY coordinator note #2)", () => {
+  it("exposes senderType/senderName when set (AAOS-CHAT-ROOM-CLARA coordinator note #2)", () => {
     const message = unwrap(
       Message.create({
         ...baseProps(),
