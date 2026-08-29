@@ -16,7 +16,7 @@ describe("BusinessKnowledgeBase — AAOS_CAMPAIGN_DEFAULTS (AAOS-W1D-S3)", () =>
     expect(AAOS_CAMPAIGN_DEFAULTS.objective).toBe(CampaignObjective.OUTCOME_LEADS);
   });
 
-  it("destinationType is WHATSAPP (CTWA — Jessy receives)", () => {
+  it("destinationType is WHATSAPP (CTWA — Clara receives)", () => {
     expect(AAOS_CAMPAIGN_DEFAULTS.destinationType).toBe(AdDestinationType.WHATSAPP);
   });
 

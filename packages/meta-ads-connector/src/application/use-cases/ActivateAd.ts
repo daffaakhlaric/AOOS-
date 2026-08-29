@@ -21,7 +21,7 @@ export interface ActivateAdOutput {
 
 /**
  * AAOS-GO-LIVE: `POST /{ad-id}` with `status: "ACTIVE"` — the inverse of the existing `pauseAd`
- * (which backs Tamara's PAUSE verdict via `VerdictExecutionService`). Go Live's rollback step
+ * (which backs Samantha's PAUSE verdict via `VerdictExecutionService`). Go Live's rollback step
  * needs a real way to undo a PAUSE verdict it executed against a live ad during its verdict-
  * execution phase; `ActivateCampaign` alone cannot do that (campaign and ad status are
  * independent Meta fields), so this ad-level counterpart exists specifically for that rollback

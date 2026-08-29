@@ -460,7 +460,7 @@ export const KNOWN_FATIGUE_PATTERNS: ReadonlyMap<Funnel, number> = toFatiguePatt
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // AAOS-W1D-S3 — Outcome Leads + CTWA defaults (DSS Motor's real strategy: lead clicks ad →
-// straight to Jessy on WhatsApp → follow up → HOT → handoff). New additions (coordinator note
+// straight to Clara on WhatsApp → follow up → HOT → handoff). New additions (coordinator note
 // correction #4 — neither constant existed in this file before this supplement).
 // ═══════════════════════════════════════════════════════════════════════════════════════
 

@@ -33,7 +33,7 @@ export interface CreateCampaignParams {
 export interface CreateAdSetParams {
   readonly campaignId: string;
   readonly name: string;
-  /** Always `"WHATSAPP"` for AAOS-created ad sets (CTWA — lead lands in WhatsApp with Jessy). */
+  /** Always `"WHATSAPP"` for AAOS-created ad sets (CTWA — lead lands in WhatsApp with Clara). */
   readonly destinationType: string;
   readonly optimizationGoal: string;
   readonly billingEvent: string;
@@ -226,7 +226,7 @@ export interface IMetaAdsClient {
   /**
    * AAOS-GO-LIVE: `POST /{ad-id}` with `status: "ACTIVE"` — the inverse of the existing `pauseAd`.
    * Added alongside `pauseCampaign`/`activateCampaign` specifically so Go Live's rollback can
-   * honestly re-activate an ad that a Tamara PAUSE verdict paused during Go Live's verdict
+   * honestly re-activate an ad that a Samantha PAUSE verdict paused during Go Live's verdict
    * execution step (rollback needs a real way to undo that, not just campaign-level undo).
    */
   activateAd(adId: string, accessToken: string): Promise<Result<MetaUpdateResponse, MetaApiError>>;

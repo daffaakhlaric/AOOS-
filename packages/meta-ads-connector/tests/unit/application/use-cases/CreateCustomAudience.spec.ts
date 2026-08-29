@@ -37,7 +37,7 @@ describe("CreateCustomAudience (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
     await useCase.execute({
       adAccountId,
       name: "AAOS-HotLeads-DSS-Motor-Aug26",
-      description: "Hot leads dari AAOS Jessy AI (score >= 65)",
+      description: "Hot leads dari AAOS Clara AI (score >= 65)",
       accessToken: "TOKEN",
     });
     expect(client.createCustomAudience).toHaveBeenCalledWith(
@@ -45,7 +45,7 @@ describe("CreateCustomAudience (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
       {
         name: "AAOS-HotLeads-DSS-Motor-Aug26",
         subtype: "CUSTOM",
-        description: "Hot leads dari AAOS Jessy AI (score >= 65)",
+        description: "Hot leads dari AAOS Clara AI (score >= 65)",
         customerFileSource: "USER_PROVIDED_ONLY",
       },
       "TOKEN",

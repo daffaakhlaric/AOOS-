@@ -7,7 +7,7 @@ import { Branch } from "@aos/meta-ads-connector";
  * `Branch` enum (`CINERE | BINTARO | BANDUNG | BOOST | MULTI | UMUM` — no `PONDOK_BAMBU` member).
  *
  * Judgment call (documented in the engineering report — the `Branch.PONDOK_BAMBU` note, same
- * resolution `@aos/whatsapp-connector` and its Tamara-supplement predecessor already applied):
+ * resolution `@aos/whatsapp-connector` and its Samantha-supplement predecessor already applied):
  * "Pondok Bambu" is DSS Motor's real-world branch name for what the real enum calls `UMUM`. The
  * spec's own literal `MOCK_UNITS` array already uses `branch: "Umum"` for those units, so this
  * alias exists purely as defensive robustness for a future real adapter whose raw sheet/DMS data

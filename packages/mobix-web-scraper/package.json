@@ -2,7 +2,7 @@
   "name": "@aos/mobix-web-scraper",
   "version": "0.1.0",
   "private": true,
-  "description": "POC scraper for mobixbydss.id — extracts inventory units, prices, and promos for Tamara's stock-aware campaign decisions. Replace with MobixApiAdapter before production.",
+  "description": "POC scraper for mobixbydss.id — extracts inventory units, prices, and promos for Samantha's stock-aware campaign decisions. Replace with MobixApiAdapter before production.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

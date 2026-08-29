@@ -22,7 +22,7 @@ export interface PauseCampaignOutput {
 /**
  * AAOS-GO-LIVE: `POST /{campaign-id}` with `status: "PAUSED"` — pauses a real campaign. The
  * package's `IMetaAdsClient` previously only exposed ad-level pausing (`pauseAd`, driven by
- * Tamara's PAUSE verdict); this campaign-level pause is new, built specifically so Go Live's
+ * Samantha's PAUSE verdict); this campaign-level pause is new, built specifically so Go Live's
  * rollback can pause the campaign it just created (see coordinator note section 8).
  */
 export class PauseCampaign {

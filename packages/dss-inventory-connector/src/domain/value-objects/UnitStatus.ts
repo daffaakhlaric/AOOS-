@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
-/** A unit's availability status. `SOLD` is terminal — see `UnitSold` event, consumed by Tamara to auto-pause campaigns. */
+/** A unit's availability status. `SOLD` is terminal — see `UnitSold` event, consumed by Samantha to auto-pause campaigns. */
 export enum UnitStatus {
   AVAILABLE = "AVAILABLE",
   RESERVED = "RESERVED",

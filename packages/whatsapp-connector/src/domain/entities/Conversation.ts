@@ -22,7 +22,7 @@ export interface ConversationProps {
 }
 
 /**
- * An in-memory thread between Jessy and a lead, tracked for the process's lifetime only by
+ * An in-memory thread between Clara and a lead, tracked for the process's lifetime only by
  * `ConversationService` — per the package's own scope, this is a bookkeeping convenience for
  * `isFirstMessage` detection, NOT persistent storage (that is `@aos/lead-store`'s future job).
  */

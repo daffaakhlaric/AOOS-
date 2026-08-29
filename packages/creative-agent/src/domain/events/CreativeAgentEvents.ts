@@ -7,7 +7,7 @@ import type { CreativePackageReady } from "./CreativePackageReady.js";
 
 /**
  * Wraps the real `@aos/event-bus` `IPublisher` for all 4 named events (spec "Domain — events/"),
- * mirroring `@aos/sales-agent`'s `JessyAgentEvents` / `@aos/ai-judge`'s `AiJudgeEvents` convention
+ * mirroring `@aos/sales-agent`'s `ClaraAgentEvents` / `@aos/ai-judge`'s `AiJudgeEvents` convention
  * exactly.
  */
 export class CreativeAgentEvents {

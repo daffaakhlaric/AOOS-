@@ -415,7 +415,7 @@ describe("MetaApiClient", () => {
       {
         name: "AAOS-HotLeads-DSS-Motor-Aug26",
         subtype: "CUSTOM",
-        description: "Hot leads dari AAOS Jessy AI (score >= 65)",
+        description: "Hot leads dari AAOS Clara AI (score >= 65)",
         customerFileSource: "USER_PROVIDED_ONLY",
       },
       "TOKEN",
@@ -424,7 +424,7 @@ describe("MetaApiClient", () => {
     expect(capturedBody).toEqual({
       name: "AAOS-HotLeads-DSS-Motor-Aug26",
       subtype: "CUSTOM",
-      description: "Hot leads dari AAOS Jessy AI (score >= 65)",
+      description: "Hot leads dari AAOS Clara AI (score >= 65)",
       customer_file_source: "USER_PROVIDED_ONLY",
       access_token: "TOKEN",
     });

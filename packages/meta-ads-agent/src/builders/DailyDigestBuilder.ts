@@ -132,8 +132,8 @@ export class DailyDigestBuilder {
     for (const fix of fixes) {
       // AAOS-W1D-S3: extends the real pre-supplement line (`Fix objective ${fix.targetId}` —
       // coordinator note correction #5) to say what it's actually fixed TO — DSS Motor's real
-      // strategy objective, with the CTWA destination named explicitly (Jessy).
-      lines.push(`Fix objective ${fix.targetId} ke OUTCOME_LEADS + CTWA (Jessy)`);
+      // strategy objective, with the CTWA destination named explicitly (Clara).
+      lines.push(`Fix objective ${fix.targetId} ke OUTCOME_LEADS + CTWA (Clara)`);
     }
 
     const reallocations = executed.filter((d) => d.actionKind === "REALLOCATE_BUDGET");

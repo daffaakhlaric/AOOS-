@@ -25,7 +25,7 @@ export interface OutgoingMessageProps {
 }
 
 /**
- * A message sent by Jessy to a lead. Immutable, and — per the engineering report's resolution #4
+ * A message sent by Clara to a lead. Immutable, and — per the engineering report's resolution #4
  * — never mutated in place across its send lifecycle. `SendTextMessage`/`SendTemplateMessage`/
  * `SendInteractiveMessage` construct a PRELIMINARY `OutgoingMessage` with a locally-generated
  * placeholder `MessageId` (`MessageId.generate()`) and `status: SENT` pending confirmation before

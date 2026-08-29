@@ -48,7 +48,7 @@ export interface CreateCampaignOutput {
 /**
  * Creates a new campaign + ad set pair on Meta, per DSS Motor's real strategy (AAOS-W1D-S3):
  * every AAOS-created campaign is `OUTCOME_LEADS` with a CTWA WhatsApp destination (lead clicks
- * the ad, lands straight in WhatsApp with Jessy), and both the campaign and its ad set always
+ * the ad, lands straight in WhatsApp with Clara), and both the campaign and its ad set always
  * start `PAUSED` — a human at DSS approves before activating.
  *
  * Sequence: POST /{ad-account}/campaigns (objective=OUTCOME_LEADS, status=PAUSED) → POST

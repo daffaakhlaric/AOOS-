@@ -42,8 +42,8 @@ export interface InventoryUnitProps {
 }
 
 /**
- * The unified, source-agnostic used-car unit — the core domain model every consumer (Jessy,
- * Tamara, `@aos/branch-manager`) reads through `InventoryQueryService`, never through a
+ * The unified, source-agnostic used-car unit — the core domain model every consumer (Clara,
+ * Samantha, `@aos/branch-manager`) reads through `InventoryQueryService`, never through a
  * source-specific shape. Immutable: every mutation (`ConflictResolutionService.merge`, a status
  * change) produces a new instance via `create`, never an in-place edit.
  */

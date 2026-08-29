@@ -1,6 +1,6 @@
 import type { Branch } from "@aos/meta-ads-connector";
 
-/** Payload for `aaos.inventory.unit.sold` — consumed by Tamara to auto-pause campaigns advertising this unit. */
+/** Payload for `aaos.inventory.unit.sold` — consumed by Samantha to auto-pause campaigns advertising this unit. */
 export interface UnitSold {
   readonly unitId: string;
   readonly brand: string;

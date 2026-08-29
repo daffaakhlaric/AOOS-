@@ -6,7 +6,7 @@ export interface KaiAgentProps {
 /**
  * The agent itself — Kai's identity (spec Mission: "Build Kai — the AAOS Creative AI Agent"). A
  * thin, stateless identity value (Agent Standards §11.4: agents hold no in-process state across
- * invocations), mirroring `@aos/sales-agent`'s `JessyAgent`. Kai is tenant-scoped, not
+ * invocations), mirroring `@aos/sales-agent`'s `ClaraAgent`. Kai is tenant-scoped, not
  * branch-scoped — a single Kai instance generates creative for every branch's `CreativeBrief`s.
  */
 export class KaiAgent {

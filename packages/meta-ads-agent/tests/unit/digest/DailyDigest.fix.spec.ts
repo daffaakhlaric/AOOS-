@@ -35,7 +35,7 @@ function fixDecision(targetId: string): CampaignDecision {
 /**
  * AAOS-W1D-S3, coordinator note correction #5: the real, current FIX digest line is
  * `` `Fix objective ${fix.targetId}` `` (packages/meta-ads-agent/src/builders/
- * DailyDigestBuilder.ts) — extended by this supplement to mention OUTCOME_LEADS + CTWA + Jessy,
+ * DailyDigestBuilder.ts) — extended by this supplement to mention OUTCOME_LEADS + CTWA + Clara,
  * NOT the spec's own inaccurate paraphrase ("Fix objective ke CONVERSATIONS").
  */
 describe("DailyDigestBuilder — FIX summary line (AAOS-W1D-S3)", () => {
@@ -67,7 +67,7 @@ describe("DailyDigestBuilder — FIX summary line (AAOS-W1D-S3)", () => {
     expect(fixLine).toContain("CTWA");
   });
 
-  it("mentions Jessy", () => {
+  it("mentions Clara", () => {
     const plan = unwrap(
       ExecutionPlan.create({
         id: ExecutionPlanId.generate(),
@@ -90,7 +90,7 @@ describe("DailyDigestBuilder — FIX summary line (AAOS-W1D-S3)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const fixLine = result.value.autoExecutedSummaryLines.find((l) => l.includes("campaign-2"));
-    expect(fixLine).toContain("Jessy");
+    expect(fixLine).toContain("Clara");
   });
 
   it("still starts with the real, unchanged 'Fix objective {targetId}' prefix (extends, doesn't replace, the real line — coordinator note correction #5)", () => {

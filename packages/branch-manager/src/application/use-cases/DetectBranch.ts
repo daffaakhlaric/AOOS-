@@ -10,7 +10,7 @@ export interface DetectBranchInput {
 
 /**
  * Key use case: incoming WA message → which branch? Answer comes from `phone_number_id` in the
- * webhook payload. Used by `@aos/whatsapp-connector`'s webhook (route to the correct Jessy
+ * webhook payload. Used by `@aos/whatsapp-connector`'s webhook (route to the correct Clara
  * instance), `@aos/sales-agent` (know which branch a conversation belongs to), and
  * `@aos/lead-store` (tag a lead with the correct branch).
  */

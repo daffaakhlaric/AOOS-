@@ -42,7 +42,7 @@ function noRepository(method: string): ScrapeError {
 
 /**
  * Facade over the underlying use cases — the single object `@aos/meta-ads-agent`'s
- * `TamaraAgentFactory.createWithFullContext()` depends on for S2 (per the combined-supplement
+ * `SamanthaAgentFactory.createWithFullContext()` depends on for S2 (per the combined-supplement
  * spec's `Promise.all([...])` init sequence). Keeps its own last-session state in memory (so a
  * second `scrapeInventory()` call — or `runFullScrape()` — can diff against the previous one).
  *

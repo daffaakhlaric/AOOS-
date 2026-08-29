@@ -4,7 +4,7 @@
  * account, plus `UNKNOWN` for whatever Meta adds next.
  *
  * AAOS-W1D-S3: `OUTCOME_LEADS` is DSS Motor's real strategy objective — every campaign should
- * converge on it (CTWA: lead clicks the ad, lands straight in WhatsApp with Jessy). See
+ * converge on it (CTWA: lead clicks the ad, lands straight in WhatsApp with Clara). See
  * `VerdictEngine.ts`'s FIX check, which treats every OTHER member of this enum (including
  * `UNKNOWN`) as needing a fix, derived off this member rather than a hardcoded list — so adding a
  * future objective here never silently exempts it from that check.

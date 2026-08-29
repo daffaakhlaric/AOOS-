@@ -14,7 +14,7 @@ import type { Tracer } from "./PullCampaignData.js";
 /**
  * How many interests are kept per search term. Judgment call (not pinned by any spec): Meta's
  * `/search?type=adinterest` returns its results already ordered by relevance, and everything
- * downstream of this — the `meta_interests` table, the candidate set handed to Tamara's
+ * downstream of this — the `meta_interests` table, the candidate set handed to Samantha's
  * `selectTargeting` LLM call, the preview panel — is better served by a short, high-relevance list
  * than by the full long tail. Applied client-side rather than as a `limit` query param, because
  * the confirmed-live call used no such param (see `MetaApiRequestBuilder.adInterestSearchUrl`).

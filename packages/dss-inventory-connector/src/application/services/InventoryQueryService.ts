@@ -12,7 +12,7 @@ import type { InventoryQueryCriteria } from "../../types/InventoryTypes.js";
 
 const ALL_BRANCHES: ReadonlyArray<Branch> = Object.values(Branch);
 
-/** All read/query operations over `IInventoryStore` — the query surface Jessy, Tamara, and `@aos/branch-manager` consume. */
+/** All read/query operations over `IInventoryStore` — the query surface Clara, Samantha, and `@aos/branch-manager` consume. */
 export class InventoryQueryService implements IInventoryQueryService {
   constructor(private readonly store: IInventoryStore) {}
 

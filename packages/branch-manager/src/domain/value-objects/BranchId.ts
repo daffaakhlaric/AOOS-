@@ -17,7 +17,7 @@ import { Branch } from "@aos/meta-ads-connector";
  * *string values* are character-for-character identical to the real `Branch` enum's corresponding
  * 4 members. That makes `BranchId.BINTARO as string === Branch.BINTARO as string` (etc.) true by
  * construction — trivially interoperable wherever a `Branch`-typed value is expected downstream
- * (Tamara, the inventory connector's `Branch`-typed `InventoryUnit.branch` field), without taking
+ * (Samantha, the inventory connector's `Branch`-typed `InventoryUnit.branch` field), without taking
  * a structural/type-level dependency that would let `Branch.BOOST`, `Branch.MULTI`, or
  * `Branch.JABODETABEK` (which have no DSS Motor branch-manager meaning) leak into this package's
  * domain. `toBranch`/`fromBranch` below provide explicit, typed conversion at integration

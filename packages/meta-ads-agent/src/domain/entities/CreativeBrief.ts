@@ -54,7 +54,7 @@ export interface CreativeBriefProps {
   /**
    * AAOS-W1D-S3 — DSS Motor's real strategy: every CTWA brief tells Kai which Meta CTA button the
    * creative should drive (`SEND_WHATSAPP_MESSAGE`), so the ad routes straight into WhatsApp with
-   * Jessy. Optional/additive (coordinator note correction #7) — `undefined` for briefs built
+   * Clara. Optional/additive (coordinator note correction #7) — `undefined` for briefs built
    * before this supplement or by a caller that doesn't populate it.
    */
   readonly callToAction?: string;

@@ -65,7 +65,7 @@ export interface KaiAgentRuntime {
  * The composition root (Factory Pattern, spec "factories/KaiAgentFactory.ts") — wires every real
  * `@aos/*` integration (`@aos/asset-library`'s `GetAssetsByUnit`/`SaveAiCreative`,
  * `@aos/creative-connector`'s generation use cases, `@aos/event-bus`'s `IPublisher`) into the use
- * cases this package's public API exposes. Mirrors `@aos/sales-agent`'s `JessyAgentFactory` /
+ * cases this package's public API exposes. Mirrors `@aos/sales-agent`'s `ClaraAgentFactory` /
  * `@aos/asset-library`'s `AssetLibraryFactory` convention exactly.
  */
 export class KaiAgentFactory {

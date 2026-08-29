@@ -62,8 +62,8 @@ const DEFAULT_PROMO_URL = "https://mobixbydss.id/promo";
 /**
  * Composition root — the single place this package's real integrations (`@aos/event-bus`
  * `IPublisher`, native `fetch`, and now `@aos/asset-library`'s `UploadAsset`) get wired together,
- * mirroring `@aos/meta-ads-agent`'s `TamaraAgentFactory`. Still returns a `MobixScraperService`
- * (never a wider bundle) so existing callers — `@aos/meta-ads-agent`'s `TamaraAgentFactory`, which
+ * mirroring `@aos/meta-ads-agent`'s `SamanthaAgentFactory`. Still returns a `MobixScraperService`
+ * (never a wider bundle) so existing callers — `@aos/meta-ads-agent`'s `SamanthaAgentFactory`, which
  * calls `.scrapeInventoryUnits()`/`.scrapePromosList()` directly on the returned value — keep
  * working unchanged; the new `RunFullScrape`/`DownloadAndStorePhotos` capability is reached via
  * the service's new `runFullScrape()` method instead of a different return shape.

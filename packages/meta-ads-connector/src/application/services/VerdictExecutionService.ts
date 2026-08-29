@@ -18,7 +18,7 @@ import { callMetaApi } from "../use-cases/meta-api-call-helpers.js";
 const SCALE_FACTOR = 1.2;
 /**
  * FIX's target objective. AAOS-W1D-S3: DSS Motor's real strategy is OUTCOME_LEADS + CTWA (lead
- * clicks the ad, lands straight in WhatsApp with Jessy) — was `OUTCOME_ENGAGEMENT` before this
+ * clicks the ad, lands straight in WhatsApp with Clara) — was `OUTCOME_ENGAGEMENT` before this
  * supplement.
  */
 const FIX_OBJECTIVE = CampaignObjective.OUTCOME_LEADS;

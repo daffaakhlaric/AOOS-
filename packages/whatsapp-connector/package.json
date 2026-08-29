@@ -2,7 +2,7 @@
   "name": "@aos/whatsapp-connector",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS WhatsApp Connector — send/receive messages via WhatsApp Cloud API, multi-WABA support (one per branch), webhook ingestion for Jessy Sales Agent.",
+  "description": "AAOS WhatsApp Connector — send/receive messages via WhatsApp Cloud API, multi-WABA support (one per branch), webhook ingestion for Clara Sales Agent.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

@@ -27,7 +27,7 @@ describe("Integration: SyncAndQuery", () => {
     expect(changes.added).toHaveLength(13);
   });
 
-  it("Tamara use case: sync → getByModel('Xpander') → campaign can proceed", async () => {
+  it("Samantha use case: sync → getByModel('Xpander') → campaign can proceed", async () => {
     const connector = InventoryConnectorFactory.create({
       config: BASE_CONFIG,
       publisher: createFakePublisher(),
@@ -38,7 +38,7 @@ describe("Integration: SyncAndQuery", () => {
     expect(xpanders.every((unit) => unit.status !== undefined)).toBe(true);
   });
 
-  it("Jessy use case: sync → getByCriteria({ branch: CINERE, maxPrice: 200jt })", async () => {
+  it("Clara use case: sync → getByCriteria({ branch: CINERE, maxPrice: 200jt })", async () => {
     const connector = InventoryConnectorFactory.create({
       config: BASE_CONFIG,
       publisher: createFakePublisher(),
