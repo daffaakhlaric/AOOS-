@@ -20,11 +20,11 @@ export interface PipelineResult {
 }
 
 /**
- * Processes one inbound message through Jessy's full Perceive → Reason → Act pipeline (spec
+ * Processes one inbound message through Clara's full Perceive → Reason → Act pipeline (spec
  * "conversation/ConversationPipeline.ts"): appends the inbound message, applies every
  * `ILeadScorer` delta (clamped via `LeadScore.apply` — design resolution #6), enriches the
  * `LeadProfile` via `QualificationDetector`, delegates the stage/response decision to
- * `IConversationEngine`, then appends Jessy's outbound reply.
+ * `IConversationEngine`, then appends Clara's outbound reply.
  */
 export class ConversationPipeline {
   constructor(

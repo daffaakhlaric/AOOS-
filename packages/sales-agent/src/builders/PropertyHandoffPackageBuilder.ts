@@ -2,7 +2,7 @@ import type { LeadConversation } from "../domain/entities/LeadConversation.js";
 import { PropertyHandoffPackage } from "../domain/entities/PropertyHandoffPackage.js";
 import type { PropertyListing } from "../domain/entities/PropertyListing.js";
 import { ALL_QUALIFICATION_STATUSES } from "../domain/value-objects/QualificationStatus.js";
-import { JessyKnowledgeBase } from "../intelligence/JessyKnowledgeBase.js";
+import { ClaraKnowledgeBase } from "../intelligence/ClaraKnowledgeBase.js";
 
 const MAX_HIGHLIGHTS = 3;
 
@@ -19,7 +19,7 @@ export class PropertyHandoffPackageBuilder {
     matchedListings: ReadonlyArray<PropertyListing>,
   ): PropertyHandoffPackage {
     const profile = conversation.profile;
-    const branchName = JessyKnowledgeBase.branch(conversation.branchId).name;
+    const branchName = ClaraKnowledgeBase.branch(conversation.branchId).name;
     const qualifiedCriteria = ALL_QUALIFICATION_STATUSES.filter((status) =>
       profile.isQualified(status),
     );

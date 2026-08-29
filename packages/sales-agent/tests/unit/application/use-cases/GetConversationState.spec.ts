@@ -2,7 +2,7 @@ import { BranchId } from "@aos/branch-manager";
 import { describe, expect, it } from "vitest";
 
 import { GetConversationState } from "../../../../src/application/use-cases/GetConversationState.js";
-import { JessyAgentFactory } from "../../../../src/factories/JessyAgentFactory.js";
+import { ClaraAgentFactory } from "../../../../src/factories/ClaraAgentFactory.js";
 import {
   fixedClock,
   makeRealBranchManager,
@@ -16,7 +16,7 @@ describe("GetConversationState", () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -26,7 +26,7 @@ describe("GetConversationState", () => {
       now: fixedClock(),
     });
     expect(agent.getConversationState).toBeInstanceOf(GetConversationState);
-    const { conversation } = agent.jessyAgentService.getOrStart("+6281200000001", BranchId.CINERE);
+    const { conversation } = agent.claraAgentService.getOrStart("+6281200000001", BranchId.CINERE);
     const result = agent.getConversationState.execute(conversation.id);
     expect(result.ok).toBe(true);
   });

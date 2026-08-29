@@ -84,7 +84,7 @@ const LISTING_QUESTION_STAGES: ReadonlySet<ConversationStage> = new Set([
 ]);
 
 /**
- * Decides what Jessy says next for a PROPERTY-vertical conversation — the sibling to
+ * Decides what Clara says next for a PROPERTY-vertical conversation — the sibling to
  * `ConversationEngine` (spec section 11 point 1). Runs `PropertyIntentDetector` +
  * `PropertyStageDetector`, queries Phase 2's real `listings` via `ListingQuerier` when the stage is
  * `UNIT_INFO`/`PRICE_INFO`, then delegates to `PropertyResponseGenerator` for the final text.

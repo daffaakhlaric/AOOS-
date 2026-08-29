@@ -9,20 +9,20 @@ import { pickFromPool } from "./PoolSelector.js";
  * extracted; TIMELINE/NAME are bonus-only). Every entry ≤ 150 chars.
  */
 export const ASK_BUDGET_POOL: ReadonlyArray<string> = [
-  "Budget-nya kira-kira berapa kak? Biar Jessy cariin yang paling pas 😊",
+  "Budget-nya kira-kira berapa kak? Biar Clara cariin yang paling pas 😊",
   "Range budget kak sekitar berapa ya?",
-  "Mau Jessy bantu cariin, budget yang disiapkan sekitar berapa kak? 😊",
+  "Mau Clara bantu cariin, budget yang disiapkan sekitar berapa kak? 😊",
 ];
 
 export const ASK_UNIT_POOL: ReadonlyArray<string> = [
-  "Lagi cari model apa kak? Atau mau Jessy kasih rekomendasi? 😊",
+  "Lagi cari model apa kak? Atau mau Clara kasih rekomendasi? 😊",
   "Ada unit tertentu yang diincer kak?",
   "Kira-kira cari MPV, SUV, atau city car kak? 😊",
 ];
 
 export const ASK_AREA_POOL: ReadonlyArray<string> = [
-  "Kakak di area mana? Biar Jessy cek stok cabang terdekat 😊",
-  "Domisili kak di mana ya? Biar Jessy carikan cabang terdekat",
+  "Kakak di area mana? Biar Clara cek stok cabang terdekat 😊",
+  "Domisili kak di mana ya? Biar Clara carikan cabang terdekat",
 ];
 
 export const ASK_PAYMENT_POOL: ReadonlyArray<string> = [
@@ -33,7 +33,7 @@ export const ASK_PAYMENT_POOL: ReadonlyArray<string> = [
 /**
  * The 4 core criteria `QualificationScorer` scores, in the spec's declared ask order — deliberately
  * a narrower list than `ALL_QUALIFICATION_STATUSES` (which also has bonus-only TIMELINE/NAME that
- * Jessy never actively interrogates for; those stay purely passive/volunteered, same as before this
+ * Clara never actively interrogates for; those stay purely passive/volunteered, same as before this
  * fix).
  */
 const CORE_CRITERIA: ReadonlyArray<QualificationStatus> = [
@@ -44,7 +44,7 @@ const CORE_CRITERIA: ReadonlyArray<QualificationStatus> = [
 ];
 
 /**
- * The next core criterion Jessy should actively ask about, or `undefined` if every one has already
+ * The next core criterion Clara should actively ask about, or `undefined` if every one has already
  * been extracted (`conversation.profile.isQualified`) or already asked (`conversation.askedCriteria`)
  * — asks exactly one at a time, in `CORE_CRITERIA` order, and never repeats a criterion already
  * asked (AAOS-W3D Fix 3's pinned behaviour). Deliberately a pure function of `conversation` alone so

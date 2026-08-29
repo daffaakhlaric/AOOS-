@@ -11,7 +11,7 @@ export interface EngineDecision {
   readonly matchedUnits: ReadonlyArray<InventoryUnit>;
 }
 
-/** Port: decides what Jessy says next, given the current conversation state (already re-scored for this turn) and the latest inbound message text. Async: may query `@aos/dss-inventory-connector` when the lead asks about a unit. */
+/** Port: decides what Clara says next, given the current conversation state (already re-scored for this turn) and the latest inbound message text. Async: may query `@aos/dss-inventory-connector` when the lead asks about a unit. */
 export interface IConversationEngine {
   decide(
     conversation: LeadConversation,

@@ -1,12 +1,12 @@
 // Factory
-export { JessyAgentFactory } from "./factories/JessyAgentFactory.js";
+export { ClaraAgentFactory } from "./factories/ClaraAgentFactory.js";
 export type {
-  JessyAgent as JessyAgentComposition,
-  JessyAgentFactoryOptions,
+  ClaraAgent as ClaraAgentComposition,
+  ClaraAgentFactoryOptions,
   PropertyConversationEngineFactoryOptions,
-  PropertyJessyAgent as PropertyJessyAgentComposition,
-  PropertyJessyAgentFactoryOptions,
-} from "./factories/JessyAgentFactory.js";
+  PropertyClaraAgent as PropertyClaraAgentComposition,
+  PropertyClaraAgentFactoryOptions,
+} from "./factories/ClaraAgentFactory.js";
 
 // Use Cases
 export { ProcessIncomingMessage } from "./application/use-cases/ProcessIncomingMessage.js";
@@ -17,7 +17,7 @@ export { GetConversationState } from "./application/use-cases/GetConversationSta
 export { CloseConversation } from "./application/use-cases/CloseConversation.js";
 
 // Services
-export { JessyAgentService } from "./application/services/JessyAgentService.js";
+export { ClaraAgentService } from "./application/services/ClaraAgentService.js";
 export { LeadScoringService } from "./application/services/LeadScoringService.js";
 export { HandoffService } from "./application/services/HandoffService.js";
 export { FollowUpService } from "./application/services/FollowUpService.js";
@@ -30,7 +30,7 @@ export { LeadTemperature, classifyTemperature } from "./domain/value-objects/Lea
 export { ConversationStage } from "./domain/value-objects/ConversationStage.js";
 export type { LeadScore } from "./domain/value-objects/LeadScore.js";
 
-// AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — PROPERTY_QUALIFICATION (spec Part 6), Jessy's
+// AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — PROPERTY_QUALIFICATION (spec Part 6), Clara's
 // PROPERTY-vertical sibling to `ScoringCriterion`/`SCORING_RULES`. See `PropertyScoreCalculator.ts`
 // for the real scope of this addition (config-level, not yet wired into `ConversationEngine`).
 export {
@@ -94,4 +94,4 @@ export type { SalesAgentConfig } from "./config/SalesAgentConfig.js";
 export { parseSalesAgentConfig } from "./config/SalesAgentConfig.js";
 
 // Knowledge
-export { JESSY_KNOWLEDGE } from "./intelligence/JessyKnowledgeBase.js";
+export { CLARA_KNOWLEDGE } from "./intelligence/ClaraKnowledgeBase.js";

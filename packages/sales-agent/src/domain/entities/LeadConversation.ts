@@ -29,12 +29,12 @@ export interface LeadConversationProps {
   readonly closingAttemptCount?: number;
   /** The lead's score the last time a closing attempt was made — used to detect a "new signal" (score moved up) that re-permits closing past the 2-attempt cap (AAOS-W3D Fix 1). */
   readonly scoreAtLastClosingAttempt?: number;
-  /** Which of the 4 core `QualificationStatus` criteria Jessy has already actively asked about — never re-asked (AAOS-W3D Fix 3). Optional/defaulted to empty for the same reason as `closingAttemptCount`. */
+  /** Which of the 4 core `QualificationStatus` criteria Clara has already actively asked about — never re-asked (AAOS-W3D Fix 3). Optional/defaulted to empty for the same reason as `closingAttemptCount`. */
   readonly askedCriteria?: ReadonlySet<QualificationStatus>;
 }
 
 /**
- * Full conversation state between Jessy and one lead — the aggregate root `ConversationPipeline`
+ * Full conversation state between Clara and one lead — the aggregate root `ConversationPipeline`
  * reads and rebuilds on every incoming message (spec: "Load conversation state (from memory —
  * persisted in W2E)"; this package holds it in-process only, per its explicit non-responsibility
  * "does NOT store conversations"). Immutable: every transition (`withAppendedMessage`,
@@ -138,7 +138,7 @@ export class LeadConversation {
     return this.props.scoreAtLastClosingAttempt ?? 0;
   }
 
-  /** Which of the 4 core `QualificationStatus` criteria Jessy has already actively asked about (AAOS-W3D Fix 3). */
+  /** Which of the 4 core `QualificationStatus` criteria Clara has already actively asked about (AAOS-W3D Fix 3). */
   get askedCriteria(): ReadonlySet<QualificationStatus> {
     return this.props.askedCriteria ?? new Set();
   }
@@ -152,7 +152,7 @@ export class LeadConversation {
     });
   }
 
-  /** Records that Jessy actively asked about `criterion` (AAOS-W3D Fix 3) — returns a NEW instance. */
+  /** Records that Clara actively asked about `criterion` (AAOS-W3D Fix 3) — returns a NEW instance. */
   withAskedCriterion(criterion: QualificationStatus): LeadConversation {
     const next = new Set(this.askedCriteria);
     next.add(criterion);

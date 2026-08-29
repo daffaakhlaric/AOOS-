@@ -28,7 +28,7 @@ export interface ResponseContext {
 }
 
 /**
- * Port: generates Jessy's natural-Indonesian reply text for a given stage/intent/context —
+ * Port: generates Clara's natural-Indonesian reply text for a given stage/intent/context —
  * always ≤ 300 chars. Async because an implementation may call out to an LLM provider
  * (`LlmResponseGenerator`); the rule-based `ResponseGenerator` remains synchronous internally and
  * simply resolves immediately. NOT guaranteed deterministic across all implementations — the

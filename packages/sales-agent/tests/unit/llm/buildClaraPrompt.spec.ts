@@ -12,7 +12,7 @@ import { LeadConversation } from "../../../src/domain/entities/LeadConversation.
 import { LeadProfile } from "../../../src/domain/entities/LeadProfile.js";
 import { ConversationStage } from "../../../src/domain/value-objects/ConversationStage.js";
 import { LeadScore } from "../../../src/domain/value-objects/LeadScore.js";
-import { buildConversationMessages, buildSystemPrompt } from "../../../src/llm/buildJessyPrompt.js";
+import { buildConversationMessages, buildSystemPrompt } from "../../../src/llm/buildClaraPrompt.js";
 import { unwrap } from "../../helpers/result.js";
 
 const NOW = new Date("2026-08-10T09:00:00.000Z");
@@ -50,7 +50,7 @@ describe("buildSystemPrompt", () => {
       ),
     });
     const prompt = buildSystemPrompt(context);
-    expect(prompt).toContain("Kamu adalah Jessy");
+    expect(prompt).toContain("Kamu adalah Clara");
     expect(prompt).toContain("Branch: Mobix Cinere");
     expect(prompt).toContain("Lead score: 42/100");
     expect(prompt).toContain("Stage: DISCOVERY");
@@ -106,7 +106,7 @@ describe("buildConversationMessages", () => {
   it("first message is the system prompt", () => {
     const messages = buildConversationMessages(baseContext());
     expect(messages[0]?.role).toBe("system");
-    expect(messages[0]?.content).toContain("Kamu adalah Jessy");
+    expect(messages[0]?.content).toContain("Kamu adalah Clara");
   });
 
   it("maps INBOUND messages to role 'user' and OUTBOUND to 'assistant', in order", () => {

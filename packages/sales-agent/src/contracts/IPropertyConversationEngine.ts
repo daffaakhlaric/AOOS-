@@ -11,7 +11,7 @@ export interface PropertyEngineDecision {
   readonly matchedListings: ReadonlyArray<PropertyListing>;
 }
 
-/** Port: decides what Jessy says next for a PROPERTY-vertical conversation — the sibling to `IConversationEngine`. */
+/** Port: decides what Clara says next for a PROPERTY-vertical conversation — the sibling to `IConversationEngine`. */
 export interface IPropertyConversationEngine {
   decide(
     conversation: LeadConversation,

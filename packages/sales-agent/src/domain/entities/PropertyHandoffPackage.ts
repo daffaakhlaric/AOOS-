@@ -19,7 +19,7 @@ export interface PropertyHandoffPackageProps {
 
 /**
  * PROPERTY-vertical sibling to `HandoffPackage` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8,
- * spec section 12 point 2) — what Jessy prepares for the sales human when a PROPERTY lead becomes
+ * spec section 12 point 2) — what Clara prepares for the sales human when a PROPERTY lead becomes
  * HOT. Same immutable, plain read-model shape as `HandoffPackage`; the only real difference is
  * `matchedListings: ReadonlyArray<PropertyListing>` in place of `matchedUnits:
  * ReadonlyArray<InventoryUnit>` — confirmed via direct read that `HandoffPackage`/

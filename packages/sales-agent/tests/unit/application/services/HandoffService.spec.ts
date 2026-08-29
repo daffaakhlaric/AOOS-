@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HandoffService } from "../../../../src/application/services/HandoffService.js";
 import { LeadConversation } from "../../../../src/domain/entities/LeadConversation.js";
 import { LeadProfile } from "../../../../src/domain/entities/LeadProfile.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { LeadScore } from "../../../../src/domain/value-objects/LeadScore.js";
 import { QualificationStatus } from "../../../../src/domain/value-objects/QualificationStatus.js";
 import {
@@ -20,12 +20,12 @@ import { unwrap, unwrapErr } from "../../../helpers/result.js";
 
 describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
   it("builds a HandoffPackage with the correct Indonesian summary", async () => {
-    const jessyEvents = createFakePublisher();
+    const claraEvents = createFakePublisher();
     const branchManager = makeRealBranchManager();
     const service = new HandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(jessyEvents),
+      new ClaraAgentEvents(claraEvents),
       fixedClock(),
     );
     const conversation = LeadConversation.start("+6281200000001", BranchId.CINERE, FIXED_NOW)
@@ -50,7 +50,7 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
     const service = new HandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
       fixedClock(),
     );
     const conversation = LeadConversation.start(
@@ -70,12 +70,12 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
   });
 
   it("publishes HandoffTriggered", async () => {
-    const jessyEvents = createFakePublisher();
+    const claraEvents = createFakePublisher();
     const branchManager = makeRealBranchManager();
     const service = new HandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(jessyEvents),
+      new ClaraAgentEvents(claraEvents),
       fixedClock(),
     );
     const conversation = LeadConversation.start(
@@ -89,7 +89,7 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
       tenantId: "tenant-dss-motor",
       correlationId: "corr-1",
     });
-    expect(jessyEvents.published.some((p) => p.type === "aaos.sales.handoff.triggered")).toBe(true);
+    expect(claraEvents.published.some((p) => p.type === "aaos.sales.handoff.triggered")).toBe(true);
   });
 
   it("prepares a handoff OutgoingMessage payload (whatsapp-connector types) — never sends", async () => {
@@ -97,7 +97,7 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
     const service = new HandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
       fixedClock(),
     );
     const conversation = LeadConversation.start(
@@ -126,7 +126,7 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
     const service = new HandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
       fixedClock(),
     );
     const conversation = LeadConversation.start(
@@ -150,7 +150,7 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
     const service = new HandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
       fixedClock(),
     );
     const conversation = LeadConversation.start(
@@ -175,7 +175,7 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
     const service = new HandoffService(
       failingAssignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
       fixedClock(),
     );
     const conversation = LeadConversation.start(
@@ -205,7 +205,7 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
     const service = new HandoffService(
       orphanAssignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
       fixedClock(),
     );
     const conversation = LeadConversation.start(
@@ -229,7 +229,7 @@ describe("HandoffService (real @aos/branch-manager AssignLead)", () => {
     const service = new HandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
     );
     const conversation = LeadConversation.start(
       "+6281200000001",

@@ -7,7 +7,7 @@ import type { LeadConversation } from "../../domain/entities/LeadConversation.js
 import type { PropertyHandoffPackage } from "../../domain/entities/PropertyHandoffPackage.js";
 import type { PropertyListing } from "../../domain/entities/PropertyListing.js";
 import { HandoffError } from "../../domain/errors/HandoffError.js";
-import type { JessyAgentEvents } from "../../domain/events/JessyAgentEvents.js";
+import type { ClaraAgentEvents } from "../../domain/events/ClaraAgentEvents.js";
 import { getPropertyHandoffResponse } from "../../responses/PropertyResponses.js";
 
 import { prepareOutgoingMessage } from "./OutgoingMessagePreparer.js";
@@ -32,7 +32,7 @@ const DEFAULT_SALES_NAME = "tim sales kita";
  * spec section 12 point 2): prepares + triggers a HOT PROPERTY-lead handoff. Confirmed via direct
  * read that `HandoffService`/`HandoffPackageBuilder`/`HandoffPackage` are concretely
  * `InventoryUnit`-typed end to end — this is a real, additive sibling (not a retrofit), reusing
- * `@aos/branch-manager`'s real `AssignLead`/`SalesTeamRegistry` and `JessyAgentEvents
+ * `@aos/branch-manager`'s real `AssignLead`/`SalesTeamRegistry` and `ClaraAgentEvents
  * .publishHandoffTriggered` exactly as-is (that event payload has no `InventoryUnit`/`ScoreDelta`
  * coupling, confirmed generic).
  */
@@ -40,7 +40,7 @@ export class PropertyHandoffService {
   constructor(
     private readonly assignLead: AssignLead,
     private readonly salesTeamRegistry: SalesTeamRegistry,
-    private readonly events: JessyAgentEvents,
+    private readonly events: ClaraAgentEvents,
     private readonly now: () => Date = () => new Date(),
   ) {}
 

@@ -1,9 +1,9 @@
 /**
- * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 7 — Jessy's PROPERTY-vertical sibling to
+ * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 7 — Clara's PROPERTY-vertical sibling to
  * `@aos/dss-inventory-connector`'s `InventoryUnit`. Deliberately a plain readonly shape (not a
  * value-object class like `InventoryUnit`) — `packages/sales-agent` has no dependency on
  * `apps/aaos-api`'s Nest-only `ListingsService`/`ListingResponseDto`, so this is this package's own
- * minimal projection of a Phase 2 `listings` row, carrying only the fields Jessy's conversation
+ * minimal projection of a Phase 2 `listings` row, carrying only the fields Clara's conversation
  * layer (`ListingQuerier`/`PropertyResponseGenerator`) actually needs. The real production adapter
  * that implements `IListingQueryService` (composed in `apps/aaos-api`/`apps/aaos-simulator`, outside
  * this package) is responsible for mapping the real `ListingResponseDto` into this shape.

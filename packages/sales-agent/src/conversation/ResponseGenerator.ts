@@ -19,7 +19,7 @@ import { getUnitFoundResponse, getUnitNotFoundResponse } from "../responses/Unit
 import { DetectedIntent } from "./IntentDetector.js";
 
 const CLOSED_POOL: ReadonlyArray<string> = [
-  "Terima kasih ya kak udah ngobrol sama Jessy 🙏 Kalau butuh bantuan lagi, tinggal chat aja!",
+  "Terima kasih ya kak udah ngobrol sama Clara 🙏 Kalau butuh bantuan lagi, tinggal chat aja!",
 ];
 
 const DEFAULT_SALES_NAME = "tim sales kita";
@@ -54,7 +54,7 @@ const SYARIAH_ELIGIBLE_STAGES: ReadonlySet<ConversationStage> = new Set([
 ]);
 
 /**
- * Generates Jessy's reply text for the current stage/context (spec "responses/ResponseGenerator.ts"
+ * Generates Clara's reply text for the current stage/context (spec "responses/ResponseGenerator.ts"
  * — the concrete `IResponseGenerator`). Delegates to the per-stage response pools in `responses/`,
  * always via the deterministic `pickFromPool` seed derived from `conversation.inboundMessageCount`
  * (design resolution #4) — never `Math.random()`.
@@ -173,6 +173,6 @@ export class ResponseGenerator implements IResponseGenerator {
     if (firstMatch !== undefined) {
       return getDpInfoResponse(firstMatch, seed);
     }
-    return "Unit yang mana nih kak yang mau dihitung DP/cicilannya? Biar Jessy bantu hitungin 😊";
+    return "Unit yang mana nih kak yang mau dihitung DP/cicilannya? Biar Clara bantu hitungin 😊";
   }
 }

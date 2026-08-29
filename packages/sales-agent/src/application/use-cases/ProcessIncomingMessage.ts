@@ -2,16 +2,16 @@ import type { Result } from "@aos/common";
 
 import type { AgentError } from "../../domain/errors/AgentError.js";
 import type {
-  JessyAgentService,
+  ClaraAgentService,
   ProcessMessageInput,
   ProcessMessageOutcome,
-} from "../services/JessyAgentService.js";
+} from "../services/ClaraAgentService.js";
 import type { Tracer } from "../tracer.js";
 
 /** Main entry point (spec "Core Flow: ProcessIncomingMessage"): perceives, reasons, acts, and returns a prepared reply — never sends it directly. */
 export class ProcessIncomingMessage {
   constructor(
-    private readonly jessyAgentService: JessyAgentService,
+    private readonly claraAgentService: ClaraAgentService,
     private readonly tracer: Tracer,
   ) {}
 
@@ -20,7 +20,7 @@ export class ProcessIncomingMessage {
       "sales-agent.process-incoming-message",
       async (span: { end: () => void }) => {
         try {
-          return await this.jessyAgentService.processMessage(input);
+          return await this.claraAgentService.processMessage(input);
         } finally {
           span.end();
         }

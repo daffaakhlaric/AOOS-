@@ -4,14 +4,14 @@ import type { AgentError } from "../../domain/errors/AgentError.js";
 import type {
   ProcessMessageInput,
   ProcessMessageOutcome,
-  PropertyJessyAgentService,
-} from "../services/PropertyJessyAgentService.js";
+  PropertyClaraAgentService,
+} from "../services/PropertyClaraAgentService.js";
 import type { Tracer } from "../tracer.js";
 
-/** PROPERTY-vertical sibling to `ProcessIncomingMessage` — a thin, traced wrapper over `PropertyJessyAgentService.processMessage`. */
+/** PROPERTY-vertical sibling to `ProcessIncomingMessage` — a thin, traced wrapper over `PropertyClaraAgentService.processMessage`. */
 export class PropertyProcessIncomingMessage {
   constructor(
-    private readonly jessyAgentService: PropertyJessyAgentService,
+    private readonly claraAgentService: PropertyClaraAgentService,
     private readonly tracer: Tracer,
   ) {}
 
@@ -20,7 +20,7 @@ export class PropertyProcessIncomingMessage {
       "sales-agent.process-incoming-message.property",
       async (span: { end: () => void }) => {
         try {
-          return await this.jessyAgentService.processMessage(input);
+          return await this.claraAgentService.processMessage(input);
         } finally {
           span.end();
         }

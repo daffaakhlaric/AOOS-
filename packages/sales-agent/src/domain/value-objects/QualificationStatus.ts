@@ -1,4 +1,4 @@
-/** The 6 lead-qualification criteria Jessy scores against (spec "Lead Scoring Engine"). */
+/** The 6 lead-qualification criteria Clara scores against (spec "Lead Scoring Engine"). */
 export enum QualificationStatus {
   BUDGET = "BUDGET",
   UNIT = "UNIT",

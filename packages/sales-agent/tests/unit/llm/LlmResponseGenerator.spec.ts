@@ -31,10 +31,10 @@ function fakeClient(result: Result<string, LlmError>): ILlmChatClient {
 
 describe("LlmResponseGenerator", () => {
   it("success → returns the LLM's text unchanged when within MAX_MESSAGE_LENGTH", async () => {
-    const client = fakeClient(ok("Halo kak! Ada yang bisa Jessy bantu? 😊"));
+    const client = fakeClient(ok("Halo kak! Ada yang bisa Clara bantu? 😊"));
     const generator = new LlmResponseGenerator({ client, fallback: new ResponseGenerator() });
     const text = await generator.generate(context());
-    expect(text).toBe("Halo kak! Ada yang bisa Jessy bantu? 😊");
+    expect(text).toBe("Halo kak! Ada yang bisa Clara bantu? 😊");
   });
 
   it("success but over MAX_MESSAGE_LENGTH → truncated to the shared limit", async () => {

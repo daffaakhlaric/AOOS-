@@ -6,7 +6,7 @@ import { unwrap, unwrapErr } from "../../helpers/result.js";
 describe("parseSalesAgentConfig", () => {
   it("applies defaults for hotThreshold/warmThreshold/noReplyTimeoutMs etc.", () => {
     const config = unwrap(parseSalesAgentConfig({ tenantId: "tenant-dss-motor" }));
-    expect(config.agentName).toBe("Jessy");
+    expect(config.agentName).toBe("Clara");
     expect(config.language).toBe("id");
     expect(config.hotThreshold).toBe(65);
     expect(config.warmThreshold).toBe(31);

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { FollowUpService } from "../../../../src/application/services/FollowUpService.js";
 import { ScheduleFollowUp } from "../../../../src/application/use-cases/ScheduleFollowUp.js";
 import { LeadConversation } from "../../../../src/domain/entities/LeadConversation.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { FollowUpDay } from "../../../../src/domain/value-objects/FollowUpDay.js";
 import { LeadTemperature } from "../../../../src/domain/value-objects/LeadTemperature.js";
 import { createFakePublisher } from "../../../helpers/publisher.js";
@@ -14,7 +14,7 @@ const NOW = new Date("2026-08-10T09:00:00.000Z");
 describe("ScheduleFollowUp", () => {
   it("builds + emits a schedule for a COLD lead", async () => {
     const publisher = createFakePublisher();
-    const service = new FollowUpService(new JessyAgentEvents(publisher), 21_600_000, () => NOW);
+    const service = new FollowUpService(new ClaraAgentEvents(publisher), 21_600_000, () => NOW);
     const useCase = new ScheduleFollowUp(service);
     const conversation = LeadConversation.start("+6281200000001", BranchId.CINERE, NOW);
     const schedule = await useCase.execute({

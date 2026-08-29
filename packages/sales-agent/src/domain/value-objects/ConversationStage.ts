@@ -1,4 +1,4 @@
-/** The 10 conversation stages Jessy's `StageDetector`/`ConversationEngine` moves a lead through (spec "Conversation Stages"). */
+/** The 10 conversation stages Clara's `StageDetector`/`ConversationEngine` moves a lead through (spec "Conversation Stages"). */
 export enum ConversationStage {
   GREETING = "GREETING",
   DISCOVERY = "DISCOVERY",

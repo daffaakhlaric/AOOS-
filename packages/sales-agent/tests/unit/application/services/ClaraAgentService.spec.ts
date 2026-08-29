@@ -2,60 +2,57 @@ import { BranchId } from "@aos/branch-manager";
 import { err } from "@aos/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ClaraAgentService } from "../../../../src/application/services/ClaraAgentService.js";
 import { FollowUpService } from "../../../../src/application/services/FollowUpService.js";
-import { PropertyHandoffService } from "../../../../src/application/services/PropertyHandoffService.js";
-import type { PropertyHandoffService as PropertyHandoffServiceType } from "../../../../src/application/services/PropertyHandoffService.js";
-import { PropertyJessyAgentService } from "../../../../src/application/services/PropertyJessyAgentService.js";
-import { PropertyLeadScoringService } from "../../../../src/application/services/PropertyLeadScoringService.js";
-import { PropertyConversationEngine } from "../../../../src/conversation/PropertyConversationEngine.js";
-import { PropertyConversationPipeline } from "../../../../src/conversation/PropertyConversationPipeline.js";
-import { PropertyResponseGenerator } from "../../../../src/conversation/PropertyResponseGenerator.js";
+import type { HandoffService } from "../../../../src/application/services/HandoffService.js";
+import { LeadScoringService } from "../../../../src/application/services/LeadScoringService.js";
+import { ConversationEngine } from "../../../../src/conversation/ConversationEngine.js";
+import { ConversationPipeline } from "../../../../src/conversation/ConversationPipeline.js";
+import { ResponseGenerator } from "../../../../src/conversation/ResponseGenerator.js";
 import { HandoffError } from "../../../../src/domain/errors/HandoffError.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { ConversationId } from "../../../../src/domain/value-objects/ConversationId.js";
 import { ConversationStage } from "../../../../src/domain/value-objects/ConversationStage.js";
 import { LeadTemperature } from "../../../../src/domain/value-objects/LeadTemperature.js";
-import {
-  JessyAgentFactory,
-  type PropertyJessyAgent,
-} from "../../../../src/factories/JessyAgentFactory.js";
-import { ListingQuerier } from "../../../../src/intelligence/ListingQuerier.js";
-import { PropertyLeadScorer } from "../../../../src/scoring/PropertyLeadScorer.js";
+import { ClaraAgentFactory, type ClaraAgent } from "../../../../src/factories/ClaraAgentFactory.js";
+import { InventoryQuerier } from "../../../../src/intelligence/InventoryQuerier.js";
+import { LeadScorer } from "../../../../src/scoring/LeadScorer.js";
 import {
   fixedClock,
-  makeListingQueryService,
   makeRealBranchManager,
+  makeRealSyncedInventoryQueryService,
   makeSalesAgentConfig,
 } from "../../../fixtures/salesAgentFixtures.js";
 import { createFakePublisher, type FakePublisher } from "../../../helpers/publisher.js";
 import { unwrap, unwrapErr } from "../../../helpers/result.js";
 
-async function makePropertyAgent(
+async function makeClaraAgent(
   overrides: Parameters<typeof makeSalesAgentConfig>[0] = {},
-): Promise<{ agent: PropertyJessyAgent; publisher: FakePublisher }> {
+): Promise<{ agent: ClaraAgent; publisher: FakePublisher }> {
   const publisher = createFakePublisher();
   const branchManager = makeRealBranchManager(publisher);
-  const agent = JessyAgentFactory.createPropertyAgent({
+  const inventoryQueryService = await makeRealSyncedInventoryQueryService();
+  const agent = ClaraAgentFactory.create({
     config: makeSalesAgentConfig(overrides),
     branchId: BranchId.CINERE,
     publisher,
     assignLead: branchManager.assignLead,
     salesTeamRegistry: branchManager.salesTeamRegistry,
-    listingQueryService: makeListingQueryService(),
+    inventoryQueryService,
     now: fixedClock(),
   });
   return { agent, publisher };
 }
 
-describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAgent wiring)", () => {
-  let context: { agent: PropertyJessyAgent; publisher: FakePublisher };
+describe("ClaraAgentService (via real ClaraAgentFactory wiring)", () => {
+  let context: { agent: ClaraAgent; publisher: FakePublisher };
 
   beforeEach(async () => {
-    context = await makePropertyAgent();
+    context = await makeClaraAgent();
   });
 
   it("getOrStart() creates a new GREETING conversation on first contact", () => {
-    const { conversation, isNew } = context.agent.jessyAgentService.getOrStart(
+    const { conversation, isNew } = context.agent.claraAgentService.getOrStart(
       "+6281200000001",
       BranchId.CINERE,
     );
@@ -64,8 +61,8 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
   });
 
   it("getOrStart() returns the SAME conversation on the second call", () => {
-    const first = context.agent.jessyAgentService.getOrStart("+6281200000001", BranchId.CINERE);
-    const second = context.agent.jessyAgentService.getOrStart("+6281200000001", BranchId.CINERE);
+    const first = context.agent.claraAgentService.getOrStart("+6281200000001", BranchId.CINERE);
+    const second = context.agent.claraAgentService.getOrStart("+6281200000001", BranchId.CINERE);
     expect(second.isNew).toBe(false);
     expect(second.conversation.id.equals(first.conversation.id)).toBe(true);
   });
@@ -78,23 +75,23 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
       correlationId: "corr-1",
     };
     const first = unwrap(
-      await context.agent.jessyAgentService.processMessage({ ...input, messageText: "halo min" }),
+      await context.agent.claraAgentService.processMessage({ ...input, messageText: "halo min" }),
     );
     expect(first.conversation.stage).toBe(ConversationStage.GREETING);
 
-    await context.agent.jessyAgentService.processMessage({
+    await context.agent.claraAgentService.processMessage({
       ...input,
-      messageText: "budget 1.5 miliar di bintaro",
+      messageText: "budget 200 juta kak",
     });
-    await context.agent.jessyAgentService.processMessage({
+    await context.agent.claraAgentService.processMessage({
       ...input,
-      messageText: "cari rumah kak",
+      messageText: "ada xpander gak kak",
     });
-    // Score after this 3rd scoring message: 20 (budget) + 20 (area) + 15 (type) + 15 (kpr) = 70 ≥ 65 (hot).
+    // Score after this 3rd scoring message: 25 (budget) + 25 (unit) + 25 (area) = 75 ≥ 65 (hot).
     const crossing = unwrap(
-      await context.agent.jessyAgentService.processMessage({
+      await context.agent.claraAgentService.processMessage({
         ...input,
-        messageText: "kpr aja kak",
+        messageText: "cabangnya dimana kak",
       }),
     );
     expect(crossing.becameHot).toBe(true);
@@ -110,8 +107,8 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
       tenantId: "tenant-dss-motor",
       correlationId: "corr-1",
     };
-    await context.agent.jessyAgentService.processMessage({ ...input, messageText: "halo" });
-    await context.agent.jessyAgentService.processMessage({ ...input, messageText: "halo lagi" });
+    await context.agent.claraAgentService.processMessage({ ...input, messageText: "halo" });
+    await context.agent.claraAgentService.processMessage({ ...input, messageText: "halo lagi" });
     const startedCount = context.publisher.published.filter(
       (p) => p.type === "aaos.sales.conversation.started",
     ).length;
@@ -120,7 +117,7 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
 
   it("processMessage() prepares an OutgoingMessage, never a real send", async () => {
     const outcome = unwrap(
-      await context.agent.jessyAgentService.processMessage({
+      await context.agent.claraAgentService.processMessage({
         leadPhone: "+6281200000003",
         branchId: BranchId.CINERE,
         messageText: "halo min",
@@ -132,7 +129,7 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
   });
 
   it("processMessage() schedules a follow-up for a COLD lead ('halo min' only)", async () => {
-    await context.agent.jessyAgentService.processMessage({
+    await context.agent.claraAgentService.processMessage({
       leadPhone: "+6281200000004",
       branchId: BranchId.CINERE,
       messageText: "halo min",
@@ -144,9 +141,33 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
     ).toBe(true);
   });
 
+  it("processMessage() does NOT schedule a follow-up once HOT", async () => {
+    const input = {
+      leadPhone: "+6281200000005",
+      branchId: BranchId.CINERE,
+      tenantId: "tenant-dss-motor",
+      correlationId: "corr-1",
+    };
+    await context.agent.claraAgentService.processMessage({
+      ...input,
+      messageText: "budget 200 juta",
+    });
+    await context.agent.claraAgentService.processMessage({ ...input, messageText: "ada xpander" });
+    await context.agent.claraAgentService.processMessage({
+      ...input,
+      messageText: "cabang bintaro",
+    });
+    await context.agent.claraAgentService.processMessage({ ...input, messageText: "mau kredit" });
+    context.publisher.published.length = 0;
+    await context.agent.claraAgentService.processMessage({ ...input, messageText: "oke siap" });
+    expect(
+      context.publisher.published.some((p) => p.type === "aaos.sales.follow-up.scheduled"),
+    ).toBe(false);
+  });
+
   it("does not schedule follow-ups when followUpEnabled is false", async () => {
-    const { agent, publisher } = await makePropertyAgent({ followUpEnabled: false });
-    await agent.jessyAgentService.processMessage({
+    const { agent, publisher } = await makeClaraAgent({ followUpEnabled: false });
+    await agent.claraAgentService.processMessage({
       leadPhone: "+6281200000006",
       branchId: BranchId.CINERE,
       messageText: "halo min",
@@ -159,31 +180,37 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
   });
 
   it("get() finds a conversation by id", () => {
-    const { conversation } = context.agent.jessyAgentService.getOrStart(
+    const { conversation } = context.agent.claraAgentService.getOrStart(
       "+6281200000007",
       BranchId.CINERE,
     );
-    expect(context.agent.jessyAgentService.get(conversation.id).ok).toBe(true);
+    expect(context.agent.claraAgentService.get(conversation.id).ok).toBe(true);
   });
 
   it("get() returns a ConversationError when the id is not found", () => {
     const unknownId = unwrap(ConversationId.create("never-started::+62810000000"));
-    const result = context.agent.jessyAgentService.get(unknownId);
+    const result = context.agent.claraAgentService.get(unknownId);
+    expect(result.ok).toBe(false);
+  });
+
+  it("close() returns a ConversationError when the id is not found", () => {
+    const unknownId = unwrap(ConversationId.create("never-started::+62810000001"));
+    const result = context.agent.claraAgentService.close(unknownId);
     expect(result.ok).toBe(false);
   });
 
   it("close() marks a conversation CLOSED", async () => {
-    const { conversation } = context.agent.jessyAgentService.getOrStart(
+    const { conversation } = context.agent.claraAgentService.getOrStart(
       "+6281200000008",
       BranchId.CINERE,
     );
-    const closed = unwrap(context.agent.jessyAgentService.close(conversation.id));
+    const closed = unwrap(context.agent.claraAgentService.close(conversation.id));
     expect(closed.stage).toBe(ConversationStage.CLOSED);
     expect(closed.closed).toBe(true);
   });
 
-  it("processMessage() propagates a PropertyConversationPipeline failure (empty message text)", async () => {
-    const result = await context.agent.jessyAgentService.processMessage({
+  it("processMessage() propagates a ConversationPipeline failure (empty message text)", async () => {
+    const result = await context.agent.claraAgentService.processMessage({
       leadPhone: "+6281200000009",
       branchId: BranchId.CINERE,
       messageText: "",
@@ -194,7 +221,7 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
   });
 
   it("processMessage() returns an AgentError when preparing the outgoing message fails", async () => {
-    const result = await context.agent.jessyAgentService.processMessage({
+    const result = await context.agent.claraAgentService.processMessage({
       leadPhone: "0812-not-e164",
       branchId: BranchId.CINERE,
       messageText: "halo min",
@@ -204,27 +231,27 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
     expect(unwrapErr(result).message).toContain("PhoneNumber");
   });
 
-  it("processMessage() wraps a PropertyHandoffService failure as an AgentError", async () => {
+  it("processMessage() wraps a HandoffService failure as an AgentError", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
-    const querier = new ListingQuerier(makeListingQueryService());
-    const engine = new PropertyConversationEngine(
-      querier,
-      { warmThreshold: 30, hotThreshold: 65 },
-      new PropertyResponseGenerator(),
+    const events = new ClaraAgentEvents(publisher);
+    const inventoryQuerier = new InventoryQuerier(await makeRealSyncedInventoryQueryService());
+    const engine = new ConversationEngine(
+      inventoryQuerier,
+      { warmThreshold: 31, hotThreshold: 65 },
+      new ResponseGenerator(),
       () => "Sales Cinere",
     );
-    const pipeline = new PropertyConversationPipeline(new PropertyLeadScorer(), engine);
+    const pipeline = new ConversationPipeline(new LeadScorer(), engine);
     const failingHandoffService = {
       handoff: vi.fn(async () => err(new HandoffError("branch-manager unavailable"))),
-    } as unknown as PropertyHandoffServiceType;
-    const failingService = new PropertyJessyAgentService(
+    } as unknown as HandoffService;
+    const failingService = new ClaraAgentService(
       pipeline,
-      new PropertyLeadScoringService(events, 65, fixedClock()),
+      new LeadScoringService(events, 65, fixedClock()),
       failingHandoffService,
       new FollowUpService(events, 21_600_000, fixedClock()),
       events,
-      makeSalesAgentConfig({ warmThreshold: 30, hotThreshold: 65 }),
+      makeSalesAgentConfig(),
       fixedClock(),
     );
     const input = {
@@ -233,37 +260,30 @@ describe("PropertyJessyAgentService (via real JessyAgentFactory.createPropertyAg
       tenantId: "tenant-dss-motor",
       correlationId: "corr-1",
     };
-    await failingService.processMessage({
-      ...input,
-      messageText: "budget 1.5 miliar di bintaro",
-    });
-    await failingService.processMessage({ ...input, messageText: "cari rumah kak" });
-    const result = await failingService.processMessage({
-      ...input,
-      messageText: "kpr aja kak",
-    });
+    await failingService.processMessage({ ...input, messageText: "budget 200 juta" });
+    await failingService.processMessage({ ...input, messageText: "ada xpander" });
+    const result = await failingService.processMessage({ ...input, messageText: "cabang bintaro" });
     expect(unwrapErr(result).message).toContain("branch-manager unavailable");
   });
 
   it("uses the real wall clock when no clock is injected", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
-    const branchManager = makeRealBranchManager(publisher);
-    const querier = new ListingQuerier(makeListingQueryService());
-    const engine = new PropertyConversationEngine(
-      querier,
-      { warmThreshold: 30, hotThreshold: 65 },
-      new PropertyResponseGenerator(),
+    const events = new ClaraAgentEvents(publisher);
+    const inventoryQuerier = new InventoryQuerier(await makeRealSyncedInventoryQueryService());
+    const engine = new ConversationEngine(
+      inventoryQuerier,
+      { warmThreshold: 31, hotThreshold: 65 },
+      new ResponseGenerator(),
       () => "Sales Cinere",
     );
-    const pipeline = new PropertyConversationPipeline(new PropertyLeadScorer(), engine);
-    const service = new PropertyJessyAgentService(
+    const pipeline = new ConversationPipeline(new LeadScorer(), engine);
+    const service = new ClaraAgentService(
       pipeline,
-      new PropertyLeadScoringService(events, 65),
-      new PropertyHandoffService(branchManager.assignLead, branchManager.salesTeamRegistry, events),
+      new LeadScoringService(events, 65),
+      context.agent.handoffService,
       new FollowUpService(events, 21_600_000),
       events,
-      makeSalesAgentConfig({ warmThreshold: 30, hotThreshold: 65 }),
+      makeSalesAgentConfig(),
     );
     const result = await service.processMessage({
       leadPhone: "+6281200000010",

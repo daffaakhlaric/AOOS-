@@ -1,4 +1,4 @@
-/** The 13 rule-based intents Jessy detects from an inbound message's raw text (spec "Intent Detection (Rule-based)"), extended by AAOS-W3A-S1 with `COMPLAINT` (a stronger, distinct negative signal from a HESITATION quality doubt — e.g. a friend's bad experience, not just "is this any good?"). */
+/** The 13 rule-based intents Clara detects from an inbound message's raw text (spec "Intent Detection (Rule-based)"), extended by AAOS-W3A-S1 with `COMPLAINT` (a stronger, distinct negative signal from a HESITATION quality doubt — e.g. a friend's bad experience, not just "is this any good?"). */
 export enum DetectedIntent {
   ASK_UNIT = "ASK_UNIT",
   ASK_PRICE = "ASK_PRICE",
@@ -45,10 +45,10 @@ const TRUST_CONCERN_PATTERNS: ReadonlyArray<RegExp> = [
   /kurang yakin/i,
 ];
 
-/** Price-is-too-high wording (AAOS-W3A-S1 Fix 2). Note: `JessyKnowledgeBase.objectionHandlers`'s pre-existing "mahal" key already substring-matches every entry here, so in practice these route through the existing transparent-pricing handler, not `PRICE_OBJECTION_POOL` — see `ObjectionResponses.ts`'s doc comment. */
+/** Price-is-too-high wording (AAOS-W3A-S1 Fix 2). Note: `ClaraKnowledgeBase.objectionHandlers`'s pre-existing "mahal" key already substring-matches every entry here, so in practice these route through the existing transparent-pricing handler, not `PRICE_OBJECTION_POOL` — see `ObjectionResponses.ts`'s doc comment. */
 const PRICE_HESITATION_PATTERNS: ReadonlyArray<RegExp> = [/mahal/i, /kemahalan/i, /terlalu mahal/i];
 
-/** Comparison-shopping wording (AAOS-W3A-S1 Fix 2) — the one HESITATION sub-group `JessyKnowledgeBase.objectionHandlers` has no literal key for, so it's the one that actually reaches `PRICE_OBJECTION_POOL`. Exported for reuse by `ObjectionResponses`. */
+/** Comparison-shopping wording (AAOS-W3A-S1 Fix 2) — the one HESITATION sub-group `ClaraKnowledgeBase.objectionHandlers` has no literal key for, so it's the one that actually reaches `PRICE_OBJECTION_POOL`. Exported for reuse by `ObjectionResponses`. */
 export const COMPARISON_PATTERNS: ReadonlyArray<RegExp> = [
   /di tempat lain/i,
   /dealer lain/i,

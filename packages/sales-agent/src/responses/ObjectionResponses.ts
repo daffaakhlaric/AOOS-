@@ -3,14 +3,14 @@ import {
   DetectedIntent,
   QUALITY_DOUBT_PATTERNS,
 } from "../conversation/IntentDetector.js";
-import { JessyKnowledgeBase } from "../intelligence/JessyKnowledgeBase.js";
+import { ClaraKnowledgeBase } from "../intelligence/ClaraKnowledgeBase.js";
 
 import { pickFromPool } from "./PoolSelector.js";
 
 /** Generic "not sure yet" objection pool (spec "Response Templates" — `OBJECTION_NOT_SURE`), used when no specific known objection (mahal, takut bermasalah, ...) matches. */
 export const OBJECTION_NOT_SURE: ReadonlyArray<string> = [
-  "Gak papa kak, santai aja 😊 Kalau ada yang mau ditanyain lagi, Jessy siap bantu!",
-  "No problem kak! Mau lihat-lihat dulu juga boleh. Nanti kalau ada pertanyaan langsung tanya Jessy ya 😊",
+  "Gak papa kak, santai aja 😊 Kalau ada yang mau ditanyain lagi, Clara siap bantu!",
+  "No problem kak! Mau lihat-lihat dulu juga boleh. Nanti kalau ada pertanyaan langsung tanya Clara ya 😊",
 ];
 
 /**
@@ -28,7 +28,7 @@ export const QUALITY_OBJECTION_POOL: ReadonlyArray<string> = [
 /**
  * Price-comparison objection pool (AAOS-W3A-S1 Fix 3) — for comparison-shopping wording
  * (`COMPARISON_PATTERNS`: "di tempat lain", "dealer lain", "lebih murah") that has no literal key
- * in `JessyKnowledgeBase.objectionHandlers`. Note: plain "mahal"/"kemahalan"/"terlalu mahal"
+ * in `ClaraKnowledgeBase.objectionHandlers`. Note: plain "mahal"/"kemahalan"/"terlalu mahal"
  * messages are NOT routed here — they already substring-match `objectionHandlers`' pre-existing
  * "mahal" key (checked first, below), which wins by design (no regression to that established
  * response).
@@ -48,7 +48,7 @@ function isPriceComparison(messageText: string): boolean {
 
 /**
  * Resolves an objection response (AAOS-W3A-S1 Fix 3 extends this beyond the original 2-branch
- * shape): a known-objection handler from `JessyKnowledgeBase` wins first (unchanged, highest
+ * shape): a known-objection handler from `ClaraKnowledgeBase` wins first (unchanged, highest
  * priority — preserves every pre-existing "mahal"/"takut bermasalah"/... response verbatim); then
  * a `COMPLAINT` intent or a quality-doubt phrase routes to `QUALITY_OBJECTION_POOL`; then a
  * comparison-shopping phrase routes to `PRICE_OBJECTION_POOL`; otherwise a generic
@@ -60,7 +60,7 @@ export function getObjectionResponse(
   seed: number,
   intents: ReadonlyArray<DetectedIntent> = [],
 ): string {
-  const known = JessyKnowledgeBase.findObjectionHandler(messageText);
+  const known = ClaraKnowledgeBase.findObjectionHandler(messageText);
   if (known !== undefined) {
     return known;
   }

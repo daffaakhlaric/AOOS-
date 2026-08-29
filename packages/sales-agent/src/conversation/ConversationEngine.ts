@@ -7,8 +7,8 @@ import type { LeadConversation } from "../domain/entities/LeadConversation.js";
 import type { AgentError } from "../domain/errors/AgentError.js";
 import { fromBranch } from "../domain/value-objects/BranchId.js";
 import { ConversationStage } from "../domain/value-objects/ConversationStage.js";
+import { ClaraKnowledgeBase } from "../intelligence/ClaraKnowledgeBase.js";
 import type { InventoryQuerier } from "../intelligence/InventoryQuerier.js";
-import { JessyKnowledgeBase } from "../intelligence/JessyKnowledgeBase.js";
 
 import { IntentDetector } from "./IntentDetector.js";
 import { StageDetector, type StageDetectorThresholds } from "./StageDetector.js";
@@ -47,7 +47,7 @@ const UNIT_QUESTION_STAGES: ReadonlySet<ConversationStage> = new Set([
 ]);
 
 /**
- * Decides what Jessy says next (spec "conversation/ConversationEngine.ts"): runs
+ * Decides what Clara says next (spec "conversation/ConversationEngine.ts"): runs
  * `IntentDetector` + `StageDetector`, queries real inventory via `InventoryQuerier` when the
  * stage is `UNIT_INFO`/`PRICE_INFO`, then delegates to `IResponseGenerator` for the final text.
  */
@@ -65,7 +65,7 @@ export class ConversationEngine implements IConversationEngine {
   ): Promise<Result<EngineDecision, AgentError>> {
     const intents = IntentDetector.detect(messageText);
     const stage = StageDetector.detect(conversation, intents, this.thresholds);
-    const branchName = JessyKnowledgeBase.branch(conversation.branchId).name;
+    const branchName = ClaraKnowledgeBase.branch(conversation.branchId).name;
 
     let matchedUnits: InventoryUnit[] = [];
     let requestedModel: string | undefined;
@@ -95,7 +95,7 @@ export class ConversationEngine implements IConversationEngine {
           alternativeBranchName =
             alternativeBranchId === undefined
               ? undefined
-              : JessyKnowledgeBase.branch(alternativeBranchId).name;
+              : ClaraKnowledgeBase.branch(alternativeBranchId).name;
         }
       }
     }

@@ -19,7 +19,7 @@ export interface PropertyResponseContext {
 }
 
 /**
- * Port: generates Jessy's natural-Indonesian reply text for a given PROPERTY-vertical stage/intent/
+ * Port: generates Clara's natural-Indonesian reply text for a given PROPERTY-vertical stage/intent/
  * context — the sibling to `IResponseGenerator`. Always <= 300 chars.
  */
 export interface IPropertyResponseGenerator {

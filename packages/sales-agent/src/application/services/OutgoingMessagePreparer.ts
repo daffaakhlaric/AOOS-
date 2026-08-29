@@ -15,10 +15,10 @@ import { toBranch, type BranchId } from "../../domain/value-objects/BranchId.js"
 
 /**
  * Prepares (never sends) a `@aos/whatsapp-connector` `OutgoingMessage` — the shared helper behind
- * design resolution #5: Jessy's use cases return a prepared, `OutgoingMessage`-shaped payload,
+ * design resolution #5: Clara's use cases return a prepared, `OutgoingMessage`-shaped payload,
  * never call a real send/`SendTextMessage`-style method. `from` is a synthetic
  * `waba-<branchId>` `PhoneNumberId` placeholder: this package has no real WABA `phone_number_id`
- * config of its own (that lives in `@aos/whatsapp-connector`'s `WabaRegistry`, out of Jessy's
+ * config of its own (that lives in `@aos/whatsapp-connector`'s `WabaRegistry`, out of Clara's
  * explicit scope) — the placeholder is exactly the shape a real one would take, which is all a
  * "prepared, not sent" payload needs.
  */

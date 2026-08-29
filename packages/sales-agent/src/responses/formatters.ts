@@ -9,7 +9,7 @@ export function formatKm(km: number): string {
 }
 
 /**
- * The single, shared source of truth for Jessy's per-message character cap (spec: "Tidak lebih
+ * The single, shared source of truth for Clara's per-message character cap (spec: "Tidak lebih
  * dari 150 karakter per pesan"). Mirrors `ResponseGenerator`'s own private `SOFT_LENGTH_TARGET`
  * constant (kept there unmodified, per the coordinator note's "keep `ResponseGenerator` fully
  * intact" constraint) — exported here so any *new* response producer (currently only

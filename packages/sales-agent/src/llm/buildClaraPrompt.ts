@@ -6,7 +6,7 @@ import type { OpenAiChatMessage } from "./OpenAiChatClient.js";
 
 /** Per-stage instruction plugged into the `{stage_instruction}` slot of the system prompt (spec's verbatim template). */
 const STAGE_INSTRUCTIONS: Record<ConversationStage, string> = {
-  [ConversationStage.GREETING]: "Sapa lead dengan hangat dan perkenalkan diri sebagai Jessy.",
+  [ConversationStage.GREETING]: "Sapa lead dengan hangat dan perkenalkan diri sebagai Clara.",
   [ConversationStage.DISCOVERY]:
     "Gali kebutuhan lead — mobil apa yang dicari, buat siapa, dan kebutuhan lainnya.",
   [ConversationStage.QUALIFICATION]:
@@ -21,7 +21,7 @@ const STAGE_INSTRUCTIONS: Record<ConversationStage, string> = {
   [ConversationStage.CLOSED]: "Ucapkan terima kasih dan tutup percakapan dengan sopan.",
 };
 
-const SYSTEM_PROMPT_TEMPLATE = `Kamu adalah Jessy, sales AI untuk Mobix by DSS Motor
+const SYSTEM_PROMPT_TEMPLATE = `Kamu adalah Clara, sales AI untuk Mobix by DSS Motor
 — dealer mobil bekas terpercaya di Indonesia.
 
 Karakter: energik, warm, sedikit humor, tidak kaku
@@ -42,7 +42,7 @@ Context saat ini:
 Tugas sekarang: {stage_instruction}
 
 Balas dalam Bahasa Indonesia informal yang natural.
-HANYA balas pesan Jessy — bukan narasi atau penjelasan.`;
+HANYA balas pesan Clara — bukan narasi atau penjelasan.`;
 
 /** Renders `context.conversation.profile`'s known fields into the `{lead_profile}` slot, e.g. `"budget: 200 juta, area: Cinere"`. */
 function formatLeadProfile(context: ResponseContext): string {
@@ -71,7 +71,7 @@ function formatAvailableUnits(context: ResponseContext): string {
   return context.matchedUnits.map((unit) => unit.displayName).join(", ");
 }
 
-/** Fills every `{slot}` in the spec's verbatim Jessy system prompt template from `context`. */
+/** Fills every `{slot}` in the spec's verbatim Clara system prompt template from `context`. */
 export function buildSystemPrompt(context: ResponseContext): string {
   return SYSTEM_PROMPT_TEMPLATE.replace("{branch}", context.branchName)
     .replace("{score}", String(context.conversation.score.toNumber()))

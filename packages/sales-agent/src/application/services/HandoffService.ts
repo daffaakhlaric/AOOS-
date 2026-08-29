@@ -7,7 +7,7 @@ import { HandoffPackageBuilder } from "../../builders/HandoffPackageBuilder.js";
 import type { HandoffPackage } from "../../domain/entities/HandoffPackage.js";
 import type { LeadConversation } from "../../domain/entities/LeadConversation.js";
 import { HandoffError } from "../../domain/errors/HandoffError.js";
-import type { JessyAgentEvents } from "../../domain/events/JessyAgentEvents.js";
+import type { ClaraAgentEvents } from "../../domain/events/ClaraAgentEvents.js";
 import { getHandoffResponse } from "../../responses/HandoffResponses.js";
 
 import { prepareOutgoingMessage } from "./OutgoingMessagePreparer.js";
@@ -37,7 +37,7 @@ export class HandoffService {
   constructor(
     private readonly assignLead: AssignLead,
     private readonly salesTeamRegistry: SalesTeamRegistry,
-    private readonly events: JessyAgentEvents,
+    private readonly events: ClaraAgentEvents,
     private readonly now: () => Date = () => new Date(),
   ) {}
 

@@ -36,7 +36,7 @@ const SYARIAH_ELIGIBLE_STAGES: ReadonlySet<ConversationStage> = new Set([
 ]);
 
 /**
- * Generates Jessy's reply text for the current PROPERTY-vertical stage/context — the sibling to
+ * Generates Clara's reply text for the current PROPERTY-vertical stage/context — the sibling to
  * `ResponseGenerator` (spec section 11 point 1). Same deterministic-seed discipline (always
  * `conversation.inboundMessageCount`, never `Math.random()`) and same length backstop.
  */
@@ -137,6 +137,6 @@ export class PropertyResponseGenerator implements IPropertyResponseGenerator {
     if (firstMatch !== undefined) {
       return getKprInfoResponse(firstMatch, seed);
     }
-    return "Properti yang mana nih kak yang mau dihitung DP/KPR-nya? Biar Jessy bantu hitungin 😊";
+    return "Properti yang mana nih kak yang mau dihitung DP/KPR-nya? Biar Clara bantu hitungin 😊";
   }
 }

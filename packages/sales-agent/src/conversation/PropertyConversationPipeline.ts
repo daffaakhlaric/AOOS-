@@ -18,10 +18,10 @@ export interface PropertyPipelineResult {
 
 /**
  * PROPERTY-vertical sibling to `ConversationPipeline` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY
- * Phase 8, spec section 12 point 2): processes one inbound message through Jessy's PROPERTY
+ * Phase 8, spec section 12 point 2): processes one inbound message through Clara's PROPERTY
  * Perceive → Reason → Act pipeline — appends the inbound message, applies every
  * `IPropertyLeadScorer` delta (clamped via `LeadScore.apply`), delegates the stage/response
- * decision to `IPropertyConversationEngine`, then appends Jessy's outbound reply.
+ * decision to `IPropertyConversationEngine`, then appends Clara's outbound reply.
  *
  * Deliberately does NOT call `LeadProfileBuilder.enrich`/`QualificationDetector.detect`/
  * `nextCriterionToAsk`/`withAskedCriterion` the way the automotive pipeline does — confirmed via

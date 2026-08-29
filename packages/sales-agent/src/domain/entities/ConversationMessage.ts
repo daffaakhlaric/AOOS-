@@ -14,7 +14,7 @@ export interface ConversationMessageProps {
   readonly occurredAt: Date;
 }
 
-/** One message (inbound from the lead, or outbound from Jessy) inside a `LeadConversation`. Immutable. */
+/** One message (inbound from the lead, or outbound from Clara) inside a `LeadConversation`. Immutable. */
 export class ConversationMessage {
   private constructor(private readonly props: ConversationMessageProps) {}
 

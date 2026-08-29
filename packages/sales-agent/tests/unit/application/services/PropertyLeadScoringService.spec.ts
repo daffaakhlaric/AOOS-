@@ -2,7 +2,7 @@ import { BranchId } from "@aos/branch-manager";
 import { describe, expect, it } from "vitest";
 
 import { PropertyLeadScoringService } from "../../../../src/application/services/PropertyLeadScoringService.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { LeadScore } from "../../../../src/domain/value-objects/LeadScore.js";
 import { PropertyScoreDelta } from "../../../../src/domain/value-objects/PropertyScoreDelta.js";
 import { createFakePublisher } from "../../../helpers/publisher.js";
@@ -18,7 +18,7 @@ const BASE_INPUT = {
 describe("PropertyLeadScoringService", () => {
   it("score accumulates across messages", async () => {
     const publisher = createFakePublisher();
-    const service = new PropertyLeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new PropertyLeadScoringService(new ClaraAgentEvents(publisher), 65);
     const first = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero(),
@@ -34,7 +34,7 @@ describe("PropertyLeadScoringService", () => {
 
   it("score update emits PropertyLeadScoreUpdated event", async () => {
     const publisher = createFakePublisher();
-    const service = new PropertyLeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new PropertyLeadScoringService(new ClaraAgentEvents(publisher), 65);
     await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero(),
@@ -47,7 +47,7 @@ describe("PropertyLeadScoringService", () => {
 
   it("score >= 65 emits LeadBecameHot event", async () => {
     const publisher = createFakePublisher();
-    const service = new PropertyLeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new PropertyLeadScoringService(new ClaraAgentEvents(publisher), 65);
     const outcome = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero().apply(50),
@@ -59,7 +59,7 @@ describe("PropertyLeadScoringService", () => {
 
   it("does not re-emit LeadBecameHot if the score was already hot", async () => {
     const publisher = createFakePublisher();
-    const service = new PropertyLeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new PropertyLeadScoringService(new ClaraAgentEvents(publisher), 65);
     const outcome = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero().apply(70),
@@ -71,7 +71,7 @@ describe("PropertyLeadScoringService", () => {
 
   it("clamps the score at 100 (ceiling)", async () => {
     const publisher = createFakePublisher();
-    const service = new PropertyLeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new PropertyLeadScoringService(new ClaraAgentEvents(publisher), 65);
     const outcome = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero().apply(90),
@@ -82,7 +82,7 @@ describe("PropertyLeadScoringService", () => {
 
   it("emits zero events when there are no applied deltas and not hot", async () => {
     const publisher = createFakePublisher();
-    const service = new PropertyLeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new PropertyLeadScoringService(new ClaraAgentEvents(publisher), 65);
     await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero(),
@@ -93,7 +93,7 @@ describe("PropertyLeadScoringService", () => {
 
   it("uses the real wall clock when no clock is injected", async () => {
     const publisher = createFakePublisher();
-    const service = new PropertyLeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new PropertyLeadScoringService(new ClaraAgentEvents(publisher), 65);
     const outcome = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero(),

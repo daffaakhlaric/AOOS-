@@ -14,13 +14,13 @@
 export const SYARIAH_RESPONSE_POOL: ReadonlyArray<string> = [
   "Ada kak! Mobix provide pembiayaan syariah — akad murabahah, bukan konvensional 😊 Halal inshaallah 🙏",
   "Tentu kak! Mobix ada pembiayaan syariah kerja sama lembaga terpercaya 😊 Akadnya murabahah, bukan bunga berbunga.",
-  "Alhamdulillah ada kak 😊 Pembiayaan syariah tersedia. Gak ada riba — akadnya murabahah. Mau Jessy hitung cicilannya?",
+  "Alhamdulillah ada kak 😊 Pembiayaan syariah tersedia. Gak ada riba — akadnya murabahah. Mau Clara hitung cicilannya?",
 ];
 
 /** SYARIAH + ASK_PRICE ("ada kredit syariah gak?", "dp syariah berapa?") — DP/price flavored, still syariah-worded so it never regresses to the generic KREDIT price reply. */
 export const SYARIAH_DP_RESPONSE_POOL: ReadonlyArray<string> = [
   "DP-nya mulai 15-20% dari harga unit kak, sama seperti konvensional 😊 Bedanya, akad murabahah syariah — gak ada bunga berbunga. Halal inshaallah 🙏",
-  "Untuk syariah, DP dan angsurannya kita hitung pakai akad murabahah kak 😊 Harga disepakati di awal, gak ada bunga mengambang. Mau Jessy bantu hitung?",
+  "Untuk syariah, DP dan angsurannya kita hitung pakai akad murabahah kak 😊 Harga disepakati di awal, gak ada bunga mengambang. Mau Clara bantu hitung?",
 ];
 
 /** SYARIAH + HESITATION ("takut riba", "ragu soal syariahnya") — trust/reassurance flavored. */

@@ -1,7 +1,7 @@
 import type { IResponseGenerator, ResponseContext } from "../contracts/IResponseGenerator.js";
 import { MAX_MESSAGE_LENGTH, truncateToSentence } from "../responses/formatters.js";
 
-import { buildConversationMessages } from "./buildJessyPrompt.js";
+import { buildConversationMessages } from "./buildClaraPrompt.js";
 import type { ILlmChatClient } from "./OpenAiChatClient.js";
 
 /** Narrow logging seam — matches the subset of `@aos/logger`'s pino-shaped `Logger.warn` this class actually calls, so tests can inject a plain spy instead of a real logger. */
@@ -22,8 +22,8 @@ export interface LlmResponseGeneratorOptions {
 }
 
 /**
- * LLM-backed `IResponseGenerator` (spec "LLM for Jessy in packages/sales-agent"): builds Jessy's
- * system prompt + conversation history from `ResponseContext` (`buildJessyPrompt.ts`), calls
+ * LLM-backed `IResponseGenerator` (spec "LLM for Clara in packages/sales-agent"): builds Clara's
+ * system prompt + conversation history from `ResponseContext` (`buildClaraPrompt.ts`), calls
  * `ILlmChatClient` (`OpenAiChatClient` in production), enforces the exact same
  * `MAX_MESSAGE_LENGTH` invariant `ResponseGenerator` enforces (`responses/formatters.ts`), and
  * falls back to the real, rule-based `ResponseGenerator` on ANY failure — never lets a real lead

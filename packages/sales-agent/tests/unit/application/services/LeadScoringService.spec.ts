@@ -2,7 +2,7 @@ import { BranchId } from "@aos/branch-manager";
 import { describe, expect, it } from "vitest";
 
 import { LeadScoringService } from "../../../../src/application/services/LeadScoringService.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { LeadScore } from "../../../../src/domain/value-objects/LeadScore.js";
 import { ScoreDelta } from "../../../../src/domain/value-objects/ScoreDelta.js";
 import { createFakePublisher } from "../../../helpers/publisher.js";
@@ -18,7 +18,7 @@ const BASE_INPUT = {
 describe("LeadScoringService", () => {
   it("score accumulates across messages", async () => {
     const publisher = createFakePublisher();
-    const service = new LeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new LeadScoringService(new ClaraAgentEvents(publisher), 65);
     const first = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero(),
@@ -34,7 +34,7 @@ describe("LeadScoringService", () => {
 
   it("score update emits LeadScoreUpdated event", async () => {
     const publisher = createFakePublisher();
-    const service = new LeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new LeadScoringService(new ClaraAgentEvents(publisher), 65);
     await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero(),
@@ -45,7 +45,7 @@ describe("LeadScoringService", () => {
 
   it("score ≥ 65 emits LeadBecameHot event", async () => {
     const publisher = createFakePublisher();
-    const service = new LeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new LeadScoringService(new ClaraAgentEvents(publisher), 65);
     const outcome = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero().apply(50),
@@ -57,7 +57,7 @@ describe("LeadScoringService", () => {
 
   it("does not re-emit LeadBecameHot if the score was already hot", async () => {
     const publisher = createFakePublisher();
-    const service = new LeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new LeadScoringService(new ClaraAgentEvents(publisher), 65);
     const outcome = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero().apply(70),
@@ -69,7 +69,7 @@ describe("LeadScoringService", () => {
 
   it("clamps the score at 0 across multiple negative deltas (floor)", async () => {
     const publisher = createFakePublisher();
-    const service = new LeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new LeadScoringService(new ClaraAgentEvents(publisher), 65);
     const outcome = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero(),
@@ -80,7 +80,7 @@ describe("LeadScoringService", () => {
 
   it("clamps the score at 100 (ceiling)", async () => {
     const publisher = createFakePublisher();
-    const service = new LeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new LeadScoringService(new ClaraAgentEvents(publisher), 65);
     const outcome = await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero().apply(90),
@@ -91,7 +91,7 @@ describe("LeadScoringService", () => {
 
   it("emits zero events when there are no applied deltas and not hot", async () => {
     const publisher = createFakePublisher();
-    const service = new LeadScoringService(new JessyAgentEvents(publisher), 65);
+    const service = new LeadScoringService(new ClaraAgentEvents(publisher), 65);
     await service.recordScoring({
       ...BASE_INPUT,
       previousScore: LeadScore.zero(),

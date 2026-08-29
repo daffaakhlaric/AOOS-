@@ -2,10 +2,10 @@ import { BranchId } from "@aos/branch-manager";
 import { describe, expect, it } from "vitest";
 
 import { CloseConversation } from "../../../../src/application/use-cases/CloseConversation.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { ConversationId } from "../../../../src/domain/value-objects/ConversationId.js";
 import { ConversationStage } from "../../../../src/domain/value-objects/ConversationStage.js";
-import { JessyAgentFactory } from "../../../../src/factories/JessyAgentFactory.js";
+import { ClaraAgentFactory } from "../../../../src/factories/ClaraAgentFactory.js";
 import {
   fixedClock,
   makeRealBranchManager,
@@ -20,7 +20,7 @@ describe("CloseConversation", () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -30,7 +30,7 @@ describe("CloseConversation", () => {
       now: fixedClock(),
     });
     expect(agent.closeConversation).toBeInstanceOf(CloseConversation);
-    const { conversation } = agent.jessyAgentService.getOrStart("+6281200000001", BranchId.CINERE);
+    const { conversation } = agent.claraAgentService.getOrStart("+6281200000001", BranchId.CINERE);
     const closed = unwrap(
       await agent.closeConversation.execute({
         conversationId: conversation.id,
@@ -47,7 +47,7 @@ describe("CloseConversation", () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -70,7 +70,7 @@ describe("CloseConversation", () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -79,8 +79,8 @@ describe("CloseConversation", () => {
       inventoryQueryService,
       now: fixedClock(),
     });
-    const { conversation } = agent.jessyAgentService.getOrStart("+6281200000099", BranchId.CINERE);
-    const useCase = new CloseConversation(agent.jessyAgentService, new JessyAgentEvents(publisher));
+    const { conversation } = agent.claraAgentService.getOrStart("+6281200000099", BranchId.CINERE);
+    const useCase = new CloseConversation(agent.claraAgentService, new ClaraAgentEvents(publisher));
     const closed = unwrap(
       await useCase.execute({
         conversationId: conversation.id,

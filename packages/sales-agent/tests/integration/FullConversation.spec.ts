@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ConversationStage } from "../../src/domain/value-objects/ConversationStage.js";
 import { LeadTemperature } from "../../src/domain/value-objects/LeadTemperature.js";
-import { JessyAgentFactory, type JessyAgent } from "../../src/factories/JessyAgentFactory.js";
+import { ClaraAgentFactory, type ClaraAgent } from "../../src/factories/ClaraAgentFactory.js";
 import {
   fixedClock,
   makeRealBranchManager,
@@ -13,11 +13,11 @@ import {
 import { createFakePublisher, type FakePublisher } from "../helpers/publisher.js";
 import { unwrap } from "../helpers/result.js";
 
-async function makeAgent(): Promise<{ agent: JessyAgent; publisher: FakePublisher }> {
+async function makeAgent(): Promise<{ agent: ClaraAgent; publisher: FakePublisher }> {
   const publisher = createFakePublisher();
   const branchManager = makeRealBranchManager(publisher);
   const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-  const agent = JessyAgentFactory.create({
+  const agent = ClaraAgentFactory.create({
     config: makeSalesAgentConfig(),
     branchId: BranchId.CINERE,
     publisher,
@@ -30,7 +30,7 @@ async function makeAgent(): Promise<{ agent: JessyAgent; publisher: FakePublishe
 }
 
 describe("Integration: FullConversation", () => {
-  let context: { agent: JessyAgent; publisher: FakePublisher };
+  let context: { agent: ClaraAgent; publisher: FakePublisher };
 
   beforeEach(async () => {
     context = await makeAgent();

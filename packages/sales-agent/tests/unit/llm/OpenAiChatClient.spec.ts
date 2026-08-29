@@ -20,13 +20,13 @@ describe("OpenAiChatClient (MSW-mocked api.openai.com — zero real network call
     mswServer.use(
       http.post(CHAT_URL, () =>
         HttpResponse.json({
-          choices: [{ message: { content: "  Halo kak! Ada yang bisa Jessy bantu? 😊  " } }],
+          choices: [{ message: { content: "  Halo kak! Ada yang bisa Clara bantu? 😊  " } }],
         }),
       ),
     );
     const client = new OpenAiChatClient({ apiKey: "key" });
     const text = unwrap(await client.complete({ messages: [{ role: "user", content: "halo" }] }));
-    expect(text).toBe("Halo kak! Ada yang bisa Jessy bantu? 😊");
+    expect(text).toBe("Halo kak! Ada yang bisa Clara bantu? 😊");
   });
 
   it("sends the Authorization header, model, and messages in the request body", async () => {

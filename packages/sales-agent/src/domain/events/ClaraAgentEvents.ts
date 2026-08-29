@@ -17,7 +17,7 @@ import type { PropertyLeadScoreUpdated } from "./PropertyLeadScoreUpdated.js";
  * `PropertyLeadScoringService`'s sibling to `publishLeadScoreUpdated`, needed because
  * `PropertyScoringCriterion` is a genuinely different union from `ScoringCriterion`.
  */
-export class JessyAgentEvents {
+export class ClaraAgentEvents {
   constructor(
     private readonly publisher: IPublisher,
     private readonly source: string = "@aos/sales-agent",

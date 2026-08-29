@@ -42,7 +42,7 @@ describe("nextPropertyCriterionToAsk", () => {
     expect(nextPropertyCriterionToAsk(conversation)).toBeUndefined();
   });
 
-  it("only reads INBOUND messages, ignoring Jessy's own outbound text", () => {
+  it("only reads INBOUND messages, ignoring Clara's own outbound text", () => {
     let conversation = LeadConversation.start("+6281200000001", BranchId.CINERE, NOW);
     conversation = conversation.withAppendedMessage(
       { isInbound: false, text: "budget berapa kak?" } as never,

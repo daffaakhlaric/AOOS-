@@ -1,12 +1,12 @@
 import { BranchId } from "../domain/value-objects/BranchId.js";
 
-export interface JessyBranchKnowledge {
+export interface ClaraBranchKnowledge {
   readonly name: string;
   readonly area: string;
 }
 
-/** DSS Motor / Mobix brand knowledge Jessy always knows (spec "JessyKnowledgeBase"). Mirrors `@aos/meta-ads-agent`'s `BusinessKnowledgeBase` pattern: real, structured, queryable static data, not prose. */
-export const JESSY_KNOWLEDGE = {
+/** DSS Motor / Mobix brand knowledge Clara always knows (spec "ClaraKnowledgeBase"). Mirrors `@aos/meta-ads-agent`'s `BusinessKnowledgeBase` pattern: real, structured, queryable static data, not prose. */
+export const CLARA_KNOWLEDGE = {
   brand: "Mobix by DSS Motor",
   slogan: "Xtra Aman, Xtra Yakin",
   inspection: "inspeksi 150+ titik",
@@ -30,23 +30,23 @@ export const JESSY_KNOWLEDGE = {
     [BranchId.CINERE]: { name: "Mobix Cinere", area: "Depok, Jakarta Selatan, Limo" },
     [BranchId.UMUM]: { name: "Mobix Pondok Bambu", area: "Jakarta Timur, Bekasi" },
     [BranchId.BANDUNG]: { name: "Mobix Bandung", area: "Bandung, Cimahi" },
-  } satisfies Record<BranchId, JessyBranchKnowledge>,
+  } satisfies Record<BranchId, ClaraBranchKnowledge>,
 };
 
-export type JessyObjectionKey = keyof typeof JESSY_KNOWLEDGE.objectionHandlers;
+export type ClaraObjectionKey = keyof typeof CLARA_KNOWLEDGE.objectionHandlers;
 
-/** Static, queryable accessors over `JESSY_KNOWLEDGE` — the query surface `ObjectionResponses`/`ConversationEngine` use. */
-export class JessyKnowledgeBase {
-  static branch(id: BranchId): JessyBranchKnowledge {
-    return JESSY_KNOWLEDGE.branches[id];
+/** Static, queryable accessors over `CLARA_KNOWLEDGE` — the query surface `ObjectionResponses`/`ConversationEngine` use. */
+export class ClaraKnowledgeBase {
+  static branch(id: BranchId): ClaraBranchKnowledge {
+    return CLARA_KNOWLEDGE.branches[id];
   }
 
   /** Case-insensitive substring match against the known objection keys (e.g. "kayaknya mahal ya" → "mahal"). `undefined` if none match. */
   static findObjectionHandler(messageText: string): string | undefined {
     const normalized = messageText.toLowerCase();
-    const match = (Object.keys(JESSY_KNOWLEDGE.objectionHandlers) as JessyObjectionKey[]).find(
+    const match = (Object.keys(CLARA_KNOWLEDGE.objectionHandlers) as ClaraObjectionKey[]).find(
       (key) => normalized.includes(key),
     );
-    return match === undefined ? undefined : JESSY_KNOWLEDGE.objectionHandlers[match];
+    return match === undefined ? undefined : CLARA_KNOWLEDGE.objectionHandlers[match];
   }
 }

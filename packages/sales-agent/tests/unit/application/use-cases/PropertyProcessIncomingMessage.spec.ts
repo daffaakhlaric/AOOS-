@@ -2,7 +2,7 @@ import { BranchId } from "@aos/branch-manager";
 import { describe, expect, it } from "vitest";
 
 import { PropertyProcessIncomingMessage } from "../../../../src/application/use-cases/PropertyProcessIncomingMessage.js";
-import { JessyAgentFactory } from "../../../../src/factories/JessyAgentFactory.js";
+import { ClaraAgentFactory } from "../../../../src/factories/ClaraAgentFactory.js";
 import {
   fixedClock,
   makeListingQueryService,
@@ -13,10 +13,10 @@ import { createFakePublisher } from "../../../helpers/publisher.js";
 import { unwrap } from "../../../helpers/result.js";
 
 describe("PropertyProcessIncomingMessage", () => {
-  it("executes PropertyJessyAgentService.processMessage inside a traced span", async () => {
+  it("executes PropertyClaraAgentService.processMessage inside a traced span", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,

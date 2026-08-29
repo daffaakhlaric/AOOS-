@@ -6,7 +6,7 @@ import {
 
 /**
  * The next `PropertyScoringRule` (of `PropertyScoreCalculator`'s real 6 PROPERTY dimensions —
- * budget/type/area/payment/timeline/bedrooms) Jessy should actively ask about, or `undefined` if
+ * budget/type/area/payment/timeline/bedrooms) Clara should actively ask about, or `undefined` if
  * every dimension has already been mentioned somewhere in the lead's own message history. Unlike
  * automotive's `nextCriterionToAsk` (which reads `LeadConversation.profile`/`askedCriteria` —
  * `QualificationStatus`-typed state this phase deliberately does NOT extend, per the coordinator

@@ -26,7 +26,7 @@ export interface HandoffPackageProps {
 }
 
 /**
- * What Jessy prepares for the sales human when a lead becomes HOT (spec "Handoff Package") —
+ * What Clara prepares for the sales human when a lead becomes HOT (spec "Handoff Package") —
  * built by `HandoffPackageBuilder`, consumed by `HandoffService` to call `@aos/branch-manager`'s
  * `AssignLead` and to prepare the handoff `OutgoingMessage`. Immutable, plain read model (no
  * behavior beyond field access — every derivation happens in the builder).

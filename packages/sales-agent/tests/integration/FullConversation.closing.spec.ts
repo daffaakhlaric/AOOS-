@@ -2,7 +2,7 @@ import { BranchId } from "@aos/branch-manager";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ConversationStage } from "../../src/domain/value-objects/ConversationStage.js";
-import { JessyAgentFactory, type JessyAgent } from "../../src/factories/JessyAgentFactory.js";
+import { ClaraAgentFactory, type ClaraAgent } from "../../src/factories/ClaraAgentFactory.js";
 import {
   fixedClock,
   makeRealBranchManager,
@@ -14,11 +14,11 @@ import { unwrap } from "../helpers/result.js";
 
 const CLOSING_INTENT_PATTERN = /test\s*drive|survei|survey|jadwal/i;
 
-async function makeAgent(): Promise<{ agent: JessyAgent; publisher: FakePublisher }> {
+async function makeAgent(): Promise<{ agent: ClaraAgent; publisher: FakePublisher }> {
   const publisher = createFakePublisher();
   const branchManager = makeRealBranchManager(publisher);
   const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-  const agent = JessyAgentFactory.create({
+  const agent = ClaraAgentFactory.create({
     config: makeSalesAgentConfig(),
     branchId: BranchId.CINERE,
     publisher,
@@ -31,7 +31,7 @@ async function makeAgent(): Promise<{ agent: JessyAgent; publisher: FakePublishe
 }
 
 describe("Integration: FullConversation — closing (AAOS-W3D Fix 1)", () => {
-  let context: { agent: JessyAgent; publisher: FakePublisher };
+  let context: { agent: ClaraAgent; publisher: FakePublisher };
 
   beforeEach(async () => {
     context = await makeAgent();
@@ -101,7 +101,7 @@ describe("Integration: FullConversation — closing (AAOS-W3D Fix 1)", () => {
     expect(outcome.conversation.stage).toBe(ConversationStage.HANDOFF);
     // The reply actually sent this turn is the pipeline's CLOSING-stage response (the HANDOFF
     // stage override only touches the stored `conversation.stage`, not `outgoingMessage`) — see
-    // `StageDetector`'s top-priority HOT rule and `JessyAgentService.processMessage`.
+    // `StageDetector`'s top-priority HOT rule and `ClaraAgentService.processMessage`.
     expect(CLOSING_INTENT_PATTERN.test(outcome.outgoingMessage.body.toString())).toBe(true);
   });
 });

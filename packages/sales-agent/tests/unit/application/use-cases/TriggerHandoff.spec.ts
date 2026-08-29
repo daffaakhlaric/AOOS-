@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { HandoffService } from "../../../../src/application/services/HandoffService.js";
 import { TriggerHandoff } from "../../../../src/application/use-cases/TriggerHandoff.js";
 import { LeadConversation } from "../../../../src/domain/entities/LeadConversation.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { LeadScore } from "../../../../src/domain/value-objects/LeadScore.js";
 import {
   fixedClock,
@@ -21,7 +21,7 @@ describe("TriggerHandoff", () => {
     const handoffService = new HandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
       fixedClock(),
     );
     const useCase = new TriggerHandoff(handoffService, createFakeTracer());

@@ -2,7 +2,7 @@ import { BranchId } from "@aos/branch-manager";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { QualificationStatus } from "../../src/domain/value-objects/QualificationStatus.js";
-import { JessyAgentFactory, type JessyAgent } from "../../src/factories/JessyAgentFactory.js";
+import { ClaraAgentFactory, type ClaraAgent } from "../../src/factories/ClaraAgentFactory.js";
 import {
   fixedClock,
   makeRealBranchManager,
@@ -12,11 +12,11 @@ import {
 import { createFakePublisher, type FakePublisher } from "../helpers/publisher.js";
 import { unwrap } from "../helpers/result.js";
 
-async function makeAgent(): Promise<{ agent: JessyAgent; publisher: FakePublisher }> {
+async function makeAgent(): Promise<{ agent: ClaraAgent; publisher: FakePublisher }> {
   const publisher = createFakePublisher();
   const branchManager = makeRealBranchManager(publisher);
   const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-  const agent = JessyAgentFactory.create({
+  const agent = ClaraAgentFactory.create({
     config: makeSalesAgentConfig(),
     branchId: BranchId.CINERE,
     publisher,
@@ -29,7 +29,7 @@ async function makeAgent(): Promise<{ agent: JessyAgent; publisher: FakePublishe
 }
 
 describe("Integration: FullConversation — active qualification asking (AAOS-W3D Fix 3)", () => {
-  let context: { agent: JessyAgent; publisher: FakePublisher };
+  let context: { agent: ClaraAgent; publisher: FakePublisher };
 
   beforeEach(async () => {
     context = await makeAgent();
@@ -76,7 +76,7 @@ describe("Integration: FullConversation — active qualification asking (AAOS-W3
       }),
     );
     expect(outcome.conversation.askedCriteria.size).toBeGreaterThanOrEqual(0);
-    // Whatever Jessy asks about (BUDGET first, per declared order, once QUALIFICATION is reached),
+    // Whatever Clara asks about (BUDGET first, per declared order, once QUALIFICATION is reached),
     // it must never repeat verbatim within a fresh ask.
     expect(outcome.outgoingMessage.body.length).toBeGreaterThan(0);
   });

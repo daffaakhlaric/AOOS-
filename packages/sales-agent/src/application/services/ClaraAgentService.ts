@@ -6,7 +6,7 @@ import type { ConversationPipeline } from "../../conversation/ConversationPipeli
 import { LeadConversation } from "../../domain/entities/LeadConversation.js";
 import { AgentError } from "../../domain/errors/AgentError.js";
 import { ConversationError } from "../../domain/errors/ConversationError.js";
-import type { JessyAgentEvents } from "../../domain/events/JessyAgentEvents.js";
+import type { ClaraAgentEvents } from "../../domain/events/ClaraAgentEvents.js";
 import type { BranchId } from "../../domain/value-objects/BranchId.js";
 import { ConversationId } from "../../domain/value-objects/ConversationId.js";
 import { ConversationStage } from "../../domain/value-objects/ConversationStage.js";
@@ -37,14 +37,14 @@ export interface ProcessMessageOutcome {
 }
 
 /**
- * Orchestrates Jessy's full message-processing flow (spec "JessyAgentService.ts ← orchestrate
+ * Orchestrates Clara's full message-processing flow (spec "ClaraAgentService.ts ← orchestrate
  * full message processing"): loads/starts in-process conversation state (persistence is
  * `@aos/lead-store`'s job, W2E — out of scope here, per the package's explicit non-responsibility),
  * runs it through `ConversationPipeline`, records + emits scoring, prepares (never sends — design
  * resolution #5) the outgoing reply, and triggers `HandoffService`/`FollowUpService` as the
  * resulting temperature dictates (spec "Core Flow: ProcessIncomingMessage", steps 3-4).
  */
-export class JessyAgentService {
+export class ClaraAgentService {
   private readonly conversations = new Map<string, LeadConversation>();
 
   constructor(
@@ -52,7 +52,7 @@ export class JessyAgentService {
     private readonly scoringService: LeadScoringService,
     private readonly handoffService: HandoffService,
     private readonly followUpService: FollowUpService,
-    private readonly events: JessyAgentEvents,
+    private readonly events: ClaraAgentEvents,
     private readonly config: SalesAgentConfig,
     private readonly now: () => Date = () => new Date(),
   ) {}

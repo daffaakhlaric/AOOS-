@@ -2,10 +2,10 @@ import { BranchId } from "@aos/branch-manager";
 import { describe, expect, it } from "vitest";
 
 import { PropertyCloseConversation } from "../../../../src/application/use-cases/PropertyCloseConversation.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { ConversationId } from "../../../../src/domain/value-objects/ConversationId.js";
 import { ConversationStage } from "../../../../src/domain/value-objects/ConversationStage.js";
-import { JessyAgentFactory } from "../../../../src/factories/JessyAgentFactory.js";
+import { ClaraAgentFactory } from "../../../../src/factories/ClaraAgentFactory.js";
 import {
   fixedClock,
   makeListingQueryService,
@@ -19,7 +19,7 @@ describe("PropertyCloseConversation", () => {
   it("closes a conversation and emits ConversationClosed", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -29,7 +29,7 @@ describe("PropertyCloseConversation", () => {
       now: fixedClock(),
     });
     expect(agent.closeConversation).toBeInstanceOf(PropertyCloseConversation);
-    const { conversation } = agent.jessyAgentService.getOrStart("+6281200000001", BranchId.CINERE);
+    const { conversation } = agent.claraAgentService.getOrStart("+6281200000001", BranchId.CINERE);
     const closed = unwrap(
       await agent.closeConversation.execute({
         conversationId: conversation.id,
@@ -45,7 +45,7 @@ describe("PropertyCloseConversation", () => {
   it("returns an error when closing an unknown conversation", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -67,7 +67,7 @@ describe("PropertyCloseConversation", () => {
   it("uses the real wall clock when no clock is injected", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -76,10 +76,10 @@ describe("PropertyCloseConversation", () => {
       listingQueryService: makeListingQueryService(),
       now: fixedClock(),
     });
-    const { conversation } = agent.jessyAgentService.getOrStart("+6281200000099", BranchId.CINERE);
+    const { conversation } = agent.claraAgentService.getOrStart("+6281200000099", BranchId.CINERE);
     const useCase = new PropertyCloseConversation(
-      agent.jessyAgentService,
-      new JessyAgentEvents(publisher),
+      agent.claraAgentService,
+      new ClaraAgentEvents(publisher),
     );
     const closed = unwrap(
       await useCase.execute({

@@ -6,7 +6,7 @@ import { AgentError } from "../domain/errors/AgentError.js";
 
 export interface SalesAgentConfig {
   readonly tenantId: string;
-  readonly agentName: "Jessy";
+  readonly agentName: "Clara";
   readonly language: "id";
 
   readonly hotThreshold: number;
@@ -20,10 +20,10 @@ export interface SalesAgentConfig {
   readonly followUpDays: ReadonlyArray<number>;
 
   /**
-   * Feature toggle (same pattern as `followUpEnabled`): whether `JessyAgentFactory` wires the
+   * Feature toggle (same pattern as `followUpEnabled`): whether `ClaraAgentFactory` wires the
    * LLM-backed `LlmResponseGenerator` instead of the pure rule-based `ResponseGenerator`. Defaults
    * to `false` so this stays disabled — pure rule-based — without a code change unless explicitly
-   * turned on, and `JessyAgentFactory` also requires a non-empty `openaiApiKey` even when this is
+   * turned on, and `ClaraAgentFactory` also requires a non-empty `openaiApiKey` even when this is
    * `true` (so an accidental `true` with no key never silently no-ops into a broken state).
    */
   readonly llmReplyEnabled: boolean;
@@ -31,7 +31,7 @@ export interface SalesAgentConfig {
    * OpenAI API key for `LlmResponseGenerator`'s `OpenAiChatClient`. Optional and never defaulted —
    * `sales-agent` does not read `process.env` itself (composed by the caller, e.g. an `apps/*`
    * composition root reading its own `OPENAI_API_KEY`), matching how every other field on this
-   * config is sourced. Left undefined, `JessyAgentFactory` never wires the LLM generator regardless
+   * config is sourced. Left undefined, `ClaraAgentFactory` never wires the LLM generator regardless
    * of `llmReplyEnabled`.
    */
   readonly openaiApiKey?: string;
@@ -47,7 +47,7 @@ export interface SalesAgentConfig {
  */
 export const SalesAgentConfigSchema = z.object({
   tenantId: z.string().min(1, "tenantId must not be empty"),
-  agentName: z.literal("Jessy").default("Jessy"),
+  agentName: z.literal("Clara").default("Clara"),
   language: z.literal("id").default("id"),
   hotThreshold: z.number().int().min(0).max(100).default(65),
   warmThreshold: z.number().int().min(0).max(100).default(31),

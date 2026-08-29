@@ -2,9 +2,9 @@ import { err, ok, type Result } from "@aos/common";
 
 import type { LeadConversation } from "../../domain/entities/LeadConversation.js";
 import type { ConversationError } from "../../domain/errors/ConversationError.js";
-import type { JessyAgentEvents } from "../../domain/events/JessyAgentEvents.js";
+import type { ClaraAgentEvents } from "../../domain/events/ClaraAgentEvents.js";
 import type { ConversationId } from "../../domain/value-objects/ConversationId.js";
-import type { PropertyJessyAgentService } from "../services/PropertyJessyAgentService.js";
+import type { PropertyClaraAgentService } from "../services/PropertyClaraAgentService.js";
 
 export interface CloseConversationInput {
   readonly conversationId: ConversationId;
@@ -16,15 +16,15 @@ export interface CloseConversationInput {
 /** PROPERTY-vertical sibling to `CloseConversation` — marks a PROPERTY conversation `CLOSED` and publishes `ConversationClosed`. */
 export class PropertyCloseConversation {
   constructor(
-    private readonly jessyAgentService: PropertyJessyAgentService,
-    private readonly events: JessyAgentEvents,
+    private readonly claraAgentService: PropertyClaraAgentService,
+    private readonly events: ClaraAgentEvents,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
   async execute(
     input: CloseConversationInput,
   ): Promise<Result<LeadConversation, ConversationError>> {
-    const closedResult = this.jessyAgentService.close(input.conversationId);
+    const closedResult = this.claraAgentService.close(input.conversationId);
     if (!closedResult.ok) {
       return err(closedResult.error);
     }

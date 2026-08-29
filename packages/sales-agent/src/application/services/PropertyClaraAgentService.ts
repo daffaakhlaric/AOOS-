@@ -6,7 +6,7 @@ import type { PropertyConversationPipeline } from "../../conversation/PropertyCo
 import { LeadConversation } from "../../domain/entities/LeadConversation.js";
 import { AgentError } from "../../domain/errors/AgentError.js";
 import { ConversationError } from "../../domain/errors/ConversationError.js";
-import type { JessyAgentEvents } from "../../domain/events/JessyAgentEvents.js";
+import type { ClaraAgentEvents } from "../../domain/events/ClaraAgentEvents.js";
 import type { BranchId } from "../../domain/value-objects/BranchId.js";
 import { ConversationId } from "../../domain/value-objects/ConversationId.js";
 import { ConversationStage } from "../../domain/value-objects/ConversationStage.js";
@@ -37,14 +37,14 @@ export interface ProcessMessageOutcome {
 }
 
 /**
- * PROPERTY-vertical sibling to `JessyAgentService` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8,
- * spec section 12 point 1/2): orchestrates Jessy's full PROPERTY message-processing flow —
+ * PROPERTY-vertical sibling to `ClaraAgentService` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8,
+ * spec section 12 point 1/2): orchestrates Clara's full PROPERTY message-processing flow —
  * `PropertyConversationPipeline` for perceive/reason/act, `PropertyLeadScoringService` for scoring,
  * `PropertyHandoffService` for HOT-lead handoff. `FollowUpService` is reused as-is (confirmed via
- * direct read to depend only on `JessyAgentEvents`/thresholds/clock — genuinely vertical-generic,
+ * direct read to depend only on `ClaraAgentEvents`/thresholds/clock — genuinely vertical-generic,
  * unlike `LeadScoringService`/`HandoffService`).
  */
-export class PropertyJessyAgentService {
+export class PropertyClaraAgentService {
   private readonly conversations = new Map<string, LeadConversation>();
 
   constructor(
@@ -52,7 +52,7 @@ export class PropertyJessyAgentService {
     private readonly scoringService: PropertyLeadScoringService,
     private readonly handoffService: PropertyHandoffService,
     private readonly followUpService: FollowUpService,
-    private readonly events: JessyAgentEvents,
+    private readonly events: ClaraAgentEvents,
     private readonly config: SalesAgentConfig,
     private readonly now: () => Date = () => new Date(),
   ) {}

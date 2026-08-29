@@ -3,7 +3,7 @@ import type { InventoryUnit } from "@aos/dss-inventory-connector";
 import { HandoffPackage } from "../domain/entities/HandoffPackage.js";
 import type { LeadConversation } from "../domain/entities/LeadConversation.js";
 import { ALL_QUALIFICATION_STATUSES } from "../domain/value-objects/QualificationStatus.js";
-import { JessyKnowledgeBase } from "../intelligence/JessyKnowledgeBase.js";
+import { ClaraKnowledgeBase } from "../intelligence/ClaraKnowledgeBase.js";
 
 const MAX_HIGHLIGHTS = 3;
 
@@ -14,7 +14,7 @@ export class HandoffPackageBuilder {
     matchedUnits: ReadonlyArray<InventoryUnit>,
   ): HandoffPackage {
     const profile = conversation.profile;
-    const branchName = JessyKnowledgeBase.branch(conversation.branchId).name;
+    const branchName = ClaraKnowledgeBase.branch(conversation.branchId).name;
     const qualifiedCriteria = ALL_QUALIFICATION_STATUSES.filter((status) =>
       profile.isQualified(status),
     );

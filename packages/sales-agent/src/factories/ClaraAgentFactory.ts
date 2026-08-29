@@ -4,12 +4,12 @@ import type { IPublisher } from "@aos/event-bus";
 import { createLogger, type Logger } from "@aos/logger";
 import { getTracer } from "@aos/telemetry";
 
+import { ClaraAgentService } from "../application/services/ClaraAgentService.js";
 import { FollowUpService } from "../application/services/FollowUpService.js";
 import { HandoffService } from "../application/services/HandoffService.js";
-import { JessyAgentService } from "../application/services/JessyAgentService.js";
 import { LeadScoringService } from "../application/services/LeadScoringService.js";
+import { PropertyClaraAgentService } from "../application/services/PropertyClaraAgentService.js";
 import { PropertyHandoffService } from "../application/services/PropertyHandoffService.js";
-import { PropertyJessyAgentService } from "../application/services/PropertyJessyAgentService.js";
 import { PropertyLeadScoringService } from "../application/services/PropertyLeadScoringService.js";
 import type { Tracer } from "../application/tracer.js";
 import { CloseConversation } from "../application/use-cases/CloseConversation.js";
@@ -31,11 +31,11 @@ import { PropertyConversationEngine } from "../conversation/PropertyConversation
 import { PropertyConversationPipeline } from "../conversation/PropertyConversationPipeline.js";
 import { PropertyResponseGenerator } from "../conversation/PropertyResponseGenerator.js";
 import { ResponseGenerator } from "../conversation/ResponseGenerator.js";
-import { JessyAgent as JessyAgentEntity } from "../domain/entities/JessyAgent.js";
-import { JessyAgentEvents } from "../domain/events/JessyAgentEvents.js";
+import { ClaraAgent as ClaraAgentEntity } from "../domain/entities/ClaraAgent.js";
+import { ClaraAgentEvents } from "../domain/events/ClaraAgentEvents.js";
 import type { BranchId } from "../domain/value-objects/BranchId.js";
+import { ClaraKnowledgeBase } from "../intelligence/ClaraKnowledgeBase.js";
 import { InventoryQuerier } from "../intelligence/InventoryQuerier.js";
-import { JessyKnowledgeBase } from "../intelligence/JessyKnowledgeBase.js";
 import { ListingQuerier } from "../intelligence/ListingQuerier.js";
 import { LlmResponseGenerator } from "../llm/LlmResponseGenerator.js";
 import { OpenAiChatClient } from "../llm/OpenAiChatClient.js";
@@ -46,7 +46,7 @@ import {
   PROPERTY_WARM_THRESHOLD,
 } from "../scoring/PropertyScoreCalculator.js";
 
-export interface JessyAgentFactoryOptions {
+export interface ClaraAgentFactoryOptions {
   readonly config: SalesAgentConfig;
   readonly branchId: BranchId;
   /** Real `@aos/event-bus` `IPublisher` — always caller-supplied, the same composition-boundary discipline every prior AAOS package's factory establishes. */
@@ -66,10 +66,10 @@ export interface JessyAgentFactoryOptions {
 /**
  * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 7 (spec section 11 point 2) — options for the
  * vertical-aware PROPERTY composition path, `createPropertyConversationEngine`. Deliberately a
- * separate, smaller options shape (not a superset of `JessyAgentFactoryOptions`): the PROPERTY path
+ * separate, smaller options shape (not a superset of `ClaraAgentFactoryOptions`): the PROPERTY path
  * composes only the new PROPERTY conversation stack (`ListingQuerier`/`PropertyResponseGenerator`/
- * `PropertyConversationEngine`) — it does NOT yet compose a full PROPERTY `JessyAgent`
- * (`ConversationPipeline`/`JessyAgentService`/`LeadScoringService`/... remain automotive-typed,
+ * `PropertyConversationEngine`) — it does NOT yet compose a full PROPERTY `ClaraAgent`
+ * (`ConversationPipeline`/`ClaraAgentService`/`LeadScoringService`/... remain automotive-typed,
  * `IConversationEngine`-only; giving them a real PROPERTY-vertical sibling too is further,
  * out-of-scope work for a future phase — see the coordinator report).
  */
@@ -82,15 +82,15 @@ export interface PropertyConversationEngineFactoryOptions {
   readonly hotThreshold?: number;
 }
 
-export interface JessyAgent {
-  readonly agent: JessyAgentEntity;
+export interface ClaraAgent {
+  readonly agent: ClaraAgentEntity;
   readonly processIncomingMessage: ProcessIncomingMessage;
   readonly triggerHandoff: TriggerHandoff;
   readonly scheduleFollowUp: ScheduleFollowUp;
   readonly sendFollowUp: SendFollowUp;
   readonly getConversationState: GetConversationState;
   readonly closeConversation: CloseConversation;
-  readonly jessyAgentService: JessyAgentService;
+  readonly claraAgentService: ClaraAgentService;
   readonly leadScoringService: LeadScoringService;
   readonly handoffService: HandoffService;
   readonly followUpService: FollowUpService;
@@ -98,12 +98,12 @@ export interface JessyAgent {
 
 /**
  * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 (spec section 12 points 1/2) — options for
- * `createPropertyAgent`, the PROPERTY-vertical sibling to `JessyAgentFactoryOptions`. Deliberately
- * mirrors `JessyAgentFactoryOptions`'s shape (not `PropertyConversationEngineFactoryOptions`'s
- * narrower one — Phase 8 composes the FULL PROPERTY `JessyAgent`, not just the `decide()` engine),
+ * `createPropertyAgent`, the PROPERTY-vertical sibling to `ClaraAgentFactoryOptions`. Deliberately
+ * mirrors `ClaraAgentFactoryOptions`'s shape (not `PropertyConversationEngineFactoryOptions`'s
+ * narrower one — Phase 8 composes the FULL PROPERTY `ClaraAgent`, not just the `decide()` engine),
  * swapping `inventoryQueryService` for `listingQueryService`.
  */
-export interface PropertyJessyAgentFactoryOptions {
+export interface PropertyClaraAgentFactoryOptions {
   readonly config: SalesAgentConfig;
   readonly branchId: BranchId;
   /** Real `@aos/event-bus` `IPublisher` — always caller-supplied. */
@@ -123,16 +123,16 @@ export interface PropertyJessyAgentFactoryOptions {
   readonly now?: () => Date;
 }
 
-/** The full PROPERTY-vertical composition `createPropertyAgent` returns — the sibling to `JessyAgent`. */
-export interface PropertyJessyAgent {
-  readonly agent: JessyAgentEntity;
+/** The full PROPERTY-vertical composition `createPropertyAgent` returns — the sibling to `ClaraAgent`. */
+export interface PropertyClaraAgent {
+  readonly agent: ClaraAgentEntity;
   readonly processIncomingMessage: PropertyProcessIncomingMessage;
   readonly triggerHandoff: PropertyTriggerHandoff;
   readonly scheduleFollowUp: ScheduleFollowUp;
   readonly sendFollowUp: SendFollowUp;
   readonly getConversationState: PropertyGetConversationState;
   readonly closeConversation: PropertyCloseConversation;
-  readonly jessyAgentService: PropertyJessyAgentService;
+  readonly claraAgentService: PropertyClaraAgentService;
   readonly leadScoringService: PropertyLeadScoringService;
   readonly handoffService: PropertyHandoffService;
   readonly followUpService: FollowUpService;
@@ -144,22 +144,22 @@ export interface PropertyJessyAgent {
  * the use cases + services this package's public API exposes, scoped to one branch (spec persona:
  * "Per-branch awareness").
  */
-export class JessyAgentFactory {
-  static create(options: JessyAgentFactoryOptions): JessyAgent {
+export class ClaraAgentFactory {
+  static create(options: ClaraAgentFactoryOptions): ClaraAgent {
     const logger = options.logger ?? createLogger({ serviceName: "sales-agent" });
     const tracer: Tracer = options.tracer ?? getTracer("sales-agent");
     const now = options.now ?? (() => new Date());
 
-    const agent = JessyAgentEntity.create(options.branchId, options.config.tenantId);
-    const events = new JessyAgentEvents(options.publisher);
+    const agent = ClaraAgentEntity.create(options.branchId, options.config.tenantId);
+    const events = new ClaraAgentEvents(options.publisher);
 
     const inventoryQuerier = new InventoryQuerier(options.inventoryQueryService);
-    const responseGenerator = JessyAgentFactory.createResponseGenerator(options.config, logger);
+    const responseGenerator = ClaraAgentFactory.createResponseGenerator(options.config, logger);
     const conversationEngine = new ConversationEngine(
       inventoryQuerier,
       { warmThreshold: options.config.warmThreshold, hotThreshold: options.config.hotThreshold },
       responseGenerator,
-      (branchId) => JessyKnowledgeBase.branch(branchId).name,
+      (branchId) => ClaraKnowledgeBase.branch(branchId).name,
     );
     const leadScorer = new LeadScorer();
     const pipeline = new ConversationPipeline(leadScorer, conversationEngine);
@@ -173,7 +173,7 @@ export class JessyAgentFactory {
     );
     const followUpService = new FollowUpService(events, options.config.noReplyTimeoutMs, now);
 
-    const jessyAgentService = new JessyAgentService(
+    const claraAgentService = new ClaraAgentService(
       pipeline,
       leadScoringService,
       handoffService,
@@ -185,13 +185,13 @@ export class JessyAgentFactory {
 
     return {
       agent,
-      processIncomingMessage: new ProcessIncomingMessage(jessyAgentService, tracer),
+      processIncomingMessage: new ProcessIncomingMessage(claraAgentService, tracer),
       triggerHandoff: new TriggerHandoff(handoffService, tracer),
       scheduleFollowUp: new ScheduleFollowUp(followUpService),
       sendFollowUp: new SendFollowUp(),
-      getConversationState: new GetConversationState(jessyAgentService),
-      closeConversation: new CloseConversation(jessyAgentService, events, now),
-      jessyAgentService,
+      getConversationState: new GetConversationState(claraAgentService),
+      closeConversation: new CloseConversation(claraAgentService, events, now),
+      claraAgentService,
       leadScoringService,
       handoffService,
       followUpService,
@@ -215,20 +215,20 @@ export class JessyAgentFactory {
         hotThreshold: options.hotThreshold ?? PROPERTY_HOT_THRESHOLD,
       },
       responseGenerator,
-      (branchId) => JessyKnowledgeBase.branch(branchId).name,
+      (branchId) => ClaraKnowledgeBase.branch(branchId).name,
     );
   }
 
   /**
    * The PROPERTY-vertical sibling to `create()` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8,
-   * spec section 12 points 1/2) — composes the FULL PROPERTY `JessyAgent`
+   * spec section 12 points 1/2) — composes the FULL PROPERTY `ClaraAgent`
    * (pipeline+service+scoring+handoff+followUp), not just the `decide()` engine
    * `createPropertyConversationEngine` builds. `FollowUpService` is reused as-is (confirmed
    * genuinely vertical-generic); `PropertyLeadScoringService`/`PropertyHandoffService` are real,
    * additive siblings to `LeadScoringService`/`HandoffService` (both confirmed concretely
    * automotive-typed via direct read, not vertical-generic as originally assumed).
    */
-  static createPropertyAgent(options: PropertyJessyAgentFactoryOptions): PropertyJessyAgent {
+  static createPropertyAgent(options: PropertyClaraAgentFactoryOptions): PropertyClaraAgent {
     const tracer: Tracer = options.tracer ?? getTracer("sales-agent");
     const now = options.now ?? (() => new Date());
 
@@ -236,10 +236,10 @@ export class JessyAgentFactory {
     const hotThreshold = options.hotThreshold ?? PROPERTY_HOT_THRESHOLD;
     const propertyConfig: SalesAgentConfig = { ...options.config, warmThreshold, hotThreshold };
 
-    const agent = JessyAgentEntity.create(options.branchId, propertyConfig.tenantId);
-    const events = new JessyAgentEvents(options.publisher);
+    const agent = ClaraAgentEntity.create(options.branchId, propertyConfig.tenantId);
+    const events = new ClaraAgentEvents(options.publisher);
 
-    const conversationEngine = JessyAgentFactory.createPropertyConversationEngine({
+    const conversationEngine = ClaraAgentFactory.createPropertyConversationEngine({
       branchId: options.branchId,
       listingQueryService: options.listingQueryService,
       warmThreshold,
@@ -257,7 +257,7 @@ export class JessyAgentFactory {
     );
     const followUpService = new FollowUpService(events, propertyConfig.noReplyTimeoutMs, now);
 
-    const jessyAgentService = new PropertyJessyAgentService(
+    const claraAgentService = new PropertyClaraAgentService(
       pipeline,
       leadScoringService,
       handoffService,
@@ -269,13 +269,13 @@ export class JessyAgentFactory {
 
     return {
       agent,
-      processIncomingMessage: new PropertyProcessIncomingMessage(jessyAgentService, tracer),
+      processIncomingMessage: new PropertyProcessIncomingMessage(claraAgentService, tracer),
       triggerHandoff: new PropertyTriggerHandoff(handoffService, tracer),
       scheduleFollowUp: new ScheduleFollowUp(followUpService),
       sendFollowUp: new SendFollowUp(),
-      getConversationState: new PropertyGetConversationState(jessyAgentService),
-      closeConversation: new PropertyCloseConversation(jessyAgentService, events, now),
-      jessyAgentService,
+      getConversationState: new PropertyGetConversationState(claraAgentService),
+      closeConversation: new PropertyCloseConversation(claraAgentService, events, now),
+      claraAgentService,
       leadScoringService,
       handoffService,
       followUpService,

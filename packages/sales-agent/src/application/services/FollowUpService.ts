@@ -2,7 +2,7 @@ import { FollowUpScheduleBuilder } from "../../builders/FollowUpScheduleBuilder.
 import type { IFollowUpScheduler } from "../../contracts/IFollowUpScheduler.js";
 import type { FollowUpSchedule } from "../../domain/entities/FollowUpSchedule.js";
 import type { LeadConversation } from "../../domain/entities/LeadConversation.js";
-import type { JessyAgentEvents } from "../../domain/events/JessyAgentEvents.js";
+import type { ClaraAgentEvents } from "../../domain/events/ClaraAgentEvents.js";
 import type { LeadScore } from "../../domain/value-objects/LeadScore.js";
 import type { LeadTemperature } from "../../domain/value-objects/LeadTemperature.js";
 import { ScoreCalculator } from "../../scoring/ScoreCalculator.js";
@@ -16,7 +16,7 @@ import { ScoreCalculator } from "../../scoring/ScoreCalculator.js";
  */
 export class FollowUpService implements IFollowUpScheduler {
   constructor(
-    private readonly events: JessyAgentEvents,
+    private readonly events: ClaraAgentEvents,
     private readonly noReplyTimeoutMs: number,
     private readonly now: () => Date = () => new Date(),
   ) {}

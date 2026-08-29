@@ -53,7 +53,7 @@ describe("ObjectionResponses (AAOS-W3A-S1 expanded pools)", () => {
     expect(PRICE_OBJECTION_POOL).toContain(text);
   });
 
-  it("plain 'mahal' still routes through the pre-existing JessyKnowledgeBase handler, NOT PRICE_OBJECTION_POOL (no regression)", () => {
+  it("plain 'mahal' still routes through the pre-existing ClaraKnowledgeBase handler, NOT PRICE_OBJECTION_POOL (no regression)", () => {
     const text = getObjectionResponse("kayaknya mahal ya", 0);
     expect(text).toContain("transparan");
     expect(PRICE_OBJECTION_POOL).not.toContain(text);

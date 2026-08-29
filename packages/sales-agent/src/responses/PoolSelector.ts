@@ -1,5 +1,5 @@
 /**
- * Deterministic response-pool selection (design resolution #4): the spec's prose says Jessy
+ * Deterministic response-pool selection (design resolution #4): the spec's prose says Clara
  * "picks + slightly varies" from pools like `GREETING_POOL`, which read literally as
  * `Math.random()`-driven — incompatible with the package's hard "NO LLM calls... all responses
  * deterministic rule-based" constraint and its 100%-coverage testability requirement. Every pool

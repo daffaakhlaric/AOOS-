@@ -1,7 +1,7 @@
 import { BranchId } from "@aos/branch-manager";
 import { describe, expect, it } from "vitest";
 
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { LeadTemperature } from "../../../../src/domain/value-objects/LeadTemperature.js";
 import { createFakePublisher } from "../../../helpers/publisher.js";
 
@@ -13,10 +13,10 @@ const BASE = {
   version: "1.0" as const,
 };
 
-describe("JessyAgentEvents", () => {
+describe("ClaraAgentEvents", () => {
   it("publishConversationStarted() publishes aaos.sales.conversation.started", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
+    const events = new ClaraAgentEvents(publisher);
     await events.publishConversationStarted({
       conversationId: "c1",
       leadPhone: "+6281200000001",
@@ -28,7 +28,7 @@ describe("JessyAgentEvents", () => {
 
   it("publishMessageProcessed() publishes aaos.sales.message.processed", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
+    const events = new ClaraAgentEvents(publisher);
     await events.publishMessageProcessed({
       conversationId: "c1",
       leadPhone: "+6281200000001",
@@ -41,7 +41,7 @@ describe("JessyAgentEvents", () => {
 
   it("publishLeadScoreUpdated() publishes aaos.sales.lead.score-updated", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
+    const events = new ClaraAgentEvents(publisher);
     await events.publishLeadScoreUpdated({
       conversationId: "c1",
       leadPhone: "+6281200000001",
@@ -56,7 +56,7 @@ describe("JessyAgentEvents", () => {
 
   it("publishLeadBecameHot() publishes aaos.sales.lead.became-hot", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
+    const events = new ClaraAgentEvents(publisher);
     await events.publishLeadBecameHot({
       conversationId: "c1",
       leadPhone: "+6281200000001",
@@ -69,7 +69,7 @@ describe("JessyAgentEvents", () => {
 
   it("publishHandoffTriggered() publishes aaos.sales.handoff.triggered", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
+    const events = new ClaraAgentEvents(publisher);
     await events.publishHandoffTriggered({
       conversationId: "c1",
       leadPhone: "+6281200000001",
@@ -82,7 +82,7 @@ describe("JessyAgentEvents", () => {
 
   it("publishFollowUpScheduled() publishes aaos.sales.follow-up.scheduled", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
+    const events = new ClaraAgentEvents(publisher);
     await events.publishFollowUpScheduled({
       leadPhone: "+6281200000001",
       branchId: BranchId.CINERE,
@@ -95,7 +95,7 @@ describe("JessyAgentEvents", () => {
 
   it("publishConversationClosed() publishes aaos.sales.conversation.closed", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
+    const events = new ClaraAgentEvents(publisher);
     await events.publishConversationClosed({
       conversationId: "c1",
       leadPhone: "+6281200000001",
@@ -108,7 +108,7 @@ describe("JessyAgentEvents", () => {
 
   it("uses the default source '@aos/sales-agent' when not overridden", async () => {
     const publisher = createFakePublisher();
-    const events = new JessyAgentEvents(publisher);
+    const events = new ClaraAgentEvents(publisher);
     await events.publishConversationClosed({
       conversationId: "c1",
       leadPhone: "+6281200000001",

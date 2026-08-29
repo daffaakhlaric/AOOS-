@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { PropertyHandoffService } from "../../../../src/application/services/PropertyHandoffService.js";
 import { PropertyTriggerHandoff } from "../../../../src/application/use-cases/PropertyTriggerHandoff.js";
 import { LeadConversation } from "../../../../src/domain/entities/LeadConversation.js";
-import { JessyAgentEvents } from "../../../../src/domain/events/JessyAgentEvents.js";
+import { ClaraAgentEvents } from "../../../../src/domain/events/ClaraAgentEvents.js";
 import { LeadScore } from "../../../../src/domain/value-objects/LeadScore.js";
 import {
   fixedClock,
@@ -21,7 +21,7 @@ describe("PropertyTriggerHandoff", () => {
     const handoffService = new PropertyHandoffService(
       branchManager.assignLead,
       branchManager.salesTeamRegistry,
-      new JessyAgentEvents(createFakePublisher()),
+      new ClaraAgentEvents(createFakePublisher()),
       fixedClock(),
     );
     const useCase = new PropertyTriggerHandoff(handoffService, createFakeTracer());

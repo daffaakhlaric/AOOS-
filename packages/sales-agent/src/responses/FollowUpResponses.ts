@@ -4,18 +4,18 @@ import { pickFromPool } from "./PoolSelector.js";
 
 /** D1 (WARM leads' first follow-up — spec "Follow-up Schedule": `FOLLOW_UP_WARM_D1`). */
 export const FOLLOW_UP_WARM_D1: ReadonlyArray<string> = [
-  "Hai kak! Gimana, jadi mau lanjut lihat-lihat unitnya? Jessy siap bantu kalau ada pertanyaan 😊",
+  "Hai kak! Gimana, jadi mau lanjut lihat-lihat unitnya? Clara siap bantu kalau ada pertanyaan 😊",
 ];
 
 /** D3 (spec "Response Templates" — `FOLLOW_UP_D3`). */
 export const FOLLOW_UP_D3: ReadonlyArray<string> = [
-  "Hai kak! Jessy mau follow up nih, kemarin sempat tanya soal mobil. Gimana kak, masih nyari? 😊",
-  "Halo kak! Sebelumnya tanya soal unitnya. Kebetulan stoknya masih ada lho kak 😊 Mau Jessy bantu lebih lanjut?",
+  "Hai kak! Clara mau follow up nih, kemarin sempat tanya soal mobil. Gimana kak, masih nyari? 😊",
+  "Halo kak! Sebelumnya tanya soal unitnya. Kebetulan stoknya masih ada lho kak 😊 Mau Clara bantu lebih lanjut?",
 ];
 
 /** D7. */
 export const FOLLOW_UP_D7: ReadonlyArray<string> = [
-  "Hai kak! Masih mikirin soal mobilnya kah? Kalau ada yang mau ditanyain, Jessy siap bantu kapan aja 😊",
+  "Hai kak! Masih mikirin soal mobilnya kah? Kalau ada yang mau ditanyain, Clara siap bantu kapan aja 😊",
 ];
 
 /** D14. */

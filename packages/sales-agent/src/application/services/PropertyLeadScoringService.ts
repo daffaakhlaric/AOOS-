@@ -1,4 +1,4 @@
-import type { JessyAgentEvents } from "../../domain/events/JessyAgentEvents.js";
+import type { ClaraAgentEvents } from "../../domain/events/ClaraAgentEvents.js";
 import type { BranchId } from "../../domain/value-objects/BranchId.js";
 import type { LeadScore } from "../../domain/value-objects/LeadScore.js";
 import type { PropertyScoreDelta } from "../../domain/value-objects/PropertyScoreDelta.js";
@@ -30,7 +30,7 @@ export interface RecordPropertyScoringOutcome {
  */
 export class PropertyLeadScoringService {
   constructor(
-    private readonly events: JessyAgentEvents,
+    private readonly events: ClaraAgentEvents,
     private readonly hotThreshold: number,
     private readonly now: () => Date = () => new Date(),
   ) {}

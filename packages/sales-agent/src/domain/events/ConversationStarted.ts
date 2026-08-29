@@ -1,6 +1,6 @@
 import type { BranchId } from "../value-objects/BranchId.js";
 
-/** Payload for `aaos.sales.conversation.started`, emitted the first time Jessy processes a lead's opening message. */
+/** Payload for `aaos.sales.conversation.started`, emitted the first time Clara processes a lead's opening message. */
 export interface ConversationStarted {
   readonly conversationId: string;
   readonly leadPhone: string;

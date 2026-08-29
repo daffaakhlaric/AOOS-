@@ -8,7 +8,7 @@ import type { PropertyListing } from "../../../src/domain/entities/PropertyListi
 import { ConversationStage } from "../../../src/domain/value-objects/ConversationStage.js";
 import { LeadScore } from "../../../src/domain/value-objects/LeadScore.js";
 import { LeadTemperature } from "../../../src/domain/value-objects/LeadTemperature.js";
-import { JessyAgentFactory } from "../../../src/factories/JessyAgentFactory.js";
+import { ClaraAgentFactory } from "../../../src/factories/ClaraAgentFactory.js";
 import { CHAT_COMPLETIONS_PATH, OPENAI_BASE_URL } from "../../../src/llm/OpenAiChatClient.js";
 import {
   fixedClock,
@@ -28,12 +28,12 @@ afterAll(() => mswServer.close());
 
 const CHAT_URL = `${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`;
 
-describe("JessyAgentFactory", () => {
+describe("ClaraAgentFactory", () => {
   it("wires every use case, service, and the branch-scoped agent identity", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig(),
       branchId: BranchId.BINTARO,
       publisher,
@@ -43,7 +43,7 @@ describe("JessyAgentFactory", () => {
       now: fixedClock(),
     });
 
-    expect(agent.agent.name).toBe("Jessy");
+    expect(agent.agent.name).toBe("Clara");
     expect(agent.agent.branchId).toBe(BranchId.BINTARO);
     expect(agent.processIncomingMessage).toBeDefined();
     expect(agent.triggerHandoff).toBeDefined();
@@ -51,7 +51,7 @@ describe("JessyAgentFactory", () => {
     expect(agent.sendFollowUp).toBeDefined();
     expect(agent.getConversationState).toBeDefined();
     expect(agent.closeConversation).toBeDefined();
-    expect(agent.jessyAgentService).toBeDefined();
+    expect(agent.claraAgentService).toBeDefined();
     expect(agent.leadScoringService).toBeDefined();
     expect(agent.handoffService).toBeDefined();
     expect(agent.followUpService).toBeDefined();
@@ -61,7 +61,7 @@ describe("JessyAgentFactory", () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -91,7 +91,7 @@ describe("JessyAgentFactory", () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig({ llmReplyEnabled: true, openaiApiKey: "sk-test" }),
       branchId: BranchId.CINERE,
       publisher,
@@ -119,7 +119,7 @@ describe("JessyAgentFactory", () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig({ llmReplyEnabled: true, openaiApiKey: "sk-test" }),
       branchId: BranchId.CINERE,
       publisher,
@@ -151,7 +151,7 @@ describe("JessyAgentFactory", () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
     const inventoryQueryService = await makeRealSyncedInventoryQueryService();
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: makeSalesAgentConfig({ llmReplyEnabled: true }),
       branchId: BranchId.CINERE,
       publisher,
@@ -172,7 +172,7 @@ describe("JessyAgentFactory", () => {
   });
 });
 
-describe("JessyAgentFactory.createPropertyConversationEngine", () => {
+describe("ClaraAgentFactory.createPropertyConversationEngine", () => {
   const NOW = new Date("2026-08-20T09:00:00.000Z");
   const LISTING: PropertyListing = {
     id: "l1",
@@ -187,7 +187,7 @@ describe("JessyAgentFactory.createPropertyConversationEngine", () => {
   }
 
   it("composes a real PropertyConversationEngine using default PROPERTY thresholds", async () => {
-    const engine = JessyAgentFactory.createPropertyConversationEngine({
+    const engine = ClaraAgentFactory.createPropertyConversationEngine({
       branchId: BranchId.BINTARO,
       listingQueryService: fakeQueryService([LISTING]),
     });
@@ -200,7 +200,7 @@ describe("JessyAgentFactory.createPropertyConversationEngine", () => {
   });
 
   it("honours explicit warmThreshold/hotThreshold overrides", async () => {
-    const engine = JessyAgentFactory.createPropertyConversationEngine({
+    const engine = ClaraAgentFactory.createPropertyConversationEngine({
       branchId: BranchId.CINERE,
       listingQueryService: fakeQueryService([LISTING]),
       warmThreshold: 10,
@@ -218,11 +218,11 @@ describe("JessyAgentFactory.createPropertyConversationEngine", () => {
   });
 });
 
-describe("JessyAgentFactory.createPropertyAgent", () => {
+describe("ClaraAgentFactory.createPropertyAgent", () => {
   it("wires every use case, service, and the branch-scoped agent identity", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: makeSalesAgentConfig(),
       branchId: BranchId.BINTARO,
       publisher,
@@ -232,7 +232,7 @@ describe("JessyAgentFactory.createPropertyAgent", () => {
       now: fixedClock(),
     });
 
-    expect(agent.agent.name).toBe("Jessy");
+    expect(agent.agent.name).toBe("Clara");
     expect(agent.agent.branchId).toBe(BranchId.BINTARO);
     expect(agent.processIncomingMessage).toBeDefined();
     expect(agent.triggerHandoff).toBeDefined();
@@ -240,7 +240,7 @@ describe("JessyAgentFactory.createPropertyAgent", () => {
     expect(agent.sendFollowUp).toBeDefined();
     expect(agent.getConversationState).toBeDefined();
     expect(agent.closeConversation).toBeDefined();
-    expect(agent.jessyAgentService).toBeDefined();
+    expect(agent.claraAgentService).toBeDefined();
     expect(agent.leadScoringService).toBeDefined();
     expect(agent.handoffService).toBeDefined();
     expect(agent.followUpService).toBeDefined();
@@ -249,7 +249,7 @@ describe("JessyAgentFactory.createPropertyAgent", () => {
   it("defaults logger/tracer/clock and PROPERTY thresholds when not supplied", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -273,7 +273,7 @@ describe("JessyAgentFactory.createPropertyAgent", () => {
   it("honours explicit warmThreshold/hotThreshold overrides consistently across engine + scoring", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,
@@ -301,7 +301,7 @@ describe("JessyAgentFactory.createPropertyAgent", () => {
   it("real PROPERTY end-to-end flow matches a listing and hands off once HOT", async () => {
     const publisher = createFakePublisher();
     const branchManager = makeRealBranchManager(publisher);
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: makeSalesAgentConfig(),
       branchId: BranchId.CINERE,
       publisher,

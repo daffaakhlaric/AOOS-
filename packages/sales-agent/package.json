@@ -2,7 +2,7 @@
   "name": "@aos/sales-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS Sales Agent — Jessy, 24/7 WhatsApp AI sales agent for DSS Motor (Mobix). Natural Indonesian conversation, lead scoring, inventory querying, and hot lead handoff to sales human per branch.",
+  "description": "AAOS Sales Agent — Clara, 24/7 WhatsApp AI sales agent for DSS Motor (Mobix). Natural Indonesian conversation, lead scoring, inventory querying, and hot lead handoff to sales human per branch.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

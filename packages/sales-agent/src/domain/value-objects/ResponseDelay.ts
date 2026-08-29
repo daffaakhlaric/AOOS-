@@ -2,7 +2,7 @@ import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
 /**
- * A simulated "Jessy is typing…" delay in milliseconds, before a generated response is considered
+ * A simulated "Clara is typing…" delay in milliseconds, before a generated response is considered
  * ready to send — deterministic, not `Math.random()`-based (see the engineering report's
  * resolution #4: the whole response pipeline must stay reproducible in tests). `fromSeed` derives
  * a value in `[minMs, maxMs]` from an injected integer seed via a simple modulo spread, the same

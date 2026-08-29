@@ -19,7 +19,7 @@ export function fixedClock(at: Date = FIXED_NOW): () => Date {
 export function makeSalesAgentConfig(overrides: Partial<SalesAgentConfig> = {}): SalesAgentConfig {
   return {
     tenantId: "tenant-dss-motor",
-    agentName: "Jessy",
+    agentName: "Clara",
     language: "id",
     hotThreshold: 65,
     warmThreshold: 31,
