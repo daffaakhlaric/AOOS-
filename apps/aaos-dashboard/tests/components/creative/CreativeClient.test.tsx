@@ -56,8 +56,8 @@ describe("CreativeClient", () => {
       "Antrian Review",
       "Sedang Diproses",
       "Buat Manual",
-      "Rekomendasi Tamara",
-      "Log Tamara × Kai",
+      "Rekomendasi Samantha",
+      "Log Samantha × Kai",
     ]) {
       expect(screen.getByRole("tab", { name: label })).toBeInTheDocument();
     }

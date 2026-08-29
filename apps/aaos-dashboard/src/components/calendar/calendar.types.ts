@@ -8,8 +8,8 @@
  */
 export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "SCRAPER_RUN",
-  "TAMARA_PULL_DATA",
-  "TAMARA_ANALYZE",
+  "SAMANTHA_PULL_DATA",
+  "SAMANTHA_ANALYZE",
   "KAI_REFRESH_CHECK",
   "DAILY_DIGEST",
   "RECYCLING_RUN",
@@ -30,10 +30,10 @@ export interface CalendarEventTypeGroup {
 /** "Tambah Jadwal" dropdown groups — dropping the spec's Campaign/Kai-generate/unsupported-monitoring groups (coordinator note section 1). */
 export const CALENDAR_EVENT_TYPE_OPTIONS: readonly CalendarEventTypeGroup[] = [
   {
-    group: "Tamara",
+    group: "Samantha",
     items: [
-      { value: "TAMARA_ANALYZE", label: "🤖 Tamara Analisa Campaign" },
-      { value: "TAMARA_PULL_DATA", label: "📊 Tarik Data Meta Ads" },
+      { value: "SAMANTHA_ANALYZE", label: "🤖 Samantha Analisa Campaign" },
+      { value: "SAMANTHA_PULL_DATA", label: "📊 Tarik Data Meta Ads" },
       { value: "DAILY_DIGEST", label: "📋 Daily Digest" },
     ],
   },
@@ -46,7 +46,7 @@ export const CALENDAR_EVENT_TYPE_OPTIONS: readonly CalendarEventTypeGroup[] = [
     items: [{ value: "SCRAPER_RUN", label: "📸 Scrape Foto Mobix" }],
   },
   {
-    group: "Jessy",
+    group: "Clara",
     items: [{ value: "RECYCLING_RUN", label: "♻️ Auto Recycling Broadcast" }],
   },
 ];
@@ -56,8 +56,8 @@ export const EVENT_TYPE_LABEL: Readonly<Record<CalendarEventType, string>> = Obj
 ) as Readonly<Record<CalendarEventType, string>>;
 
 export const EVENT_ICON: Readonly<Record<CalendarEventType, string>> = {
-  TAMARA_ANALYZE: "🤖",
-  TAMARA_PULL_DATA: "📊",
+  SAMANTHA_ANALYZE: "🤖",
+  SAMANTHA_PULL_DATA: "📊",
   DAILY_DIGEST: "📋",
   KAI_REFRESH_CHECK: "🔍",
   SCRAPER_RUN: "📸",

@@ -5,7 +5,7 @@ import styles from "./layout.module.css";
 
 /**
  * Layout for every authenticated route (`/dashboard`, `/meta-ads`, `/objective`, `/creative`,
- * `/branches`, `/go-live`, `/jessy/*`) — adds the desktop `Sidebar` and mobile bottom nav around
+ * `/branches`, `/go-live`, `/clara/*`) — adds the desktop `Sidebar` and mobile bottom nav around
  * the page content. Deliberately excludes `(auth)/login`, a sibling route group: the login page
  * should render as a bare centered form with no app chrome.
  *

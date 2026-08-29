@@ -23,7 +23,7 @@ function post(overrides: Partial<ScheduledPostDto>): ScheduledPostDto {
     accountId: "a-1",
     caption: "Xpander DP 29jt",
     hashtags: [],
-    generatedBy: "TAMARA",
+    generatedBy: "SAMANTHA",
     contentType: "PROMO",
     status: "PUBLISHED",
     publishedAt: "2026-08-14T03:00:00.000Z",

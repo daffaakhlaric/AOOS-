@@ -36,8 +36,8 @@ describe("CalendarWidget", () => {
     mockFetch([
       {
         id: "evt-1",
-        eventType: "TAMARA_ANALYZE",
-        title: "Tamara Analisa Campaign",
+        eventType: "SAMANTHA_ANALYZE",
+        title: "Samantha Analisa Campaign",
         scheduledAt: "2026-08-17T23:00:00.000Z", // 06:00 WIB today
         timezone: "Asia/Jakarta",
         recurrence: "DAILY",
@@ -50,7 +50,7 @@ describe("CalendarWidget", () => {
     ]);
 
     render(<CalendarWidget />);
-    await waitFor(() => expect(screen.getByText(/Tamara Analisa Campaign/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Samantha Analisa Campaign/)).toBeInTheDocument());
     expect(screen.getByText(/21 kamp/)).toBeInTheDocument();
   });
 

@@ -89,7 +89,7 @@ export function ContentStudioClient(): React.ReactElement {
       <div className={styles.headerRow}>
         <div>
           <h2 className={styles.title}>Content Studio</h2>
-          <p className={styles.subtitle}>Tamara strategi konten, Kai generate visual</p>
+          <p className={styles.subtitle}>Samantha strategi konten, Kai generate visual</p>
         </div>
       </div>
 
@@ -99,7 +99,7 @@ export function ContentStudioClient(): React.ReactElement {
           className={mode === "AUTO" ? styles.chipActive : styles.chip}
           onClick={() => setMode("AUTO")}
         >
-          ● Auto — Tamara buat konten otomatis
+          ● Auto — Samantha buat konten otomatis
         </button>
         <button
           type="button"
@@ -162,7 +162,7 @@ function AutoModeFlow({
         }),
       ]);
       if (!captionRes.ok || !hashtagsRes.ok) {
-        setGenError("Gagal memanggil Tamara. Coba lagi.");
+        setGenError("Gagal memanggil Samantha. Coba lagi.");
         return;
       }
       const captionBody = (await captionRes.json()) as GenerateCaptionResponseDto;
@@ -282,7 +282,7 @@ function AutoModeFlow({
             onClick={() => void handleGenerate()}
             style={{ alignSelf: "flex-start" }}
           >
-            {generating ? "Tamara sedang generate..." : "🤖 Generate Konten →"}
+            {generating ? "Samantha sedang generate..." : "🤖 Generate Konten →"}
           </button>
         </div>
       ) : null}
@@ -428,7 +428,7 @@ function ScheduleStep({
           productId: productRef,
           angle,
           ...(selectedAccountId !== undefined ? { accountId: selectedAccountId } : {}),
-          generatedBy: "TAMARA",
+          generatedBy: "SAMANTHA",
           status: scheduleNow ? "DRAFT" : "SCHEDULED",
           ...(!scheduleNow && scheduledAt.length > 0
             ? { scheduledAt: new Date(scheduledAt).toISOString() }

@@ -1,7 +1,7 @@
 /**
  * Global reset + design-token custom properties.
  *
- * FINAL UI REBUILD: repointed every token's VALUE to the exact reference-screenshot ("Tamara"
+ * FINAL UI REBUILD: repointed every token's VALUE to the exact reference-screenshot ("Samantha"
  * dashboard) palette from `docs/PROMPT-AAOS-DASHBOARD-FINAL-UI-REBUILD.md`'s STEP 1 `:root` block,
  * while deliberately KEEPING every existing token NAME (`--gray-900`, `--blue`, `--border`, ...)
  * unchanged. The spec's own STEP 1 literally says "WIPE semua CSS lama" and gives a `:root` block
@@ -63,13 +63,13 @@
   --purple: #7c3aed;
   --purple-light: #f5f3ff;
 
-  /* Strategi & Approve's "Tamara" brand orange (spec's exact `#E8580C` header/button color,
+  /* Strategi & Approve's "Samantha" brand orange (spec's exact `#E8580C` header/button color,
      `#FEF3EE`/`#FDBA74` light-bg/border pair) — scoped tokens rather than reusing `--amber`,
      since this is a distinct brand accent for one specific page's chat/arahan cards, not a
      semantic status color like the rest of this file's palette. */
-  --tamara-orange: #e8580c;
-  --tamara-orange-light: #fef3ee;
-  --tamara-orange-border: #fdba74;
+  --samantha-orange: #e8580c;
+  --samantha-orange-light: #fef3ee;
+  --samantha-orange-border: #fdba74;
 
   --border: 1px solid var(--gray-200);
   --radius: 6px;

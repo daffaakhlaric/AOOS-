@@ -52,7 +52,7 @@ function bestVariant(variants: readonly AbTestVariantDto[]): AbTestVariantDto | 
 }
 
 /**
- * `/meta-ads/abtesting` (AAOS-ABTESTING-LOOKALIKE) — Tamara's auto A/B test creative page. 3 tabs
+ * `/meta-ads/abtesting` (AAOS-ABTESTING-LOOKALIKE) — Samantha's auto A/B test creative page. 3 tabs
  * (Aktif/Selesai/Draft) + a real KPI strip + "+ Buat A/B Test Baru" modal, all backed by
  * `aaos-api`'s real `abtesting` module via this app's own `/api/abtesting/*` proxy routes.
  *
@@ -123,7 +123,9 @@ export function AbTestingClient(): React.ReactElement {
       <div className={styles.headerRow}>
         <div>
           <h2 className={styles.title}>A/B Testing</h2>
-          <p className={styles.subtitle}>Tamara otomatis buat dan monitor variasi iklan terbaik</p>
+          <p className={styles.subtitle}>
+            Samantha otomatis buat dan monitor variasi iklan terbaik
+          </p>
         </div>
       </div>
 
@@ -224,8 +226,8 @@ export function AbTestingClient(): React.ReactElement {
                 </div>
 
                 {test.status === "COMPLETE" && winner !== undefined ? (
-                  <p className={styles.tamaraNote}>
-                    Tamara: &quot;Variant {winner.variantLabel} menang
+                  <p className={styles.samanthaNote}>
+                    Samantha: &quot;Variant {winner.variantLabel} menang
                     {test.improvementPct !== undefined
                       ? ` dengan Rp/lead ${String(test.improvementPct)}% lebih murah.`
                       : "."}{" "}

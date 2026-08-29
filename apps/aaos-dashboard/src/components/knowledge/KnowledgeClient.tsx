@@ -36,7 +36,7 @@ export function KnowledgeClient(): React.ReactElement {
     <div className={styles.page}>
       <div>
         <h2 className={styles.title}>📚 Knowledge Base</h2>
-        <p className={styles.subtitle}>Upload SOP, FAQ, promo, kredit untuk Jessy</p>
+        <p className={styles.subtitle}>Upload SOP, FAQ, promo, kredit untuk Clara</p>
       </div>
       <ExcelUploader onFileSelected={handleFileSelected} />
       <div>

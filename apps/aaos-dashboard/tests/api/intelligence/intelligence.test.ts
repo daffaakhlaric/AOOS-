@@ -34,7 +34,7 @@ describe("/api/intelligence", () => {
   it("GET /signals returns the real 404 when no run has ever completed", async () => {
     global.fetch = fetchMockReturning(
       new Response(
-        JSON.stringify({ message: "Belum ada Tamara Intelligence run untuk tenant ini." }),
+        JSON.stringify({ message: "Belum ada Samantha Intelligence run untuk tenant ini." }),
         {
           status: 404,
         },

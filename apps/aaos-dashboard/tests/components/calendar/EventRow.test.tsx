@@ -7,8 +7,8 @@ import type { CalendarEventDto } from "@/types/dashboard.types";
 function event(overrides: Partial<CalendarEventDto> = {}): CalendarEventDto {
   return {
     id: "evt-1",
-    eventType: "TAMARA_ANALYZE",
-    title: "Tamara Analisa Campaign",
+    eventType: "SAMANTHA_ANALYZE",
+    title: "Samantha Analisa Campaign",
     scheduledAt: "2026-08-18T23:00:00.000Z",
     timezone: "Asia/Jakarta",
     recurrence: "ONCE",
@@ -22,7 +22,7 @@ function event(overrides: Partial<CalendarEventDto> = {}): CalendarEventDto {
 describe("EventRow", () => {
   it("shows the real event-type icon + title + time", () => {
     render(<EventRow event={event()} onRunNow={vi.fn()} />);
-    expect(screen.getByText(/Tamara Analisa Campaign/)).toBeInTheDocument();
+    expect(screen.getByText(/Samantha Analisa Campaign/)).toBeInTheDocument();
     expect(screen.getByText("06:00")).toBeInTheDocument();
   });
 

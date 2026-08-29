@@ -135,7 +135,7 @@ export function BranchDetailClient({
     <div className={styles.page}>
       <div>
         <h2 className={styles.title}>{branch.displayName}</h2>
-        <p className={styles.subtitle}>WhatsApp Nomor Jessy: {branch.wabaPhoneNumber}</p>
+        <p className={styles.subtitle}>WhatsApp Nomor Clara: {branch.wabaPhoneNumber}</p>
       </div>
 
       <section>

@@ -69,20 +69,20 @@ const DONE_STATUS: SimulationStatusDto = {
   personaIds: ["ready_buyer"],
   logs: [
     {
-      step: "TAMARA",
+      step: "SAMANTHA",
       level: "INFO",
-      message: "Tamara selesai.",
+      message: "Samantha selesai.",
       createdAt: "2026-08-13T00:00:00.000Z",
     },
   ],
   createdAt: "2026-08-13T00:00:00.000Z",
   updatedAt: "2026-08-13T00:00:05.000Z",
   result: {
-    tamara: {
+    samantha: {
       available: true,
       temuan: [{ icon: "🔴", judul: "Frequency tinggi", detail: "detail" }],
       rekomendasi: [{ aksi: "FIX", target: "#C001", alasan: "alasan", estimasi: "hemat" }],
-      ringkasan: "Ringkasan Tamara.",
+      ringkasan: "Ringkasan Samantha.",
       elapsedMs: 1200,
       coverageScore: 80,
     },
@@ -102,7 +102,7 @@ const DONE_STATUS: SimulationStatusDto = {
       videoGenerated: false,
       note: "Video belum digenerate.",
     },
-    jessy: {
+    clara: {
       available: true,
       runs: [
         {
@@ -116,9 +116,9 @@ const DONE_STATUS: SimulationStatusDto = {
       elapsedMs: 500,
     },
     scoring: {
-      tamaraCoverageScore: 80,
+      samanthaCoverageScore: 80,
       kaiScore: 100,
-      jessyScore: 88,
+      claraScore: 88,
       overallScore: 85.8,
       grade: "B",
       verdict: "GO",
@@ -216,7 +216,7 @@ describe("SimulationWizardClient", () => {
       kaiBranch: "CINERE",
     });
 
-    await waitFor(() => expect(screen.getByText("Ringkasan Tamara.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Ringkasan Samantha.")).toBeInTheDocument());
     expect(screen.getByText("DP mulai 29 juta")).toBeInTheDocument();
     expect(screen.getByText(/88 \(B\)/)).toBeInTheDocument();
 
@@ -397,9 +397,9 @@ describe("SimulationWizardClient", () => {
           createdAt: "2026-08-18T00:00:00.000Z",
         },
         {
-          step: "TAMARA",
+          step: "SAMANTHA",
           level: "INFO",
-          message: "Tamara memilih 1 dari 2 kandidat interest Meta.",
+          message: "Samantha memilih 1 dari 2 kandidat interest Meta.",
           payload: {
             candidateIds: ["6003257869482", "6003739713691"],
             selectedIds: ["6003257869482"],
@@ -408,7 +408,7 @@ describe("SimulationWizardClient", () => {
           createdAt: "2026-08-18T00:00:01.000Z",
         },
         {
-          step: "JESSY",
+          step: "CLARA",
           level: "INFO",
           message: "Persona ready_buyer selesai.",
           createdAt: "2026-08-18T00:00:02.000Z",
@@ -416,8 +416,8 @@ describe("SimulationWizardClient", () => {
       ],
       result: {
         ...DONE_STATUS.result!,
-        tamara: {
-          ...DONE_STATUS.result!.tamara,
+        samantha: {
+          ...DONE_STATUS.result!.samantha,
           audienceTargeting: {
             branch: "CINERE",
             geo: ["Depok", "Jakarta Selatan", "Tangerang Selatan"],
@@ -466,8 +466,8 @@ describe("SimulationWizardClient", () => {
       await runToPipeline(STATUS_WITH_TARGETING);
       const panel = screen.getByTestId("simulation-log-panel");
       expect(panel.textContent).toContain("Sistem");
-      expect(panel.textContent).toContain("Tamara");
-      expect(panel.textContent).toContain("Jessy");
+      expect(panel.textContent).toContain("Samantha");
+      expect(panel.textContent).toContain("Clara");
     });
 
     it("filters the polled logs by step without any new network transport", async () => {
@@ -475,7 +475,7 @@ describe("SimulationWizardClient", () => {
       const panel = screen.getByTestId("simulation-log-panel");
       expect(panel.textContent).toContain("Simulasi dimulai.");
 
-      await userEvent.selectOptions(screen.getByTestId("log-step-filter"), "JESSY");
+      await userEvent.selectOptions(screen.getByTestId("log-step-filter"), "CLARA");
 
       await waitFor(() =>
         expect(screen.getByTestId("simulation-log-panel").textContent).not.toContain(
@@ -522,10 +522,10 @@ describe("SimulationWizardClient", () => {
         ...STATUS_WITH_TARGETING,
         result: {
           ...STATUS_WITH_TARGETING.result!,
-          tamara: {
-            ...STATUS_WITH_TARGETING.result!.tamara,
+          samantha: {
+            ...STATUS_WITH_TARGETING.result!.samantha,
             audienceTargeting: {
-              ...STATUS_WITH_TARGETING.result!.tamara.audienceTargeting!,
+              ...STATUS_WITH_TARGETING.result!.samantha.audienceTargeting!,
               candidateCount: 0,
               interests: [],
               reasoning: undefined,

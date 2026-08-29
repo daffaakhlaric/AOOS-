@@ -203,7 +203,7 @@ export class AaosSimulatorError extends Error {
 
 /**
  * Calls the real, already-deployed sibling app `apps/aaos-simulator`'s `POST /api/simulate` (AAOS-
- * DASHBOARD-SIMULASI coordinator note #3) — runs one `PersonaId`'s Jessy conversation simulation +
+ * DASHBOARD-SIMULASI coordinator note #3) — runs one `PersonaId`'s Clara conversation simulation +
  * AI Judge scoring. Server-only by construction, same discipline as `callAaosApi` above: only ever
  * called from `src/app/api/*` route handlers, never a `"use client"` component. Unlike
  * `callAaosApi`, no `x-api-key` header is sent — `apps/aaos-simulator`'s `/api/simulate` route has

@@ -56,7 +56,7 @@ describe("ListingDetailClient", () => {
     expect(push).toHaveBeenCalledWith("/creative?listingId=listing-1");
   });
 
-  it("publishes to Jessy's knowledge base", async () => {
+  it("publishes to Clara's knowledge base", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input).includes("publish-knowledge")) {
         return jsonResponse({ listing: { ...LISTING, inKnowledgeBase: true } });
@@ -66,11 +66,11 @@ describe("ListingDetailClient", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
     render(<ListingDetailClient listingId="listing-1" />);
     await waitFor(() =>
-      expect(screen.getByText("📚 Jadikan Knowledge Tamara")).toBeInTheDocument(),
+      expect(screen.getByText("📚 Jadikan Knowledge Samantha")).toBeInTheDocument(),
     );
-    await userEvent.click(screen.getByText("📚 Jadikan Knowledge Tamara"));
+    await userEvent.click(screen.getByText("📚 Jadikan Knowledge Samantha"));
     await waitFor(() =>
-      expect(screen.getByText("📚 Sudah di Knowledge Tamara")).toBeInTheDocument(),
+      expect(screen.getByText("📚 Sudah di Knowledge Samantha")).toBeInTheDocument(),
     );
   });
 

@@ -31,7 +31,7 @@ function audienceTypeLabel(audienceType: string): string {
  * page, backed by `aaos-api`'s real `lookalike` module via this app's own `/api/lookalike/*`
  * proxy routes.
  *
- * The spec's "Performa Lookalike vs Interest biasa" comparison table and Tamara's
+ * The spec's "Performa Lookalike vs Interest biasa" comparison table and Samantha's
  * "alihkan 60% budget" recommendation are deliberately NOT rendered here — there is no real,
  * already-tracked concept anywhere in this app's data model of which ad/ad set used Lookalike vs
  * Interest vs Broad targeting, so a comparison table would have to fabricate every row. Never
@@ -167,7 +167,7 @@ export function LookalikeClient(): React.ReactElement {
         {!status.lookalikeEligible ? (
           <p className={styles.warningNote}>
             ⚠ Meta membutuhkan minimal {formatNumber(status.minRequiredForLookalike)} orang di
-            custom audience sebelum bisa generate Lookalike. Terus jalankan Jessy untuk kumpulkan
+            custom audience sebelum bisa generate Lookalike. Terus jalankan Clara untuk kumpulkan
             lebih banyak!
           </p>
         ) : null}

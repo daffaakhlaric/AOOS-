@@ -66,7 +66,7 @@ function buildSignalRows(signals: IntelligenceSignalsDto): readonly SignalRow[] 
   ];
 }
 
-/** Real recommendation line from `campaignStrategy` — no fabricated "Tamara suggest" text when the LLM step degraded. */
+/** Real recommendation line from `campaignStrategy` — no fabricated "Samantha suggest" text when the LLM step degraded. */
 function strategyLine(signals: IntelligenceSignalsDto): string {
   const strategy = signals.campaignStrategy;
   if (strategy === undefined) {
@@ -110,7 +110,7 @@ function isValidSignalsBody(body: unknown): body is { readonly signals: Intellig
 }
 
 /**
- * "Intelligence Signals" card (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 5, spec's `PART 5: UI UPDATE —
+ * "Intelligence Signals" card (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 5, spec's `PART 5: UI UPDATE —
  * STRATEGI PAGE`) — real `GET /api/intelligence/signals` + `[Refresh]` calling the real
  * `POST /api/intelligence/refresh`. Additive to `StrategiClient`, not a restructure of it.
  *
@@ -162,7 +162,7 @@ export function IntelligenceSignalsCard(): React.ReactElement {
         const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
         setState({
           status: "error",
-          message: body.error?.message ?? "Gagal menjalankan Tamara Intelligence.",
+          message: body.error?.message ?? "Gagal menjalankan Samantha Intelligence.",
         });
         return;
       }
@@ -173,7 +173,7 @@ export function IntelligenceSignalsCard(): React.ReactElement {
       }
       setState({ status: "success", signals: body.signals });
     } catch {
-      setState({ status: "error", message: "Gagal menjalankan Tamara Intelligence." });
+      setState({ status: "error", message: "Gagal menjalankan Samantha Intelligence." });
     } finally {
       setRefreshing(false);
     }
@@ -197,7 +197,7 @@ export function IntelligenceSignalsCard(): React.ReactElement {
 
       {state.status === "empty" ? (
         <p className={styles.mutedText}>
-          Belum ada Tamara Intelligence run untuk tenant ini. Tekan Refresh untuk menjalankan
+          Belum ada Samantha Intelligence run untuk tenant ini. Tekan Refresh untuk menjalankan
           analisa pertama.
         </p>
       ) : null}
@@ -219,7 +219,7 @@ export function IntelligenceSignalsCard(): React.ReactElement {
           </ul>
 
           <div className={styles.strategyBlock}>
-            <p className={styles.strategyLabel}>Tamara suggest:</p>
+            <p className={styles.strategyLabel}>Samantha suggest:</p>
             <p className={styles.strategyText}>{strategyLine(state.signals)}</p>
           </div>
 

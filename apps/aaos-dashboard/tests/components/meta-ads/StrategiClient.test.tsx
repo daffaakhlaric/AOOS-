@@ -206,7 +206,7 @@ describe("StrategiClient", () => {
     expect(kpi.textContent).toContain("Rp 800"); // the one PAUSE ad's real spend
   });
 
-  it("requests Arahan Tamara via the real /api/llm/analyze shape ({temuan, rekomendasi, ringkasan}), not the spec's fictional {arahan, temuan:{summary,findings}}", async () => {
+  it("requests Arahan Samantha via the real /api/llm/analyze shape ({temuan, rekomendasi, ringkasan}), not the spec's fictional {arahan, temuan:{summary,findings}}", async () => {
     const fetchedAt = Date.now();
     writeCampaignsCache({ data: buildData(fetchedAt), fetchedAt, period: "last_30d" });
     global.fetch = vi.fn(async (input: string | URL) => {
@@ -222,14 +222,14 @@ describe("StrategiClient", () => {
 
     render(<StrategiClient />);
     await screen.findByTestId("strategi-arahan-card");
-    await userEvent.click(screen.getByRole("button", { name: /Minta Arahan Tamara/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Minta Arahan Samantha/ }));
 
     const result = await screen.findByTestId("strategi-arahan-result");
     expect(result.textContent).toContain("Fokuskan budget ke Bintaro bulan ini.");
     expect(result.textContent).toContain("Cabang termahal");
   });
 
-  it("sends a chat message via /api/llm/chat and renders Tamara's reply", async () => {
+  it("sends a chat message via /api/llm/chat and renders Samantha's reply", async () => {
     const fetchedAt = Date.now();
     writeCampaignsCache({ data: buildData(fetchedAt), fetchedAt, period: "last_30d" });
     global.fetch = vi.fn(async (input: string | URL) => {
@@ -240,9 +240,9 @@ describe("StrategiClient", () => {
     }) as unknown as typeof fetch;
 
     render(<StrategiClient />);
-    const chatWidget = await screen.findByTestId("tamara-chat-widget");
+    const chatWidget = await screen.findByTestId("samantha-chat-widget");
     await userEvent.type(
-      screen.getByLabelText("Tanya Tamara"),
+      screen.getByLabelText("Tanya Samantha"),
       "Apa 3 langkah paling mendesak minggu ini?",
     );
     await userEvent.click(within(chatWidget).getByRole("button", { name: "Kirim" }));

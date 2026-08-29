@@ -10,7 +10,7 @@ interface ClaimLeadBody {
 /**
  * `POST /api/leads/:leadId/claim` — proxies `aaos-api`'s real `POST /api/v1/leads/:id/claim`
  * (`ClaimLeadBodyDto`'s real shape is just `{ salesHumanId }` — `branchId`/`assignmentMode` are
- * derived server-side, never client input). Powers `/jessy/contacts`'s "Assigned to" dropdown
+ * derived server-side, never client input). Powers `/clara/contacts`'s "Assigned to" dropdown
  * (MENU RESTRUCTURE FINAL coordinator note #4) — there is no `/leads/:id/assign` endpoint; this
  * reuses the real, already-existing claim flow instead of inventing a parallel one.
  */

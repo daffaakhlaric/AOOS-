@@ -15,7 +15,7 @@ export function BranchCard({ branch }: { readonly branch: BranchDto }): React.Re
         />
       </div>
       <p className={styles.meta}>
-        Nomor Jessy: {branch.wabaPhoneNumber} · {branch.availableCount} sales tersedia
+        Nomor Clara: {branch.wabaPhoneNumber} · {branch.availableCount} sales tersedia
       </p>
     </section>
   );

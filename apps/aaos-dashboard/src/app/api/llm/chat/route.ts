@@ -6,7 +6,7 @@ import type { LlmChatResponseDto } from "@/types/dashboard.types";
 /**
  * `POST /api/llm/chat` — proxies `aaos-api`'s `POST /api/v1/llm/chat`
  * (`docs/PROMPT-AAOS-API-LLM-TAMARA.md`). Body `{ messages, context }` is passed straight through
- * from the Simulasi page's Tamara chat widget.
+ * from the Simulasi page's Samantha chat widget.
  *
  * Same uniform error envelope as `/api/llm/analyze` — see that route's docstring.
  */

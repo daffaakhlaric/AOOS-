@@ -28,7 +28,7 @@ async function fetchEvents(): Promise<readonly CalendarEventDto[]> {
 }
 
 /**
- * "Kalender Aktivitas Tamara & Kai" (AAOS-KALENDER-AKTIVITAS) — embedded in the real Overview
+ * "Kalender Aktivitas Samantha & Kai" (AAOS-KALENDER-AKTIVITAS) — embedded in the real Overview
  * page, `paling bawah` (after `<BranchSummary />`), never a standalone `/calendar` page (see
  * `docs/PROMPT-AAOS-KALENDER-AKTIVITAS.md`'s "SIDEBAR — TIDAK BERUBAH" section). Only the 5
  * event types `aaos-api`'s scheduler actually implements are ever offered by "Tambah Jadwal" —

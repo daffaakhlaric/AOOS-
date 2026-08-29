@@ -9,7 +9,7 @@ import type { AdAccountSummaryDto } from "@/types/dashboard.types";
  * trusted before a fresh one is needed.
  *
  * Pure, framework-free functions — originally `MetaAdsClient.tsx` was the only caller; the
- * AAOS-TAMARA-PAGES redesign (coordinator note #7) extended this to be the SHARED snapshot cache
+ * AAOS-SAMANTHA-PAGES redesign (coordinator note #7) extended this to be the SHARED snapshot cache
  * for all of `/meta-ads`'s pages (`page.tsx`, `audit`, `analisa`, `strategi`, `simulasi`) rather
  * than introducing a second, parallel cache — keeping this `localStorage` access out of any one
  * component makes it independently testable and keeps every caller from needing to know the
@@ -19,8 +19,8 @@ import type { AdAccountSummaryDto } from "@/types/dashboard.types";
 export const CAMPAIGNS_CACHE_KEY = "aaos_campaigns_cache";
 export const CAMPAIGNS_HISTORY_KEY = "aaos_campaigns_history";
 /**
- * Bumped from 30 to 60 minutes (AAOS-TAMARA-PAGES redesign, coordinator note #7): the 4 new
- * Tamara pages (`/meta-ads/audit`, `/analisa`, `/strategi`, `/simulasi`) all read this SAME cache
+ * Bumped from 30 to 60 minutes (AAOS-SAMANTHA-PAGES redesign, coordinator note #7): the 4 new
+ * Samantha pages (`/meta-ads/audit`, `/analisa`, `/strategi`, `/simulasi`) all read this SAME cache
  * — one source of truth for "the current pulled snapshot" across 5 pages now, not just
  * `MetaAdsClient`'s own. A 60-minute window better matches a manager working across several of
  * these pages in one sitting without each page's own staleness check nagging for a re-pull.

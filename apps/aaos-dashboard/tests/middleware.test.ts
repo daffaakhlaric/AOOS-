@@ -65,23 +65,23 @@ describe("middleware", () => {
     expect(response.status).toBe(200);
   });
 
-  it("redirects /leads to /jessy/inbox without checking session (MENU RESTRUCTURE FINAL)", async () => {
+  it("redirects /leads to /clara/inbox without checking session (MENU RESTRUCTURE FINAL)", async () => {
     const response = await middleware(buildRequest("/leads"));
     expect(getSession).not.toHaveBeenCalled();
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain("/jessy/inbox");
+    expect(response.headers.get("location")).toContain("/clara/inbox");
   });
 
-  it("redirects /knowledge to /jessy/knowledge", async () => {
+  it("redirects /knowledge to /clara/knowledge", async () => {
     const response = await middleware(buildRequest("/knowledge"));
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain("/jessy/knowledge");
+    expect(response.headers.get("location")).toContain("/clara/knowledge");
   });
 
-  it("redirects /simulator to /jessy/simulator", async () => {
+  it("redirects /simulator to /clara/simulator", async () => {
     const response = await middleware(buildRequest("/simulator"));
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain("/jessy/simulator");
+    expect(response.headers.get("location")).toContain("/clara/simulator");
   });
 
   it("does NOT redirect a nested path like /leads/abc — only the exact /leads path", async () => {

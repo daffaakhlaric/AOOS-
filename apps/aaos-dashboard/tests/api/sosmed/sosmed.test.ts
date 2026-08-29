@@ -106,7 +106,7 @@ describe("/api/sosmed", () => {
     expect(body.post.status).toBe("PUBLISHED");
   });
 
-  it("POST /generate-caption proxies aaos-api's real Tamara caption generator", async () => {
+  it("POST /generate-caption proxies aaos-api's real Samantha caption generator", async () => {
     global.fetch = fetchMockReturning(
       new Response(
         JSON.stringify({

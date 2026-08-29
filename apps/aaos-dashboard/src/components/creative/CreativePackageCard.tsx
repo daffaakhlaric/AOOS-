@@ -63,7 +63,7 @@ export function CreativePackageCard({
         <StatusBadge label={pkg.status} tone={STATUS_TONE[pkg.status]} />
       </div>
       <p className={styles.meta}>
-        Brief oleh: {pkg.origin === "TAMARA" ? "Tamara" : "Manager"} · Generate: Kai ·{" "}
+        Brief oleh: {pkg.origin === "SAMANTHA" ? "Samantha" : "Manager"} · Generate: Kai ·{" "}
         {formatDateTimeIdWib(pkg.createdAt)}
       </p>
       <p className={styles.meta}>

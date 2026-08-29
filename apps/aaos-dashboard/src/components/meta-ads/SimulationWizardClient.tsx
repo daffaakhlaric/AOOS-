@@ -86,7 +86,7 @@ const PROPERTY_AD_ANGLES = [
   "VIRTUAL_TOUR",
 ] as const;
 
-const STEPS = ["SETUP", "TAMARA", "KAI", "JESSY", "JUDGE", "REVIEW"] as const;
+const STEPS = ["SETUP", "SAMANTHA", "KAI", "CLARA", "JUDGE", "REVIEW"] as const;
 type WizardStep = (typeof STEPS)[number];
 
 /** Days used to derive a daily budget from the objective's real monthly `budgetAllocation` — the same /30 convention already used elsewhere this session. */
@@ -106,9 +106,9 @@ const LOG_STEP_META: Readonly<
   Record<string, { readonly label: string; readonly icon: string; readonly color: string }>
 > = {
   SETUP: { label: "Sistem", icon: "⚙", color: "#9ca3af" },
-  TAMARA: { label: "Tamara", icon: "📊", color: "#60a5fa" },
+  SAMANTHA: { label: "Samantha", icon: "📊", color: "#60a5fa" },
   KAI: { label: "Kai", icon: "🎨", color: "#c084fc" },
-  JESSY: { label: "Jessy", icon: "💬", color: "#34d399" },
+  CLARA: { label: "Clara", icon: "💬", color: "#34d399" },
   JUDGE: { label: "AI Judge", icon: "⚖", color: "#fbbf24" },
   REVIEW: { label: "Manager", icon: "🧑‍💼", color: "#f472b6" },
   DONE: { label: "Selesai", icon: "✅", color: "#9ca3af" },
@@ -162,7 +162,7 @@ function verdictClass(verdict: string): string {
 }
 
 /**
- * "Simulasi Tamara × Kai × Jessy" — the 6-step dry-run wizard (Setup → Tamara → Kai → Jessy →
+ * "Simulasi Samantha × Kai × Clara" — the 6-step dry-run wizard (Setup → Samantha → Kai → Clara →
  * AI Judge → Review) from `docs/PROMPT-AAOS-DASHBOARD-SIMULASI-TAMARA-KAI-JESSY.md`, rebuilding
  * the old 4-step client-side-only `SimulasiClient.tsx` preview.
  *
@@ -174,7 +174,7 @@ function verdictClass(verdict: string): string {
  * Every number/log line shown here traces back to a real `aaos-api` response
  * (`GET /api/simulation/:id/status`, itself sourced from real `/api/v1/llm/analyze`,
  * `/api/v1/llm/creative-brief`, and `apps/aaos-simulator`'s `/api/simulate`) — no fabricated
- * per-line "streaming" log, no invented Jessy turns or Judge scores. Step 3's real Kie AI video
+ * per-line "streaming" log, no invented Clara turns or Judge scores. Step 3's real Kie AI video
  * generation is NOT invoked in this pass (see `simulation.service.ts`'s class doc on the backend)
  * — the Kai stage card below shows the real brief plus an honest "belum tersedia" note instead of
  * a fabricated video/image preview.
@@ -594,7 +594,7 @@ export function SimulationWizardClient(): React.ReactElement {
     <div className={styles.page}>
       <div className={styles.headerRow}>
         <div>
-          <h2 className={styles.title}>🎬 Simulasi Tamara × Kai × Jessy</h2>
+          <h2 className={styles.title}>🎬 Simulasi Samantha × Kai × Clara</h2>
           <p className={styles.subtitle}>
             Dry-run 6 langkah — preview & skor rencana campaign sebelum GO LIVE.
           </p>
@@ -796,7 +796,7 @@ export function SimulationWizardClient(): React.ReactElement {
             ) : null}
 
             <div className={styles.formRow}>
-              <label className={styles.formLabel}>Persona Jessy (pilih minimal 1)</label>
+              <label className={styles.formLabel}>Persona Clara (pilih minimal 1)</label>
               <div className={styles.personaGrid}>
                 {PERSONAS.map((persona) => (
                   <button
@@ -843,9 +843,9 @@ export function SimulationWizardClient(): React.ReactElement {
 
           {status !== undefined ? (
             <div className={styles.stageGrid}>
-              <TamaraStageCard status={status} objective={objective} />
+              <SamanthaStageCard status={status} objective={objective} />
               <KaiStageCard status={status} />
-              <JessyStageCard status={status} />
+              <ClaraStageCard status={status} />
             </div>
           ) : null}
 
@@ -862,9 +862,9 @@ export function SimulationWizardClient(): React.ReactElement {
             <div className={styles.scoreBreakdown}>
               <span>Grade {status.result.scoring.grade}</span>
               <span>
-                Tamara {status.result.scoring.tamaraCoverageScore} · Kai{" "}
-                {status.result.scoring.kaiScore} · Jessy{" "}
-                {status.result.scoring.jessyScore.toFixed(1)}
+                Samantha {status.result.scoring.samanthaCoverageScore} · Kai{" "}
+                {status.result.scoring.kaiScore} · Clara{" "}
+                {status.result.scoring.claraScore.toFixed(1)}
               </span>
             </div>
             <span className={verdictClass(status.result.scoring.verdict)}>
@@ -1195,7 +1195,7 @@ function HistoryDetailModal({
   readonly objective: ObjectiveDto | null | undefined;
 }): React.ReactElement {
   const scoring = detail?.result?.scoring;
-  const targeting = detail?.result?.tamara.audienceTargeting;
+  const targeting = detail?.result?.samantha.audienceTargeting;
   const promptDetail = detail?.result?.kai.promptDetail;
 
   return (
@@ -1250,7 +1250,7 @@ function HistoryDetailModal({
                 <CampaignPreview targeting={targeting} objective={objective} />
               ) : (
                 <p className={styles.mutedText}>
-                  Tidak ada preview campaign untuk simulasi ini (tahap Tamara tidak tersedia).
+                  Tidak ada preview campaign untuk simulasi ini (tahap Samantha tidak tersedia).
                 </p>
               )
             ) : null}
@@ -1272,13 +1272,13 @@ function HistoryDetailModal({
 }
 
 const RADAR_AXES: ReadonlyArray<{
-  readonly key: "tamaraCoverageScore" | "kaiScore" | "jessyScore";
+  readonly key: "samanthaCoverageScore" | "kaiScore" | "claraScore";
   readonly label: string;
   readonly max: number;
 }> = [
-  { key: "tamaraCoverageScore", label: "Tamara", max: 100 },
+  { key: "samanthaCoverageScore", label: "Samantha", max: 100 },
   { key: "kaiScore", label: "Kai", max: 100 },
-  { key: "jessyScore", label: "Jessy", max: 100 },
+  { key: "claraScore", label: "Clara", max: 100 },
 ];
 
 const RADAR_SIZE = 160;
@@ -1287,9 +1287,9 @@ const RADAR_RADIUS = 60;
 
 /**
  * A dependency-free inline-SVG radar chart over the 3 REAL per-stage scores
- * (`SimulationScoringDto.tamaraCoverageScore`/`kaiScore`/`jessyScore`) — no chart library in this
+ * (`SimulationScoringDto.samanthaCoverageScore`/`kaiScore`/`claraScore`) — no chart library in this
  * app today, and 3 real axes is an honest triangle, not a fabricated 4th/5th dimension to make it
- * look more like a "radar". `jessyScore` (0-100 already per `domain/scoring.ts`) shares the same
+ * look more like a "radar". `claraScore` (0-100 already per `domain/scoring.ts`) shares the same
  * 0-100 scale as the other two, so all 3 axes use one radius mapping.
  */
 function ScoreRadarChart({
@@ -1429,37 +1429,39 @@ function LogPanel({
   );
 }
 
-function TamaraStageCard({
+function SamanthaStageCard({
   status,
   objective,
 }: {
   readonly status: SimulationStatusDto;
   readonly objective: ObjectiveDto | null | undefined;
 }): React.ReactElement {
-  const tamara = status.result?.tamara;
-  const pending = tamara === undefined;
+  const samantha = status.result?.samantha;
+  const pending = samantha === undefined;
   const [previewOpen, setPreviewOpen] = useState(false);
-  const targeting = tamara?.audienceTargeting;
+  const targeting = samantha?.audienceTargeting;
 
   return (
     <div className={styles.stageCard}>
       <div className={styles.stageHeader}>
-        <span className={styles.stageName}>Step 2 · Tamara</span>
-        <span className={badgeClass(pending ? "pending" : tamara.available ? "ok" : "warn")}>
-          {pending ? "Menunggu" : tamara.available ? "Selesai" : "Tidak tersedia"}
+        <span className={styles.stageName}>Step 2 · Samantha</span>
+        <span className={badgeClass(pending ? "pending" : samantha.available ? "ok" : "warn")}>
+          {pending ? "Menunggu" : samantha.available ? "Selesai" : "Tidak tersedia"}
         </span>
       </div>
-      {pending ? <p className={styles.mutedText}>Menunggu analisa Tamara…</p> : null}
-      {!pending && tamara.available ? (
+      {pending ? <p className={styles.mutedText}>Menunggu analisa Samantha…</p> : null}
+      {!pending && samantha.available ? (
         <>
-          <p className={styles.mutedText}>{tamara.ringkasan}</p>
+          <p className={styles.mutedText}>{samantha.ringkasan}</p>
           <p className={styles.mutedText}>
-            {tamara.temuan?.length ?? 0} temuan · {tamara.rekomendasi?.length ?? 0} rekomendasi ·{" "}
-            {tamara.elapsedMs}ms
+            {samantha.temuan?.length ?? 0} temuan · {samantha.rekomendasi?.length ?? 0} rekomendasi
+            · {samantha.elapsedMs}ms
           </p>
         </>
       ) : null}
-      {!pending && !tamara.available ? <p className={styles.mutedText}>{tamara.reason}</p> : null}
+      {!pending && !samantha.available ? (
+        <p className={styles.mutedText}>{samantha.reason}</p>
+      ) : null}
 
       {targeting !== undefined ? (
         <>
@@ -1494,7 +1496,7 @@ function CampaignPreview({
   targeting,
   objective,
 }: {
-  readonly targeting: NonNullable<SimulationStatusDto["result"]>["tamara"]["audienceTargeting"];
+  readonly targeting: NonNullable<SimulationStatusDto["result"]>["samantha"]["audienceTargeting"];
   readonly objective: ObjectiveDto | null | undefined;
 }): React.ReactElement | null {
   if (targeting === undefined) {
@@ -1549,7 +1551,7 @@ function CampaignPreview({
         </div>
       )}
       {targeting.reasoning !== undefined ? (
-        <p className={styles.mutedText}>Alasan Tamara: {targeting.reasoning}</p>
+        <p className={styles.mutedText}>Alasan Samantha: {targeting.reasoning}</p>
       ) : null}
 
       <p className={styles.previewHeading}>Campaign / AdSet — Meta Marketing API</p>
@@ -1626,7 +1628,7 @@ function copyJson(value: unknown): void {
  * invented field (no `bid_strategy`, no `placements`, nothing this connector doesn't really have).
  */
 function buildCampaignExportJson(
-  targeting: NonNullable<SimulationStatusDto["result"]>["tamara"]["audienceTargeting"],
+  targeting: NonNullable<SimulationStatusDto["result"]>["samantha"]["audienceTargeting"],
   dailyBudget: number | undefined,
 ): Record<string, unknown> {
   const dailyBudgetIDR = dailyBudget ?? 100_000;
@@ -1664,7 +1666,7 @@ function KaiStageCard({ status }: { readonly status: SimulationStatusDto }): Rea
           {pending ? "Menunggu" : kai.available ? "Brief siap" : "Tidak tersedia"}
         </span>
       </div>
-      {pending ? <p className={styles.mutedText}>Menunggu brief dari Tamara…</p> : null}
+      {pending ? <p className={styles.mutedText}>Menunggu brief dari Samantha…</p> : null}
       {!pending && kai.available && kai.brief !== undefined ? (
         <>
           <p className={styles.rowText}>{kai.brief.primaryMessage}</p>
@@ -1793,36 +1795,36 @@ function KaiPromptPreview({
   );
 }
 
-function JessyStageCard({ status }: { readonly status: SimulationStatusDto }): React.ReactElement {
-  const jessy = status.result?.jessy;
-  const pending = jessy === undefined;
+function ClaraStageCard({ status }: { readonly status: SimulationStatusDto }): React.ReactElement {
+  const clara = status.result?.clara;
+  const pending = clara === undefined;
   return (
     <div className={styles.stageCard}>
       <div className={styles.stageHeader}>
-        <span className={styles.stageName}>Step 4-5 · Jessy + Judge</span>
+        <span className={styles.stageName}>Step 4-5 · Clara + Judge</span>
         <span
           className={badgeClass(
             pending
               ? "pending"
-              : !jessy.available
+              : !clara.available
                 ? "warn"
-                : jessy.runs.some((r) => !r.ok)
+                : clara.runs.some((r) => !r.ok)
                   ? "warn"
                   : "ok",
           )}
         >
           {pending
             ? "Menunggu"
-            : jessy.available
-              ? `${jessy.runs.length} persona`
+            : clara.available
+              ? `${clara.runs.length} persona`
               : "Tidak tersedia"}
         </span>
       </div>
-      {pending ? <p className={styles.mutedText}>Menunggu simulasi Jessy…</p> : null}
-      {!pending && !jessy.available ? <p className={styles.mutedText}>{jessy.reason}</p> : null}
-      {!pending && jessy.available ? (
+      {pending ? <p className={styles.mutedText}>Menunggu simulasi Clara…</p> : null}
+      {!pending && !clara.available ? <p className={styles.mutedText}>{clara.reason}</p> : null}
+      {!pending && clara.available ? (
         <div className={styles.list}>
-          {jessy.runs.map((run) => (
+          {clara.runs.map((run) => (
             <div key={run.personaId} className={styles.row}>
               <span className={styles.rowText}>{run.personaId}</span>
               <span className={styles.mutedText}>

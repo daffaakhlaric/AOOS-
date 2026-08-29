@@ -12,7 +12,7 @@ interface SendMessageBody {
 /**
  * `POST /api/leads/:leadId/message` — proxies `aaos-api`'s real `POST /api/v1/leads/:id/message`,
  * a sales human's real reply sent via the real WhatsApp connector (MENU RESTRUCTURE FINAL
- * `/jessy/inbox`'s "Reply as: Sales Human" toggle, coordinator note #2). `aaos-api` itself
+ * `/clara/inbox`'s "Reply as: Sales Human" toggle, coordinator note #2). `aaos-api` itself
  * validates `salesHumanId` matches the lead's real, currently-assigned sales human (403 otherwise)
  * — this proxy adds no extra check of its own.
  */

@@ -5,7 +5,7 @@ import type { MessagesPageDto } from "@/types/dashboard.types";
 
 /**
  * `GET /api/leads/:leadId/messages?page=&limit=&order=` — proxies `aaos-api`'s real, paginated
- * `GET /api/v1/leads/:id/messages` (MENU RESTRUCTURE FINAL `/jessy/inbox`, coordinator note #2).
+ * `GET /api/v1/leads/:id/messages` (MENU RESTRUCTURE FINAL `/clara/inbox`, coordinator note #2).
  * Query params are forwarded verbatim — `aaos-api`'s `GetMessagesQuerySchema` already coerces/
  * bounds/defaults them.
  */

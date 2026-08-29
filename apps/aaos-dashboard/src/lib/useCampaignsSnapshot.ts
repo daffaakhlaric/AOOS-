@@ -24,7 +24,7 @@ export interface CampaignsSnapshotState {
 }
 
 /**
- * Shared "read the cached campaigns snapshot, offer a manual pull" hook for the 4 new Tamara
+ * Shared "read the cached campaigns snapshot, offer a manual pull" hook for the 4 new Samantha
  * pages (`/meta-ads/audit`, `/analisa`, `/strategi`, `/simulasi`) — coordinator note #7: all of
  * `/meta-ads`'s pages read the SAME `src/lib/campaignsCache.ts`-backed snapshot, one source of
  * truth, rather than each page independently deciding what "the current data" is.

@@ -25,7 +25,7 @@ export interface CreateAbTestModalProps {
  * here without explanation — see the note under the mode row below).
  *
  * Reuses the SAME real scraped-stock unit picker (`GET /api/scraper/stock`) `ManualBriefForm.tsx`
- * already uses — Tamara's auto-generated variants are real `CreativePackagesService.create()`
+ * already uses — Samantha's auto-generated variants are real `CreativePackagesService.create()`
  * calls under the hood, needing the exact same `unit`/`branch` fields a manual brief does.
  */
 export function CreateAbTestModal({
@@ -141,7 +141,7 @@ export function CreateAbTestModal({
 
         <div className={styles.body}>
           <p className={styles.modeNote}>
-            Mode: <strong>Auto</strong> — Tamara buat variasi angle/copy otomatis dari brief di
+            Mode: <strong>Auto</strong> — Samantha buat variasi angle/copy otomatis dari brief di
             bawah. (Mode Manual — memilih creative yang sudah ada — belum tersedia di halaman ini.)
           </p>
 

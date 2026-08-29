@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AaosSimulatorError, callAaosSimulator } from "@/lib/api";
-import type { JessySimulationRunDto } from "@/types/dashboard.types";
+import type { ClaraSimulationRunDto } from "@/types/dashboard.types";
 
-/** Raw `apps/aaos-simulator` `POST /api/simulate` response shape (its own `SimulateResponse`) — only the fields this route flattens into `JessySimulationRunDto` are declared. */
+/** Raw `apps/aaos-simulator` `POST /api/simulate` response shape (its own `SimulateResponse`) — only the fields this route flattens into `ClaraSimulationRunDto` are declared. */
 interface AaosSimulatorRawResponse {
   readonly simulationResult: {
     readonly finalScore: number;
@@ -25,7 +25,7 @@ interface AaosSimulatorRawResponse {
  * Distinct from `/api/simulation/*`: those proxy `aaos-api`'s own orchestrated multi-stage
  * pipeline (which itself calls `apps/aaos-simulator` server-side as one of its stages); this route
  * is a standalone "coba satu persona sekarang" shortcut Step 4 of the wizard can use to preview one
- * persona's real Jessy conversation + AI Judge score without kicking off the full 6-step run.
+ * persona's real Clara conversation + AI Judge score without kicking off the full 6-step run.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body: unknown = await request.json().catch(() => undefined);
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     const raw = await callAaosSimulator<AaosSimulatorRawResponse>(personaId);
-    const data: JessySimulationRunDto = {
+    const data: ClaraSimulationRunDto = {
       finalScore: raw.simulationResult.finalScore,
       finalTemperature: raw.simulationResult.finalTemperature,
       handoffTriggered: raw.simulationResult.handoffTriggered,

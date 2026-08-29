@@ -39,7 +39,7 @@ describe("SettingsClient", () => {
     render(<SettingsClient />);
     await waitFor(() => expect(screen.getByText("Meta Ads Configuration")).toBeInTheDocument());
     expect(screen.getByText("WhatsApp Business (WABA)")).toBeInTheDocument();
-    expect(screen.getByText("Competitor Pages (Tamara Intelligence)")).toBeInTheDocument();
+    expect(screen.getByText("Competitor Pages (Samantha Intelligence)")).toBeInTheDocument();
     expect(screen.getByText("Tenant Info")).toBeInTheDocument();
     expect(screen.getByText("Account")).toBeInTheDocument();
     expect(screen.getByText("Belum ada WABA yang dikonfigurasi.")).toBeInTheDocument();

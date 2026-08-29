@@ -11,7 +11,7 @@ export interface ForecastCardData {
 }
 
 /**
- * Tamara's projected outcome (spec "components/objective/ForecastCard.tsx"). No `aaos-api`
+ * Samantha's projected outcome (spec "components/objective/ForecastCard.tsx"). No `aaos-api`
  * endpoint currently backs `ForecastObjective` (out of AAOS-W4A's 7-endpoint scope — see
  * `README.md`'s "Known limitations"), so this is a presentational component only; wiring a real
  * forecast fetch is follow-up work once that endpoint exists.
@@ -26,7 +26,7 @@ export function ForecastCard({ data }: { readonly data: ForecastCardData }): Rea
   return (
     <section data-testid="forecast-card" className={styles.section}>
       <div className={styles.headerRow}>
-        <p className={styles.title}>Proyeksi Tamara</p>
+        <p className={styles.title}>Proyeksi Samantha</p>
         <StatusBadge label={data.onTrackStatus.replace("_", " ")} tone={tone} />
       </div>
       <p className={styles.meta}>

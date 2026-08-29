@@ -12,7 +12,7 @@ const LOGS = [
   {
     id: "log-1",
     packageId: "pkg-1",
-    fromAgent: "TAMARA",
+    fromAgent: "SAMANTHA",
     toAgent: "KAI",
     eventType: "BRIEF_SENT",
     message: "Brief DP_RINGAN untuk Xpander GLS 2022 (CINERE) dikirim ke Kai.",
@@ -41,7 +41,7 @@ describe("CreativeLogList", () => {
     global.fetch = vi.fn(async () => jsonResponse({ logs: LOGS })) as unknown as typeof fetch;
     render(<CreativeLogList />);
     await waitFor(() => expect(screen.getAllByTestId("creative-log-entry")).toHaveLength(2));
-    expect(screen.getByText(/TAMARA → KAI/)).toBeInTheDocument();
+    expect(screen.getByText(/SAMANTHA → KAI/)).toBeInTheDocument();
     expect(screen.getAllByText(/Kie AI timeout after 15 minutes/).length).toBeGreaterThan(0);
   });
 

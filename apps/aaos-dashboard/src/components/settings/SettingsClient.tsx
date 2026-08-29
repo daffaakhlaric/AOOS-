@@ -417,10 +417,11 @@ export function SettingsClient(): React.ReactElement {
         </section>
 
         <section className={styles.card} data-testid="competitor-pages-card">
-          <span className={styles.cardTitle}>Competitor Pages (Tamara Intelligence)</span>
+          <span className={styles.cardTitle}>Competitor Pages (Samantha Intelligence)</span>
           <p className={styles.hint}>
-            Halaman Meta kompetitor yang dipantau Tamara Intelligence untuk sinyal iklan kompetitor
-            — dipakai oleh signal &quot;Kompetitor&quot; di halaman Strategi &amp; Approve.
+            Halaman Meta kompetitor yang dipantau Samantha Intelligence untuk sinyal iklan
+            kompetitor — dipakai oleh signal &quot;Kompetitor&quot; di halaman Strategi &amp;
+            Approve.
           </p>
 
           {competitorError !== undefined ? <p className={styles.error}>{competitorError}</p> : null}

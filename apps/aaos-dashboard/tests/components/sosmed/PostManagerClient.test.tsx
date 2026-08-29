@@ -10,7 +10,7 @@ const SCHEDULED_POST: ScheduledPostDto = {
   tenantId: "t-1",
   caption: "Xpander Cross 2019 DP 29jt siap bawa keluarga",
   hashtags: ["#MobixCinere", "#XpanderCross"],
-  generatedBy: "TAMARA",
+  generatedBy: "SAMANTHA",
   status: "SCHEDULED",
   scheduledAt: "2026-08-16T03:00:00.000Z",
   reach: 0,

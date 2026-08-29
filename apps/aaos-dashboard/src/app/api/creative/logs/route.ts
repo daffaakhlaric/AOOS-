@@ -5,7 +5,7 @@ import type { CreativeLogDto } from "@/types/dashboard.types";
 
 /**
  * `GET /api/creative/logs` — proxies `GET /api/v1/creative-packages/logs`, the real append-only
- * `creative_logs` audit trail behind the "Log Tamara × Kai" tab. Every row it returns corresponds
+ * `creative_logs` audit trail behind the "Log Samantha × Kai" tab. Every row it returns corresponds
  * to something the real pipeline actually did; nothing is synthesised here or upstream.
  *
  * Declared under `logs/` so Next matches it before the `[id]` dynamic segment, mirroring the

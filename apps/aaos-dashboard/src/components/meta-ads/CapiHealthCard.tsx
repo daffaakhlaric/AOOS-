@@ -6,7 +6,7 @@ import styles from "./CapiHealthCard.module.css";
 /** `[0, 10]`, matches `EmqScore`'s own real domain range — see `@aos/capi-connector`'s `EmqScore` value object. */
 function scoreColor(score: number): string {
   if (score >= 7) return "var(--green-600, #16a34a)";
-  if (score >= 4) return "var(--tamara-orange, #e8580c)";
+  if (score >= 4) return "var(--samantha-orange, #e8580c)";
   return "var(--red-600, #dc2626)";
 }
 

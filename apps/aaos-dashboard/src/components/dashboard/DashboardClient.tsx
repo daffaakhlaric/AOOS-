@@ -8,7 +8,7 @@ import { BranchSummary, type BranchSummaryRow } from "@/components/dashboard/Bra
 import { ClosingsRecent } from "@/components/dashboard/ClosingsRecent";
 import { RecentHotLeads } from "@/components/dashboard/RecentHotLeads";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
-import { TamaraDigest, type TamaraDigestTag } from "@/components/dashboard/TamaraDigest";
+import { SamanthaDigest, type SamanthaDigestTag } from "@/components/dashboard/SamanthaDigest";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { readCampaignsCache } from "@/lib/campaignsCache";
@@ -24,12 +24,12 @@ function isSameMonth(iso: string, now: Date): boolean {
 
 /**
  * Fetches this app's own `/api/leads`, `/api/closings`, `/api/branches` proxy routes and renders
- * the Overview page (FINAL UI REBUILD, matching the reference screenshot: KPI strip, Tamara Daily
+ * the Overview page (FINAL UI REBUILD, matching the reference screenshot: KPI strip, Samantha Daily
  * Digest, Hot Leads Terbaru, Closing Terbaru, Ringkasan per Cabang).
  *
  * Still never calls `/api/campaigns` (Meta Ads data) on mount — same real bug fix this component
  * has documented since the pre-rebuild version (that used to trip Meta's rate limit on every
- * dashboard visit). "Belanja Iklan" and the Tamara Digest's verdict counts instead read whatever
+ * dashboard visit). "Belanja Iklan" and the Samantha Digest's verdict counts instead read whatever
  * snapshot `/meta-ads` already cached to `localStorage` via `readCampaignsCache()` — a synchronous
  * local read, not a network call — so they're simply absent until the user has pulled data on the
  * Kampanye page at least once, never fetched fresh from here.
@@ -121,12 +121,12 @@ export function DashboardClient(): React.ReactElement {
   }
   const digestText =
     metaCache === undefined
-      ? "Belum ada data iklan tersimpan — tarik data di halaman Kampanye untuk melihat ringkasan Tamara."
+      ? "Belum ada data iklan tersimpan — tarik data di halaman Kampanye untuk melihat ringkasan Samantha."
       : digestParts.length > 0
         ? `${digestParts.join(". ")}.`
         : "Semua iklan dalam kondisi baik — tidak ada yang perlu di-pause/scale/fix saat ini.";
 
-  const digestTags: TamaraDigestTag[] = [];
+  const digestTags: SamanthaDigestTag[] = [];
   if (pauseAds.length > 0) {
     digestTags.push({ label: `${pauseAds.length} perlu PAUSE`, tone: "pause" });
   }
@@ -174,7 +174,7 @@ export function DashboardClient(): React.ReactElement {
           belanjaIklan: metaCache?.data.totals.spend,
         }}
       />
-      <TamaraDigest
+      <SamanthaDigest
         text={digestText}
         tags={digestTags}
         strategiHref="/meta-ads/strategi"
@@ -186,7 +186,7 @@ export function DashboardClient(): React.ReactElement {
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <p className={styles.panelTitle}>🔥 Hot Leads Terbaru</p>
-            <Link href="/jessy/contacts" className={styles.panelLink}>
+            <Link href="/clara/contacts" className={styles.panelLink}>
               Lihat semua →
             </Link>
           </div>

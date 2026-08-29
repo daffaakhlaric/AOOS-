@@ -4,7 +4,7 @@ import { AaosApiError, callAaosApi } from "@/lib/api";
 import { resolveRouteSession } from "@/lib/route-session";
 import type { ListingDto } from "@/types/listing.types";
 
-/** `POST /api/listings/:id/publish-knowledge` — proxies `POST /api/v1/listings/:id/publish-knowledge` (Listing Detail's "📚 Jadikan Knowledge Tamara"). */
+/** `POST /api/listings/:id/publish-knowledge` — proxies `POST /api/v1/listings/:id/publish-knowledge` (Listing Detail's "📚 Jadikan Knowledge Samantha"). */
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } },

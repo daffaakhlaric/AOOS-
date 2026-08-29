@@ -71,7 +71,7 @@ function buildSignals(overrides: Partial<IntelligenceSignalsDto> = {}): Intellig
       summary: "Fokus TUKAR_TAMBAH + STOK_TERBATAS Xpander.",
       urgency: "HIGH",
     },
-    digestText: "🧠 Tamara Intelligence — Mobix",
+    digestText: "🧠 Samantha Intelligence — Mobix",
     generatedAt: "2026-08-24T06:00:00.000Z",
     ...overrides,
   };
@@ -85,10 +85,10 @@ describe("IntelligenceSignalsCard", () => {
   it("shows the empty state (404) with a prompt to run the first refresh", async () => {
     global.fetch = vi.fn(async () => jsonResponse({}, 404)) as unknown as typeof fetch;
     render(<IntelligenceSignalsCard />);
-    expect(await screen.findByText(/Belum ada Tamara Intelligence run/)).toBeInTheDocument();
+    expect(await screen.findByText(/Belum ada Samantha Intelligence run/)).toBeInTheDocument();
   });
 
-  it("renders one real line per signal source + the real Tamara strategy recommendation", async () => {
+  it("renders one real line per signal source + the real Samantha strategy recommendation", async () => {
     global.fetch = vi.fn(async () =>
       jsonResponse({ signals: buildSignals() }),
     ) as unknown as typeof fetch;
@@ -147,7 +147,7 @@ describe("IntelligenceSignalsCard", () => {
     });
     global.fetch = fetchMock as unknown as typeof fetch;
     render(<IntelligenceSignalsCard />);
-    await screen.findByText(/Belum ada Tamara Intelligence run/);
+    await screen.findByText(/Belum ada Samantha Intelligence run/);
 
     await userEvent.click(screen.getByRole("button", { name: /Refresh/ }));
 

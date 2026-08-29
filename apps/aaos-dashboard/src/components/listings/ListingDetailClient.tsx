@@ -21,7 +21,7 @@ async function parseError(response: Response, fallback: string): Promise<string>
 
 /**
  * `/listings/:id` — Listing Detail page (spec Part 4). Split 60/40: left = foto gallery + specs +
- * deskripsi; right = actions (`🎨 Buat Creative dengan Kai →`, `📚 Jadikan Knowledge Tamara`,
+ * deskripsi; right = actions (`🎨 Buat Creative dengan Kai →`, `📚 Jadikan Knowledge Samantha`,
  * `📋 Copy detail untuk WA`, toggle status AKTIF/TERJUAL/DRAFT).
  */
 export function ListingDetailClient({
@@ -178,7 +178,9 @@ export function ListingDetailClient({
           disabled={busy || listing.inKnowledgeBase}
           onClick={() => void handlePublishKnowledge()}
         >
-          {listing.inKnowledgeBase ? "📚 Sudah di Knowledge Tamara" : "📚 Jadikan Knowledge Tamara"}
+          {listing.inKnowledgeBase
+            ? "📚 Sudah di Knowledge Samantha"
+            : "📚 Jadikan Knowledge Samantha"}
         </button>
         <button type="button" className={styles.actionButton} onClick={copyDetailForWa}>
           📋 Copy detail untuk WA

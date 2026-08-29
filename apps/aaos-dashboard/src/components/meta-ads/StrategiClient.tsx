@@ -234,9 +234,9 @@ type ArahanState =
   | { readonly status: "error" };
 
 /**
- * "Strategi & Approve" page — Arahan Tamara (real AI narrative via `/api/llm/analyze`, same real
+ * "Strategi & Approve" page — Arahan Samantha (real AI narrative via `/api/llm/analyze`, same real
  * endpoint `AnalisaClient.tsx`'s "🤖 Analisa dengan AI" panel already calls), a KPI strip, a
- * Tamara chat widget (`/api/llm/chat`, same real endpoint/pattern as `SimulasiClient.tsx`'s
+ * Samantha chat widget (`/api/llm/chat`, same real endpoint/pattern as `SimulasiClient.tsx`'s
  * widget), filter tabs, and the verdict action list — every ad whose real `verdict` isn't `KEEP`,
  * approve/reject per item, then execute all approved items.
  *
@@ -257,7 +257,7 @@ type ArahanState =
  *   - The spec's `/api/v1/llm/analyze` response shape (`{ arahan, temuan: { summary, findings } }`)
  *     doesn't match the real one (`{ temuan: [{icon,judul,detail}], rekomendasi: [...], ringkasan
  *     }`, already proven by `AnalisaClient.tsx`'s working "Analisa dengan AI" panel) — this reuses
- *     that real shape: `ringkasan` renders as the narrative "Arahan Tamara" paragraph, `temuan[]`
+ *     that real shape: `ringkasan` renders as the narrative "Arahan Samantha" paragraph, `temuan[]`
  *     as the "Temuan Utama" cards.
  *   - No multi-account ("Semua Akun"/pill selector) support in this pass — combining that with
  *     this page's existing per-snapshot (`fetchedAt`-keyed) approve/reject decision tracking is a
@@ -344,7 +344,7 @@ export function StrategiClient(): React.ReactElement {
         }),
       });
       if (!res.ok) {
-        setChatError("Tamara tidak bisa menjawab saat ini.");
+        setChatError("Samantha tidak bisa menjawab saat ini.");
         return;
       }
       const result = (await res.json()) as { readonly reply: string };
@@ -353,7 +353,7 @@ export function StrategiClient(): React.ReactElement {
         { key: `assistant-${Date.now()}`, role: "assistant", content: result.reply },
       ]);
     } catch {
-      setChatError("Tamara tidak bisa menjawab saat ini.");
+      setChatError("Samantha tidak bisa menjawab saat ini.");
     } finally {
       setChatLoading(false);
     }
@@ -432,7 +432,7 @@ export function StrategiClient(): React.ReactElement {
     <div className={styles.page}>
       <Header />
 
-      <ArahanTamaraCard arahan={arahan} onRequest={() => void requestArahan()} />
+      <ArahanSamanthaCard arahan={arahan} onRequest={() => void requestArahan()} />
 
       <IntelligenceSignalsCard />
 
@@ -454,7 +454,7 @@ export function StrategiClient(): React.ReactElement {
         />
       </section>
 
-      <NgobrolTamaraCard
+      <NgobrolSamanthaCard
         history={chatHistory}
         loading={chatLoading}
         error={chatError}
@@ -605,7 +605,7 @@ function Kpi({
   );
 }
 
-function ArahanTamaraCard({
+function ArahanSamanthaCard({
   arahan,
   onRequest,
 }: {
@@ -616,7 +616,7 @@ function ArahanTamaraCard({
     <section data-testid="strategi-arahan-card" className={styles.arahanCard}>
       <div className={styles.arahanHeader}>
         <div>
-          <p className={styles.arahanTitle}>💬 Arahan Tamara</p>
+          <p className={styles.arahanTitle}>💬 Arahan Samantha</p>
           <p className={styles.arahanSubtitle}>
             Bahasa dirangkai AI dari angka &amp; vonis mesin — keputusan akhir tetap di tangan Anda.
           </p>
@@ -627,7 +627,7 @@ function ArahanTamaraCard({
           disabled={arahan.status === "loading"}
           className={styles.arahanButton}
         >
-          {arahan.status === "loading" ? "↻ Memperbarui…" : "↻ Minta Arahan Tamara"}
+          {arahan.status === "loading" ? "↻ Memperbarui…" : "↻ Minta Arahan Samantha"}
         </button>
       </div>
 
@@ -641,12 +641,14 @@ function ArahanTamaraCard({
         <ErrorCard message="Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings" />
       ) : null}
       {arahan.status === "error" ? (
-        <ErrorCard message="Tamara tidak bisa merangkai arahan saat ini." />
+        <ErrorCard message="Samantha tidak bisa merangkai arahan saat ini." />
       ) : null}
       {arahan.status === "success" ? (
         <div data-testid="strategi-arahan-result" className={styles.arahanResult}>
           <p className={styles.arahanText}>{arahan.result.ringkasan}</p>
-          <p className={styles.arahanMeta}>Tamara (gpt-4o-mini) · angka &amp; vonis dari engine</p>
+          <p className={styles.arahanMeta}>
+            Samantha (gpt-4o-mini) · angka &amp; vonis dari engine
+          </p>
           {arahan.result.temuan.length > 0 ? (
             <div className={styles.temuanBlock}>
               <p className={styles.temuanTitle}>🔍 Temuan Utama</p>
@@ -666,7 +668,7 @@ function ArahanTamaraCard({
   );
 }
 
-function NgobrolTamaraCard({
+function NgobrolSamanthaCard({
   history,
   loading,
   error,
@@ -682,9 +684,9 @@ function NgobrolTamaraCard({
   readonly onSend: () => void;
 }): React.ReactElement {
   return (
-    <section data-testid="tamara-chat-widget" className={styles.chatCard}>
+    <section data-testid="samantha-chat-widget" className={styles.chatCard}>
       <div className={styles.chatHeader}>
-        <p className={styles.chatHeaderTitle}>💬 Ngobrol dengan Tamara</p>
+        <p className={styles.chatHeaderTitle}>💬 Ngobrol dengan Samantha</p>
         <span className={styles.onlineDot}>● online</span>
       </div>
       <p className={styles.chatHeaderSubtitle}>
@@ -693,7 +695,7 @@ function NgobrolTamaraCard({
 
       {history.length === 0 ? (
         <p className={styles.chatIntro}>
-          Saya Tamara, Manager Iklan Meta Anda. Tugas saya membantu memutuskan &amp; menyusun
+          Saya Samantha, Manager Iklan Meta Anda. Tugas saya membantu memutuskan &amp; menyusun
           strategi — tanya apa saja soal data iklan ini.
         </p>
       ) : (
@@ -722,7 +724,7 @@ function NgobrolTamaraCard({
         ))}
       </div>
 
-      {loading ? <p className={styles.mutedText}>Tamara sedang mengetik…</p> : null}
+      {loading ? <p className={styles.mutedText}>Samantha sedang mengetik…</p> : null}
       {error !== undefined ? <ErrorCard message={error} /> : null}
 
       <div className={styles.chatInputRow}>
@@ -731,7 +733,7 @@ function NgobrolTamaraCard({
           value={input}
           onChange={(event) => onInputChange(event.target.value)}
           placeholder="Tanya soal strategi / keputusan iklan…"
-          aria-label="Tanya Tamara"
+          aria-label="Tanya Samantha"
           className={styles.chatInput}
         />
         <button
@@ -751,10 +753,10 @@ function NgobrolTamaraCard({
 function Header(): React.ReactElement {
   return (
     <div>
-      <p className={styles.breadcrumb}>AAOS › Tamara › Strategi &amp; Approve</p>
+      <p className={styles.breadcrumb}>AAOS › Samantha › Strategi &amp; Approve</p>
       <h2 className={styles.title}>Strategi &amp; Approve</h2>
       <p className={styles.subtitle}>
-        Arahan Tamara + eksekusi verdict — keputusan akhir ada di tangan Anda.
+        Arahan Samantha + eksekusi verdict — keputusan akhir ada di tangan Anda.
       </p>
     </div>
   );

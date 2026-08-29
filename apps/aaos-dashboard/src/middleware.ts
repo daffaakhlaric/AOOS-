@@ -37,16 +37,26 @@ function isApiPath(pathname: string): boolean {
 
 /**
  * MENU RESTRUCTURE FINAL — exact-path redirects for the 3 routes this restructure moved/retired.
- * `/leads` is retired entirely (its flat list became `/jessy/contacts`, its chat room became
- * `/jessy/inbox` — see `docs/PROMPT-AAOS-MENU-RESTRUCTURE-FINAL.md`'s coordinator note #2), so
+ * `/leads` is retired entirely (its flat list became `/clara/contacts`, its chat room became
+ * `/clara/inbox` — see `docs/PROMPT-AAOS-MENU-RESTRUCTURE-FINAL.md`'s coordinator note #2), so
  * (unlike the spec's own middleware sketch, which sends `/leads` there loosely) it redirects to
- * `/jessy/inbox`, matching the spec's original REDIRECTS map. `/knowledge`/`/simulator` simply
- * moved under `/jessy/*` with identical content.
+ * `/clara/inbox`, matching the spec's original REDIRECTS map. `/knowledge`/`/simulator` simply
+ * moved under `/clara/*` with identical content.
+ *
+ * AGENT RENAME Phase 8: `/jessy/*` was itself renamed to `/clara/*` (Jessy → Clara). Same
+ * exact-path stale-link pattern as above, this time for every real `/jessy/*` page that existed
+ * before the rename, so no existing bookmark 404s.
  */
 const REDIRECTS: Readonly<Record<string, string>> = {
-  "/leads": "/jessy/inbox",
-  "/knowledge": "/jessy/knowledge",
-  "/simulator": "/jessy/simulator",
+  "/leads": "/clara/inbox",
+  "/knowledge": "/clara/knowledge",
+  "/simulator": "/clara/simulator",
+  "/jessy/analytics": "/clara/analytics",
+  "/jessy/contacts": "/clara/contacts",
+  "/jessy/inbox": "/clara/inbox",
+  "/jessy/knowledge": "/clara/knowledge",
+  "/jessy/recycling": "/clara/recycling",
+  "/jessy/simulator": "/clara/simulator",
 };
 
 /**

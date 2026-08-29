@@ -30,7 +30,7 @@ function toggleDay(days: readonly number[], day: number): readonly number[] {
 
 /** "+ Tambah Jadwal" modal (spec mockup's `AddEventModal`) — a lightweight overlay over Overview, never a page navigation. */
 export function AddEventModal({ onClose, onSaved }: AddEventModalProps): React.ReactElement {
-  const [eventType, setEventType] = useState<CalendarEventType>("TAMARA_ANALYZE");
+  const [eventType, setEventType] = useState<CalendarEventType>("SAMANTHA_ANALYZE");
   const [date, setDate] = useState(todayDateInputValue());
   const [time, setTime] = useState("06:00");
   const [recurrence, setRecurrence] = useState<CalendarRecurrence>("ONCE");

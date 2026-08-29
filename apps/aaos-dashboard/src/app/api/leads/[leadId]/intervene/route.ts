@@ -10,8 +10,8 @@ interface InterveneBody {
 
 /**
  * `POST /api/leads/:leadId/intervene` — proxies `aaos-api`'s `POST /api/v1/leads/:id/intervene`
- * (manager-as-Jessy). Persisted server-side with `sender_type = 'MANAGER_INTERVENTION'`, never
- * `'JESSY'` — see `aaos-api`'s `intervene.dto.ts` docstring for the coordinator note this
+ * (manager-as-Clara). Persisted server-side with `sender_type = 'MANAGER_INTERVENTION'`, never
+ * `'CLARA'` — see `aaos-api`'s `intervene.dto.ts` docstring for the coordinator note this
  * corrects.
  */
 export async function POST(

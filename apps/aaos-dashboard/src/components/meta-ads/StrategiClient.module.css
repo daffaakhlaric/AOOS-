@@ -34,10 +34,10 @@
   color: var(--gray-500);
 }
 
-/* === Arahan Tamara === */
+/* === Arahan Samantha === */
 .arahanCard {
   border-radius: var(--radius-lg);
-  border: 1px solid var(--tamara-orange-border, #fdba74);
+  border: 1px solid var(--samantha-orange-border, #fdba74);
   background: var(--white);
   padding: 16px;
   display: flex;
@@ -67,7 +67,7 @@
 .arahanButton {
   flex-shrink: 0;
   padding: 8px 16px;
-  background: var(--tamara-orange, #e8580c);
+  background: var(--samantha-orange, #e8580c);
   border: none;
   border-radius: var(--radius);
   font-size: 13px;
@@ -88,7 +88,7 @@
 
 .arahanResult {
   border-radius: var(--radius);
-  background: var(--tamara-orange-light, #fef3ee);
+  background: var(--samantha-orange-light, #fef3ee);
   padding: 12px;
 }
 
@@ -108,7 +108,7 @@
 .temuanBlock {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--tamara-orange-border, #fdba74);
+  border-top: 1px solid var(--samantha-orange-border, #fdba74);
 }
 
 .temuanTitle {
@@ -128,7 +128,7 @@
   font-size: 12px;
   color: var(--gray-700);
   padding-left: 8px;
-  border-left: 2px solid var(--tamara-orange, #e8580c);
+  border-left: 2px solid var(--samantha-orange, #e8580c);
 }
 
 /* === KPI strip === */
@@ -178,7 +178,7 @@
   margin-top: 2px;
 }
 
-/* === Ngobrol dengan Tamara === */
+/* === Ngobrol dengan Samantha === */
 .chatCard {
   border-radius: var(--radius-lg);
   border: var(--border);
@@ -192,7 +192,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--tamara-orange, #e8580c);
+  background: var(--samantha-orange, #e8580c);
   color: var(--white);
   padding: 12px 16px;
 }
@@ -238,7 +238,7 @@
 
 .chatBubbleUser {
   align-self: flex-end;
-  background: var(--tamara-orange, #e8580c);
+  background: var(--samantha-orange, #e8580c);
   color: var(--white);
 }
 
@@ -258,8 +258,8 @@
 
 .presetChip {
   flex-shrink: 0;
-  border: 1px solid var(--tamara-orange, #e8580c);
-  color: var(--tamara-orange, #e8580c);
+  border: 1px solid var(--samantha-orange, #e8580c);
+  color: var(--samantha-orange, #e8580c);
   background: var(--white);
   border-radius: 999px;
   padding: 4px 10px;
@@ -269,7 +269,7 @@
 }
 
 .presetChip:hover {
-  background: var(--tamara-orange-light, #fef3ee);
+  background: var(--samantha-orange-light, #fef3ee);
 }
 
 .chatInputRow {
@@ -289,12 +289,12 @@
 }
 
 .chatInput:focus {
-  border-color: var(--tamara-orange, #e8580c);
+  border-color: var(--samantha-orange, #e8580c);
 }
 
 .chatSendButton {
   padding: 8px 14px;
-  background: var(--tamara-orange, #e8580c);
+  background: var(--samantha-orange, #e8580c);
   border: none;
   border-radius: var(--radius);
   color: var(--white);
@@ -331,8 +331,8 @@
 }
 
 .filterTabActive {
-  background: var(--tamara-orange, #e8580c);
-  border-color: var(--tamara-orange, #e8580c);
+  background: var(--samantha-orange, #e8580c);
+  border-color: var(--samantha-orange, #e8580c);
   color: var(--white);
 }
 
@@ -445,7 +445,7 @@
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 600;
-  background: var(--tamara-orange, #e8580c);
+  background: var(--samantha-orange, #e8580c);
   color: var(--white);
   padding: 2px 6px;
   border-radius: 4px;
@@ -566,7 +566,7 @@
 .executeAllButton {
   margin-left: auto;
   padding: 7px 16px;
-  background: var(--tamara-orange, #e8580c);
+  background: var(--samantha-orange, #e8580c);
   border: none;
   border-radius: var(--radius);
   font-size: 13px;

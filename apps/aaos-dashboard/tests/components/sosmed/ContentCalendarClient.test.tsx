@@ -22,7 +22,7 @@ const POST: ScheduledPostDto = {
   accountId: "a-1",
   caption: "Foto unit terbaru siap test drive minggu ini",
   hashtags: [],
-  generatedBy: "TAMARA",
+  generatedBy: "SAMANTHA",
   status: "SCHEDULED",
   scheduledAt: "2026-08-16T03:00:00.000Z",
   reach: 0,

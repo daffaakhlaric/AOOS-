@@ -38,7 +38,7 @@ const EVENT_ICON: Readonly<Record<string, string>> = {
 };
 
 /**
- * "Log Tamara × Kai" — the real, append-only `creative_logs` audit trail.
+ * "Log Samantha × Kai" — the real, append-only `creative_logs` audit trail.
  *
  * Every row rendered here is a row the pipeline actually wrote at the moment the thing happened: a
  * brief really handed to Kai, a real Kie AI run really starting/finishing, a real error, a real

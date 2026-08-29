@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CreativePackageCard } from "@/components/creative/CreativePackageCard";
 import { CreativeLogList } from "@/components/creative/CreativeLogList";
 import { ManualBriefForm } from "@/components/creative/ManualBriefForm";
-import { TamaraRecommendations } from "@/components/creative/TamaraRecommendations";
+import { SamanthaRecommendations } from "@/components/creative/SamanthaRecommendations";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -26,8 +26,8 @@ const TABS = [
   { key: "REVIEW", label: "Antrian Review" },
   { key: "PROCESSING", label: "Sedang Diproses" },
   { key: "MANUAL", label: "Buat Manual" },
-  { key: "TAMARA", label: "Rekomendasi Tamara" },
-  { key: "LOG", label: "Log Tamara × Kai" },
+  { key: "SAMANTHA", label: "Rekomendasi Samantha" },
+  { key: "LOG", label: "Log Samantha × Kai" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -38,11 +38,11 @@ function isThisMonth(iso: string | undefined, now: Date): boolean {
 }
 
 /**
- * "Creative Review" — the coordination surface between Tamara (which ads need a refresh), Kai
+ * "Creative Review" — the coordination surface between Samantha (which ads need a refresh), Kai
  * (prompt building + Kie AI generation), and the manager (review → approve).
  *
  * HARD SCOPE BOUNDARY: there is no "Full Auto" mode, no mode switcher, and no settings card. Every
- * brief — manually composed here, or suggested by Tamara — reaches Kai only when a human clicks
+ * brief — manually composed here, or suggested by Samantha — reaches Kai only when a human clicks
  * "Kirim ke Kai" on that specific brief. Nothing in this component runs on a timer except the
  * read-only status poll below, which never triggers generation.
  *
@@ -131,7 +131,7 @@ export function CreativeClient(): React.ReactElement {
     }
   }
 
-  /** Called by the manual form and the Tamara tab — both always originate from a human click. */
+  /** Called by the manual form and the Samantha tab — both always originate from a human click. */
   async function afterCreate(created: CreativePackageDto): Promise<void> {
     await load();
     if (!mountedRef.current) return;
@@ -167,7 +167,7 @@ export function CreativeClient(): React.ReactElement {
       <div>
         <h2 className={styles.title}>🎨 Creative Review</h2>
         <p className={styles.subtitle}>
-          Koordinasi Tamara × Kai × Kie AI. Setiap brief butuh persetujuan manusia sebelum Kai
+          Koordinasi Samantha × Kai × Kie AI. Setiap brief butuh persetujuan manusia sebelum Kai
           generate — tidak ada mode otomatis.
         </p>
       </div>
@@ -264,7 +264,7 @@ export function CreativeClient(): React.ReactElement {
 
       {tab === "MANUAL" ? <ManualBriefForm onCreated={afterCreate} /> : null}
 
-      {tab === "TAMARA" ? <TamaraRecommendations onCreated={afterCreate} /> : null}
+      {tab === "SAMANTHA" ? <SamanthaRecommendations onCreated={afterCreate} /> : null}
 
       {tab === "LOG" ? <CreativeLogList /> : null}
     </div>

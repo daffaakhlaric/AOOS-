@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { AaosApiError, callAaosApi } from "@/lib/api";
 import type { GenerateHashtagsInput, GenerateHashtagsResponseDto } from "@/types/sosmed.types";
 
-/** `POST /api/sosmed/generate-hashtags` — proxies `aaos-api`'s real `POST /api/v1/sosmed/generate-hashtags` (Tamara). */
+/** `POST /api/sosmed/generate-hashtags` — proxies `aaos-api`'s real `POST /api/v1/sosmed/generate-hashtags` (Samantha). */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = (await request.json().catch(() => ({}))) as GenerateHashtagsInput;
   try {

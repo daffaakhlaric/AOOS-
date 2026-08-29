@@ -1,0 +1,397 @@
+/* MENU RESTRUCTURE FINAL "/clara/inbox" — 3-panel layout: 280px | flex-1 | 300px. */
+.page {
+  display: grid;
+  grid-template-columns: 280px 1fr 300px;
+  height: calc(100vh - 56px);
+  border-top: var(--border);
+}
+
+@media (max-width: 1100px) {
+  .page {
+    grid-template-columns: 240px 1fr;
+  }
+}
+
+/* LEFT — conversation list */
+.listPanel {
+  display: flex;
+  flex-direction: column;
+  border-right: var(--border);
+  overflow: hidden;
+}
+
+.listHeader {
+  padding: 12px;
+  border-bottom: var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--gray-100);
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.tab {
+  flex: 1;
+  border: none;
+  background: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.tabActive {
+  background: var(--black);
+  color: var(--white);
+}
+
+.searchInput {
+  border-radius: var(--radius);
+  border: var(--border);
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.filterSelect {
+  border-radius: var(--radius);
+  border: var(--border);
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--white);
+  color: var(--gray-700);
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: var(--border);
+  background: var(--white);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.row:hover {
+  background: var(--gray-100);
+}
+
+.rowActive {
+  background: var(--blue-light);
+  border-left: 2px solid var(--blue);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  color: var(--gray-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.rowBody {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rowTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rowName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowTime {
+  font-size: 11px;
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
+
+.rowPreview {
+  font-size: 12px;
+  color: var(--gray-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowSalesTag {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--blue);
+  background: var(--blue-light);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+/* MIDDLE — chat area */
+.chatPanel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chatHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: var(--border);
+}
+
+.chatHeaderName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.assignRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.assignSelect {
+  font-size: 12px;
+  border-radius: var(--radius);
+  border: var(--border);
+  padding: 2px 6px;
+}
+
+.callLink {
+  font-size: 16px;
+  text-decoration: none;
+}
+
+.botBanner {
+  background: #e8580c;
+  color: var(--white);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px;
+}
+
+.timeline {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+}
+
+.bubbleRow {
+  display: flex;
+}
+
+.bubbleLead {
+  justify-content: flex-end;
+}
+
+.bubbleOutgoing {
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: 70%;
+  border-radius: 12px 12px 2px 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.bubbleLead .bubble {
+  background: var(--gray-100);
+  color: var(--gray-900);
+  border-radius: 12px 12px 12px 2px;
+}
+
+.bubbleClara .bubble {
+  background: var(--blue-light);
+  color: var(--gray-900);
+}
+
+.bubbleSales .bubble {
+  background: var(--green-light);
+  color: var(--gray-900);
+}
+
+.bubbleManager .bubble {
+  background: var(--amber-light);
+  color: var(--gray-900);
+}
+
+.senderLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  margin-bottom: 2px;
+}
+
+.timestamp {
+  font-size: 10px;
+  color: var(--gray-400);
+  margin-top: 2px;
+}
+
+.inputForm {
+  border-top: var(--border);
+  padding: 10px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.replyAsRow {
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.replyAsSelect {
+  margin-left: 6px;
+  font-size: 12px;
+  border-radius: var(--radius);
+  border: var(--border);
+  padding: 2px 6px;
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+}
+
+.textarea {
+  flex: 1;
+  border-radius: var(--radius);
+  border: var(--border);
+  padding: 8px 10px;
+  font-size: 13px;
+  min-height: 40px;
+  resize: vertical;
+}
+
+.sendButton {
+  border-radius: var(--radius);
+  border: none;
+  background: var(--blue);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+.sendButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.errorLine {
+  font-size: 11px;
+  color: var(--red);
+}
+
+/* RIGHT — lead info */
+.infoPanel {
+  border-left: var(--border);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+  .infoPanel {
+    display: none;
+  }
+}
+
+.infoAvatarWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.infoAvatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  color: var(--gray-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.infoName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.infoList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.infoRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.infoRow dt {
+  color: var(--gray-400);
+  font-size: 11px;
+}
+
+.infoRow dd {
+  color: var(--gray-900);
+  font-size: 12px;
+}

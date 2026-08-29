@@ -11,7 +11,7 @@ export interface TopBarProps {
 /**
  * Sticky page header (spec "components/layout/TopBar.tsx"; TOTAL UI REBUILD "=== PAGE HEADER ==="
  * — sticky/blurred 56px bar, 24px/600-weight title, right-aligned actions). The spec's left slot
- * is a full "AAOS / Tamara / Data Iklan"-style breadcrumb; this component only ever receives a
+ * is a full "AAOS / Samantha / Data Iklan"-style breadcrumb; this component only ever receives a
  * single `title` string from its callers (every `page.tsx` passes one page name, never a
  * breadcrumb trail), so it renders that title directly rather than fabricating breadcrumb
  * segments no caller supplies.

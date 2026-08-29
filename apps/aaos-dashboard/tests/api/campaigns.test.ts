@@ -96,7 +96,7 @@ describe("GET /api/campaigns", () => {
     expect(body.adCount).toBe(1);
   });
 
-  it("passes daysSinceCreation through when the upstream ad has it (AAOS-TAMARA-PAGES: powers Audit Biaya's 'Iklan Baru' section)", async () => {
+  it("passes daysSinceCreation through when the upstream ad has it (AAOS-SAMANTHA-PAGES: powers Audit Biaya's 'Iklan Baru' section)", async () => {
     const withDays = {
       ...AD_ACCOUNT_RESPONSE,
       campaigns: [

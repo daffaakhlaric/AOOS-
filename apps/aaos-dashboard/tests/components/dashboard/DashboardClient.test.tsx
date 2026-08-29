@@ -75,7 +75,7 @@ function mockFetchOk(): void {
   }) as unknown as typeof fetch;
 }
 
-describe("DashboardClient (FINAL UI REBUILD: KPI strip + Tamara Digest + Hot Leads/Closing Terbaru + Ringkasan per Cabang)", () => {
+describe("DashboardClient (FINAL UI REBUILD: KPI strip + Samantha Digest + Hot Leads/Closing Terbaru + Ringkasan per Cabang)", () => {
   beforeEach(() => {
     localStorage.clear();
   });

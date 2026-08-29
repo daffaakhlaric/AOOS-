@@ -8,7 +8,7 @@
 export interface AdMetricsDto {
   readonly spend: number;
   readonly clicks: number;
-  /** AAOS-TAMARA-PAGES redesign (coordinator note #3): mirrors `AdMetricsResponseDto.frequency` on the real `aaos-api` response — plumbed through so "Audit Biaya"'s "Audiens jenuh (frequency >= 3.5)" waste-detection section can work off real per-ad data, same pattern as `clicks`. */
+  /** AAOS-SAMANTHA-PAGES redesign (coordinator note #3): mirrors `AdMetricsResponseDto.frequency` on the real `aaos-api` response — plumbed through so "Audit Biaya"'s "Audiens jenuh (frequency >= 3.5)" waste-detection section can work off real per-ad data, same pattern as `clicks`. */
   readonly frequency: number;
   readonly conversations: number;
   readonly d2: number;
@@ -31,7 +31,7 @@ export interface CampaignAdDto {
   readonly branch: string;
   readonly verdict: string;
   readonly metrics: AdMetricsDto;
-  /** AAOS-TAMARA-PAGES redesign: mirrors `AdResponseDto.daysSinceCreation` on the real `aaos-api` response — powers "Audit Biaya"'s "Iklan Baru (last 14 days)" section. Optional (unlike `frequency`) rather than a required field on every existing fixture/caller: this app's other, already-shipped pages have no use for it, so widening every `CampaignAdDto`/`AdSummaryDto` literal across the codebase for one new section's sake isn't warranted — callers that need it check for `undefined`. */
+  /** AAOS-SAMANTHA-PAGES redesign: mirrors `AdResponseDto.daysSinceCreation` on the real `aaos-api` response — powers "Audit Biaya"'s "Iklan Baru (last 14 days)" section. Optional (unlike `frequency`) rather than a required field on every existing fixture/caller: this app's other, already-shipped pages have no use for it, so widening every `CampaignAdDto`/`AdSummaryDto` literal across the codebase for one new section's sake isn't warranted — callers that need it check for `undefined`. */
   readonly daysSinceCreation?: number;
 }
 
@@ -138,7 +138,7 @@ export interface CreativePackageDto {
   readonly decidedFormat?: CreativeFormatDto;
   readonly primaryMessage: string;
   readonly urgency: "HIGH" | "MEDIUM" | "LOW";
-  readonly origin: "MANUAL" | "TAMARA";
+  readonly origin: "MANUAL" | "SAMANTHA";
   readonly status: CreativePackageStatusDto;
   /** Real asset-library photo URLs found for this unit when generation started. */
   readonly sourcePhotoUrls: readonly string[];
@@ -215,8 +215,8 @@ export interface LeadDto {
   /**
    * MENU RESTRUCTURE FINAL widening — these were already present on `aaos-api`'s real
    * `LeadResponseDto` and forwarded verbatim by `/api/leads`'s passthrough JSON response; this
-   * type just hadn't modeled them yet. `leadSource` powers `/jessy/contacts`'s "Source" column;
-   * `assignedSalesId`/`lastMessageAt` power `/jessy/inbox`'s Human/Bot tab split (coordinator note
+   * type just hadn't modeled them yet. `leadSource` powers `/clara/contacts`'s "Source" column;
+   * `assignedSalesId`/`lastMessageAt` power `/clara/inbox`'s Human/Bot tab split (coordinator note
    * #3 — an `assignedSalesId` present is the real signal for an ACTIVE `assignments` row, since
    * this domain has no lead-assignment "release" path yet) and "Last Seen" column.
    */
@@ -226,7 +226,7 @@ export interface LeadDto {
 }
 
 /**
- * AAOS-CHAT-ROOM-JESSY — client-safe DTOs for the manager chat room (`/leads/[leadId]`), proxied
+ * AAOS-CHAT-ROOM-CLARA — client-safe DTOs for the manager chat room (`/leads/[leadId]`), proxied
  * via this app's own `/api/leads/[leadId]/*` routes to `aaos-api`'s real `LeadsController`
  * endpoints. Same "plain hand-written interface, never import a backend DTO" convention as every
  * other type in this file.
@@ -247,7 +247,7 @@ export interface MessageDto {
   readonly body?: string;
   readonly sentAt?: string;
   readonly createdAt: string;
-  /** Who authored an OUTGOING message — `"JESSY"` | `"SALES_HUMAN"` | `"MANAGER_INTERVENTION"`, `undefined` for every INCOMING message (always the lead). */
+  /** Who authored an OUTGOING message — `"CLARA"` | `"SALES_HUMAN"` | `"MANAGER_INTERVENTION"` | `"JESSY"` (legacy read-only value, pre-agent-rename rows only — never written going forward), `undefined` for every INCOMING message (always the lead). */
   readonly senderType?: string;
   readonly senderName?: string;
 }
@@ -276,9 +276,9 @@ export interface ScoringEventDto {
 
 /**
  * `GET /api/leads/:leadId/messages` (dashboard proxy) — mirrors `aaos-api`'s
- * `MessagesPageResponseDto` (MENU RESTRUCTURE FINAL `/jessy/inbox`). Paginated thread for one
+ * `MessagesPageResponseDto` (MENU RESTRUCTURE FINAL `/clara/inbox`). Paginated thread for one
  * lead's conversation, reusing the real `GET /api/v1/leads/:id/messages` endpoint the prior "Chat
- * Room Jessy" task built — never a new `/conversations` namespace.
+ * Room Clara" task built — never a new `/conversations` namespace.
  */
 export interface MessagesPageDto {
   readonly messages: readonly MessageDto[];
@@ -333,8 +333,8 @@ export interface ClosingDto {
 }
 
 /**
- * `GET /api/jessy/analytics?days=` (dashboard proxy) — mirrors `aaos-api`'s real
- * `LeadsAnalyticsResponseDto` (MENU RESTRUCTURE FINAL `/jessy/analytics`). Every field is real,
+ * `GET /api/clara/analytics?days=` (dashboard proxy) — mirrors `aaos-api`'s real
+ * `LeadsAnalyticsResponseDto` (MENU RESTRUCTURE FINAL `/clara/analytics`). Every field is real,
  * computed server-side from `@aos/lead-store`'s `leads`/`conversations`/`messages` data — never
  * fabricated client-side math.
  */
@@ -359,7 +359,7 @@ export interface ApiErrorBody {
 }
 
 /**
- * `/api/llm/*` DTOs (AAOS-TAMARA-PAGES redesign) — client-safe mirrors of the `aaos-api` LLM
+ * `/api/llm/*` DTOs (AAOS-SAMANTHA-PAGES redesign) — client-safe mirrors of the `aaos-api` LLM
  * module's response shapes documented in `docs/PROMPT-AAOS-API-LLM-TAMARA.md` (built by a sibling
  * task; this app's `/api/llm/*` routes proxy to it). Kept as plain hand-written interfaces for the
  * same reason as every other DTO in this file — see this file's own top docstring.
@@ -411,7 +411,7 @@ export interface LlmChatResponseDto {
  * "plain hand-written interface, never import a backend DTO" convention as this file's other
  * `Llm*Dto` types.
  */
-export interface SimulationTamaraStageDto {
+export interface SimulationSamanthaStageDto {
   readonly available: boolean;
   readonly reason?: string;
   readonly temuan?: readonly LlmTemuanDto[];
@@ -423,7 +423,7 @@ export interface SimulationTamaraStageDto {
 }
 
 /**
- * One REAL Meta interest Tamara selected (AAOS-SIMULASI-TARGETING). Every value here — including
+ * One REAL Meta interest Samantha selected (AAOS-SIMULASI-TARGETING). Every value here — including
  * both audience-size bounds — is Meta's own, originally fetched by a live
  * `GET /search?type=adinterest` call and stored in `meta_interests`. The dashboard never computes,
  * rounds, or estimates an audience size.
@@ -511,7 +511,7 @@ export interface SimulationKaiStageDto {
   readonly promptDetail?: SimulationKaiPromptDetailDto;
 }
 
-export interface SimulationJessyPersonaRunDto {
+export interface SimulationClaraPersonaRunDto {
   readonly personaId: string;
   readonly ok: boolean;
   readonly error?: string;
@@ -525,26 +525,26 @@ export interface SimulationJessyPersonaRunDto {
   readonly feedbackItems?: ReadonlyArray<{ readonly dimension: string; readonly message: string }>;
 }
 
-export interface SimulationJessyStageDto {
+export interface SimulationClaraStageDto {
   readonly available: boolean;
   readonly reason?: string;
-  readonly runs: readonly SimulationJessyPersonaRunDto[];
+  readonly runs: readonly SimulationClaraPersonaRunDto[];
   readonly elapsedMs: number;
 }
 
 export interface SimulationScoringDto {
-  readonly tamaraCoverageScore: number;
+  readonly samanthaCoverageScore: number;
   readonly kaiScore: number;
-  readonly jessyScore: number;
+  readonly claraScore: number;
   readonly overallScore: number;
   readonly grade: "A" | "B" | "C" | "D" | "F";
   readonly verdict: "GO" | "CONDITIONAL" | "NO-GO" | "INCOMPLETE";
 }
 
 export interface SimulationResultDto {
-  readonly tamara: SimulationTamaraStageDto;
+  readonly samantha: SimulationSamanthaStageDto;
   readonly kai: SimulationKaiStageDto;
-  readonly jessy: SimulationJessyStageDto;
+  readonly clara: SimulationClaraStageDto;
   readonly scoring: SimulationScoringDto;
 }
 
@@ -598,11 +598,11 @@ export interface SimulationHistoryEntryDto {
 /**
  * Client-safe mirror of `apps/aaos-simulator`'s `POST /api/simulate` response (proxied via this
  * app's own `/api/simulator-run` route) — used by Step 4's standalone "coba satu persona" preview,
- * independent of the full orchestrated `/api/simulation/*` pipeline. Prefixed `Jessy*` (not
+ * independent of the full orchestrated `/api/simulation/*` pipeline. Prefixed `Clara*` (not
  * `Simulation*`) to avoid clashing with the `Simulation*Dto` family above, which describes THIS
  * app's own `aaos-api`-backed pipeline record, not `aaos-simulator`'s raw response.
  */
-export interface JessySimulationRunDto {
+export interface ClaraSimulationRunDto {
   readonly finalScore: number;
   readonly finalTemperature: string;
   readonly handoffTriggered: boolean;
@@ -780,7 +780,7 @@ export interface CalendarEventDto {
 
 /**
  * `/api/recycling*` DTOs (AAOS-LEAD-RECYCLING-BROADCAST) — client-safe mirrors of `aaos-api`'s
- * real `recycling` module response DTOs. Powers `/jessy/recycling`'s 3 tabs.
+ * real `recycling` module response DTOs. Powers `/clara/recycling`'s 3 tabs.
  */
 export interface RecyclingPoolLeadDto {
   readonly id: string;
@@ -953,7 +953,7 @@ export interface LookalikeSyncResultDto {
 }
 
 /**
- * `/api/intelligence*` + `/api/competitors*` DTOs (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 5) —
+ * `/api/intelligence*` + `/api/competitors*` DTOs (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 5) —
  * client-safe mirrors of `aaos-api`'s real `intelligence` module response DTOs. Powers the
  * Strategi page's "Intelligence Signals" card + Settings' competitor-pages management.
  *

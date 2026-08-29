@@ -360,7 +360,7 @@ export function AnalisaClient(): React.ReactElement {
         </button>
         {ai.status === "loading" ? (
           <p data-testid="ai-loading" className={styles.mutedText}>
-            Tamara sedang menganalisa data iklan…
+            Samantha sedang menganalisa data iklan…
           </p>
         ) : null}
         {ai.status === "no-key" ? (
@@ -392,7 +392,7 @@ export function AnalisaClient(): React.ReactElement {
               </ul>
             </div>
             <div>
-              <p className={styles.aiResultLabel}>Ringkasan Tamara</p>
+              <p className={styles.aiResultLabel}>Ringkasan Samantha</p>
               <p className={styles.aiResultItem}>{ai.result.ringkasan}</p>
             </div>
           </div>

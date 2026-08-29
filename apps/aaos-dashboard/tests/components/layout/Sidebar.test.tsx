@@ -52,21 +52,21 @@ describe("Sidebar", () => {
     expect(link).toHaveAttribute("href", "/listings");
   });
 
-  it("renders the Lead Recycling nav item under JESSY (SALES AI), for both verticals", () => {
+  it("renders the Lead Recycling nav item under CLARA (SALES AI), for both verticals", () => {
     mockSettingsFetch(undefined);
     render(<Sidebar />);
     const link = screen.getByText("Lead Recycling").closest("a");
-    expect(link).toHaveAttribute("href", "/jessy/recycling");
+    expect(link).toHaveAttribute("href", "/clara/recycling");
   });
 
-  it("renders the A/B Testing nav item under TAMARA (META ADS)", () => {
+  it("renders the A/B Testing nav item under SAMANTHA (META ADS)", () => {
     mockSettingsFetch(undefined);
     render(<Sidebar />);
     const link = screen.getByText("A/B Testing").closest("a");
     expect(link).toHaveAttribute("href", "/meta-ads/abtesting");
   });
 
-  it("renders the Lookalike Audience nav item under TAMARA (META ADS)", () => {
+  it("renders the Lookalike Audience nav item under SAMANTHA (META ADS)", () => {
     mockSettingsFetch(undefined);
     render(<Sidebar />);
     const link = screen.getByText("Lookalike Audience").closest("a");

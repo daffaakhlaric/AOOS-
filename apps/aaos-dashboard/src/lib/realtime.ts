@@ -4,7 +4,7 @@ import { createSupabaseBrowserClient } from "./supabase";
 import type { MessageDto, ScoringEventDto } from "@/types/dashboard.types";
 
 /**
- * AAOS-CHAT-ROOM-JESSY — this app's FIRST direct-Supabase-Realtime subscription (its `lib/
+ * AAOS-CHAT-ROOM-CLARA — this app's FIRST direct-Supabase-Realtime subscription (its `lib/
  * supabase.ts`'s `createSupabaseBrowserClient()` was, until now, used only for the auth session —
  * see that file's own docstring on "the one exception to this app's proxy-everything-through-
  * aaos-api architecture"). This makes Realtime the SECOND such exception, per coordinator note #3

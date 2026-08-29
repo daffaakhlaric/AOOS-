@@ -25,17 +25,17 @@
   flex-shrink: 0;
   padding: 6px 14px;
   background: var(--white);
-  border: 1px solid var(--tamara-orange, #e8580c);
+  border: 1px solid var(--samantha-orange, #e8580c);
   border-radius: var(--radius);
   font-size: 12px;
   font-weight: 500;
-  color: var(--tamara-orange, #e8580c);
+  color: var(--samantha-orange, #e8580c);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .refreshButton:hover {
-  background: var(--tamara-orange-light, #fef3ee);
+  background: var(--samantha-orange-light, #fef3ee);
 }
 
 .refreshButton:disabled {

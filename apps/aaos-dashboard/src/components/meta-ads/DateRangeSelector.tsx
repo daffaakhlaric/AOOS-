@@ -17,7 +17,7 @@ export interface DateRangeSelectorProps {
  * free-text dates, since that's the parameter `GET /api/v1/campaigns` actually accepts — the
  * TOTAL UI REBUILD spec's own "=== TOOLBAR === Date inputs" slot has no corresponding backend
  * query capability either, the same judgment call made three times before this session for the
- * MAAO2/Tamara-pages/UI-overhaul tasks). This restyles the EXISTING preset control into the new
+ * MAAO2/Samantha-pages/UI-overhaul tasks). This restyles the EXISTING preset control into the new
  * toolbar's "Date inputs" visual slot (spec: "Same style as snapshot selector") rather than adding
  * non-functional free-text date pickers.
  */

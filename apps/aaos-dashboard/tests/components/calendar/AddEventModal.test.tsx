@@ -9,14 +9,14 @@ describe("AddEventModal", () => {
     vi.restoreAllMocks();
   });
 
-  it("only lists the 6 supported event types (grouped Tamara/Kai/Operasional/Jessy)", () => {
+  it("only lists the 6 supported event types (grouped Samantha/Kai/Operasional/Clara)", () => {
     render(<AddEventModal onClose={vi.fn()} onSaved={vi.fn()} />);
     const select = screen.getByLabelText("Tipe Aktivitas") as HTMLSelectElement;
     const optionValues = Array.from(select.options).map((option) => option.value);
     expect(optionValues.sort()).toEqual(
       [
-        "TAMARA_ANALYZE",
-        "TAMARA_PULL_DATA",
+        "SAMANTHA_ANALYZE",
+        "SAMANTHA_PULL_DATA",
         "DAILY_DIGEST",
         "KAI_REFRESH_CHECK",
         "SCRAPER_RUN",
@@ -77,7 +77,7 @@ describe("AddEventModal", () => {
       recurrence: string;
       scheduledAt: string;
     };
-    expect(body.eventType).toBe("TAMARA_ANALYZE");
+    expect(body.eventType).toBe("SAMANTHA_ANALYZE");
     expect(body.recurrence).toBe("ONCE");
     expect(body.scheduledAt).toMatch(/^\d{4}-\d{2}-\d{2}T06:00:00\+07:00$/);
   });

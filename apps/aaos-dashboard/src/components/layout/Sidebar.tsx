@@ -24,7 +24,7 @@ const ANALISA: NavItem = {
   icon: "🎯",
 };
 const STRATEGI: NavItem = { href: "/meta-ads/strategi", label: "Strategi & Approve", icon: "🧭" };
-/** AAOS-ABTESTING-LOOKALIKE Part 1 — Tamara's auto A/B test creative page, per the spec's own menu mockup ("🔬 A/B Testing", placed right before Simulasi). */
+/** AAOS-ABTESTING-LOOKALIKE Part 1 — Samantha's auto A/B test creative page, per the spec's own menu mockup ("🔬 A/B Testing", placed right before Simulasi). */
 const ABTESTING: NavItem = { href: "/meta-ads/abtesting", label: "A/B Testing", icon: "🔬" };
 /** AAOS-ABTESTING-LOOKALIKE Part 2 — hot-leads-based Lookalike Audience page, per the spec's own menu mockup ("👥 Lookalike Audience", placed right after A/B Testing, before Simulasi). */
 const LOOKALIKE: NavItem = {
@@ -34,15 +34,15 @@ const LOOKALIKE: NavItem = {
 };
 const SIMULASI: NavItem = {
   href: "/meta-ads/simulasi",
-  label: "Simulasi Tamara × Kai × Jessy",
+  label: "Simulasi Samantha × Kai × Clara",
   icon: "🎬",
 };
 const OBJECTIVE: NavItem = { href: "/objective", label: "Objective", icon: "🎯" };
 /**
  * MENU RESTRUCTURE FINAL: `/leads` (the old flat leads list + `/leads/[leadId]` chat room) is
- * fully retired — replaced by the JESSY group's `JESSY_INBOX`/`JESSY_CONTACTS` below (coordinator
- * note #2's "rebuild fully as `/jessy/inbox`, not keep the split-panel `/leads/[leadId]`").
- * `middleware.ts` redirects `/leads` → `/jessy/inbox` for any stale bookmark/link.
+ * fully retired — replaced by the CLARA group's `CLARA_INBOX`/`CLARA_CONTACTS` below (coordinator
+ * note #2's "rebuild fully as `/clara/inbox`, not keep the split-panel `/leads/[leadId]`").
+ * `middleware.ts` redirects `/leads` → `/clara/inbox` for any stale bookmark/link.
  */
 const CREATIVE: NavItem = { href: "/creative", label: "Creative Review", icon: "🎨" };
 const SCRAPER_MOBIX: NavItem = { href: "/assets/scraper", label: "Scraper Mobix", icon: "📸" };
@@ -55,16 +55,16 @@ const GO_LIVE: NavItem = { href: "/go-live", label: "Go Live Monitor", icon: "�
 /** AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Part 2/4 — Meta token + WABA CRUD, added to OPERASIONAL per the coordinator note's Phase 1 scope. */
 const SETTINGS: NavItem = { href: "/settings", label: "Settings", icon: "⚙️" };
 
-/** JESSY (SALES AI) group — MENU RESTRUCTURE FINAL. `/knowledge`/`/simulator` moved here from OPERASIONAL. */
-const JESSY_ANALYTICS: NavItem = { href: "/jessy/analytics", label: "Analytics", icon: "📊" };
-const JESSY_INBOX: NavItem = { href: "/jessy/inbox", label: "Inbox", icon: "💬" };
-const JESSY_CONTACTS: NavItem = { href: "/jessy/contacts", label: "Contacts", icon: "👥" };
-const KNOWLEDGE: NavItem = { href: "/jessy/knowledge", label: "Knowledge Base", icon: "📚" };
-const SIMULATOR: NavItem = { href: "/jessy/simulator", label: "Simulator", icon: "🎮" };
-/** AAOS-LEAD-RECYCLING-BROADCAST — Jessy's COLD/WARM lead re-engagement broadcast page. */
-const RECYCLING: NavItem = { href: "/jessy/recycling", label: "Lead Recycling", icon: "♻️" };
+/** CLARA (SALES AI) group — MENU RESTRUCTURE FINAL. `/knowledge`/`/simulator` moved here from OPERASIONAL. */
+const CLARA_ANALYTICS: NavItem = { href: "/clara/analytics", label: "Analytics", icon: "📊" };
+const CLARA_INBOX: NavItem = { href: "/clara/inbox", label: "Inbox", icon: "💬" };
+const CLARA_CONTACTS: NavItem = { href: "/clara/contacts", label: "Contacts", icon: "👥" };
+const KNOWLEDGE: NavItem = { href: "/clara/knowledge", label: "Knowledge Base", icon: "📚" };
+const SIMULATOR: NavItem = { href: "/clara/simulator", label: "Simulator", icon: "🎮" };
+/** AAOS-LEAD-RECYCLING-BROADCAST — Clara's COLD/WARM lead re-engagement broadcast page. */
+const RECYCLING: NavItem = { href: "/clara/recycling", label: "Lead Recycling", icon: "♻️" };
 
-/** SOSIAL MEDIA group — AAOS-SOSMED-AUTOMATION Phase 5, per the spec's own menu mockup ("📱 SOSIAL MEDIA ← BARU (section terpisah)", placed between JESSY and KAI). */
+/** SOSIAL MEDIA group — AAOS-SOSMED-AUTOMATION Phase 5, per the spec's own menu mockup ("📱 SOSIAL MEDIA ← BARU (section terpisah)", placed between CLARA and KAI). */
 const SOSMED_DASHBOARD: NavItem = { href: "/sosmed", label: "Dashboard Sosmed", icon: "📊" };
 const SOSMED_CALENDAR: NavItem = {
   href: "/sosmed/calendar",
@@ -83,10 +83,10 @@ const SOSMED_ACCOUNTS: NavItem = { href: "/sosmed/accounts", label: "Akun Terhub
 /**
  * Flat list of every nav item — the order `MobileNav.tsx` slices `[0, 5)` from for its bottom tab
  * bar. Deliberately NOT the same order as the desktop `Sidebar`'s group order below
- * (`NAV_GROUPS`): the mobile bar only ever shows 5 items. `JESSY_INBOX` replaces the retired
+ * (`NAV_GROUPS`): the mobile bar only ever shows 5 items. `CLARA_INBOX` replaces the retired
  * `LEADS` item in this list (same highest-traffic-page precedent as before this restructure —
- * Overview, Data Iklan, Objective, Creative Review, and now the Jessy Inbox that replaced the
- * plain leads list) rather than letting the new Tamara/Jessy sub-pages crowd this 5-slot bar.
+ * Overview, Data Iklan, Objective, Creative Review, and now the Clara Inbox that replaced the
+ * plain leads list) rather than letting the new Samantha/Clara sub-pages crowd this 5-slot bar.
  * Desktop `Sidebar` renders from `NAV_GROUPS` instead, so this ordering choice only affects
  * mobile.
  */
@@ -95,7 +95,7 @@ const NAV_ITEMS = [
   DATA_IKLAN,
   OBJECTIVE,
   CREATIVE,
-  JESSY_INBOX,
+  CLARA_INBOX,
   AUDIT_BIAYA,
   ANALISA,
   STRATEGI,
@@ -115,9 +115,9 @@ export interface NavGroup {
  * Grouped sidebar structure — MENU RESTRUCTURE FINAL (`docs/PROMPT-AAOS-MENU-RESTRUCTURE-
  * FINAL.md`): "Overview" standalone at the top (NO section header, coordinator note #1 — real
  * route stays `/dashboard`, only this sidebar item's label/position changed), followed by 4
- * collapsible sections: TAMARA (META ADS) / JESSY (SALES AI) / KAI (CREATIVE) / OPERASIONAL.
- * JESSY is new — 5 pages (`/jessy/analytics`, `/jessy/inbox`, `/jessy/contacts`,
- * `/jessy/knowledge` moved from `/knowledge`, `/jessy/simulator` moved from `/simulator`). KAI is
+ * collapsible sections: SAMANTHA (META ADS) / CLARA (SALES AI) / KAI (CREATIVE) / OPERASIONAL.
+ * CLARA is new — 5 pages (`/clara/analytics`, `/clara/inbox`, `/clara/contacts`,
+ * `/clara/knowledge` moved from `/knowledge`, `/clara/simulator` moved from `/simulator`). KAI is
  * new — splits `CREATIVE`/`SCRAPER_MOBIX`/`ASSET_LIBRARY` out of the old flat OPERASIONAL group,
  * which they were only ever loosely grouped under before. OPERASIONAL keeps `OBJECTIVE`/
  * `BRANCHES` and gains `GO_LIVE` (coordinator note #5 — real page, honestly always-empty for now).
@@ -128,7 +128,7 @@ export interface NavGroup {
  * (CREATIVE)" -> "KAI (CREATIVE) — Properti") and `SCRAPER_MOBIX` (`/assets/scraper`, which reads
  * from the automotive-only scraper) is replaced by `LISTING_MANAGER` (`/listings`, spec Part 3's
  * "🏘️ KAI ... 🏠 Listing Manager /listings ← BARU (replace Scraper)"). Every other group is
- * identical across verticals ("TAMARA"/"JESSY" sections are spec-confirmed "sama seperti
+ * identical across verticals ("SAMANTHA"/"CLARA" sections are spec-confirmed "sama seperti
  * Automotive"). `vertical` defaults to `undefined` (unresolved yet, see `Sidebar`'s fetch effect
  * below) — AUTOMOTIVE's real, already-shipped nav is shown until the real vertical is known, never
  * a flash of the PROPERTY nav for the common (AUTOMOTIVE) case.
@@ -138,14 +138,14 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
   return [
     { key: "top", items: [OVERVIEW] },
     {
-      key: "tamara",
-      label: "TAMARA (META ADS)",
+      key: "samantha",
+      label: "SAMANTHA (META ADS)",
       items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, STRATEGI, ABTESTING, LOOKALIKE, SIMULASI],
     },
     {
-      key: "jessy",
-      label: "JESSY (SALES AI)",
-      items: [JESSY_ANALYTICS, JESSY_INBOX, JESSY_CONTACTS, KNOWLEDGE, SIMULATOR, RECYCLING],
+      key: "clara",
+      label: "CLARA (SALES AI)",
+      items: [CLARA_ANALYTICS, CLARA_INBOX, CLARA_CONTACTS, KNOWLEDGE, SIMULATOR, RECYCLING],
     },
     {
       key: "sosmed",
@@ -179,14 +179,14 @@ function isActive(pathname: string | null, href: string): boolean {
 }
 
 /**
- * TREMOR REBUILD spec STEP 3 ("Save state to localStorage: `sidebar_tamara`, `sidebar_ops`") — a
+ * TREMOR REBUILD spec STEP 3 ("Save state to localStorage: `sidebar_samantha`, `sidebar_ops`") — a
  * genuine, net-new addition (coordinator note #10): the collapse state above already existed but
  * was never persisted. One `localStorage` key per collapsible group, storing just `"true"`/
  * `"false"` (not a single combined JSON blob) so the two keys match the spec's exact literal names.
  */
 const STORAGE_KEY_BY_GROUP: Readonly<Record<string, string>> = {
-  tamara: "sidebar_tamara",
-  jessy: "sidebar_jessy",
+  samantha: "sidebar_samantha",
+  clara: "sidebar_clara",
   sosmed: "sidebar_sosmed",
   kai: "sidebar_kai",
   operasional: "sidebar_ops",
@@ -219,9 +219,9 @@ function writeStoredCollapsed(storageKey: string, collapsed: boolean): void {
 
 /**
  * Desktop navigation sidebar (spec "components/layout/Sidebar.tsx") — hidden below `md`, where
- * `MobileNav` takes over (spec "Mobile responsive"). Grouped into TAMARA (META ADS) / JESSY
+ * `MobileNav` takes over (spec "Mobile responsive"). Grouped into SAMANTHA (META ADS) / CLARA
  * (SALES AI) / KAI (CREATIVE) / OPERASIONAL sections (MENU RESTRUCTURE FINAL, superseding the
- * earlier AAOS-TAMARA-PAGES 2-group layout). "Lead & Spend per Cabang × Source" has no nav item of
+ * earlier AAOS-SAMANTHA-PAGES 2-group layout). "Lead & Spend per Cabang × Source" has no nav item of
  * its own — it's embedded at the top of Data Iklan (`DATA_IKLAN`'s own page), not a separate
  * route (user feedback: "itu data ada di halaman data iklan jadi di paling atas").
  *
