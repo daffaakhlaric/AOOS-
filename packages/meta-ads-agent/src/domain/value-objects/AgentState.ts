@@ -1,4 +1,4 @@
-/** Tamara's current lifecycle state within a single `RunOptimizationCycle`. */
+/** Samantha's current lifecycle state within a single `RunOptimizationCycle`. */
 export enum AgentState {
   IDLE = "IDLE",
   ANALYZING = "ANALYZING",

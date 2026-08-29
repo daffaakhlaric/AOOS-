@@ -22,10 +22,10 @@ export interface AnglePerformanceRecord {
 }
 
 /**
- * Tamara's in-memory learning state — a plain `Map`-based accumulator, per spec: "Memory is reset
- * on each `TamaraAgentFactory.create()` call — no persistence between sessions. Memory
- * accumulates within a session as Tamara runs multiple optimization cycles." Owned by exactly one
- * `TamaraAgentService` instance (created fresh by `TamaraAgentFactory.create()`); every mutating
+ * Samantha's in-memory learning state — a plain `Map`-based accumulator, per spec: "Memory is reset
+ * on each `SamanthaAgentFactory.create()` call — no persistence between sessions. Memory
+ * accumulates within a session as Samantha runs multiple optimization cycles." Owned by exactly one
+ * `SamanthaAgentService` instance (created fresh by `SamanthaAgentFactory.create()`); every mutating
  * method here is defensive and never throws, matching the package's zero-throw discipline even
  * though this class does not itself perform business-rule validation (it is a pure accumulator,
  * not a Value Object).

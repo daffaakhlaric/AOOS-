@@ -12,14 +12,14 @@ describe("public API surface (src/index.ts, spec 'Public API')", () => {
     expect(ClosingTracker.GetCampaignAttribution).toBeDefined();
     expect(ClosingTracker.GetBranchPerformance).toBeDefined();
     expect(ClosingTracker.GetUnitPerformance).toBeDefined();
-    expect(ClosingTracker.FeedToTamara).toBeDefined();
+    expect(ClosingTracker.FeedToSamantha).toBeDefined();
     expect(ClosingTracker.CheckObjectiveCompletion).toBeDefined();
     expect(ClosingTracker.GetClosingPipeline).toBeDefined();
   });
 
-  it("exports ClosingAggregatorService and TamaraFeedService (spec-listed services)", () => {
+  it("exports ClosingAggregatorService and SamanthaFeedService (spec-listed services)", () => {
     expect(ClosingTracker.ClosingAggregatorService).toBeDefined();
-    expect(ClosingTracker.TamaraFeedService).toBeDefined();
+    expect(ClosingTracker.SamanthaFeedService).toBeDefined();
   });
 
   it("exports AttributionEngineService and ReportGeneratorService (folder-structure services)", () => {

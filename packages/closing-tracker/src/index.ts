@@ -14,8 +14,8 @@ export { GetBranchPerformance } from "./application/use-cases/GetBranchPerforman
 export type { GetBranchPerformanceInput } from "./application/use-cases/GetBranchPerformance.js";
 export { GetUnitPerformance } from "./application/use-cases/GetUnitPerformance.js";
 export type { GetUnitPerformanceInput } from "./application/use-cases/GetUnitPerformance.js";
-export { FeedToTamara } from "./application/use-cases/FeedToTamara.js";
-export type { FeedToTamaraInput } from "./application/use-cases/FeedToTamara.js";
+export { FeedToSamantha } from "./application/use-cases/FeedToSamantha.js";
+export type { FeedToSamanthaInput } from "./application/use-cases/FeedToSamantha.js";
 export { CheckObjectiveCompletion } from "./application/use-cases/CheckObjectiveCompletion.js";
 export type {
   CheckObjectiveCompletionInput,
@@ -32,14 +32,14 @@ export type {
   CampaignMeta,
 } from "./application/services/AttributionEngineService.js";
 export { ReportGeneratorService } from "./application/services/ReportGeneratorService.js";
-export { TamaraFeedService } from "./application/services/TamaraFeedService.js";
+export { SamanthaFeedService } from "./application/services/SamanthaFeedService.js";
 export type {
-  TamaraFeedData,
-  TamaraCampaignSignal,
-  TamaraBranchSignal,
-  TamaraObjectiveStatus,
+  SamanthaFeedData,
+  SamanthaCampaignSignal,
+  SamanthaBranchSignal,
+  SamanthaObjectiveStatus,
   BudgetRecommendation,
-} from "./application/services/TamaraFeedService.js";
+} from "./application/services/SamanthaFeedService.js";
 
 // Builders
 export { ClosingReportBuilder } from "./builders/ClosingReportBuilder.js";

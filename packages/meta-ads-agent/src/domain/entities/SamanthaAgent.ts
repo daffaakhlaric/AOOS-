@@ -3,39 +3,39 @@ import { ValidationError } from "@aos/errors";
 
 import { AgentState } from "../value-objects/AgentState.js";
 
-export interface TamaraAgentProps {
+export interface SamanthaAgentProps {
   readonly id: string;
   readonly tenantId: string;
-  readonly name: "Tamara";
+  readonly name: "Samantha";
   readonly state: AgentState;
   readonly createdAt: Date;
   readonly lastCycleAt?: Date;
   readonly cycleCount: number;
 }
 
-/** The agent itself — Tamara's identity and lifecycle state across `RunOptimizationCycle` calls. */
-export class TamaraAgent {
-  private constructor(private readonly props: TamaraAgentProps) {}
+/** The agent itself — Samantha's identity and lifecycle state across `RunOptimizationCycle` calls. */
+export class SamanthaAgent {
+  private constructor(private readonly props: SamanthaAgentProps) {}
 
-  static create(props: TamaraAgentProps): Result<TamaraAgent, ValidationError> {
+  static create(props: SamanthaAgentProps): Result<SamanthaAgent, ValidationError> {
     if (typeof props.tenantId !== "string" || props.tenantId.trim().length === 0) {
-      return err(new ValidationError("TamaraAgent.tenantId must be a non-empty string"));
+      return err(new ValidationError("SamanthaAgent.tenantId must be a non-empty string"));
     }
     if (!Object.values(AgentState).includes(props.state)) {
       return err(
         new ValidationError(
-          `TamaraAgent.state must be a valid AgentState, received: ${String(props.state)}`,
+          `SamanthaAgent.state must be a valid AgentState, received: ${String(props.state)}`,
         ),
       );
     }
     if (!Number.isInteger(props.cycleCount) || props.cycleCount < 0) {
       return err(
         new ValidationError(
-          `TamaraAgent.cycleCount must be a non-negative integer, received: ${String(props.cycleCount)}`,
+          `SamanthaAgent.cycleCount must be a non-negative integer, received: ${String(props.cycleCount)}`,
         ),
       );
     }
-    return ok(new TamaraAgent({ ...props }));
+    return ok(new SamanthaAgent({ ...props }));
   }
 
   get id(): string {
@@ -46,7 +46,7 @@ export class TamaraAgent {
     return this.props.tenantId;
   }
 
-  get name(): "Tamara" {
+  get name(): "Samantha" {
     return this.props.name;
   }
 
@@ -66,14 +66,14 @@ export class TamaraAgent {
     return this.props.cycleCount;
   }
 
-  /** Returns a new TamaraAgent transitioned to `state` — never mutates `this`. */
-  transitionTo(state: AgentState): TamaraAgent {
-    return new TamaraAgent({ ...this.props, state });
+  /** Returns a new SamanthaAgent transitioned to `state` — never mutates `this`. */
+  transitionTo(state: AgentState): SamanthaAgent {
+    return new SamanthaAgent({ ...this.props, state });
   }
 
-  /** Returns a new TamaraAgent recording a completed cycle: increments `cycleCount`, stamps `lastCycleAt`, and returns to IDLE. */
-  completeCycle(at: Date): TamaraAgent {
-    return new TamaraAgent({
+  /** Returns a new SamanthaAgent recording a completed cycle: increments `cycleCount`, stamps `lastCycleAt`, and returns to IDLE. */
+  completeCycle(at: Date): SamanthaAgent {
+    return new SamanthaAgent({
       ...this.props,
       state: AgentState.IDLE,
       lastCycleAt: at,

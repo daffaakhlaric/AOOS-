@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { AttributionEngineService } from "../../../src/application/services/AttributionEngineService.js";
 import { ClosingAggregatorService } from "../../../src/application/services/ClosingAggregatorService.js";
 import { ReportGeneratorService } from "../../../src/application/services/ReportGeneratorService.js";
-import { TamaraFeedService } from "../../../src/application/services/TamaraFeedService.js";
-import { FeedToTamara } from "../../../src/application/use-cases/FeedToTamara.js";
+import { SamanthaFeedService } from "../../../src/application/services/SamanthaFeedService.js";
+import { FeedToSamantha } from "../../../src/application/use-cases/FeedToSamantha.js";
 import { ClosingTrackerEvents } from "../../../src/domain/events/ClosingTrackerEvents.js";
 import {
   FakeCampaignActivityProvider,
@@ -28,15 +28,15 @@ function buildUseCase(
   const aggregator = new ClosingAggregatorService(repo, makeGetClosingStats(repo, spendByCampaign));
   const engine = new AttributionEngineService(campaignActivityProvider, config);
   const reportGenerator = new ReportGeneratorService(aggregator, engine, config, fixedClock());
-  const tamaraFeedService = new TamaraFeedService();
+  const samanthaFeedService = new SamanthaFeedService();
   const publisher = createFakePublisher();
   const events = new ClosingTrackerEvents(publisher);
-  const useCase = new FeedToTamara(reportGenerator, tamaraFeedService, events, fixedClock());
+  const useCase = new FeedToSamantha(reportGenerator, samanthaFeedService, events, fixedClock());
   return { useCase, publisher };
 }
 
-describe("FeedToTamara (integration)", () => {
-  it("generates TamaraFeedData with correct campaign/branch/objective signals", async () => {
+describe("FeedToSamantha (integration)", () => {
+  it("generates SamanthaFeedData with correct campaign/branch/objective signals", async () => {
     const repo = new FakeClosingRepository();
     repo.seed([
       makeClosing({
@@ -174,7 +174,7 @@ describe("FeedToTamara (integration)", () => {
     const aggregator = new ClosingAggregatorService(repo, makeGetClosingStats(repo));
     const engine = new AttributionEngineService(new FakeCampaignActivityProvider(), config);
     const reportGenerator = new ReportGeneratorService(aggregator, engine, config, fixedClock());
-    const fakeTamaraFeedService = {
+    const fakeSamanthaFeedService = {
       build: () => ({
         period: makePeriod(8, 2026),
         campaignSignals: [
@@ -192,9 +192,9 @@ describe("FeedToTamara (integration)", () => {
       }),
     };
     const publisher = createFakePublisher();
-    const useCase = new FeedToTamara(
+    const useCase = new FeedToSamantha(
       reportGenerator,
-      fakeTamaraFeedService as TamaraFeedService,
+      fakeSamanthaFeedService as SamanthaFeedService,
       new ClosingTrackerEvents(publisher),
       fixedClock(),
     );
@@ -217,11 +217,11 @@ describe("FeedToTamara (integration)", () => {
     const aggregator = new ClosingAggregatorService(repo, makeGetClosingStats(repo));
     const engine = new AttributionEngineService(new FakeCampaignActivityProvider(), config);
     const reportGenerator = new ReportGeneratorService(aggregator, engine, config, fixedClock());
-    const tamaraFeedService = new TamaraFeedService();
+    const samanthaFeedService = new SamanthaFeedService();
     const publisher = createFakePublisher();
-    const useCase = new FeedToTamara(
+    const useCase = new FeedToSamantha(
       reportGenerator,
-      tamaraFeedService,
+      samanthaFeedService,
       new ClosingTrackerEvents(publisher),
     );
 

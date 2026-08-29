@@ -63,7 +63,7 @@ export interface CampaignAttributionProps {
   readonly verdict: ClosingVerdict;
 }
 
-/** Closing performance attributed to one Meta campaign — the core Tamara feed-back unit (spec: "CampaignAttribution (Entity)"). */
+/** Closing performance attributed to one Meta campaign — the core Samantha feed-back unit (spec: "CampaignAttribution (Entity)"). */
 export class CampaignAttribution {
   private constructor(private readonly props: CampaignAttributionProps) {}
 

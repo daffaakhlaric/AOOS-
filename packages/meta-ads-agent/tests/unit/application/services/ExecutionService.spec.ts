@@ -56,7 +56,9 @@ describe("ExecutionService.execute", () => {
         accessToken: "token-123",
       }),
     );
-    expect(publisher.published.some((p) => p.type === "aaos.tamara.decision.executed")).toBe(true);
+    expect(publisher.published.some((p) => p.type === "aaos.samantha.decision.executed")).toBe(
+      true,
+    );
   });
 
   it("returns ExecutionError when ExecuteVerdict fails", async () => {
@@ -89,7 +91,9 @@ describe("ExecutionService.execute", () => {
     const result = await service.execute(portfolioDecision, "dss-motor", "corr-1");
     expect(result.ok).toBe(true);
     expect(executeVerdict.execute).not.toHaveBeenCalled();
-    expect(publisher.published.some((p) => p.type === "aaos.tamara.decision.executed")).toBe(true);
+    expect(publisher.published.some((p) => p.type === "aaos.samantha.decision.executed")).toBe(
+      true,
+    );
   });
 
   it("returns ExecutionError when a non-portfolio decision has no Verdict", async () => {

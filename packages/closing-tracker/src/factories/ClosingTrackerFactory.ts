@@ -9,9 +9,9 @@ import {
 } from "../application/services/AttributionEngineService.js";
 import { ClosingAggregatorService } from "../application/services/ClosingAggregatorService.js";
 import { ReportGeneratorService } from "../application/services/ReportGeneratorService.js";
-import { TamaraFeedService } from "../application/services/TamaraFeedService.js";
+import { SamanthaFeedService } from "../application/services/SamanthaFeedService.js";
 import { CheckObjectiveCompletion } from "../application/use-cases/CheckObjectiveCompletion.js";
-import { FeedToTamara } from "../application/use-cases/FeedToTamara.js";
+import { FeedToSamantha } from "../application/use-cases/FeedToSamantha.js";
 import { GenerateClosingReport } from "../application/use-cases/GenerateClosingReport.js";
 import { GetBranchPerformance } from "../application/use-cases/GetBranchPerformance.js";
 import { GetCampaignAttribution } from "../application/use-cases/GetCampaignAttribution.js";
@@ -63,13 +63,13 @@ export interface ClosingTracker {
   readonly getCampaignAttribution: GetCampaignAttribution;
   readonly getBranchPerformance: GetBranchPerformance;
   readonly getUnitPerformance: GetUnitPerformance;
-  readonly feedToTamara: FeedToTamara;
+  readonly feedToSamantha: FeedToSamantha;
   readonly checkObjectiveCompletion: CheckObjectiveCompletion;
   readonly getClosingPipeline: GetClosingPipeline;
   readonly closingAggregatorService: ClosingAggregatorService;
   readonly attributionEngineService: AttributionEngineService;
   readonly reportGeneratorService: ReportGeneratorService;
-  readonly tamaraFeedService: TamaraFeedService;
+  readonly samanthaFeedService: SamanthaFeedService;
 }
 
 /** The composition root (Factory Pattern) — wires every service and use case. Mirrors `@aos/lead-store`'s `LeadStoreFactory` / `@aos/objective-engine`'s `ObjectiveEngineFactory`. */
@@ -95,14 +95,19 @@ export class ClosingTrackerFactory {
       options.config,
       now,
     );
-    const tamaraFeedService = new TamaraFeedService();
+    const samanthaFeedService = new SamanthaFeedService();
     const events = new ClosingTrackerEvents(options.publisher);
 
     const generateClosingReport = new GenerateClosingReport(reportGeneratorService, events, now);
     const getCampaignAttribution = new GetCampaignAttribution(reportGeneratorService);
     const getBranchPerformance = new GetBranchPerformance(reportGeneratorService);
     const getUnitPerformance = new GetUnitPerformance(reportGeneratorService);
-    const feedToTamara = new FeedToTamara(reportGeneratorService, tamaraFeedService, events, now);
+    const feedToSamantha = new FeedToSamantha(
+      reportGeneratorService,
+      samanthaFeedService,
+      events,
+      now,
+    );
     const checkObjectiveCompletion = new CheckObjectiveCompletion(
       reportGeneratorService,
       events,
@@ -117,13 +122,13 @@ export class ClosingTrackerFactory {
       getCampaignAttribution,
       getBranchPerformance,
       getUnitPerformance,
-      feedToTamara,
+      feedToSamantha,
       checkObjectiveCompletion,
       getClosingPipeline,
       closingAggregatorService,
       attributionEngineService,
       reportGeneratorService,
-      tamaraFeedService,
+      samanthaFeedService,
     };
   }
 }

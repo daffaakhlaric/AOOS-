@@ -1,7 +1,7 @@
 import { BranchId } from "@aos/branch-manager";
 import { describe, expect, it } from "vitest";
 
-import { TamaraFeedService } from "../../../src/application/services/TamaraFeedService.js";
+import { SamanthaFeedService } from "../../../src/application/services/SamanthaFeedService.js";
 import { CampaignAttributionBuilder } from "../../../src/builders/CampaignAttributionBuilder.js";
 import { ClosingReportBuilder } from "../../../src/builders/ClosingReportBuilder.js";
 import { BranchPerformance } from "../../../src/domain/entities/BranchPerformance.js";
@@ -63,11 +63,11 @@ function buildReport(
   );
 }
 
-describe("TamaraFeedService (pinned business correctness)", () => {
+describe("SamanthaFeedService (pinned business correctness)", () => {
   it("campaign with 3 SPK, spend 3.6jt -> rphSpk=1.2jt -> SCALE", () => {
     const attribution = buildAttribution("#C047", 3_600_000, 3, "SCALE");
     const report = buildReport([attribution], []);
-    const service = new TamaraFeedService();
+    const service = new SamanthaFeedService();
 
     const feed = service.build(report, 10);
     expect(feed.campaignSignals[0]?.rphSpk).toBe(1_200_000);
@@ -77,7 +77,7 @@ describe("TamaraFeedService (pinned business correctness)", () => {
   it("campaign with 0 SPK, spend 2jt -> PAUSE", () => {
     const attribution = buildAttribution("#C999", 2_000_000, 0, "PAUSE");
     const report = buildReport([attribution], []);
-    const service = new TamaraFeedService();
+    const service = new SamanthaFeedService();
 
     const feed = service.build(report, 10);
     expect(feed.campaignSignals[0]?.verdict).toBe("PAUSE");
@@ -98,7 +98,7 @@ describe("TamaraFeedService (pinned business correctness)", () => {
     );
     expect(branch.closingRate.value).toBeCloseTo(0.35, 5);
     const report = buildReport([], [branch]);
-    const service = new TamaraFeedService();
+    const service = new SamanthaFeedService();
 
     const feed = service.build(report, 10);
     expect(feed.branchSignals[0]?.recommendation).toBe("INCREASE_BUDGET");
@@ -117,7 +117,7 @@ describe("TamaraFeedService (pinned business correctness)", () => {
       }),
     );
     const report = buildReport([], [branch]);
-    const service = new TamaraFeedService();
+    const service = new SamanthaFeedService();
 
     const feed = service.build(report, 10);
     expect(feed.branchSignals[0]?.recommendation).toBe("DECREASE_BUDGET");
@@ -136,7 +136,7 @@ describe("TamaraFeedService (pinned business correctness)", () => {
       }),
     );
     const report = buildReport([], [branch]);
-    const service = new TamaraFeedService();
+    const service = new SamanthaFeedService();
 
     const feed = service.build(report, 10);
     expect(feed.branchSignals[0]?.recommendation).toBe("MAINTAIN");
@@ -146,7 +146,7 @@ describe("TamaraFeedService (pinned business correctness)", () => {
     it("completionRate = achievedSpk/targetSpk, onTrack when target already met", () => {
       const attribution = buildAttribution("#C047", 1_000_000, 5, "SCALE");
       const report = buildReport([attribution], []);
-      const service = new TamaraFeedService();
+      const service = new SamanthaFeedService();
 
       const feed = service.build(report, 5);
       expect(feed.objectiveStatus.targetSpk).toBe(5);
@@ -158,7 +158,7 @@ describe("TamaraFeedService (pinned business correctness)", () => {
     it("onTrack is false when target not yet met", () => {
       const attribution = buildAttribution("#C047", 1_000_000, 2, "SCALE");
       const report = buildReport([attribution], []);
-      const service = new TamaraFeedService();
+      const service = new SamanthaFeedService();
 
       const feed = service.build(report, 5);
       expect(feed.objectiveStatus.onTrack).toBe(false);
@@ -167,7 +167,7 @@ describe("TamaraFeedService (pinned business correctness)", () => {
 
     it("completionRate is 0 (not NaN/Infinity) when targetSpk is 0", () => {
       const report = buildReport([], []);
-      const service = new TamaraFeedService();
+      const service = new SamanthaFeedService();
 
       const feed = service.build(report, 0);
       expect(feed.objectiveStatus.completionRate).toBe(0);

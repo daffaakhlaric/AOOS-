@@ -4,31 +4,33 @@ import type { IReportGenerator } from "../../contracts/IReportGenerator.js";
 import type { ClosingTrackerError } from "../../domain/errors/ClosingTrackerError.js";
 import type { ClosingTrackerEvents } from "../../domain/events/ClosingTrackerEvents.js";
 import type { ReportPeriod } from "../../domain/value-objects/ReportPeriod.js";
-import type { TamaraFeedService, TamaraFeedData } from "../services/TamaraFeedService.js";
+import type { SamanthaFeedService, SamanthaFeedData } from "../services/SamanthaFeedService.js";
 
-export interface FeedToTamaraInput {
+export interface FeedToSamanthaInput {
   readonly period: ReportPeriod;
   readonly targetSpk: number;
   readonly tenantId: string;
   readonly correlationId: string;
 }
 
-/** Pushes attribution/campaign-signal data to Tamara (`@aos/meta-ads-agent`) (spec: "FeedToTamara ← push attribution to meta-ads-agent"). Emits one `CampaignAttributed` event per campaign signal. */
-export class FeedToTamara {
+/** Pushes attribution/campaign-signal data to Samantha (`@aos/meta-ads-agent`) (spec: "FeedToSamantha ← push attribution to meta-ads-agent"). Emits one `CampaignAttributed` event per campaign signal. */
+export class FeedToSamantha {
   constructor(
     private readonly reportGenerator: IReportGenerator,
-    private readonly tamaraFeedService: TamaraFeedService,
+    private readonly samanthaFeedService: SamanthaFeedService,
     private readonly events: ClosingTrackerEvents,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  async execute(input: FeedToTamaraInput): Promise<Result<TamaraFeedData, ClosingTrackerError>> {
+  async execute(
+    input: FeedToSamanthaInput,
+  ): Promise<Result<SamanthaFeedData, ClosingTrackerError>> {
     const result = await this.reportGenerator.generate(input.period);
     if (!result.ok) {
       return err(result.error);
     }
     const report = result.value;
-    const feed = this.tamaraFeedService.build(report, input.targetSpk);
+    const feed = this.samanthaFeedService.build(report, input.targetSpk);
     const occurredAt = this.now();
 
     for (const signal of feed.campaignSignals) {

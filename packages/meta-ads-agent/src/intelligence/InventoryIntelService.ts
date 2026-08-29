@@ -3,7 +3,7 @@ import type { InventoryUnit } from "@aos/dss-inventory-connector";
 import { AdAngle } from "../domain/value-objects/AdAngle.js";
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 1 ("Source 5: Inventory / Listing Data"). Pure —
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 1 ("Source 5: Inventory / Listing Data"). Pure —
  * receives already-fetched domain entities (never queries Supabase / the inventory connector
  * itself), matching `BudgetOptimizer`/`CampaignHealthAnalyzer`'s existing style of interpreting
  * already-fetched data rather than doing I/O.

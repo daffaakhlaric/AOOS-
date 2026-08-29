@@ -2,7 +2,7 @@
   "name": "@aos/meta-ads-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS Meta Ads Agent — Tamara: autonomous Meta Ads optimization agent for DSS Motor (Mobix), sitting on @aos/meta-ads-connector and @aos/objective-engine.",
+  "description": "AAOS Meta Ads Agent — Samantha: autonomous Meta Ads optimization agent for DSS Motor (Mobix), sitting on @aos/meta-ads-connector and @aos/objective-engine.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

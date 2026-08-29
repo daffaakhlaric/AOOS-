@@ -1,4 +1,4 @@
-/** Payload for `aaos.tamara.digest.generated`, emitted once `GenerateDailyDigest` produces a `DailyDigest`. */
+/** Payload for `aaos.samantha.digest.generated`, emitted once `GenerateDailyDigest` produces a `DailyDigest`. */
 export interface DigestGenerated {
   readonly tenantId: string;
   readonly date: Date;

@@ -5,7 +5,7 @@ import type { ExecutionPlan } from "../domain/entities/ExecutionPlan.js";
 
 /**
  * In-memory, read/write store for every `ExecutionPlan` (and, by extension, every
- * `CampaignDecision`) produced across a `TamaraAgentService`'s optimization cycles — backing
+ * `CampaignDecision`) produced across a `SamanthaAgentService`'s optimization cycles — backing
  * `GetAgentStatus`'s "current state + pending decisions" query.
  */
 export class DecisionRegistry {

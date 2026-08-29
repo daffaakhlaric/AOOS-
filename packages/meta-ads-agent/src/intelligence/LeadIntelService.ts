@@ -1,7 +1,7 @@
 import type { Lead, LeadQualificationFlags } from "@aos/lead-store";
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 1 ("Source 6: Hot Lead Patterns"). Pure — receives
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 1 ("Source 6: Hot Lead Patterns"). Pure — receives
  * already-fetched `Lead[]` (e.g. from `@aos/lead-store`'s real `GetHotLeads` use case), never
  * queries Supabase itself.
  *

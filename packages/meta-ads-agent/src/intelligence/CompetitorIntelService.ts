@@ -19,7 +19,7 @@ const SATURATION_THRESHOLD = 3;
 export type AdActiveStatus = "ACTIVE" | "ALL" | "INACTIVE";
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 2 ("Source 4: Meta Ad Library — kompetitor"). Real,
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 2 ("Source 4: Meta Ad Library — kompetitor"). Real,
  * external, public Meta API — verified against Meta's current documentation before writing this
  * file (same discipline `MetaOAuthClient`/`MetaGraphApiTypes.ts` already established this
  * session), NOT copied from the spec's unverified pseudocode. Sources consulted (all fetched

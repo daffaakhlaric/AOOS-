@@ -1,4 +1,4 @@
-/** Payload for `aaos.tamara.error`, emitted whenever a cycle stage encounters a recoverable `AgentError`. */
+/** Payload for `aaos.samantha.error`, emitted whenever a cycle stage encounters a recoverable `AgentError`. */
 export interface AgentError {
   readonly tenantId: string;
   readonly stage: "PERCEIVE" | "ANALYZE" | "DECIDE" | "ACT" | "REPORT" | "LEARN";

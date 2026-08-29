@@ -1,7 +1,7 @@
 import { AdAngle } from "../domain/value-objects/AdAngle.js";
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 1 ("Source 3: Seasonal Calendar"). Zero external
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 1 ("Source 3: Seasonal Calendar"). Zero external
  * dependency — pure, hardcoded calendar-date logic, matching this package's established
  * `now: () => Date` injectable-clock convention (see `VerdictDecisionEngine`).
  *

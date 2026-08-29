@@ -25,7 +25,7 @@ import type { ExecuteVerdictPort } from "../../src/application/services/Executio
 import { DEFAULT_META_ADS_AGENT_CONFIG } from "../../src/config/MetaAdsAgentConfig.js";
 import { AdAngle } from "../../src/domain/value-objects/AdAngle.js";
 import { createSeasonalPattern } from "../../src/domain/value-objects/SeasonalPattern.js";
-import { TamaraAgentFactory } from "../../src/factories/TamaraAgentFactory.js";
+import { SamanthaAgentFactory } from "../../src/factories/SamanthaAgentFactory.js";
 import { buildScrapedPromo, buildScrapedUnit } from "../fixtures/mobixFixtures.js";
 import {
   buildObjectiveFixture,
@@ -177,7 +177,7 @@ function buildFixtureAccount(): { account: AdAccount; evergreenAdId: string } {
 }
 
 function buildRuntime() {
-  return TamaraAgentFactory.create({
+  return SamanthaAgentFactory.create({
     config: { tenantId: "dss-motor", ...DEFAULT_META_ADS_AGENT_CONFIG },
     publisher: createFakePublisher(),
     executeVerdict: fakeExecuteVerdict() as never,
@@ -189,7 +189,7 @@ function buildRuntime() {
 describe("Full-context cycle (AAOS-W1D-S1S2 S1+S2 wired into a real RunOptimizationCycle)", () => {
   it("exercises every named scenario: evergreen protection, stock-aware auto-pause, new-unit escalation, price-aware brief, digest stock+promo section", async () => {
     const runtime = buildRuntime();
-    const memory = runtime.tamaraAgentService.getMemory();
+    const memory = runtime.samanthaAgentService.getMemory();
     const { account, evergreenAdId } = buildFixtureAccount();
 
     // S1 — mark the Cinere ad evergreen.

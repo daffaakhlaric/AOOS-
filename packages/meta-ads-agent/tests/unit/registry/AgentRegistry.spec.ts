@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { TamaraAgent } from "../../../src/domain/entities/TamaraAgent.js";
+import { SamanthaAgent } from "../../../src/domain/entities/SamanthaAgent.js";
 import { AgentState } from "../../../src/domain/value-objects/AgentState.js";
 import { AgentRegistry } from "../../../src/registry/AgentRegistry.js";
 import { unwrap } from "../../helpers/result.js";
 
 function agent(id: string, tenantId: string) {
   return unwrap(
-    TamaraAgent.create({
+    SamanthaAgent.create({
       id,
       tenantId,
-      name: "Tamara",
+      name: "Samantha",
       state: AgentState.IDLE,
       createdAt: new Date(),
       cycleCount: 0,

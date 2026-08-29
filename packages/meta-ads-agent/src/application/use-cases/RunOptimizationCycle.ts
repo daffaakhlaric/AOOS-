@@ -20,7 +20,7 @@ import type { DecisionRegistry } from "../../registry/DecisionRegistry.js";
 import type { DecisionEngineService } from "../services/DecisionEngineService.js";
 import type { EscalationService } from "../services/EscalationService.js";
 import type { ExecutionService } from "../services/ExecutionService.js";
-import type { TamaraAgentService } from "../services/TamaraAgentService.js";
+import type { SamanthaAgentService } from "../services/SamanthaAgentService.js";
 
 import type { GenerateCreativeBrief } from "./GenerateCreativeBrief.js";
 
@@ -43,9 +43,9 @@ export interface RunOptimizationCycleOutput {
 }
 
 /**
- * Tamara's main entry point — the full PERCEIVE → ANALYZE → DECIDE → ACT → REPORT → LEARN loop
+ * Samantha's main entry point — the full PERCEIVE → ANALYZE → DECIDE → ACT → REPORT → LEARN loop
  * (spec: "Core Agent Loop"), composed from every intelligence/application collaborator wired by
- * `TamaraAgentFactory`.
+ * `SamanthaAgentFactory`.
  */
 export class RunOptimizationCycle {
   constructor(
@@ -54,7 +54,7 @@ export class RunOptimizationCycle {
     private readonly executionService: ExecutionService,
     private readonly escalationService: EscalationService,
     private readonly generateCreativeBrief: GenerateCreativeBrief,
-    private readonly agentService: TamaraAgentService,
+    private readonly agentService: SamanthaAgentService,
     private readonly decisionRegistry: DecisionRegistry,
     private readonly events: MetaAdsAgentEvents,
     private readonly config: MetaAdsAgentConfig,

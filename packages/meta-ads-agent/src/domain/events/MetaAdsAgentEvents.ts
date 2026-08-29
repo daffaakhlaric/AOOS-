@@ -26,7 +26,7 @@ export class MetaAdsAgentEvents {
 
   async publishAgentCycleStarted(payload: AgentCycleStarted): Promise<void> {
     await this.publish(
-      "aaos.tamara.cycle.started",
+      "aaos.samantha.cycle.started",
       payload,
       payload.tenantId,
       payload.correlationId,
@@ -35,7 +35,7 @@ export class MetaAdsAgentEvents {
 
   async publishAgentCycleCompleted(payload: AgentCycleCompleted): Promise<void> {
     await this.publish(
-      "aaos.tamara.cycle.completed",
+      "aaos.samantha.cycle.completed",
       payload,
       payload.tenantId,
       payload.correlationId,
@@ -44,7 +44,7 @@ export class MetaAdsAgentEvents {
 
   async publishDecisionMade(payload: DecisionMade): Promise<void> {
     await this.publish(
-      "aaos.tamara.decision.made",
+      "aaos.samantha.decision.made",
       payload,
       payload.tenantId,
       payload.correlationId,
@@ -53,7 +53,7 @@ export class MetaAdsAgentEvents {
 
   async publishDecisionExecuted(payload: DecisionExecuted): Promise<void> {
     await this.publish(
-      "aaos.tamara.decision.executed",
+      "aaos.samantha.decision.executed",
       payload,
       payload.tenantId,
       payload.correlationId,
@@ -62,7 +62,7 @@ export class MetaAdsAgentEvents {
 
   async publishDecisionEscalated(payload: DecisionEscalated): Promise<void> {
     await this.publish(
-      "aaos.tamara.decision.escalated",
+      "aaos.samantha.decision.escalated",
       payload,
       payload.tenantId,
       payload.correlationId,
@@ -71,7 +71,7 @@ export class MetaAdsAgentEvents {
 
   async publishCreativeBriefGenerated(payload: CreativeBriefGenerated): Promise<void> {
     await this.publish(
-      "aaos.tamara.creative.briefed",
+      "aaos.samantha.creative.briefed",
       payload,
       payload.tenantId,
       payload.correlationId,
@@ -80,7 +80,7 @@ export class MetaAdsAgentEvents {
 
   async publishDigestGenerated(payload: DigestGenerated): Promise<void> {
     await this.publish(
-      "aaos.tamara.digest.generated",
+      "aaos.samantha.digest.generated",
       payload,
       payload.tenantId,
       payload.correlationId,
@@ -88,7 +88,7 @@ export class MetaAdsAgentEvents {
   }
 
   async publishAgentError(payload: AgentError): Promise<void> {
-    await this.publish("aaos.tamara.error", payload, payload.tenantId, payload.correlationId);
+    await this.publish("aaos.samantha.error", payload, payload.tenantId, payload.correlationId);
   }
 
   private async publish<T>(

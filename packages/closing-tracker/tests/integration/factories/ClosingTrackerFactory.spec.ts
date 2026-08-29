@@ -131,12 +131,12 @@ describe("ClosingTrackerFactory (integration)", () => {
     expect(tracker.getCampaignAttribution).toBeDefined();
     expect(tracker.getBranchPerformance).toBeDefined();
     expect(tracker.getUnitPerformance).toBeDefined();
-    expect(tracker.feedToTamara).toBeDefined();
+    expect(tracker.feedToSamantha).toBeDefined();
     expect(tracker.checkObjectiveCompletion).toBeDefined();
     expect(tracker.getClosingPipeline).toBeDefined();
     expect(tracker.closingAggregatorService).toBeDefined();
     expect(tracker.attributionEngineService).toBeDefined();
     expect(tracker.reportGeneratorService).toBeDefined();
-    expect(tracker.tamaraFeedService).toBeDefined();
+    expect(tracker.samanthaFeedService).toBeDefined();
   });
 });

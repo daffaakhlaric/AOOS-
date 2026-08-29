@@ -38,7 +38,7 @@ describe("DigestService.generate", () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(publisher.published.some((p) => p.type === "aaos.tamara.digest.generated")).toBe(true);
+    expect(publisher.published.some((p) => p.type === "aaos.samantha.digest.generated")).toBe(true);
   });
 
   it("propagates a DailyDigestBuilder failure", async () => {

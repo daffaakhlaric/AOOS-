@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ExecuteVerdictPort } from "../../../src/application/services/ExecutionService.js";
 import { DEFAULT_META_ADS_AGENT_CONFIG } from "../../../src/config/MetaAdsAgentConfig.js";
-import { TamaraAgentFactory } from "../../../src/factories/TamaraAgentFactory.js";
+import { SamanthaAgentFactory } from "../../../src/factories/SamanthaAgentFactory.js";
 import { buildLargeAdAccount } from "../../fixtures/adAccountFixtures.js";
 import {
   buildObjectiveFixture,
@@ -19,9 +19,9 @@ function fakeExecuteVerdict(): ExecuteVerdictPort {
   };
 }
 
-describe("TamaraAgentFactory.create", () => {
+describe("SamanthaAgentFactory.create", () => {
   it("wires up every use case and service", () => {
-    const runtime = TamaraAgentFactory.create({
+    const runtime = SamanthaAgentFactory.create({
       config: { tenantId: "dss-motor", ...DEFAULT_META_ADS_AGENT_CONFIG },
       publisher: createFakePublisher(),
       executeVerdict: fakeExecuteVerdict() as never,
@@ -35,7 +35,7 @@ describe("TamaraAgentFactory.create", () => {
     expect(runtime.approveDecision).toBeDefined();
     expect(runtime.rejectDecision).toBeDefined();
     expect(runtime.getAgentStatus).toBeDefined();
-    expect(runtime.tamaraAgentService).toBeDefined();
+    expect(runtime.samanthaAgentService).toBeDefined();
     expect(runtime.decisionEngineService).toBeDefined();
     expect(runtime.escalationService).toBeDefined();
     expect(runtime.agentRegistry).toBeDefined();
@@ -49,25 +49,25 @@ describe("TamaraAgentFactory.create", () => {
       executeVerdict: fakeExecuteVerdict() as never,
       metaAccessToken: "token",
     };
-    const first = TamaraAgentFactory.create(options);
-    first.tamaraAgentService.getMemory().recordEscalationOutcome("d1", "APPROVED");
+    const first = SamanthaAgentFactory.create(options);
+    first.samanthaAgentService.getMemory().recordEscalationOutcome("d1", "APPROVED");
 
-    const second = TamaraAgentFactory.create(options);
-    expect(second.tamaraAgentService.getMemory().escalationOutcomes.size).toBe(0);
+    const second = SamanthaAgentFactory.create(options);
+    expect(second.samanthaAgentService.getMemory().escalationOutcomes.size).toBe(0);
   });
 
   it("uses a default logger/tracer/clock when none are supplied", () => {
-    const runtime = TamaraAgentFactory.create({
+    const runtime = SamanthaAgentFactory.create({
       config: { tenantId: "dss-motor", ...DEFAULT_META_ADS_AGENT_CONFIG },
       publisher: createFakePublisher(),
       executeVerdict: fakeExecuteVerdict() as never,
       metaAccessToken: "token",
     });
-    expect(runtime.tamaraAgentService.getAgent().createdAt).toBeInstanceOf(Date);
+    expect(runtime.samanthaAgentService.getAgent().createdAt).toBeInstanceOf(Date);
   });
 
   it("runs a full optimization cycle using the real wall clock end to end", async () => {
-    const runtime = TamaraAgentFactory.create({
+    const runtime = SamanthaAgentFactory.create({
       config: { tenantId: "dss-motor", ...DEFAULT_META_ADS_AGENT_CONFIG },
       publisher: createFakePublisher(),
       executeVerdict: fakeExecuteVerdict() as never,

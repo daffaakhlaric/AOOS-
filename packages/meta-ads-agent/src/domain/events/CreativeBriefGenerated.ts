@@ -1,4 +1,4 @@
-/** Payload for `aaos.tamara.creative.briefed`, emitted whenever Tamara generates a `CreativeBrief` for Kai. */
+/** Payload for `aaos.samantha.creative.briefed`, emitted whenever Samantha generates a `CreativeBrief` for Kai. */
 export interface CreativeBriefGenerated {
   readonly tenantId: string;
   readonly creativeBriefId: string;

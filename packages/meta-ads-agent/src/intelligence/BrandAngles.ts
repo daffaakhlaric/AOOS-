@@ -2,7 +2,7 @@ import { MOBIX_BRAND } from "./BusinessKnowledgeBase.js";
 import type { IntelVertical } from "./SeasonalCalendarService.js";
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 ("PART 2: CAMPAIGN ANGLE STRATEGY", "Mode 1: Brand /
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 ("PART 2: CAMPAIGN ANGLE STRATEGY", "Mode 1: Brand /
  * General"). The spec's `BRAND_ANGLES` constant is NOT a set of existing `AdAngle`/`PropertyAdAngle`
  * members — brand/awareness angles are a genuinely different concept from the PRODUCT angles those
  * two enums encode (unit/listing-specific performance angles), and the wider effort's coordinator

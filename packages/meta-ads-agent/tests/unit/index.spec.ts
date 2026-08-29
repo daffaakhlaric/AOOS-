@@ -4,7 +4,7 @@ import * as PublicApi from "../../src/index.js";
 
 describe("public API surface (src/index.ts)", () => {
   it("exports the factory", () => {
-    expect(PublicApi.TamaraAgentFactory).toBeDefined();
+    expect(PublicApi.SamanthaAgentFactory).toBeDefined();
   });
 
   it("exports all seven use cases", () => {
@@ -18,7 +18,7 @@ describe("public API surface (src/index.ts)", () => {
   });
 
   it("exports both named services", () => {
-    expect(PublicApi.TamaraAgentService).toBeDefined();
+    expect(PublicApi.SamanthaAgentService).toBeDefined();
     expect(PublicApi.DecisionEngineService).toBeDefined();
   });
 
@@ -59,7 +59,7 @@ describe("public API surface (src/index.ts)", () => {
     expect(PublicApi.CreativeBriefId).toBeDefined();
   });
 
-  it("exports the three application services beyond TamaraAgentService/DecisionEngineService", () => {
+  it("exports the three application services beyond SamanthaAgentService/DecisionEngineService", () => {
     expect(PublicApi.ExecutionService).toBeDefined();
     expect(PublicApi.EscalationService).toBeDefined();
     expect(PublicApi.DigestService).toBeDefined();
@@ -107,8 +107,8 @@ describe("public API surface (src/index.ts)", () => {
     expect(typeof PublicApi.performanceBaselineKey).toBe("function");
   });
 
-  it("createWithFullContext is a static method on the exported TamaraAgentFactory", () => {
-    expect(typeof PublicApi.TamaraAgentFactory.createWithFullContext).toBe("function");
+  it("createWithFullContext is a static method on the exported SamanthaAgentFactory", () => {
+    expect(typeof PublicApi.SamanthaAgentFactory.createWithFullContext).toBe("function");
   });
 
   it("exports ExecutionPlanBuilder, DailyDigestBuilder, and MetaAdsAgentEvents (AAOS-KALENDER-AKTIVITAS)", () => {

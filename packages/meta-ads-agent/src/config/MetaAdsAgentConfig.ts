@@ -8,7 +8,7 @@ import { DecisionError } from "../domain/errors/index.js";
 /** Per the spec's Configuration section. */
 export interface MetaAdsAgentConfig {
   readonly tenantId: string;
-  readonly agentName: "Tamara";
+  readonly agentName: "Samantha";
   readonly language: "id";
 
   readonly maxAutoScaleBudgetIDR: number; // default: 500000
@@ -34,7 +34,7 @@ export interface MetaAdsAgentConfig {
 
 export const MetaAdsAgentConfigSchema = z.object({
   tenantId: z.string().min(1, "tenantId must not be empty"),
-  agentName: z.literal("Tamara").default("Tamara"),
+  agentName: z.literal("Samantha").default("Samantha"),
   language: z.literal("id").default("id"),
   maxAutoScaleBudgetIDR: z.number().int().positive().default(500_000),
   maxAutoReallocationIDR: z.number().int().positive().default(2_000_000),
@@ -73,7 +73,7 @@ export function parseMetaAdsAgentConfig(input: unknown): Result<MetaAdsAgentConf
 
 /** The spec's exact stated defaults, usable directly by tests/fixtures without going through Zod parsing. */
 export const DEFAULT_META_ADS_AGENT_CONFIG: Omit<MetaAdsAgentConfig, "tenantId"> = {
-  agentName: "Tamara",
+  agentName: "Samantha",
   language: "id",
   maxAutoScaleBudgetIDR: 500_000,
   maxAutoReallocationIDR: 2_000_000,

@@ -39,7 +39,7 @@ const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 15 * 60 * 1000;
 const TREND_DELTA_THRESHOLD_PCT = 15;
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 3 ("Source 2: Google Trends"). Real, external, but
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 3 ("Source 2: Google Trends"). Real, external, but
  * UNOFFICIAL and UNSUPPORTED Google endpoint — fundamentally different reliability posture than
  * Phase 2's `CompetitorIntelService` (a real, documented, stable Meta API with a support
  * contract). `trends.google.com/trends/api` has no published spec, no SLA, no versioning

@@ -9,7 +9,7 @@ import { ValidationError } from "@aos/errors";
  *
  * where `coverageFraction` is the fraction of ads in the analyzed `AdAccount` whose `rphD3` (or
  * `rphChat`, per caller) is *defined* (non-null — see `@aos/meta-ads-connector`'s `Rph`, which is
- * `null` for ads with a zero denominator). Rationale: a floor of 40 means Tamara is never
+ * `null` for ads with a zero denominator). Rationale: a floor of 40 means Samantha is never
  * reported as having *zero* confidence even with no usable data (there is always some baseline
  * rule-based confidence from the deterministic decision engine itself), while full (100%) data
  * coverage yields `round(40 + 60) = 100`, safely `> 80`. Partial coverage degrades linearly and

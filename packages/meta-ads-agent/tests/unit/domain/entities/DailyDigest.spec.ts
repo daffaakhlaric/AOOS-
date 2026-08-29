@@ -22,7 +22,7 @@ function baseProps() {
     pendingEscalationSummaryLines: ["Realokasi Rp 3.1 juta"],
     topPerformers: [{ label: "#C051", rphChatIDR: 2851, conversations: 158 }],
     weeklyRecommendation: "Fokuskan budget ke Cinere & Bintaro",
-    text: "📊 Laporan Harian Tamara",
+    text: "📊 Laporan Harian Samantha",
   };
 }
 
@@ -64,6 +64,6 @@ describe("DailyDigest", () => {
     expect(d.pendingEscalationSummaryLines).toEqual(["Realokasi Rp 3.1 juta"]);
     expect(d.topPerformers).toEqual([{ label: "#C051", rphChatIDR: 2851, conversations: 158 }]);
     expect(d.weeklyRecommendation).toBe("Fokuskan budget ke Cinere & Bintaro");
-    expect(d.text).toBe("📊 Laporan Harian Tamara");
+    expect(d.text).toBe("📊 Laporan Harian Samantha");
   });
 });

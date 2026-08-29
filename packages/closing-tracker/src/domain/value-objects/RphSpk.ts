@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
-/** Rp spent per SPK (IDR) — the primary Tamara feed-back metric. Never negative. */
+/** Rp spent per SPK (IDR) — the primary Samantha feed-back metric. Never negative. */
 export class RphSpk {
   private constructor(private readonly amount: number) {}
 

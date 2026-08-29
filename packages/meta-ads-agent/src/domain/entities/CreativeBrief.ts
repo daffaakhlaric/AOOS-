@@ -30,7 +30,7 @@ export interface CreativeBriefProps {
    * English Kie AI prompt as if it were a human-readable model name — the two never had a separate
    * field. `unitModel` is that separate, optional, human-readable name (e.g. "Toyota Avanza G
    * 2023"); prompt-building now prefers it and falls back to `unit` only when it's absent (e.g. a
-   * Tamara-generated brief with no scraped stock match, or a caller built before this fix).
+   * Samantha-generated brief with no scraped stock match, or a caller built before this fix).
    */
   readonly unitModel?: string;
   readonly branch: Branch;
@@ -69,7 +69,7 @@ export interface CreativeBriefProps {
   readonly wabaPhoneNumber?: string;
 }
 
-/** Tamara's brief for Kai (future `@aos/creative-agent`) when a REFRESH verdict fires. */
+/** Samantha's brief for Kai (future `@aos/creative-agent`) when a REFRESH verdict fires. */
 export class CreativeBrief {
   private constructor(private readonly props: CreativeBriefProps) {}
 

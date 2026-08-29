@@ -1,4 +1,4 @@
-/** Payload for `aaos.tamara.cycle.completed`, emitted once a `RunOptimizationCycle` finishes. */
+/** Payload for `aaos.samantha.cycle.completed`, emitted once a `RunOptimizationCycle` finishes. */
 export interface AgentCycleCompleted {
   readonly tenantId: string;
   readonly agentId: string;

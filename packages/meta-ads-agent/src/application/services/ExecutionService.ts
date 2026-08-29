@@ -15,7 +15,7 @@ export type ExecuteVerdictPort = Pick<ExecuteVerdict, "execute">;
  * package's ACT stage touches the Meta API, and only indirectly, through the connector. Portfolio
  * decisions (targetType `portfolio` — budget reallocation within the auto-limit) have no
  * corresponding Meta API verdict; they are recorded as executed via bookkeeping/events only,
- * since Tamara's reallocation concept has no `@aos/meta-ads-connector` counterpart yet.
+ * since Samantha's reallocation concept has no `@aos/meta-ads-connector` counterpart yet.
  */
 export class ExecutionService {
   constructor(

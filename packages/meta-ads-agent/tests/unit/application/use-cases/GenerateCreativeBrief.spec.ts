@@ -47,7 +47,7 @@ describe("GenerateCreativeBrief", () => {
       correlationId: "corr-1",
     });
     expect(result.ok).toBe(true);
-    expect(publisher.published.some((p) => p.type === "aaos.tamara.creative.briefed")).toBe(true);
+    expect(publisher.published.some((p) => p.type === "aaos.samantha.creative.briefed")).toBe(true);
   });
 
   it("propagates a generator failure and does not publish an event", async () => {

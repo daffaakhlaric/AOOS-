@@ -1,4 +1,4 @@
-/** Payload for `aaos.tamara.decision.made`, emitted once per `CampaignDecision` produced by the DECIDE stage. */
+/** Payload for `aaos.samantha.decision.made`, emitted once per `CampaignDecision` produced by the DECIDE stage. */
 export interface DecisionMade {
   readonly tenantId: string;
   readonly decisionId: string;

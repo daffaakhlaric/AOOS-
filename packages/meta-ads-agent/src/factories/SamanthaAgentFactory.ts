@@ -13,7 +13,7 @@ import {
   HistoricalLearningService,
   type PullCampaignDataPort,
 } from "../application/services/HistoricalLearningService.js";
-import { TamaraAgentService } from "../application/services/TamaraAgentService.js";
+import { SamanthaAgentService } from "../application/services/SamanthaAgentService.js";
 import { ApproveDecision } from "../application/use-cases/ApproveDecision.js";
 import { ExecuteDecision } from "../application/use-cases/ExecuteDecision.js";
 import { GenerateCreativeBrief } from "../application/use-cases/GenerateCreativeBrief.js";
@@ -39,11 +39,11 @@ import { VerdictDecisionEngine } from "../intelligence/VerdictDecisionEngine.js"
 import { AgentRegistry } from "../registry/AgentRegistry.js";
 import { DecisionRegistry } from "../registry/DecisionRegistry.js";
 
-export interface TamaraAgentFactoryOptions {
+export interface SamanthaAgentFactoryOptions {
   readonly config: MetaAdsAgentConfig;
   /** Real `@aos/event-bus` `IPublisher` — always caller-supplied, mirroring `@aos/objective-engine`'s `ObjectiveEngineFactory`. */
   readonly publisher: IPublisher;
-  /** The composed `@aos/meta-ads-connector` `ExecuteVerdict` use case — Tamara's only path to the Meta API, always injected, never constructed here (this package has zero networking of its own). */
+  /** The composed `@aos/meta-ads-connector` `ExecuteVerdict` use case — Samantha's only path to the Meta API, always injected, never constructed here (this package has zero networking of its own). */
   readonly executeVerdict: ExecuteVerdict;
   /** The Meta access token forwarded to `ExecuteVerdict` for every AUTO_EXECUTE call. */
   readonly metaAccessToken: string;
@@ -53,8 +53,8 @@ export interface TamaraAgentFactoryOptions {
   readonly now?: () => Date;
 }
 
-/** The fully-wired composition object returned by `TamaraAgentFactory.create()` — named distinctly from the `TamaraAgent` domain entity (`domain/entities/TamaraAgent.ts`) it internally owns via `tamaraAgentService`, mirroring `@aos/objective-engine`'s `ObjectiveEngine` / `@aos/meta-ads-connector`'s `MetaAdsConnector` composition-object naming. */
-export interface TamaraAgentRuntime {
+/** The fully-wired composition object returned by `SamanthaAgentFactory.create()` — named distinctly from the `SamanthaAgent` domain entity (`domain/entities/SamanthaAgent.ts`) it internally owns via `samanthaAgentService`, mirroring `@aos/objective-engine`'s `ObjectiveEngine` / `@aos/meta-ads-connector`'s `MetaAdsConnector` composition-object naming. */
+export interface SamanthaAgentRuntime {
   readonly runOptimizationCycle: RunOptimizationCycle;
   readonly executeDecision: ExecuteDecision;
   readonly generateCreativeBrief: GenerateCreativeBrief;
@@ -62,7 +62,7 @@ export interface TamaraAgentRuntime {
   readonly approveDecision: ApproveDecision;
   readonly rejectDecision: RejectDecision;
   readonly getAgentStatus: GetAgentStatus;
-  readonly tamaraAgentService: TamaraAgentService;
+  readonly samanthaAgentService: SamanthaAgentService;
   readonly decisionEngineService: DecisionEngineService;
   readonly escalationService: EscalationService;
   readonly agentRegistry: AgentRegistry;
@@ -76,12 +76,12 @@ export interface TamaraAgentRuntime {
  * use cases the public API exposes, mirroring `@aos/objective-engine`'s `ObjectiveEngineFactory` /
  * `@aos/meta-ads-connector`'s `MetaAdsConnectorFactory`.
  *
- * `AgentMemory` (owned by the `TamaraAgentService` constructed here) is created fresh on every
+ * `AgentMemory` (owned by the `SamanthaAgentService` constructed here) is created fresh on every
  * call — no persistence, no cross-instance sharing (spec: "Memory is reset on each
- * `TamaraAgentFactory.create()` call").
+ * `SamanthaAgentFactory.create()` call").
  */
-export class TamaraAgentFactory {
-  static create(options: TamaraAgentFactoryOptions): TamaraAgentRuntime {
+export class SamanthaAgentFactory {
+  static create(options: SamanthaAgentFactoryOptions): SamanthaAgentRuntime {
     const logger = options.logger ?? createLogger({ serviceName: "meta-ads-agent" });
     const tracer: Tracer = options.tracer ?? getTracer("meta-ads-agent");
     const now = options.now ?? (() => new Date());
@@ -89,7 +89,7 @@ export class TamaraAgentFactory {
     const events = new MetaAdsAgentEvents(options.publisher);
     const agentRegistry = new AgentRegistry();
     const decisionRegistry = new DecisionRegistry();
-    const tamaraAgentService = new TamaraAgentService(
+    const samanthaAgentService = new SamanthaAgentService(
       options.config.tenantId,
       agentRegistry,
       decisionRegistry,
@@ -117,7 +117,7 @@ export class TamaraAgentFactory {
       executionService,
       escalationService,
       generateCreativeBrief,
-      tamaraAgentService,
+      samanthaAgentService,
       decisionRegistry,
       events,
       options.config,
@@ -130,17 +130,17 @@ export class TamaraAgentFactory {
     const generateDailyDigest = new GenerateDailyDigest(digestService);
     const approveDecision = new ApproveDecision(
       escalationService,
-      tamaraAgentService.getMemory(),
+      samanthaAgentService.getMemory(),
       logger,
       now,
     );
     const rejectDecision = new RejectDecision(
       escalationService,
-      tamaraAgentService.getMemory(),
+      samanthaAgentService.getMemory(),
       logger,
       now,
     );
-    const getAgentStatus = new GetAgentStatus(tamaraAgentService, escalationService);
+    const getAgentStatus = new GetAgentStatus(samanthaAgentService, escalationService);
 
     return {
       runOptimizationCycle,
@@ -150,7 +150,7 @@ export class TamaraAgentFactory {
       approveDecision,
       rejectDecision,
       getAgentStatus,
-      tamaraAgentService,
+      samanthaAgentService,
       decisionEngineService,
       escalationService,
       agentRegistry,
@@ -162,7 +162,7 @@ export class TamaraAgentFactory {
    * AAOS-W1D-S1S2 (S1 + S2) — the combined-supplement single init entrypoint. Runs static Mobix
    * brand knowledge (instant), then S1 historical learning + S2 inventory/promo scraping IN
    * PARALLEL via `Promise.all`, then seeds the resulting `AgentMemory` — before returning a fully
-   * usable `TamaraAgentRuntime` (built via the existing `create()` above; nothing about the
+   * usable `SamanthaAgentRuntime` (built via the existing `create()` above; nothing about the
    * composition wiring changes).
    *
    * S1/S2 failures are never fatal to this call: each of the three parallel results (historical
@@ -170,12 +170,12 @@ export class TamaraAgentFactory {
    * warning and the corresponding `AgentMemory` fields are seeded from a safe fallback (the
    * package's `KNOWN_*` static seed data for S1, empty arrays for S2) instead. The ONLY way this
    * method returns `Result.err` is a structurally invalid `options.config` (surfaced by the
-   * underlying `create()`'s `TamaraAgentService` construction) — matching the task's requirement
+   * underlying `create()`'s `SamanthaAgentService` construction) — matching the task's requirement
    * that this always "returns a usable agent even under partial failure".
    */
   static async createWithFullContext(
     options: CreateWithFullContextOptions,
-  ): Promise<Result<TamaraAgentRuntime, AgentError>> {
+  ): Promise<Result<SamanthaAgentRuntime, AgentError>> {
     const logger = options.logger ?? createLogger({ serviceName: "meta-ads-agent" });
     const now = options.now ?? (() => new Date());
     const historicalDays = options.historicalDays ?? 90;
@@ -184,21 +184,21 @@ export class TamaraAgentFactory {
     // Step 1 — static Mobix brand knowledge, instant, no I/O.
     BusinessKnowledgeBase.loadMobixKnowledge();
 
-    // `create()` never fails for real input (see its own `TamaraAgentService` constructor
+    // `create()` never fails for real input (see its own `SamanthaAgentService` constructor
     // docstring) — the try/catch below is this method's one structural-failure guard, per this
     // method's own docstring ("the ONLY way this returns Result.err").
-    let runtime: TamaraAgentRuntime;
+    let runtime: SamanthaAgentRuntime;
     try {
-      runtime = TamaraAgentFactory.create({ ...options, logger, now });
+      runtime = SamanthaAgentFactory.create({ ...options, logger, now });
     } catch (error) {
-      // Unreachable ternary false branch: `TamaraAgentService`'s own constructor only ever
+      // Unreachable ternary false branch: `SamanthaAgentService`'s own constructor only ever
       // `throw new Error(...)` (see that file) — a non-Error thrown value can't occur here.
       /* v8 ignore next */
       const message =
         error instanceof Error ? error.message : "createWithFullContext: invalid config";
       return err(new AgentError(ErrorCode.VALIDATION_ERROR, message));
     }
-    const memory = runtime.tamaraAgentService.getMemory();
+    const memory = runtime.samanthaAgentService.getMemory();
 
     const historicalService = new HistoricalLearningService(
       options.pullCampaignData,
@@ -277,8 +277,8 @@ export class TamaraAgentFactory {
   }
 }
 
-/** Options for `TamaraAgentFactory.createWithFullContext()` — extends the base `create()` options with S1 (historical learning) and S2 (inventory scraping) inputs. */
-export interface CreateWithFullContextOptions extends TamaraAgentFactoryOptions {
+/** Options for `SamanthaAgentFactory.createWithFullContext()` — extends the base `create()` options with S1 (historical learning) and S2 (inventory scraping) inputs. */
+export interface CreateWithFullContextOptions extends SamanthaAgentFactoryOptions {
   /** The composed `@aos/meta-ads-connector` `PullCampaignData` use case — S1's only path to Meta API history, always injected (mirrors `executeVerdict` — this package never constructs connector internals itself). */
   readonly pullCampaignData: PullCampaignDataPort;
   readonly adAccountId: AdAccountId;

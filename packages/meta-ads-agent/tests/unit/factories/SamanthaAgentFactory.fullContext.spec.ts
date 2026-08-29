@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExecuteVerdictPort } from "../../../src/application/services/ExecutionService.js";
 import type { PullCampaignDataPort } from "../../../src/application/services/HistoricalLearningService.js";
 import { DEFAULT_META_ADS_AGENT_CONFIG } from "../../../src/config/MetaAdsAgentConfig.js";
-import { TamaraAgentFactory } from "../../../src/factories/TamaraAgentFactory.js";
+import { SamanthaAgentFactory } from "../../../src/factories/SamanthaAgentFactory.js";
 import { buildLargeAdAccount } from "../../fixtures/adAccountFixtures.js";
 import { createFakePublisher } from "../../helpers/publisher.js";
 
@@ -111,9 +111,9 @@ function fetchFailing(): typeof fetch {
   return vi.fn().mockRejectedValue(new Error("network unreachable")) as never;
 }
 
-describe("TamaraAgentFactory.createWithFullContext", () => {
+describe("SamanthaAgentFactory.createWithFullContext", () => {
   it("both S1 + S2 succeed: seeds AgentMemory with REAL historical + inventory + promo data (not the fallback)", async () => {
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pullSuccess(),
       mobixScraperOptions: { fetchImpl: fetchOkWithRealData() },
@@ -121,7 +121,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const memory = result.value.tamaraAgentService.getMemory();
+    const memory = result.value.samanthaAgentService.getMemory();
     expect(memory.historicalLearned).toBe(true);
     expect(memory.inventoryLoaded).toBe(true);
     expect(memory.currentInventory).toHaveLength(1);
@@ -147,7 +147,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
       return new Response("<html></html>", { status: 200 });
     }) as unknown as typeof fetch;
 
-    await TamaraAgentFactory.createWithFullContext({
+    await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pull,
       mobixScraperOptions: { fetchImpl },
@@ -159,7 +159,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
   });
 
   it("S1 fails, S2 succeeds: falls back to KNOWN_FATIGUE_PATTERNS, still seeds REAL inventory", async () => {
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pullFailure(),
       mobixScraperOptions: { fetchImpl: fetchOkWithRealData() },
@@ -167,7 +167,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const memory = result.value.tamaraAgentService.getMemory();
+    const memory = result.value.samanthaAgentService.getMemory();
     expect(memory.historicalLearned).toBe(true); // seeded from KNOWN_* fallback
     expect(memory.fatiguePatterns.size).toBeGreaterThan(0); // KNOWN_FATIGUE_PATTERNS has 4 entries
     expect(memory.inventoryLoaded).toBe(true);
@@ -176,7 +176,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
   });
 
   it("S1 fails, S2 also fails to PARSE (200 OK but no recognizable cards): falls back to empty inventory too", async () => {
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pullFailure(),
       mobixScraperOptions: { fetchImpl: fetchOkButUnparseable() },
@@ -184,13 +184,13 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const memory = result.value.tamaraAgentService.getMemory();
+    const memory = result.value.samanthaAgentService.getMemory();
     expect(memory.currentInventory).toHaveLength(0);
     expect(memory.activePromos).toHaveLength(0);
   });
 
   it("S1 succeeds, S2 fails: falls back to empty inventory/promos, still seeds real historical learnings", async () => {
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pullSuccess(),
       mobixScraperOptions: { fetchImpl: fetchFailing() },
@@ -198,7 +198,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const memory = result.value.tamaraAgentService.getMemory();
+    const memory = result.value.samanthaAgentService.getMemory();
     expect(memory.historicalLearned).toBe(true);
     expect(memory.inventoryLoaded).toBe(true);
     expect(memory.currentInventory).toHaveLength(0);
@@ -206,7 +206,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
   });
 
   it("both S1 + S2 fail: still returns a usable agent seeded from static Mobix knowledge alone", async () => {
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pullFailure(),
       mobixScraperOptions: { fetchImpl: fetchFailing() },
@@ -214,7 +214,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const memory = result.value.tamaraAgentService.getMemory();
+    const memory = result.value.samanthaAgentService.getMemory();
     expect(memory.historicalLearned).toBe(true);
     expect(memory.fatiguePatterns.size).toBeGreaterThan(0);
     expect(memory.inventoryLoaded).toBe(true);
@@ -226,7 +226,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
 
   it("defaults scrapeInventory to true and historicalDays to 90", async () => {
     const pull = pullSuccess();
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pull,
       mobixScraperOptions: { fetchImpl: fetchOkButUnparseable() },
@@ -237,7 +237,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
   });
 
   it("uses a default logger/clock when none are supplied", async () => {
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       config: { tenantId: "dss-motor", ...DEFAULT_META_ADS_AGENT_CONFIG },
       publisher: createFakePublisher(),
       executeVerdict: fakeExecuteVerdict() as never,
@@ -248,11 +248,13 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.tamaraAgentService.getMemory().lastInventoryScrapeAt).toBeInstanceOf(Date);
+    expect(result.value.samanthaAgentService.getMemory().lastInventoryScrapeAt).toBeInstanceOf(
+      Date,
+    );
   });
 
   it("returns Result.err for a structurally invalid config (empty tenantId) — never seeds anything", async () => {
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       config: { tenantId: "", ...DEFAULT_META_ADS_AGENT_CONFIG },
       pullCampaignData: pullSuccess(),
@@ -268,7 +270,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
       return new Response("<html></html>", { status: 200 });
     }) as unknown as typeof fetch;
 
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pullSuccess(),
       mobixScraperOptions: { fetchImpl, listingUrl: "https://custom.example/units" },
@@ -280,7 +282,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
 
   it("historicalDays: 30 does not trigger HistoricalLearningService's non-30-days warning", async () => {
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       logger: logger as never,
       historicalDays: 30,
@@ -295,7 +297,7 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
 
   it("scrapeInventory: false skips the S2 network calls entirely, seeding empty inventory/promos", async () => {
     const fetchImpl = fetchOkButUnparseable();
-    const result = await TamaraAgentFactory.createWithFullContext({
+    const result = await SamanthaAgentFactory.createWithFullContext({
       ...baseOptions(),
       pullCampaignData: pullSuccess(),
       scrapeInventory: false,
@@ -305,6 +307,6 @@ describe("TamaraAgentFactory.createWithFullContext", () => {
     expect(result.ok).toBe(true);
     expect(fetchImpl).not.toHaveBeenCalled();
     if (!result.ok) return;
-    expect(result.value.tamaraAgentService.getMemory().currentInventory).toHaveLength(0);
+    expect(result.value.samanthaAgentService.getMemory().currentInventory).toHaveLength(0);
   });
 });

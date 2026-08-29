@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DecisionEngineService } from "../../../../src/application/services/DecisionEngineService.js";
 import { EscalationService } from "../../../../src/application/services/EscalationService.js";
-import { TamaraAgentService } from "../../../../src/application/services/TamaraAgentService.js";
+import { SamanthaAgentService } from "../../../../src/application/services/SamanthaAgentService.js";
 import { GenerateCreativeBrief } from "../../../../src/application/use-cases/GenerateCreativeBrief.js";
 import { RunOptimizationCycle } from "../../../../src/application/use-cases/RunOptimizationCycle.js";
 import { DEFAULT_META_ADS_AGENT_CONFIG } from "../../../../src/config/MetaAdsAgentConfig.js";
@@ -65,7 +65,7 @@ function buildCycle(overrides: {
   const events = new MetaAdsAgentEvents(publisher);
   const agentRegistry = new AgentRegistry();
   const decisionRegistry = new DecisionRegistry();
-  const agentService = new TamaraAgentService("dss-motor", agentRegistry, decisionRegistry, now);
+  const agentService = new SamanthaAgentService("dss-motor", agentRegistry, decisionRegistry, now);
   const escalationService = new EscalationService();
   const decisionEngine =
     overrides.decisionEngine ?? new DecisionEngineService(new VerdictDecisionEngine(now), now);
@@ -97,7 +97,7 @@ describe("RunOptimizationCycle — construction", () => {
   it("uses the real wall clock when no clock is injected", async () => {
     const publisher = createFakePublisher();
     const events = new MetaAdsAgentEvents(publisher);
-    const agentService = new TamaraAgentService(
+    const agentService = new SamanthaAgentService(
       "dss-motor",
       new AgentRegistry(),
       new DecisionRegistry(),

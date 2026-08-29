@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ExecuteVerdictPort } from "../../src/application/services/ExecutionService.js";
 import { DEFAULT_META_ADS_AGENT_CONFIG } from "../../src/config/MetaAdsAgentConfig.js";
-import { TamaraAgentFactory } from "../../src/factories/TamaraAgentFactory.js";
+import { SamanthaAgentFactory } from "../../src/factories/SamanthaAgentFactory.js";
 import { buildLargeAdAccount } from "../fixtures/adAccountFixtures.js";
 import {
   buildObjectiveFixture,
@@ -21,7 +21,7 @@ function fakeExecuteVerdict(): ExecuteVerdictPort {
 
 describe("Escalation -> human approval -> execution flow", () => {
   it("a human can approve an escalated decision, then execute it via ExecuteDecision", async () => {
-    const runtime = TamaraAgentFactory.create({
+    const runtime = SamanthaAgentFactory.create({
       config: { tenantId: "dss-motor", ...DEFAULT_META_ADS_AGENT_CONFIG },
       publisher: createFakePublisher(),
       executeVerdict: fakeExecuteVerdict() as never,
@@ -67,7 +67,7 @@ describe("Escalation -> human approval -> execution flow", () => {
   });
 
   it("a human can reject an escalated decision instead", async () => {
-    const runtime = TamaraAgentFactory.create({
+    const runtime = SamanthaAgentFactory.create({
       config: { tenantId: "dss-motor", ...DEFAULT_META_ADS_AGENT_CONFIG },
       publisher: createFakePublisher(),
       executeVerdict: fakeExecuteVerdict() as never,

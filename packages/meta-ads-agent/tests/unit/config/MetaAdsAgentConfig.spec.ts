@@ -10,7 +10,7 @@ describe("parseMetaAdsAgentConfig", () => {
     const result = parseMetaAdsAgentConfig({ tenantId: "dss-motor" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.agentName).toBe("Tamara");
+    expect(result.value.agentName).toBe("Samantha");
     expect(result.value.language).toBe("id");
     expect(result.value.maxAutoScaleBudgetIDR).toBe(500_000);
     expect(result.value.maxAutoReallocationIDR).toBe(2_000_000);
@@ -59,7 +59,7 @@ describe("parseMetaAdsAgentConfig", () => {
 
   it("DEFAULT_META_ADS_AGENT_CONFIG matches the spec's exact stated defaults", () => {
     expect(DEFAULT_META_ADS_AGENT_CONFIG).toEqual({
-      agentName: "Tamara",
+      agentName: "Samantha",
       language: "id",
       maxAutoScaleBudgetIDR: 500_000,
       maxAutoReallocationIDR: 2_000_000,

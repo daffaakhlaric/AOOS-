@@ -184,7 +184,7 @@ export class BusinessKnowledgeBase {
     return CAMPAIGN_NAMING_RULES;
   }
 
-  /** Static Mobix brand + location + angle + unit knowledge, loaded instantly (no I/O) — the S2 half of `TamaraAgentFactory.createWithFullContext()`'s init sequence, step 1. */
+  /** Static Mobix brand + location + angle + unit knowledge, loaded instantly (no I/O) — the S2 half of `SamanthaAgentFactory.createWithFullContext()`'s init sequence, step 1. */
   static loadMobixKnowledge(): MobixKnowledge {
     return {
       brand: MOBIX_BRAND,
@@ -466,7 +466,7 @@ export const KNOWN_FATIGUE_PATTERNS: ReadonlyMap<Funnel, number> = toFatiguePatt
 
 /**
  * DSS Motor's default campaign-creation settings — used by `CreativeBriefBuilder` (and any
- * future Tamara campaign-creation flow) to populate CTWA-specific fields. `ctwaDestination`
+ * future Samantha campaign-creation flow) to populate CTWA-specific fields. `ctwaDestination`
  * (per-branch WhatsApp phone numbers) is deliberately NOT included here — coordinator note
  * correction #6: those numbers must come from `MetaAdsAgentConfig.ctwaPhoneNumbers` (itself
  * populated by `apps/aaos-api`'s config layer from real env vars), never hardcoded or read from

@@ -7,7 +7,7 @@ import type { ReportPeriod } from "../../domain/value-objects/ReportPeriod.js";
 
 export type BudgetRecommendation = "INCREASE_BUDGET" | "MAINTAIN" | "DECREASE_BUDGET";
 
-export interface TamaraCampaignSignal {
+export interface SamanthaCampaignSignal {
   readonly campaignId: string;
   readonly rphSpk: number;
   readonly closingRate: number;
@@ -16,36 +16,36 @@ export interface TamaraCampaignSignal {
   readonly confidence: number;
 }
 
-export interface TamaraBranchSignal {
+export interface SamanthaBranchSignal {
   readonly branch: BranchId;
   readonly closingRate: number;
   readonly avgRphSpk: number;
   readonly recommendation: BudgetRecommendation;
 }
 
-export interface TamaraObjectiveStatus {
+export interface SamanthaObjectiveStatus {
   readonly targetSpk: number;
   readonly achievedSpk: number;
   readonly completionRate: number;
   readonly onTrack: boolean;
 }
 
-/** Output of `FeedToTamara` — consumed by `@aos/meta-ads-agent` (spec: "Tamara Feed Format"). */
-export interface TamaraFeedData {
+/** Output of `FeedToSamantha` — consumed by `@aos/meta-ads-agent` (spec: "Samantha Feed Format"). */
+export interface SamanthaFeedData {
   readonly period: ReportPeriod;
-  readonly campaignSignals: ReadonlyArray<TamaraCampaignSignal>;
-  readonly branchSignals: ReadonlyArray<TamaraBranchSignal>;
-  readonly objectiveStatus: TamaraObjectiveStatus;
+  readonly campaignSignals: ReadonlyArray<SamanthaCampaignSignal>;
+  readonly branchSignals: ReadonlyArray<SamanthaBranchSignal>;
+  readonly objectiveStatus: SamanthaObjectiveStatus;
 }
 
 /** `BranchPerformance.closingRate` thresholds for the branch-level budget recommendation — a judgment call (unspecced), pinned by the spec's own example: "branch Cinere closing rate 0.35 → INCREASE_BUDGET". `>= 0.30` scales up, `< 0.15` scales down, the 0.15-0.30 band holds steady. */
 const INCREASE_BUDGET_THRESHOLD = 0.3;
 const DECREASE_BUDGET_THRESHOLD = 0.15;
 
-/** Formats aggregated closing/attribution data for Tamara (`@aos/meta-ads-agent`) consumption (spec: "TamaraFeedService"). A pure transform over an already-generated `ClosingReport` — does not re-aggregate. */
-export class TamaraFeedService {
-  build(report: ClosingReport, targetSpk: number): TamaraFeedData {
-    const campaignSignals: TamaraCampaignSignal[] = report.campaignAttributions.map((a) => ({
+/** Formats aggregated closing/attribution data for Samantha (`@aos/meta-ads-agent`) consumption (spec: "SamanthaFeedService"). A pure transform over an already-generated `ClosingReport` — does not re-aggregate. */
+export class SamanthaFeedService {
+  build(report: ClosingReport, targetSpk: number): SamanthaFeedData {
+    const campaignSignals: SamanthaCampaignSignal[] = report.campaignAttributions.map((a) => ({
       campaignId: a.campaignId,
       rphSpk: a.rphSpk.value,
       closingRate: a.closingRate.value,
@@ -54,7 +54,7 @@ export class TamaraFeedService {
       confidence: a.attributionScore.value,
     }));
 
-    const branchSignals: TamaraBranchSignal[] = report.byBranch.map((b) => ({
+    const branchSignals: SamanthaBranchSignal[] = report.byBranch.map((b) => ({
       branch: b.branch,
       closingRate: b.closingRate.value,
       avgRphSpk: b.avgRphSpk.value,

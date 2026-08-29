@@ -2,7 +2,7 @@
   "name": "@aos/closing-tracker",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS Closing Tracker — aggregates closing data, calculates Rp/SPK per campaign, and feeds attribution signals back to Tamara for campaign optimization.",
+  "description": "AAOS Closing Tracker — aggregates closing data, calculates Rp/SPK per campaign, and feeds attribution signals back to Samantha for campaign optimization.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

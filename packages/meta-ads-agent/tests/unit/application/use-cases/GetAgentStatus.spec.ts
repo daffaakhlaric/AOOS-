@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { EscalationService } from "../../../../src/application/services/EscalationService.js";
-import { TamaraAgentService } from "../../../../src/application/services/TamaraAgentService.js";
+import { SamanthaAgentService } from "../../../../src/application/services/SamanthaAgentService.js";
 import { GetAgentStatus } from "../../../../src/application/use-cases/GetAgentStatus.js";
 import { AgentRegistry } from "../../../../src/registry/AgentRegistry.js";
 import { DecisionRegistry } from "../../../../src/registry/DecisionRegistry.js";
 
 describe("GetAgentStatus", () => {
   it("reports the current agent, pending escalations, and decision outcome count", () => {
-    const agentService = new TamaraAgentService(
+    const agentService = new SamanthaAgentService(
       "dss-motor",
       new AgentRegistry(),
       new DecisionRegistry(),

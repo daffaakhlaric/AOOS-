@@ -65,7 +65,7 @@ function unitKeyOf(unit: string): string {
 export class CreativeBriefBuilder implements ICreativeBriefGenerator {
   /**
    * `ctwaPhoneNumbers` is AAOS-W1D-S3 (coordinator note correction #6) — sourced from
-   * `MetaAdsAgentConfig.ctwaPhoneNumbers` at composition time (`TamaraAgentFactory`), never read
+   * `MetaAdsAgentConfig.ctwaPhoneNumbers` at composition time (`SamanthaAgentFactory`), never read
    * from `process.env` here. Added as a second, defaulted parameter (rather than threading it
    * through `generate()`, which would break `ICreativeBriefGenerator`'s existing signature) so
    * every pre-existing call site (`new CreativeBriefBuilder(now)`) keeps compiling unchanged.

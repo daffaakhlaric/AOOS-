@@ -1,4 +1,4 @@
-/** Payload for `aaos.tamara.decision.escalated`, emitted when a `CampaignDecision` is queued for human approval. */
+/** Payload for `aaos.samantha.decision.escalated`, emitted when a `CampaignDecision` is queued for human approval. */
 export interface DecisionEscalated {
   readonly tenantId: string;
   readonly decisionId: string;

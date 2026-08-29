@@ -96,14 +96,14 @@ describe("MetaAdsAgentEvents", () => {
     });
 
     expect(publisher.published.map((p) => p.type)).toEqual([
-      "aaos.tamara.cycle.started",
-      "aaos.tamara.cycle.completed",
-      "aaos.tamara.decision.made",
-      "aaos.tamara.decision.executed",
-      "aaos.tamara.decision.escalated",
-      "aaos.tamara.creative.briefed",
-      "aaos.tamara.digest.generated",
-      "aaos.tamara.error",
+      "aaos.samantha.cycle.started",
+      "aaos.samantha.cycle.completed",
+      "aaos.samantha.decision.made",
+      "aaos.samantha.decision.executed",
+      "aaos.samantha.decision.escalated",
+      "aaos.samantha.creative.briefed",
+      "aaos.samantha.digest.generated",
+      "aaos.samantha.error",
     ]);
     expect(publisher.published.every((p) => p.producer === "@aos/meta-ads-agent")).toBe(true);
     expect(publisher.published.every((p) => p.version === "1.0.0")).toBe(true);

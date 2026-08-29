@@ -31,7 +31,7 @@ describe("IndonesianTextGenerator.generateDigest", () => {
   it("is not empty and contains the Indonesian header", () => {
     const text = IndonesianTextGenerator.generateDigest(baseInput());
     expect(text.length).toBeGreaterThan(0);
-    expect(text).toContain("Laporan Harian Tamara");
+    expect(text).toContain("Laporan Harian Samantha");
   });
 
   it("contains the exact formatted Rupiah figure for currentSpend", () => {

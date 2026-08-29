@@ -1,10 +1,10 @@
 // Factory
-export { TamaraAgentFactory } from "./factories/TamaraAgentFactory.js";
+export { SamanthaAgentFactory } from "./factories/SamanthaAgentFactory.js";
 export type {
-  TamaraAgentRuntime,
-  TamaraAgentFactoryOptions,
+  SamanthaAgentRuntime,
+  SamanthaAgentFactoryOptions,
   CreateWithFullContextOptions,
-} from "./factories/TamaraAgentFactory.js";
+} from "./factories/SamanthaAgentFactory.js";
 
 // Use Cases
 export { RunOptimizationCycle } from "./application/use-cases/RunOptimizationCycle.js";
@@ -26,7 +26,7 @@ export { GetAgentStatus } from "./application/use-cases/GetAgentStatus.js";
 export type { GetAgentStatusOutput } from "./application/use-cases/GetAgentStatus.js";
 
 // Services
-export { TamaraAgentService } from "./application/services/TamaraAgentService.js";
+export { SamanthaAgentService } from "./application/services/SamanthaAgentService.js";
 export { DecisionEngineService } from "./application/services/DecisionEngineService.js";
 export { ExecutionService } from "./application/services/ExecutionService.js";
 export { EscalationService } from "./application/services/EscalationService.js";
@@ -47,7 +47,7 @@ export type { DailyDigestBuildInput } from "./builders/DailyDigestBuilder.js";
 export { MetaAdsAgentEvents } from "./domain/events/MetaAdsAgentEvents.js";
 
 // Domain
-export type { TamaraAgent } from "./domain/entities/TamaraAgent.js";
+export type { SamanthaAgent } from "./domain/entities/SamanthaAgent.js";
 export type { CampaignDecision } from "./domain/entities/CampaignDecision.js";
 export type { ExecutionPlan } from "./domain/entities/ExecutionPlan.js";
 // AAOS-CREATIVE-REVIEW: `CreativeBrief` is now exported as a VALUE, not only as a type. Its
@@ -160,7 +160,7 @@ export type {
 } from "./intelligence/AnomalyDetector.js";
 export { OptimizationPipeline } from "./intelligence/OptimizationPipeline.js";
 
-// AAOS-TAMARA-INTELLIGENCE-LAYER Phase 1 — Seasonal Calendar + Inventory/Lead/Closing signals
+// AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 1 — Seasonal Calendar + Inventory/Lead/Closing signals
 export { SeasonalCalendarService } from "./intelligence/SeasonalCalendarService.js";
 export type {
   IntelVertical,
@@ -184,7 +184,7 @@ export type {
   ClosingIntelSignal,
 } from "./intelligence/ClosingIntelService.js";
 
-// AAOS-TAMARA-INTELLIGENCE-LAYER Phase 2 — Competitor Intel (Meta Ad Library). Not previously
+// AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 2 — Competitor Intel (Meta Ad Library). Not previously
 // re-exported from this public index (an oversight left over from Phase 2) — added here in Phase
 // 4 so `apps/aaos-api`'s new `intelligence` module can compose it without a disallowed deep import
 // into this package's internals.
@@ -204,7 +204,7 @@ export type {
   CompetitorIntelServiceOptions,
 } from "./intelligence/CompetitorIntelService.js";
 
-// AAOS-TAMARA-INTELLIGENCE-LAYER Phase 3 — Google Trends signal service
+// AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 3 — Google Trends signal service
 export {
   GoogleTrendsService,
   GoogleTrendsError,
@@ -218,7 +218,7 @@ export type {
   GoogleTrendsServiceOptions,
 } from "./intelligence/GoogleTrendsService.js";
 
-// AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — brand-campaign angle vocabulary (spec PART 2's
+// AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 — brand-campaign angle vocabulary (spec PART 2's
 // `BRAND_ANGLES`, corrected onto a real, typed home — see BrandAngles.ts docstring).
 export { BRAND_ANGLES, getBrandAngleIds } from "./intelligence/BrandAngles.js";
 export type { BrandAngleDefinition, BrandCampaignObjective } from "./intelligence/BrandAngles.js";

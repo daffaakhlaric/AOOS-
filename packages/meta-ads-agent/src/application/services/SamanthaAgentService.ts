@@ -1,17 +1,17 @@
 import { AgentMemory } from "../../domain/entities/AgentMemory.js";
-import { TamaraAgent } from "../../domain/entities/TamaraAgent.js";
+import { SamanthaAgent } from "../../domain/entities/SamanthaAgent.js";
 import { AgentState } from "../../domain/value-objects/AgentState.js";
 import type { AgentRegistry } from "../../registry/AgentRegistry.js";
 import type { DecisionRegistry } from "../../registry/DecisionRegistry.js";
 
 /**
- * Owns Tamara's identity (`TamaraAgent`), her in-memory learning state (`AgentMemory` — reset
- * fresh here, once, at construction time by `TamaraAgentFactory.create()`, then accumulated
+ * Owns Samantha's identity (`SamanthaAgent`), her in-memory learning state (`AgentMemory` — reset
+ * fresh here, once, at construction time by `SamanthaAgentFactory.create()`, then accumulated
  * across every `RunOptimizationCycle` call made against this same instance), and the registries
  * that back `GetAgentStatus`.
  */
-export class TamaraAgentService {
-  private agent: TamaraAgent;
+export class SamanthaAgentService {
+  private agent: SamanthaAgent;
   private readonly memory = new AgentMemory();
 
   constructor(
@@ -20,10 +20,10 @@ export class TamaraAgentService {
     private readonly decisionRegistry: DecisionRegistry,
     now: () => Date = () => new Date(),
   ) {
-    const created = TamaraAgent.create({
+    const created = SamanthaAgent.create({
       id: crypto.randomUUID(),
       tenantId,
-      name: "Tamara",
+      name: "Samantha",
       state: AgentState.IDLE,
       createdAt: now(),
       cycleCount: 0,
@@ -31,16 +31,16 @@ export class TamaraAgentService {
     /* v8 ignore next 7 */
     if (!created.ok) {
       // Unreachable: tenantId is validated by the caller's Zod schema before construction reaches
-      // here, and every other TamaraAgent.create precondition is satisfied by literal constants.
+      // here, and every other SamanthaAgent.create precondition is satisfied by literal constants.
       throw new Error(
-        `TamaraAgentService: invariant violated constructing TamaraAgent — ${created.error.message}`,
+        `SamanthaAgentService: invariant violated constructing SamanthaAgent — ${created.error.message}`,
       );
     }
     this.agent = created.value;
     this.registry.save(this.agent);
   }
 
-  getAgent(): TamaraAgent {
+  getAgent(): SamanthaAgent {
     return this.agent;
   }
 

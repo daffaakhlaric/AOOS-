@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExecuteVerdictPort } from "../../src/application/services/ExecutionService.js";
 import { DEFAULT_META_ADS_AGENT_CONFIG } from "../../src/config/MetaAdsAgentConfig.js";
 import { DecisionType } from "../../src/domain/value-objects/DecisionType.js";
-import { TamaraAgentFactory } from "../../src/factories/TamaraAgentFactory.js";
+import { SamanthaAgentFactory } from "../../src/factories/SamanthaAgentFactory.js";
 import { buildLargeAdAccount } from "../fixtures/adAccountFixtures.js";
 import {
   buildObjectiveFixture,
@@ -21,7 +21,7 @@ function fakeExecuteVerdict(): ExecuteVerdictPort {
 }
 
 function buildRuntime() {
-  return TamaraAgentFactory.create({
+  return SamanthaAgentFactory.create({
     config: { tenantId: "dss-motor", ...DEFAULT_META_ADS_AGENT_CONFIG },
     publisher: createFakePublisher(),
     executeVerdict: fakeExecuteVerdict() as never,
@@ -138,7 +138,7 @@ describe("Full optimization cycle — RunOptimizationCycle against a 72-ad AdAcc
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.digest.text).toContain("Laporan Harian Tamara");
+    expect(result.value.digest.text).toContain("Laporan Harian Samantha");
     expect(result.value.digest.targetHotLeads).toBe(50);
     expect(result.value.digest.currentHotLeads).toBe(12);
   });
@@ -168,7 +168,7 @@ describe("Full optimization cycle — RunOptimizationCycle against a 72-ad AdAcc
       tenantId: "dss-motor",
       correlationId: "corr-1",
     });
-    const afterFirst = runtime.tamaraAgentService.getMemory().decisionOutcomeCount;
+    const afterFirst = runtime.samanthaAgentService.getMemory().decisionOutcomeCount;
     expect(afterFirst).toBeGreaterThan(0);
 
     await runtime.runOptimizationCycle.execute({
@@ -178,9 +178,9 @@ describe("Full optimization cycle — RunOptimizationCycle against a 72-ad AdAcc
       tenantId: "dss-motor",
       correlationId: "corr-2",
     });
-    const afterSecond = runtime.tamaraAgentService.getMemory().decisionOutcomeCount;
+    const afterSecond = runtime.samanthaAgentService.getMemory().decisionOutcomeCount;
     expect(afterSecond).toBeGreaterThan(afterFirst);
-    expect(runtime.tamaraAgentService.getAgent().cycleCount).toBe(2);
+    expect(runtime.samanthaAgentService.getAgent().cycleCount).toBe(2);
   });
 
   it("agent transitions to IDLE and increments cycleCount after a completed cycle", async () => {
@@ -192,7 +192,7 @@ describe("Full optimization cycle — RunOptimizationCycle against a 72-ad AdAcc
       tenantId: "dss-motor",
       correlationId: "corr-1",
     });
-    expect(runtime.tamaraAgentService.getAgent().cycleCount).toBe(1);
+    expect(runtime.samanthaAgentService.getAgent().cycleCount).toBe(1);
   });
 
   it("the ExecutionPlan is retrievable from the DecisionRegistry after the cycle", async () => {

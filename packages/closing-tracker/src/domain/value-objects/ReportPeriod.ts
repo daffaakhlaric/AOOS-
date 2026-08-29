@@ -6,7 +6,7 @@ import { ValidationError } from "@aos/errors";
  * ReportPeriod.toDate} inclusive through 23:59:59.999) plus the calendar month/year it
  * represents. The spec's folder-structure comment reads `{ month, year } or date range` — this
  * package implements both together: `month`/`year` are the human-facing label (used in report ids
- * and Tamara feed payloads), `fromDate`/`toDate` are the actual query boundaries handed to
+ * and Samantha feed payloads), `fromDate`/`toDate` are the actual query boundaries handed to
  * `@aos/lead-store`'s `GetClosingStats`/`IClosingRepository.findByFilter`.
  */
 export interface ReportPeriodProps {
@@ -71,7 +71,7 @@ export class ReportPeriod {
     return this.props.toDate;
   }
 
-  /** `"2026-08"` — used as part of report ids and Tamara feed payload identifiers. */
+  /** `"2026-08"` — used as part of report ids and Samantha feed payload identifiers. */
   toLabel(): string {
     return `${this.props.year}-${String(this.props.month).padStart(2, "0")}`;
   }

@@ -11,14 +11,14 @@ import type { BranchInsight } from "./AudienceInsightEngine.js";
  * juta dari Bandung → Cinere+Bintaro"). All monetary outputs are whole-IDR integers.
  */
 export class BudgetOptimizer {
-  /** Total spend of every PAUSE-verdict finding — the budget Tamara frees up this cycle. */
+  /** Total spend of every PAUSE-verdict finding — the budget Samantha frees up this cycle. */
   static freedFromPause(findings: ReadonlyArray<PerAdFinding>): number {
     return findings
       .filter((f) => f.verdict === Verdict.PAUSE)
       .reduce((sum, f) => sum + f.spendIDR, 0);
   }
 
-  /** The `count` best (lowest Rp/chat) SCALE-verdict findings — Tamara's top reallocation targets. Findings with a `null` rphChat sort last. */
+  /** The `count` best (lowest Rp/chat) SCALE-verdict findings — Samantha's top reallocation targets. Findings with a `null` rphChat sort last. */
   static topScaleCandidates(
     findings: ReadonlyArray<PerAdFinding>,
     count: number,

@@ -1,5 +1,5 @@
 /**
- * The classification Tamara's DECIDE stage assigns to every finding — per-ad (VerdictDecisionEngine)
+ * The classification Samantha's DECIDE stage assigns to every finding — per-ad (VerdictDecisionEngine)
  * or portfolio-level (BudgetOptimizer) — before the ACT stage routes it.
  */
 export enum DecisionType {

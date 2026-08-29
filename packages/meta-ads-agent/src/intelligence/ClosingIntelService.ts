@@ -2,7 +2,7 @@ import type { Closing } from "@aos/lead-store";
 import { ClosingType } from "@aos/lead-store";
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 1 ("Source 7: Closing History"). Pure — receives
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 1 ("Source 7: Closing History"). Pure — receives
  * already-fetched `Closing[]` (e.g. from `@aos/lead-store`'s real `GetClosingStats`-adjacent
  * `IClosingRepository.findByFilter`), never queries Supabase itself.
  *
@@ -37,7 +37,7 @@ export interface BranchClosingSignal {
 
 export interface ClosingIntelSignal {
   readonly totalEvents: number;
-  /** Ranked by `spkCount` descending — Tamara's real "top selling unit models" signal. */
+  /** Ranked by `spkCount` descending — Samantha's real "top selling unit models" signal. */
   readonly topUnitModels: ReadonlyArray<UnitClosingSignal>;
   readonly byBranch: ReadonlyArray<BranchClosingSignal>;
   /** Unit models ranked LOWEST by `closingRate` (>= `minEventsForAvoid` events, so a 1-event 0% model doesn't dominate) — the honest replacement for the spec's `avoidUnits`. */

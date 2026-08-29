@@ -46,7 +46,7 @@ function formatDateID(date: Date): string {
 }
 
 /**
- * Generates Tamara's plain-Indonesian daily digest narrative, dynamically, from real computed
+ * Generates Samantha's plain-Indonesian daily digest narrative, dynamically, from real computed
  * numbers (never a hardcoded string) — matching the spec's example structure/tone: objective
  * progress, budget, "what I did today", creative briefs, pending escalations, top performers,
  * weekly recommendation.
@@ -54,7 +54,7 @@ function formatDateID(date: Date): string {
 export class IndonesianTextGenerator {
   static generateDigest(input: DigestTextInput): string {
     const lines: string[] = [];
-    lines.push(`📊 Laporan Harian Tamara — ${formatDateID(input.date)}`);
+    lines.push(`📊 Laporan Harian Samantha — ${formatDateID(input.date)}`);
     lines.push("");
     lines.push("🎯 Progress Objective");
     lines.push(`Target : ${input.targetHotLeads} hot leads`);

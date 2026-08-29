@@ -1,4 +1,4 @@
-/** Payload for `aaos.closing-tracker.campaign.attributed`, emitted per campaign when `FeedToTamara` produces a `TamaraFeedData` signal — one event per `campaignSignals` entry. */
+/** Payload for `aaos.closing-tracker.campaign.attributed`, emitted per campaign when `FeedToSamantha` produces a `SamanthaFeedData` signal — one event per `campaignSignals` entry. */
 export interface CampaignAttributed {
   readonly campaignId: string;
   readonly branch: string;
