@@ -55,7 +55,7 @@ const ANGLE_TRUST_PHRASE: Readonly<Record<AdAngle, string>> = {
  *
  * COORDINATOR NOTE #4 applied: `brief.uspMessages` (already Indonesian, unlike the English-only
  * `AutomotivePromptBuilder`) is used directly here — its first entry is appended to Variant C
- * (Proof/Trust framing) when there's room, using the USP selection Tamara already made via
+ * (Proof/Trust framing) when there's room, using the USP selection Samantha already made via
  * `BusinessKnowledgeBase.ANGLE_USP_MAP` "for Kai's convenience".
  */
 export class CopyBuilder {

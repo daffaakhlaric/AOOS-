@@ -2,7 +2,7 @@
   "name": "@aos/creative-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS Creative Agent — Kai, AI creative generation agent for DSS Motor. Receives CreativeBrief from Tamara, generates video + images via Kie AI, returns CreativePackage for DSS approval.",
+  "description": "AAOS Creative Agent — Kai, AI creative generation agent for DSS Motor. Receives CreativeBrief from Samantha, generates video + images via Kie AI, returns CreativePackage for DSS approval.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

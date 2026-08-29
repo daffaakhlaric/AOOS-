@@ -76,7 +76,7 @@ describe("AutomotivePromptBuilder", () => {
     },
   );
 
-  it("falls back to unit (the slug) when unitModel is absent — e.g. a Tamara brief with no scraped stock match", () => {
+  it("falls back to unit (the slug) when unitModel is absent — e.g. a Samantha brief with no scraped stock match", () => {
     const brief = buildBrief({ unit: "some-ad-name-with-no-stock-match", unitModel: undefined });
     expect(builder.buildVideoPrompt(brief, true)).toContain("some-ad-name-with-no-stock-match");
   });

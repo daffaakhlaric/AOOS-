@@ -19,11 +19,11 @@ function describeCar(brief: CreativeBrief): string {
  * NEVER interpolated raw into these prompts to guarantee the English-only invariant
  * `PromptQuality.spec.ts` pins.
  *
- * COORDINATOR NOTE #4 applied: `brief.uspMessages` (Tamara's `ANGLE_USP_MAP` selection, carried
+ * COORDINATOR NOTE #4 applied: `brief.uspMessages` (Samantha's `ANGLE_USP_MAP` selection, carried
  * "for Kai's convenience") is Indonesian-language text, so it cannot be inlined into an
  * English-only prompt without breaking that invariant. Instead, its mere PRESENCE nudges the
  * prompt with a fixed, generic English clause ("emphasizing verified quality and buyer trust") —
- * using the signal Tamara sent (this brief has known USPs worth emphasizing) without leaking her
+ * using the signal Samantha sent (this brief has known USPs worth emphasizing) without leaking her
  * Indonesian phrasing. `CopyBuilder` (Indonesian output) is where `uspMessages`' actual text is used.
  */
 export class AutomotivePromptBuilder implements IPromptBuilder {

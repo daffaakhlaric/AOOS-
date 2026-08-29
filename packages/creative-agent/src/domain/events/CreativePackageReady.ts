@@ -1,6 +1,6 @@
 import type { Branch } from "@aos/meta-ads-connector";
 
-/** Published once a `CreativePackage` reaches `READY` — DSS dashboard + Tamara both listen (spec Mission step 7: "Emit `CreativePackageReady` event for DSS dashboard approval"). */
+/** Published once a `CreativePackage` reaches `READY` — DSS dashboard + Samantha both listen (spec Mission step 7: "Emit `CreativePackageReady` event for DSS dashboard approval"). */
 export interface CreativePackageReady {
   readonly packageId: string;
   readonly briefId: string;
