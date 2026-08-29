@@ -1,5 +1,5 @@
 -- AAOS-CREATIVE-REVIEW -- 004_creative_logs.sql
--- Append-only event log behind the dashboard's "Log Tamara x Kai" tab. Same conventions as
+-- Append-only event log behind the dashboard's "Log Samantha x Kai" tab. Same conventions as
 -- 001_simulations.sql's `simulation_logs` and 002_scrape_jobs.sql's `scrape_job_logs`.
 --
 -- COLUMN-FOR-COLUMN CONTRACT with `CreativeLogRow` in
@@ -25,7 +25,7 @@ CREATE TABLE creative_logs (
   -- sequence as the package insert.
   package_id  UUID,
 
-  -- 'TAMARA' | 'KAI' | 'KIE_AI' | 'MANAGER' | 'SYSTEM'
+  -- 'SAMANTHA' | 'KAI' | 'KIE_AI' | 'MANAGER' | 'SYSTEM'
   from_agent  TEXT NOT NULL,
   -- 'KAI' | 'KIE_AI' | 'SISTEM' | NULL (an event with no addressee, e.g. a raw error)
   to_agent    TEXT,

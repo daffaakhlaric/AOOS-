@@ -696,7 +696,7 @@ describe("LeadsService.intervene (AAOS-CHAT-ROOM-JESSY coordinator note #5)", ()
 
     const dto = await service.intervene(
       LEAD_ID,
-      { message: "halo dari Jessy (manager)", managerName: "Budi (Manager)" },
+      { message: "halo dari Clara (manager)", managerName: "Budi (Manager)" },
       "corr-int-1",
     );
 
@@ -746,7 +746,7 @@ describe("LeadsService.getScoringHistory (AAOS-CHAT-ROOM-JESSY coordinator note 
   });
 });
 
-describe("LeadsService.getAnalytics (MENU RESTRUCTURE FINAL /jessy/analytics)", () => {
+describe("LeadsService.getAnalytics (MENU RESTRUCTURE FINAL /clara/analytics)", () => {
   it("fans out across every real branch and computes totalContacts/newContacts/active from real lead timestamps", async () => {
     const client = buildFakeSupabaseClient();
     const service = buildService(client);

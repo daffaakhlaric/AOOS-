@@ -4,7 +4,7 @@ import { z } from "zod";
 
 /**
  * `POST /api/v1/creative-packages` — a brief a HUMAN composed (Tab "Buat Manual") or a
- * Tamara-recommended brief a HUMAN approved (Tab "Rekomendasi Tamara"). Both paths land here;
+ * Samantha-recommended brief a HUMAN approved (Tab "Rekomendasi Samantha"). Both paths land here;
  * `origin` records which.
  *
  * Every enum below is the REAL enum, validated with `z.nativeEnum` so a fabricated member is
@@ -38,11 +38,11 @@ export const CreatePackageBodySchema = z.object({
   urgency: z.enum(["HIGH", "MEDIUM", "LOW"]).default("MEDIUM"),
   /** Optional display title; defaults to `"<unitModel|unit> <branch> · <angle>"` when omitted. */
   title: z.string().trim().min(1).optional(),
-  origin: z.enum(["MANUAL", "TAMARA"]).default("MANUAL"),
-  /** Real Meta ad id + `#C`-style stable id, set only for a Tamara REFRESH-verdict brief. */
+  origin: z.enum(["MANUAL", "SAMANTHA"]).default("MANUAL"),
+  /** Real Meta ad id + `#C`-style stable id, set only for a Samantha REFRESH-verdict brief. */
   adId: z.string().trim().min(1).optional(),
   stableId: z.string().trim().min(1).optional(),
-  /** Why this creative is being made — free text from the manager, or Tamara's real REFRESH reason. */
+  /** Why this creative is being made — free text from the manager, or Samantha's real REFRESH reason. */
   reason: z.string().trim().min(1).optional(),
   generate: z.boolean().default(false),
 });

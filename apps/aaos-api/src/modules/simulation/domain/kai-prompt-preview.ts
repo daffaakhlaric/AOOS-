@@ -77,7 +77,7 @@ export function buildKaiPromptDetail(
     ...(input.unitModel !== undefined ? { unitModel: input.unitModel } : {}),
     branch: input.branch,
     angle: input.angle,
-    // The Simulasi wizard collects no target-persona choice for Kai's brief today (only Jessy's
+    // The Simulasi wizard collects no target-persona choice for Kai's brief today (only Clara's
     // persona selection, a different concept) — reusing `PRIMARY_FAMILY`, DSS Motor's real default
     // persona, honestly labelled here rather than inventing a per-run value with no real input.
     targetPersona: TargetPersona.PRIMARY_FAMILY,

@@ -27,7 +27,7 @@ export type IntelligenceSignalsInsert = Omit<IntelligenceSignalsRow, "id" | "gen
 export class IntelligenceSignalsRepositoryError extends Error {}
 
 /**
- * Supabase-backed persistence for `intelligence_signals` (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4).
+ * Supabase-backed persistence for `intelligence_signals` (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4).
  * Same shared `SupabaseClientLike` port + `SUPABASE_CLIENT` DI token every other `aaos-api`
  * repository uses — mirrors `BroadcastTemplateRepository`/`ListingRepository`'s structure directly.
  */

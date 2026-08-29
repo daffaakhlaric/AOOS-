@@ -15,7 +15,7 @@ import { IntelligenceService } from "./intelligence.service.js";
 
 /**
  * `/api/v1/intelligence*` + `/api/v1/competitors*` — `x-api-key` auth, same discipline as every
- * other write endpoint in this app (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4).
+ * other write endpoint in this app (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4).
  */
 @Controller("api/v1")
 @UseGuards(ApiKeyGuard)
@@ -27,7 +27,7 @@ export class IntelligenceController {
   async getSignals(): Promise<IntelligenceSignalsResponseDto> {
     const latest = await this.service.getLatest();
     if (latest === undefined) {
-      throw new NotFoundError("Belum ada Tamara Intelligence run untuk tenant ini.");
+      throw new NotFoundError("Belum ada Samantha Intelligence run untuk tenant ini.");
     }
     return latest;
   }

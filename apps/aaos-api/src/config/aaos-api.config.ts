@@ -50,7 +50,7 @@ export interface AaosApiConfig {
   readonly SUPABASE_SERVICE_KEY: string;
 
   /**
-   * AAOS-LLM-TAMARA — OpenAI API key for the `llm` module's Tamara analysis/creative-brief/chat
+   * AAOS-LLM-SAMANTHA — OpenAI API key for the `llm` module's Samantha analysis/creative-brief/chat
    * endpoints. Deliberately allowed to be an empty string (not `min(1)`-required like every other
    * secret in this file): per the spec's Section 7 error handling, `LlmService` MUST treat a
    * missing/empty key as "AI unavailable" and degrade gracefully (never throw a config error at
@@ -61,11 +61,11 @@ export interface AaosApiConfig {
 
   /**
    * AAOS-DASHBOARD-SIMULASI — base URL of the real, already-deployed sibling app
-   * `apps/aaos-simulator` (its `POST /api/simulate` runs Jessy conversation simulations + AI
+   * `apps/aaos-simulator` (its `POST /api/simulate` runs Clara conversation simulations + AI
    * Judge scoring). Deliberately allowed to be an empty string, same rationale as
    * `OPENAI_API_KEY`: this app must boot and serve every other endpoint even when
    * `apps/aaos-simulator` isn't reachable from this environment yet. `SimulationService` treats an
-   * empty value as "Jessy/Judge stage unavailable" and records that honestly on the simulation
+   * empty value as "Clara/Judge stage unavailable" and records that honestly on the simulation
    * record instead of throwing or fabricating a result.
    */
   readonly AAOS_SIMULATOR_BASE_URL: string;

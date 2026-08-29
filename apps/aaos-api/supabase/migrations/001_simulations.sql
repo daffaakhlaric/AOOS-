@@ -28,12 +28,12 @@ CREATE TABLE simulations (
   -- actually simulated without a second round-trip to /api/objective.
   objective_snapshot   JSONB NOT NULL,   -- the ObjectiveDto used to seed the run
   campaign_data_source  TEXT NOT NULL,   -- 'cache' | 'fresh' (spec Step 1 field)
-  persona_ids           JSONB NOT NULL,  -- PersonaId[] selected for Step 4/5 (Jessy + Judge)
+  persona_ids           JSONB NOT NULL,  -- PersonaId[] selected for Step 4/5 (Clara + Judge)
   branch                TEXT,            -- Branch enum member, when the run is branch-scoped
 
   -- Pipeline lifecycle.
   status            TEXT NOT NULL DEFAULT 'RUNNING',  -- RUNNING | DONE | ERROR
-  current_step      TEXT NOT NULL DEFAULT 'SETUP',    -- SETUP|TAMARA|KAI|JESSY|JUDGE|REVIEW
+  current_step      TEXT NOT NULL DEFAULT 'SETUP',    -- SETUP|SAMANTHA|KAI|CLARA|JUDGE|REVIEW
   -- Full StoredSimulationResult (per-stage real responses + computed overall score/grade/verdict)
   -- -- see modules/simulation/domain/SimulationRecord.ts for the exact shape. NULL while RUNNING.
   result            JSONB,
@@ -59,7 +59,7 @@ CREATE INDEX idx_simulations_created ON simulations(created_at DESC);
 CREATE TABLE simulation_logs (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   simulation_id   UUID NOT NULL REFERENCES simulations(id) ON DELETE CASCADE,
-  step            TEXT NOT NULL,     -- SETUP|TAMARA|KAI|JESSY|JUDGE|REVIEW
+  step            TEXT NOT NULL,     -- SETUP|SAMANTHA|KAI|CLARA|JUDGE|REVIEW
   level           TEXT NOT NULL DEFAULT 'INFO',  -- INFO | WARN | ERROR
   message         TEXT NOT NULL,
   payload         JSONB,

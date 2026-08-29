@@ -49,7 +49,7 @@ describe("AppModule.forRoot", () => {
     // AAOS-W1D-S3: +1 import (CampaignsModule) for POST /api/v1/campaigns/create.
     // AAOS-W4B: +2 imports (ClosingsModule, SalesModule) and +2 providers
     // (LEAD_STORE_MESSAGE_REPOSITORY, LEAD_STORE_CLOSING_REPOSITORY).
-    // AAOS-LLM-TAMARA: +1 import (LlmModule) — no new global provider (LlmModule composes its
+    // AAOS-LLM-SAMANTHA: +1 import (LlmModule) — no new global provider (LlmModule composes its
     // own OpenAI client/rate limiter/cache locally, see llm.module.ts's class doc).
     // AAOS-DASHBOARD-SIMULASI: +1 import (SimulationModule) and +1 provider (SUPABASE_CLIENT,
     // the shared client SimulationRepository reuses — see di-tokens.ts's class doc).
@@ -91,7 +91,7 @@ describe("AppModule.forRoot", () => {
     // AAOS-SOSMED-AUTOMATION Phase 1: +1 import (SosmedModule) — no new global provider (imports
     // LlmModule to reuse the already-existing LlmService, composes ScheduledPostRepository
     // locally from the existing SUPABASE_CLIENT).
-    // AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4: +1 import (IntelligenceModule) — no new global
+    // AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4: +1 import (IntelligenceModule) — no new global
     // provider (composes TenantRepository/ListingRepository/IntelligenceSignalsRepository/
     // CompetitorPageRepository locally from the existing SUPABASE_CLIENT, imports LlmModule to
     // reuse the already-existing LlmService, same pattern as SosmedModule/RecyclingModule).

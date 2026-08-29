@@ -44,7 +44,7 @@ export const GenerateCaptionRequestSchema = z.object({
 export type GenerateCaptionRequestDto = z.infer<typeof GenerateCaptionRequestSchema>;
 
 /**
- * The shape Tamara's caption-generation system prompt asks the model to return — one shorter IG
+ * The shape Samantha's caption-generation system prompt asks the model to return — one shorter IG
  * caption and one longer, storytelling FB caption, per the spec's Content Studio Step 2 mockup.
  * Hashtags are deliberately NOT part of this payload — `generateHashtags` is a separate endpoint
  * with its own prompt/schema, matching the two distinct buttons ("Generate Konten" vs "Regenerate

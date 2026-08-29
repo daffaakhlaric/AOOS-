@@ -40,7 +40,7 @@ import { CreativePackageRepository } from "./infrastructure/creative-package.rep
     },
   ],
   // `CreativePackagesService` is exported so `AbTestingModule` (AAOS-ABTESTING-LOOKALIKE) can
-  // inject the SAME real Kai/Kie AI pipeline every manual/Tamara-approved brief already uses to
+  // inject the SAME real Kai/Kie AI pipeline every manual/Samantha-approved brief already uses to
   // generate each A/B test variant's creative — one creative-generation implementation, not two
   // (coordinator note section 2).
   exports: [CreativePackagesService],

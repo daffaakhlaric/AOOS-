@@ -25,14 +25,14 @@ function makeClient(overrides: Partial<ConstructorParameters<typeof OpenAiClient
 
 describe("OpenAiClient", () => {
   it("POST /v1/chat/completions -> the assistant message content", async () => {
-    registerOpenAiChatHandler("Halo dari Tamara");
+    registerOpenAiChatHandler("Halo dari Samantha");
     const client = makeClient();
     const result = await client.createChatCompletion({
       messages: [{ role: "user", content: "Hi" }],
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value).toBe("Halo dari Tamara");
+      expect(result.value).toBe("Halo dari Samantha");
     }
   });
 

@@ -15,7 +15,7 @@ import { IntelligenceController } from "./intelligence.controller.js";
 import { IntelligenceService } from "./intelligence.service.js";
 
 /**
- * `modules/intelligence` (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4) — mirrors
+ * `modules/intelligence` (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4) — mirrors
  * `SchedulerModule`/`ListingsModule`'s wiring: Supabase-backed repositories built from the shared
  * `SUPABASE_CLIENT`, with `AAOS_API_CONFIG`/`LEAD_STORE`/`LEAD_STORE_CLOSING_REPOSITORY` injected
  * from `AppModule.forRoot`'s global provider set.
@@ -31,11 +31,11 @@ import { IntelligenceService } from "./intelligence.service.js";
  * limiter/cache.
  *
  * `LlmModule` is imported (not re-provided) so `IntelligenceService` can inject the SAME real
- * `LlmService` every other Tamara feature in this app already uses for
- * `LlmService.campaignStrategy` — one Tamara LLM implementation, not two.
+ * `LlmService` every other Samantha feature in this app already uses for
+ * `LlmService.campaignStrategy` — one Samantha LLM implementation, not two.
  *
  * `IntelligenceService` is exported so `SchedulerModule` can inject it for the
- * `TAMARA_INTELLIGENCE_REFRESH` Kalender handler, and `DAILY_DIGEST`'s own extension, without a
+ * `SAMANTHA_INTELLIGENCE_REFRESH` Kalender handler, and `DAILY_DIGEST`'s own extension, without a
  * second, parallel composition.
  */
 @Module({

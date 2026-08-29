@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * HTTP client for the real, already-deployed sibling app `apps/aaos-simulator`'s
- * `POST /api/simulate` (coordinator note #3) — runs one `PersonaId`'s Jessy conversation
+ * `POST /api/simulate` (coordinator note #3) — runs one `PersonaId`'s Clara conversation
  * simulation, then judges it via `@aos/ai-judge`, both for real (no LLM cost — `@aos/
  * conversation-simulator`'s personas are fixed, deterministic scripts; see that route's own
  * docstring).

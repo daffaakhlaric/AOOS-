@@ -31,13 +31,13 @@ function buildSimulation(overrides: Partial<StoredSimulation> = {}): StoredSimul
     currentStep: "DONE",
     decision: "APPROVED",
     result: {
-      tamara: { available: true, elapsedMs: 1, coverageScore: 80 },
+      samantha: { available: true, elapsedMs: 1, coverageScore: 80 },
       kai: { available: true, elapsedMs: 1, videoGenerated: false, note: "n" },
-      jessy: { available: true, runs: [], elapsedMs: 1 },
+      clara: { available: true, runs: [], elapsedMs: 1 },
       scoring: {
-        tamaraCoverageScore: 80,
+        samanthaCoverageScore: 80,
         kaiScore: 80,
-        jessyScore: 80,
+        claraScore: 80,
         overallScore: 80,
         grade: "B",
         verdict: "GO",

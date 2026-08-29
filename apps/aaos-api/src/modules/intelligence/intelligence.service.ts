@@ -96,7 +96,7 @@ function toIntelVertical(rawVertical: string): IntelVertical {
 }
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — aggregates the 5 real signal services built in Phases
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 — aggregates the 5 real signal services built in Phases
  * 1-3 (`SeasonalCalendarService`, `InventoryIntelService`, `LeadIntelService`,
  * `ClosingIntelService`, `CompetitorIntelService`, `GoogleTrendsService` — 6 classes, 5 "sources"
  * per the spec's own numbering) for the single composed tenant (`AAOS_TENANT_ID` — no per-tenant
@@ -110,7 +110,7 @@ function toIntelVertical(rawVertical: string): IntelVertical {
  * - **Seasonal/Trends**: run once per refresh, not once per branch. Google Trends' real API is
  *   geo-scoped (`GoogleTrendsService.getTrends(vertical, branch)`); this service deliberately runs
  *   it against `BranchId.UMUM` (nationwide) rather than looping every branch — a real, documented
- *   scoping decision (not a Phase 1-3 service limitation) to keep one Tamara Intelligence run to a
+ *   scoping decision (not a Phase 1-3 service limitation) to keep one Samantha Intelligence run to a
  *   bounded, small number of real external calls, consistent with `GoogleTrendsService`'s own
  *   "low-volume, at most a few calls per day" design assumption.
  * - **Lead profile**: real hot leads across EVERY branch (`LeadStore.getHotLeads.execute`, fanned
@@ -125,7 +125,7 @@ function toIntelVertical(rawVertical: string): IntelVertical {
  *   `InventoryIntelService.propertySignals`'s real `PropertyListingSnapshot` shape. AUTOMOTIVE is
  *   HONESTLY DEFERRED: this app has no real, composed `@aos/dss-inventory-connector`
  *   `IInventoryQueryService` anywhere (confirmed by direct search — `packages/sales-agent`'s
- *   `JessyAgentFactory` requires one but is never itself composed inside `apps/aaos-api`; the only
+ *   `ClaraAgentFactory` requires one but is never itself composed inside `apps/aaos-api`; the only
  *   real automotive stock data this app has is `@aos/mobix-web-scraper`'s `ScrapedUnit`, which has
  *   no honest "days since first added to inventory" field to compute `InventoryIntelService`'s
  *   `newArrivalUnits`/`slowMovingUnits` from — `scraped_at` is a last-scrape timestamp, refreshed
@@ -192,7 +192,7 @@ export class IntelligenceService {
     return row === undefined ? undefined : toIntelligenceSignalsResponseDto(row);
   }
 
-  /** `POST /api/v1/intelligence/refresh` and the `TAMARA_INTELLIGENCE_REFRESH` Kalender handler — runs the full real aggregation + synthesis synchronously and persists the result. */
+  /** `POST /api/v1/intelligence/refresh` and the `SAMANTHA_INTELLIGENCE_REFRESH` Kalender handler — runs the full real aggregation + synthesis synchronously and persists the result. */
   async refresh(): Promise<IntelligenceSignalsResponseDto> {
     const tenant = await this.findTenantOrThrow();
     const vertical = toIntelVertical(tenant.vertical);
@@ -568,7 +568,7 @@ function buildDigestText(
   strategy: CampaignStrategyResponseDto,
 ): string {
   const lines = [
-    `🧠 Tamara Intelligence — ${tenantName}`,
+    `🧠 Samantha Intelligence — ${tenantName}`,
     `📅 Seasonal: ${seasonal.reasoning}`,
     `📈 Trends: ${trends.reasoning}`,
     `🔍 Kompetitor: ${competitor.reasoning}`,

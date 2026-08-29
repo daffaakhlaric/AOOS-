@@ -1,5 +1,5 @@
 -- AAOS-KALENDER-AKTIVITAS -- 006_calendar_events.sql
--- Backs `modules/scheduler`'s "Kalender Aktivitas Tamara & Kai" widget (embedded in the real
+-- Backs `modules/scheduler`'s "Kalender Aktivitas Samantha & Kai" widget (embedded in the real
 -- Overview page, `apps/aaos-dashboard/src/components/dashboard/DashboardClient.tsx`) and its
 -- `@nestjs/schedule`-driven cron runner (`SchedulerService.checkAndRunDueEvents`). Same shape
 -- convention as 001-005 -- snake_case columns, `gen_random_uuid()` primary keys,
@@ -14,7 +14,7 @@
 -- SCOPE (see docs/PROMPT-AAOS-KALENDER-AKTIVITAS.md's COORDINATOR NOTE, section 1 -- read that
 -- file for the full history): the spec proposed 14 schedulable `event_type` values. Only 5 are
 -- actually implemented by `SchedulerService.executeEvent`'s switch statement in this pass --
--- `SCRAPER_RUN`, `TAMARA_PULL_DATA`, `TAMARA_ANALYZE`, `KAI_REFRESH_CHECK`, `DAILY_DIGEST`. The
+-- `SCRAPER_RUN`, `SAMANTHA_PULL_DATA`, `SAMANTHA_ANALYZE`, `KAI_REFRESH_CHECK`, `DAILY_DIGEST`. The
 -- other 9 (6 campaign-mutating types with no human-approval gate at execution time, plus 3 types
 -- with zero real backing anywhere in this codebase) are never offered by "Tambah Jadwal" and have
 -- no handler -- `event_type` is intentionally left as free TEXT rather than a Postgres CHECK/ENUM

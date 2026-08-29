@@ -146,8 +146,8 @@ describe("CreativePackagesService.create", () => {
   it("records an honest default reason per origin when the manager gives none", async () => {
     const manual = await buildHarness().service.create(BODY);
     expect(manual.reason).toBe("Brief manual dibuat manager.");
-    const tamara = await buildHarness().service.create({ ...BODY, origin: "TAMARA" });
-    expect(tamara.reason).toBe("Disetujui manager dari rekomendasi Tamara.");
+    const samantha = await buildHarness().service.create({ ...BODY, origin: "SAMANTHA" });
+    expect(samantha.reason).toBe("Disetujui manager dari rekomendasi Samantha.");
   });
 
   it("mints a real UUID briefId that the brief factory will accept", async () => {
@@ -240,11 +240,11 @@ describe("CreativePackagesService.generate", () => {
     expect(generate?.metadata).toMatchObject({ sourcePhotosFound: 1 });
   });
 
-  it("attributes a Tamara-approved brief to TAMARA and carries its real ad ids into the log", async () => {
+  it("attributes a Samantha-approved brief to SAMANTHA and carries its real ad ids into the log", async () => {
     const harness = buildHarness();
     const created = await harness.service.create({
       ...BODY,
-      origin: "TAMARA",
+      origin: "SAMANTHA",
       adId: "120000000000001",
       stableId: "C047",
     });
@@ -252,7 +252,7 @@ describe("CreativePackagesService.generate", () => {
     const brief = (await harness.service.logs({ limit: 100 })).find(
       (entry) => entry.eventType === "BRIEF_SENT",
     );
-    expect(brief?.fromAgent).toBe("TAMARA");
+    expect(brief?.fromAgent).toBe("SAMANTHA");
     expect(brief?.adId).toBe("120000000000001");
     expect(brief?.stableId).toBe("C047");
   });

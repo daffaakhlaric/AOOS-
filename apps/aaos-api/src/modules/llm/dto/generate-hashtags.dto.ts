@@ -24,7 +24,7 @@ export type GenerateHashtagsRequestDto = z.infer<typeof GenerateHashtagsRequestS
 const HashtagSchema = z.string().regex(/^#\S+$/, "hashtag must start with # and contain no spaces");
 
 /**
- * The shape Tamara's hashtag-generation system prompt asks the model to return — 8 to 12
+ * The shape Samantha's hashtag-generation system prompt asks the model to return — 8 to 12
  * hashtags, per the spec's "Generate 8-12 hashtag relevan" instruction. A response outside that
  * range fails Zod validation and is treated as `INVALID_RESPONSE` (fail closed, same discipline
  * as every other `LlmService` method — never silently truncate/pad what the model returned).

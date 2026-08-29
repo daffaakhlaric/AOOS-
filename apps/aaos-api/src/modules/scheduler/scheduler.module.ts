@@ -22,8 +22,8 @@ import { SchedulerService } from "./scheduler.service.js";
  * integration for the whole app, never a second one.
  *
  * `LlmModule` is imported (not re-provided) so `SchedulerService` can inject the SAME real
- * `LlmService` `LlmController`/`SimulationService` already use for `TAMARA_ANALYZE` — one Tamara
- * implementation, not two.
+ * `LlmService` `LlmController`/`SimulationService` already use for `SAMANTHA_ANALYZE` — one
+ * Samantha implementation, not two.
  *
  * `RecyclingModule` is imported (not re-provided) the same way, so `SchedulerService` can inject
  * the SAME real `RecyclingService` `RecyclingController` already uses for `RECYCLING_RUN`
@@ -39,8 +39,8 @@ import { SchedulerService } from "./scheduler.service.js";
  * (AAOS-ABTESTING-LOOKALIKE Part 2, coordinator note section 5).
  *
  * `IntelligenceModule` is imported the same way, so `SchedulerService` can inject the SAME real
- * `IntelligenceService` `IntelligenceController` already uses for `TAMARA_INTELLIGENCE_REFRESH`
- * (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4, coordinator note section 7), and for the Daily Digest
+ * `IntelligenceService` `IntelligenceController` already uses for `SAMANTHA_INTELLIGENCE_REFRESH`
+ * (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4, coordinator note section 7), and for the Daily Digest
  * extension.
  *
  * `@nestjs/schedule`'s `ScheduleModule.forRoot()` is registered once, in `app.module.ts`'s

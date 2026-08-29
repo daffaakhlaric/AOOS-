@@ -34,7 +34,7 @@ const BRIEF_FORMATS: Readonly<Record<CreativePackageFormat, readonly BriefReques
  * Brief fields with no per-brief producer anywhere in this codebase. Rather than invent a
  * plausible-looking value per request, these reuse the exact literals
  * `@aos/meta-ads-agent`'s own real `CreativeBriefBuilder` already writes onto every
- * Tamara-generated brief — so a manually-composed brief and a Tamara-composed one carry identical,
+ * Samantha-generated brief — so a manually-composed brief and a Samantha-composed one carry identical,
  * already-established values here instead of two different fabrications.
  */
 const BRIEF_TONE = "casual, relatable, tidak formal";

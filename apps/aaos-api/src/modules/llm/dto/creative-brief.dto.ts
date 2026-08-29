@@ -19,7 +19,7 @@ const CreativeUrgencySchema = z.enum(["HIGH", "MEDIUM", "LOW"]);
 /**
  * `POST /api/v1/llm/creative-brief` request body — per the spec's `{ ad: {...}, angle: string,
  * branch: string }`. `ad` is deliberately a loose prompt-context bag (name + optional metrics),
- * not the full `AdResponseDto` — the caller only needs to describe the ad to Tamara for the
+ * not the full `AdResponseDto` — the caller only needs to describe the ad to Samantha for the
  * prompt, whereas the endpoint's RESPONSE is what must validate against the real `CreativeBrief`
  * entity's value objects (coordinator note #4). `angle`/`branch` here are optional hints the
  * dashboard already has context for (e.g. "refresh this ad, historically a DP_RINGAN angle") — the
@@ -47,7 +47,7 @@ export const CreativeBriefRequestSchema = z.object({
 export type CreativeBriefRequestDto = z.infer<typeof CreativeBriefRequestSchema>;
 
 /**
- * The shape Tamara's `creative-brief` system prompt asks the model to return. `angle`/`branch` are
+ * The shape Samantha's `creative-brief` system prompt asks the model to return. `angle`/`branch` are
  * validated against the real `AdAngle`/`Branch` enums (coordinator note #4) — an LLM response with
  * an invalid/hallucinated value fails Zod validation and `LlmService` treats it as
  * `available: false, reason: "INVALID_RESPONSE"`, never passed through.

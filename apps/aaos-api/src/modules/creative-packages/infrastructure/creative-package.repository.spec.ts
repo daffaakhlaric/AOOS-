@@ -96,16 +96,16 @@ describe("CreativePackageRepository.create", () => {
     expect(pkg.reviewedAt).toBeUndefined();
   });
 
-  it("records adId/stableId for a Tamara-originated brief", async () => {
+  it("records adId/stableId for a Samantha-originated brief", async () => {
     const client = createFakeSupabaseClient();
     const repo = new CreativePackageRepository(client);
     const pkg = await repo.create({
       ...INPUT,
-      origin: "TAMARA",
+      origin: "SAMANTHA",
       adId: "120000000000001",
       stableId: "C047",
     });
-    expect(pkg.origin).toBe("TAMARA");
+    expect(pkg.origin).toBe("SAMANTHA");
     expect(pkg.adId).toBe("120000000000001");
     expect(pkg.stableId).toBe("C047");
   });

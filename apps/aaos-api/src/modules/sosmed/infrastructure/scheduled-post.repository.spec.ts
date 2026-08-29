@@ -22,7 +22,7 @@ describe("ScheduledPostRepository", () => {
 
     expect(created.id).toBe(BASE_INPUT.id);
     expect(created.status).toBe("DRAFT");
-    expect(created.generatedBy).toBe("TAMARA");
+    expect(created.generatedBy).toBe("SAMANTHA");
     expect(created.hashtags).toEqual([]);
     expect(created.reach).toBe(0);
     expect(created.mediaUrl).toBeUndefined();

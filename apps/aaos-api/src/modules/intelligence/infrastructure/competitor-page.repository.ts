@@ -27,7 +27,7 @@ interface DeletableSupabaseClient {
 }
 
 /**
- * Supabase-backed persistence for `competitor_pages` (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4).
+ * Supabase-backed persistence for `competitor_pages` (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4).
  * Backs `GET/POST /api/v1/competitors`, `DELETE /api/v1/competitors/:id` — real Supabase CRUD, no
  * hardcoded competitor page IDs anywhere in this module.
  */

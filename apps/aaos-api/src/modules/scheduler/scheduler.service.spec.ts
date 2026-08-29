@@ -316,7 +316,30 @@ describe("SchedulerService.executeEvent", () => {
     expect(repository.markFailed).toHaveBeenCalled();
   });
 
-  it("TAMARA_PULL_DATA pulls campaigns and reports real counts", async () => {
+  it("SAMANTHA_PULL_DATA pulls campaigns and reports real counts", async () => {
+    const repository = buildFakeRepository();
+    const service = buildService({ repository });
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_PULL_DATA" }));
+
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ campaigns: 1, ads: 1 }),
+    );
+  });
+
+  it("SAMANTHA_PULL_DATA fails the event when every ad account pull fails", async () => {
+    const repository = buildFakeRepository();
+    const service = buildService({
+      repository,
+      connector: buildFakeConnector(buildAdAccount(), false),
+    });
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_PULL_DATA" }));
+    expect(repository.markFailed).toHaveBeenCalled();
+  });
+
+  it("TAMARA_PULL_DATA (legacy pre-rename event type, still seeded on real rows) dispatches the same handler as SAMANTHA_PULL_DATA", async () => {
     const repository = buildFakeRepository();
     const service = buildService({ repository });
     await service.executeEvent(buildEvent({ eventType: "TAMARA_PULL_DATA" }));
@@ -329,17 +352,7 @@ describe("SchedulerService.executeEvent", () => {
     );
   });
 
-  it("TAMARA_PULL_DATA fails the event when every ad account pull fails", async () => {
-    const repository = buildFakeRepository();
-    const service = buildService({
-      repository,
-      connector: buildFakeConnector(buildAdAccount(), false),
-    });
-    await service.executeEvent(buildEvent({ eventType: "TAMARA_PULL_DATA" }));
-    expect(repository.markFailed).toHaveBeenCalled();
-  });
-
-  it("TAMARA_ANALYZE aggregates real PAUSE/SCALE counts from ad verdicts", async () => {
+  it("SAMANTHA_ANALYZE aggregates real PAUSE/SCALE counts from ad verdicts", async () => {
     const ad = unwrap(new AdBuilder().withVerdict(Verdict.PAUSE).build());
     const adSet = unwrap(new AdSetBuilder().withAds([ad]).build());
     const campaign = unwrap(new CampaignBuilder().withAdSets([adSet]).build());
@@ -355,7 +368,7 @@ describe("SchedulerService.executeEvent", () => {
 
     const repository = buildFakeRepository();
     const service = buildService({ repository, connector: buildFakeConnector(adAccount) });
-    await service.executeEvent(buildEvent({ eventType: "TAMARA_ANALYZE" }));
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
 
     expect(repository.markDone).toHaveBeenCalledWith(
       "evt-1",
@@ -552,7 +565,7 @@ describe("SchedulerService.executeEvent", () => {
     );
   });
 
-  it("TAMARA_INTELLIGENCE_REFRESH delegates to IntelligenceService.refresh and marks DONE with its real summary", async () => {
+  it("SAMANTHA_INTELLIGENCE_REFRESH delegates to IntelligenceService.refresh and marks DONE with its real summary", async () => {
     const repository = buildFakeRepository();
     const intelligenceService = buildFakeIntelligenceService({
       id: "sig-1",
@@ -568,7 +581,7 @@ describe("SchedulerService.executeEvent", () => {
       generatedAt: "2026-08-19T06:00:00.000Z",
     } as unknown as CalendarEventResult);
     const service = buildService({ repository, intelligenceService });
-    await service.executeEvent(buildEvent({ eventType: "TAMARA_INTELLIGENCE_REFRESH" }));
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_INTELLIGENCE_REFRESH" }));
 
     expect(intelligenceService.refresh).toHaveBeenCalled();
     expect(repository.markDone).toHaveBeenCalledWith(
@@ -579,10 +592,10 @@ describe("SchedulerService.executeEvent", () => {
     );
   });
 
-  it("TAMARA_INTELLIGENCE_REFRESH reports an honest summary when the AI strategy is unavailable", async () => {
+  it("SAMANTHA_INTELLIGENCE_REFRESH reports an honest summary when the AI strategy is unavailable", async () => {
     const repository = buildFakeRepository();
     const service = buildService({ repository });
-    await service.executeEvent(buildEvent({ eventType: "TAMARA_INTELLIGENCE_REFRESH" }));
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_INTELLIGENCE_REFRESH" }));
 
     expect(repository.markDone).toHaveBeenCalledWith(
       "evt-1",
@@ -592,7 +605,7 @@ describe("SchedulerService.executeEvent", () => {
     );
   });
 
-  it("DAILY_DIGEST extends its text with the latest Tamara Intelligence run's real campaign-strategy summary", async () => {
+  it("DAILY_DIGEST extends its text with the latest Samantha Intelligence run's real campaign-strategy summary", async () => {
     const repository = buildFakeRepository();
     const intelligenceService = {
       refresh: vi.fn(),
@@ -623,7 +636,7 @@ describe("SchedulerService.executeEvent", () => {
     );
   });
 
-  it("DAILY_DIGEST omits the Tamara Intelligence section when no run has ever completed", async () => {
+  it("DAILY_DIGEST omits the Samantha Intelligence section when no run has ever completed", async () => {
     const repository = buildFakeRepository();
     const service = buildService({ repository });
     await service.executeEvent(buildEvent({ eventType: "DAILY_DIGEST" }));
@@ -633,7 +646,7 @@ describe("SchedulerService.executeEvent", () => {
       expect.any(String),
       expect.any(Number),
       expect.objectContaining({
-        text: expect.not.stringContaining("🧠 Tamara Intelligence"),
+        text: expect.not.stringContaining("🧠 Samantha Intelligence"),
       }),
     );
   });

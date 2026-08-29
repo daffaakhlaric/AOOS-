@@ -4,7 +4,7 @@ import type { LeadResponseDto } from "./lead-response.dto.js";
 
 /**
  * `GET /api/v1/leads/:id` — `LeadResponseDto` plus the REAL conversation thread, per AAOS-W4B
- * coordinator note #2: `@aos/lead-store` persists no "Jessy summary" prose anywhere, so this DTO
+ * coordinator note #2: `@aos/lead-store` persists no "Clara summary" prose anywhere, so this DTO
  * deliberately carries only real fields — `conversation` is `@aos/lead-store`'s own `Conversation`
  * metadata (message counts, exchange milestones, current stage), and `messages` is the real
  * per-message thread (`MessageRepository.findByConversationId`), not a synthesized summary.
@@ -20,8 +20,10 @@ export interface MessageResponseDto {
   readonly createdAt: string;
   /**
    * AAOS-CHAT-ROOM-JESSY (coordinator note #2) — who authored an OUTGOING message: `"JESSY"` for
-   * Jessy's own automated replies, `"SALES_HUMAN"` for a sales human's real reply, or
-   * `"MANAGER_INTERVENTION"` for a manager sending "as Jessy" from the dashboard. `undefined` for
+   * Clara's own automated replies (see `@aos/lead-store`'s `MessageSenderType`: `"JESSY"` is a
+   * permanently-kept legacy value for pre-rename rows — every new write uses `"CLARA"`),
+   * `"SALES_HUMAN"` for a sales human's real reply, or `"MANAGER_INTERVENTION"` for a manager
+   * sending "as Clara" from the dashboard. `undefined` for
    * every INCOMING message (always the lead) and for any OUTGOING row that predates the
    * `sender_type` column's backfill.
    */

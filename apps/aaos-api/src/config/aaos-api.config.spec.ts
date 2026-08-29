@@ -159,7 +159,7 @@ describe("parseAaosApiConfig", () => {
     }
   });
 
-  it("defaults AAOS_SIMULATOR_BASE_URL to an empty string when omitted (Jessy/Judge stage degrades gracefully, config never fails to boot)", () => {
+  it("defaults AAOS_SIMULATOR_BASE_URL to an empty string when omitted (Clara/Judge stage degrades gracefully, config never fails to boot)", () => {
     const env = buildTestEnv();
     delete env.AAOS_SIMULATOR_BASE_URL;
     const result = parseAaosApiConfig(env);

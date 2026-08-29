@@ -12,7 +12,7 @@
  * handler.
  *
  * `RECYCLING_RUN` was added by AAOS-LEAD-RECYCLING-BROADCAST (coordinator note section 7) — the
- * REAL mechanism for Jessy's daily auto-recycling broadcast is this existing due-window cron, not
+ * REAL mechanism for Clara's daily auto-recycling broadcast is this existing due-window cron, not
  * a second, parallel `@Cron`.
  *
  * `AB_TEST_CHECK` was added by AAOS-ABTESTING-LOOKALIKE Part 1 (coordinator note section 5) —
@@ -25,23 +25,35 @@
  * uploads newly-HOT leads' phone numbers into the tenant's Meta Custom Audience. Uses a normal
  * `"DAILY"` recurrence (seeded at 02:00) — no new recurrence type needed for this one.
  *
- * `TAMARA_INTELLIGENCE_REFRESH` was added by AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 (coordinator
+ * `SAMANTHA_INTELLIGENCE_REFRESH` was added by AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 (coordinator
  * note section 7) — runs `IntelligenceService.refresh()`: aggregates the 5 real signal services
  * (seasonal/trends/competitor/inventory/lead/closing) and synthesizes a campaign strategy via
  * `LlmService.campaignStrategy`, persisting the result to `intelligence_signals`. Uses a normal
  * `"DAILY"` recurrence (seeded at 06:00) — no new recurrence type needed for this one, same choice
  * as `LOOKALIKE_SYNC`.
+ *
+ * AGENT RENAME (Phase 7, Tamara→Samantha / Jessy→Clara): `TAMARA_PULL_DATA`/`TAMARA_ANALYZE`/
+ * `TAMARA_INTELLIGENCE_REFRESH` are kept below, permanently, alongside their new
+ * `SAMANTHA_*`-prefixed equivalents — real `calendar_events` rows already seeded by
+ * `006_calendar_events.sql`'s (and `016_intelligence.sql`'s) historical `INSERT` statements still
+ * carry the OLD literal `event_type` string values, and that historical SQL is never rewritten.
+ * `SchedulerService.executeEvent`'s switch recognizes both spellings for each pair (routing to the
+ * same handler); only new event types created going forward should use the `SAMANTHA_*` spelling —
+ * same backward-compat discipline as `@aos/lead-store`'s `MessageSenderType` keeping `"JESSY"`.
  */
 export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "SCRAPER_RUN",
   "TAMARA_PULL_DATA",
+  "SAMANTHA_PULL_DATA",
   "TAMARA_ANALYZE",
+  "SAMANTHA_ANALYZE",
   "KAI_REFRESH_CHECK",
   "DAILY_DIGEST",
   "RECYCLING_RUN",
   "AB_TEST_CHECK",
   "LOOKALIKE_SYNC",
   "TAMARA_INTELLIGENCE_REFRESH",
+  "SAMANTHA_INTELLIGENCE_REFRESH",
 ] as const;
 
 export type CalendarEventType = (typeof SUPPORTED_CALENDAR_EVENT_TYPES)[number];

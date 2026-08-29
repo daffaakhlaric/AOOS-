@@ -39,7 +39,7 @@ const FAKE_POST: StoredScheduledPost = {
   tenantId: "dss-motor",
   caption: "Xpander Cross DP 29jt",
   hashtags: [],
-  generatedBy: "TAMARA",
+  generatedBy: "SAMANTHA",
   status: "DRAFT",
   reach: 0,
   impressions: 0,

@@ -15,7 +15,7 @@
 --
 -- NOT auto-applied by this repo's tooling -- run this against the real Supabase project before
 -- `POST /api/v1/meta-interests/sync` can persist real rows, and before the Simulasi wizard's
--- audience preview can show any real interest (with no rows, Tamara is honestly given an empty
+-- audience preview can show any real interest (with no rows, Samantha is honestly given an empty
 -- candidate set and the preview reports "belum ada kandidat interest" -- never a fabricated one).
 --
 -- WHY NO `id UUID DEFAULT gen_random_uuid()` HERE (the one deliberate departure from 001-004):

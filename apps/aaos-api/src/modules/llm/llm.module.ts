@@ -55,7 +55,7 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
       useFactory: (): ResponseCache<unknown> => new ResponseCache(),
     },
   ],
-  // AAOS-DASHBOARD-SIMULASI addition: `SimulationModule`'s Tamara/Kai pipeline stages call the
+  // AAOS-DASHBOARD-SIMULASI addition: `SimulationModule`'s Samantha/Kai pipeline stages call the
   // SAME real `LlmService.analyze`/`creativeBrief` in-process (no self-HTTP-call round trip) —
   // needs `LlmService` exported so `SimulationModule` can import `LlmModule` and inject it.
   exports: [LlmService],

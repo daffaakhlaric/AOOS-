@@ -12,7 +12,7 @@
  * strictly after a simulation's `current_step` has already reached `"DONE"`.
  */
 export type SimulationStep =
-  "SETUP" | "TAMARA" | "KAI" | "JESSY" | "JUDGE" | "REVIEW" | "DONE" | "GO_LIVE";
+  "SETUP" | "SAMANTHA" | "KAI" | "CLARA" | "JUDGE" | "REVIEW" | "DONE" | "GO_LIVE";
 
 /**
  * `"LIVE"`/`"ROLLED_BACK"` (AAOS-GO-LIVE, Phase 4) added on top of the original
@@ -27,7 +27,7 @@ export type SimulationStatus = "RUNNING" | "DONE" | "ERROR" | "LIVE" | "ROLLED_B
 export type SimulationDecision = "APPROVED" | "REJECTED";
 
 /**
- * One REAL Meta interest Tamara selected for the audience preview (AAOS-SIMULASI-TARGETING).
+ * One REAL Meta interest Samantha selected for the audience preview (AAOS-SIMULASI-TARGETING).
  * `id`/`name`/`audienceSize*` are Meta's own values, read back out of `meta_interests` (which is
  * only ever populated by real live `GET /search?type=adinterest` calls) — never invented here.
  */
@@ -63,10 +63,10 @@ export interface AudienceTargetingPreview {
   readonly ageMax: number;
   /** Verbatim "⚠ Perkiraan awal, perlu direview…" caveat — the UI must show it. */
   readonly geoNote: string;
-  /** How many real candidates were queried out of `meta_interests` and shown to Tamara. */
+  /** How many real candidates were queried out of `meta_interests` and shown to Samantha. */
   readonly candidateCount: number;
   readonly interests: readonly SelectedAudienceInterest[];
-  /** Tamara's real Indonesian rationale, when the selection succeeded. */
+  /** Samantha's real Indonesian rationale, when the selection succeeded. */
   readonly reasoning?: string;
   /** Why `interests` is empty, when it is (e.g. `NO_CANDIDATES`, or the real LLM unavailable reason). Never a fabricated selection. */
   readonly interestsUnavailableReason?: string;
@@ -87,8 +87,8 @@ export interface AudienceTargetingPreview {
   readonly housingWarning?: string;
 }
 
-/** Step 2 (Tamara) result — the REAL `AnalyzeLlmPayload` shape from `POST /api/v1/llm/analyze`, or `undefined` when Tamara was unavailable (never fabricated). */
-export interface TamaraStageResult {
+/** Step 2 (Samantha) result — the REAL `AnalyzeLlmPayload` shape from `POST /api/v1/llm/analyze`, or `undefined` when Samantha was unavailable (never fabricated). */
+export interface SamanthaStageResult {
   readonly available: boolean;
   readonly reason?: string;
   readonly temuan?: ReadonlyArray<{
@@ -108,7 +108,7 @@ export interface TamaraStageResult {
    * `/api/v1/llm/analyze` has no native numeric score (its real response is qualitative — see
    * `llm.service.ts`). This is a deterministic, inspectable PROXY score derived from real response
    * field counts (never a fabricated/hallucinated number) — used only as one input to this
-   * simulation's overall gate. See `domain/scoring.ts`'s `scoreTamaraCoverage` for the exact
+   * simulation's overall gate. See `domain/scoring.ts`'s `scoreSamanthaCoverage` for the exact
    * formula.
    */
   readonly coverageScore: number;
@@ -186,8 +186,8 @@ export interface KaiStageResult {
   readonly promptDetail?: KaiPromptDetail;
 }
 
-/** One persona's real Jessy simulation + AI Judge result, proxied from `apps/aaos-simulator`'s `POST /api/simulate`. Fields are the exact subset this module needs for scoring/display — see `infrastructure/aaos-simulator-client.ts` for the full upstream response types. */
-export interface JessyPersonaRun {
+/** One persona's real Clara simulation + AI Judge result, proxied from `apps/aaos-simulator`'s `POST /api/simulate`. Fields are the exact subset this module needs for scoring/display — see `infrastructure/aaos-simulator-client.ts` for the full upstream response types. */
+export interface ClaraPersonaRun {
   readonly personaId: string;
   readonly ok: boolean;
   readonly error?: string;
@@ -201,11 +201,11 @@ export interface JessyPersonaRun {
   readonly feedbackItems?: ReadonlyArray<{ readonly dimension: string; readonly message: string }>;
 }
 
-/** Step 4+5 (Jessy + AI Judge) — one run per selected `PersonaId`. */
-export interface JessyStageResult {
+/** Step 4+5 (Clara + AI Judge) — one run per selected `PersonaId`. */
+export interface ClaraStageResult {
   readonly available: boolean;
   readonly reason?: string;
-  readonly runs: readonly JessyPersonaRun[];
+  readonly runs: readonly ClaraPersonaRun[];
   readonly elapsedMs: number;
 }
 
@@ -214,9 +214,9 @@ export type Verdict = "GO" | "CONDITIONAL" | "NO-GO" | "INCOMPLETE";
 
 /** Computed overall gate — see `domain/scoring.ts` for the formula and its judgment-call caveats. */
 export interface SimulationScoring {
-  readonly tamaraCoverageScore: number;
+  readonly samanthaCoverageScore: number;
   readonly kaiScore: number;
-  readonly jessyScore: number;
+  readonly claraScore: number;
   readonly overallScore: number;
   readonly grade: Grade;
   readonly verdict: Verdict;
@@ -232,9 +232,9 @@ export interface SimulationScoring {
 
 /** The full `simulations.result` JSONB payload once the pipeline finishes (or fails). */
 export interface SimulationResult {
-  readonly tamara: TamaraStageResult;
+  readonly samantha: SamanthaStageResult;
   readonly kai: KaiStageResult;
-  readonly jessy: JessyStageResult;
+  readonly clara: ClaraStageResult;
   readonly scoring: SimulationScoring;
 }
 
@@ -251,8 +251,8 @@ export interface SimulationLogEntry {
   /**
    * AAOS-SIMULASI-TARGETING: the previously-unused `simulation_logs.payload` JSONB column is now
    * really written — but ONLY by the targeting step, which has genuinely structured output worth
-   * inspecting (the real candidate interest ids it queried, the ids Tamara selected, and any ids
-   * Tamara invented and the server rejected). Every other log line still writes message-only, so
+   * inspecting (the real candidate interest ids it queried, the ids Samantha selected, and any ids
+   * Samantha invented and the server rejected). Every other log line still writes message-only, so
    * this stays `undefined` for them rather than being padded with an empty object.
    */
   readonly payload?: SimulationLogPayload;
@@ -260,7 +260,7 @@ export interface SimulationLogEntry {
 }
 
 /**
- * One entity `GoLiveService.execute` mutated during its Tamara-verdict-execution step (AAOS-GO-LIVE),
+ * One entity `GoLiveService.execute` mutated during its Samantha-verdict-execution step (AAOS-GO-LIVE),
  * recorded so `GoLiveService.rollback` can honestly undo it. Only `"ad"` entries are reversible
  * today (via the new `ActivateAd` use case) — a `"campaign"`-targeted FIX verdict has no real
  * inverse (there is no "un-fix an objective" operation), so those are recorded for the audit trail

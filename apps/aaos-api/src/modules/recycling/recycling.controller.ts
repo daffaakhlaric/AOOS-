@@ -47,7 +47,7 @@ import { RecyclingService } from "./recycling.service.js";
 
 /**
  * `/api/v1/recycling*` — `x-api-key` auth, same discipline as every other write endpoint in this
- * app (AAOS-LEAD-RECYCLING-BROADCAST). Backs `/jessy/recycling`'s 3 tabs.
+ * app (AAOS-LEAD-RECYCLING-BROADCAST). Backs `/clara/recycling`'s 3 tabs.
  */
 @Controller("api/v1/recycling")
 @UseGuards(ApiKeyGuard)

@@ -39,10 +39,10 @@ const MS_PER_DAY = 86_400_000;
  * no per-tenant loop.
  *
  * Reuses the REAL existing capabilities per coordinator note section 1: creative generation goes
- * through the SAME `CreativePackagesService`/Kai pipeline every manual/Tamara-approved brief
+ * through the SAME `CreativePackagesService`/Kai pipeline every manual/Samantha-approved brief
  * already uses (no second creative pipeline), and winner declaration (pause loser / scale winner
  * +20%) goes through the SAME `connector.verdictService` (`Verdict.PAUSE`/`Verdict.SCALE`) Go
- * Live's rollback and Tamara's own optimization cycle already use — not a fabricated
+ * Live's rollback and Samantha's own optimization cycle already use — not a fabricated
  * `updateAdSetBudget(id, budget * 1.2)` call.
  */
 @Injectable()
@@ -309,7 +309,7 @@ export class AbTestingService {
     return true;
   }
 
-  /** Re-pulls every configured ad account (SAME `PullCampaignData` use case every other Tamara feature uses — coordinator note section 1), matches each `RUNNING` variant's `meta_ad_id`, updates its stored insights, and declares a winner once the threshold+margin are met. */
+  /** Re-pulls every configured ad account (SAME `PullCampaignData` use case every other Samantha feature uses — coordinator note section 1), matches each `RUNNING` variant's `meta_ad_id`, updates its stored insights, and declares a winner once the threshold+margin are met. */
   private async monitorRunningTests(): Promise<number> {
     const runningTests = await this.testRepository.listByStatus(this.tenantId, "RUNNING");
     if (runningTests.length === 0) {

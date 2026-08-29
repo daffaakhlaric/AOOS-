@@ -101,7 +101,7 @@ const RekomendasiSchema = z.object({
   estimasi: z.string().min(1),
 });
 
-/** The shape Tamara's `analyze` system prompt asks the model to return — validated with Zod before ever reaching a caller (coordinator note #5). */
+/** The shape Samantha's `analyze` system prompt asks the model to return — validated with Zod before ever reaching a caller (coordinator note #5). */
 export const AnalyzeLlmPayloadSchema = z.object({
   temuan: z.array(TemuanSchema),
   rekomendasi: z.array(RekomendasiSchema),

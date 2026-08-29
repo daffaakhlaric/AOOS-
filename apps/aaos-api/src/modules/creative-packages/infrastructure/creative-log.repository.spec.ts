@@ -15,7 +15,7 @@ describe("CreativeLogRepository.append", () => {
       {
         tenantId: TENANT,
         packageId: "pkg-1",
-        fromAgent: "TAMARA",
+        fromAgent: "SAMANTHA",
         toAgent: "KAI",
         eventType: "BRIEF_SENT",
         message: "Brief DP_RINGAN untuk Xpander GLS 2022 (CINERE) dikirim ke Kai.",
@@ -26,12 +26,12 @@ describe("CreativeLogRepository.append", () => {
       AT,
     );
     expect(entry.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(entry.fromAgent).toBe("TAMARA");
+    expect(entry.fromAgent).toBe("SAMANTHA");
     expect(entry.toAgent).toBe("KAI");
     expect(entry.eventType).toBe("BRIEF_SENT");
     expect(entry.createdAt).toBe(AT);
     expect(client.rows("creative_logs")).toHaveLength(1);
-    expect(client.rows("creative_logs")[0]?.["from_agent"]).toBe("TAMARA");
+    expect(client.rows("creative_logs")[0]?.["from_agent"]).toBe("SAMANTHA");
   });
 
   it("omits absent optional fields rather than surfacing nulls", async () => {
@@ -76,7 +76,7 @@ describe("CreativeLogRepository.list", () => {
       {
         tenantId: TENANT,
         packageId: "pkg-1",
-        fromAgent: "TAMARA",
+        fromAgent: "SAMANTHA",
         toAgent: "KAI",
         eventType: "BRIEF_SENT",
         message: "brief",

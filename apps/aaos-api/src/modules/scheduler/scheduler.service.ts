@@ -64,10 +64,10 @@ const DUE_WINDOW_MS = 60_000;
 const DEFAULT_DATE_PRESET = "last_30d";
 
 /**
- * Drives the "Kalender Aktivitas Tamara & Kai" widget's backend (AAOS-KALENDER-AKTIVITAS).
+ * Drives the "Kalender Aktivitas Samantha & Kai" widget's backend (AAOS-KALENDER-AKTIVITAS).
  *
  * SCOPE (see `docs/PROMPT-AAOS-KALENDER-AKTIVITAS.md`'s COORDINATOR NOTE): only 5 of the spec's
- * 14 proposed event types are implemented — `SCRAPER_RUN`, `TAMARA_PULL_DATA`, `TAMARA_ANALYZE`,
+ * 14 proposed event types are implemented — `SCRAPER_RUN`, `SAMANTHA_PULL_DATA`, `SAMANTHA_ANALYZE`,
  * `KAI_REFRESH_CHECK`, `DAILY_DIGEST`. The other 9 (6 campaign-mutating types with no
  * human-approval gate at execution time, plus 3 with zero real backing anywhere in this codebase)
  * have no `case` in `executeEvent`'s switch — a stray row with one of them is marked `FAILED` with
@@ -139,10 +139,12 @@ export class SchedulerService {
           result = await this.runScraperRun();
           break;
         case "TAMARA_PULL_DATA":
-          result = await this.runTamaraPullData(correlationId);
+        case "SAMANTHA_PULL_DATA":
+          result = await this.runSamanthaPullData(correlationId);
           break;
         case "TAMARA_ANALYZE":
-          result = await this.runTamaraAnalyze(correlationId);
+        case "SAMANTHA_ANALYZE":
+          result = await this.runSamanthaAnalyze(correlationId);
           break;
         case "KAI_REFRESH_CHECK":
           result = await this.runKaiRefreshCheck(correlationId);
@@ -160,7 +162,8 @@ export class SchedulerService {
           result = await this.runLookalikeSync();
           break;
         case "TAMARA_INTELLIGENCE_REFRESH":
-          result = await this.runTamaraIntelligenceRefresh();
+        case "SAMANTHA_INTELLIGENCE_REFRESH":
+          result = await this.runSamanthaIntelligenceRefresh();
           break;
       }
 
@@ -278,8 +281,8 @@ export class SchedulerService {
     };
   }
 
-  /** `TAMARA_PULL_DATA` — `PullCampaignData` orchestrated by `MetaAdsSyncService` across every configured ad account (coordinator note section 1). */
-  private async runTamaraPullData(correlationId: string): Promise<CalendarEventResult> {
+  /** `SAMANTHA_PULL_DATA` (also matches the legacy `TAMARA_PULL_DATA` event type — see `SUPPORTED_CALENDAR_EVENT_TYPES`' doc comment) — `PullCampaignData` orchestrated by `MetaAdsSyncService` across every configured ad account (coordinator note section 1). */
+  private async runSamanthaPullData(correlationId: string): Promise<CalendarEventResult> {
     const adAccounts = await this.pullAdAccounts(correlationId);
     const campaigns = adAccounts.reduce((sum, account) => sum + account.campaigns.length, 0);
     const ads = adAccounts.reduce((sum, account) => sum + countAds(account), 0);
@@ -292,14 +295,16 @@ export class SchedulerService {
   }
 
   /**
-   * `TAMARA_ANALYZE` — new orchestration glue (coordinator note section 6): fetches the tenant's
-   * active campaigns itself, calls the real `LlmService.analyze`, and always ALSO aggregates a
-   * rule-based PAUSE/SCALE count directly from each ad's already-computed `verdict` (set by
-   * `@aos/meta-ads-connector`'s own `evaluateVerdict` during the pull above) — this is the "rule-based
-   * fallback path" the coordinator note refers to, and it is computed unconditionally (not only
-   * when the LLM is unavailable) so the digest-style summary is always a real, deterministic count.
+   * `SAMANTHA_ANALYZE` (also matches the legacy `TAMARA_ANALYZE` event type — see
+   * `SUPPORTED_CALENDAR_EVENT_TYPES`' doc comment) — new orchestration glue (coordinator note
+   * section 6): fetches the tenant's active campaigns itself, calls the real `LlmService.analyze`,
+   * and always ALSO aggregates a rule-based PAUSE/SCALE count directly from each ad's
+   * already-computed `verdict` (set by `@aos/meta-ads-connector`'s own `evaluateVerdict` during the
+   * pull above) — this is the "rule-based fallback path" the coordinator note refers to, and it is
+   * computed unconditionally (not only when the LLM is unavailable) so the digest-style summary is
+   * always a real, deterministic count.
    */
-  private async runTamaraAnalyze(correlationId: string): Promise<CalendarEventResult> {
+  private async runSamanthaAnalyze(correlationId: string): Promise<CalendarEventResult> {
     const adAccounts = await this.pullAdAccounts(correlationId);
     const allAds = adAccounts.flatMap((account) => flattenAds(account));
     const campaigns = adAccounts.reduce((sum, account) => sum + account.campaigns.length, 0);
@@ -387,7 +392,7 @@ export class SchedulerService {
    * reason. Every number the digest itself reports (hot leads, budget, top performers) is real,
    * derived from the real `Objective`/pulled `AdAccount` — nothing here is fabricated.
    *
-   * Does NOT touch `apps/aaos-dashboard`'s existing client-side `<TamaraDigest />` — a separate,
+   * Does NOT touch `apps/aaos-dashboard`'s existing client-side `<SamanthaDigest />` — a separate,
    * unrelated component (coordinator note section 2).
    */
   private async runDailyDigest(correlationId: string): Promise<CalendarEventResult> {
@@ -454,7 +459,7 @@ export class SchedulerService {
     // cross-handler write path (there is no persisted digest-log table anywhere — see that note).
     const abTestSection = await this.buildAbTestDigestSection();
     const lookalikeSection = await this.buildLookalikeDigestSection();
-    // AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 coordinator note section 7: extend the digest's own
+    // AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 coordinator note section 7: extend the digest's own
     // real text with the latest real `intelligence_signals` row's key points — real data pulled
     // fresh each run from `IntelligenceService`, same "no new parallel digest-writing path"
     // discipline as the A/B test/Lookalike sections above.
@@ -513,14 +518,15 @@ export class SchedulerService {
   }
 
   /**
-   * `TAMARA_INTELLIGENCE_REFRESH` (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4, coordinator note
-   * section 7) — delegates every real decision (which signals to aggregate, how to synthesize
-   * them) to `IntelligenceService.refresh()`, which returns an honest, real, persisted result —
-   * never a fabricated count. Real daily 06:00 cadence via the pre-existing `"DAILY"` recurrence,
-   * checked by this SAME due-window cron rather than a second, parallel `@Cron` (same choice as
-   * `LOOKALIKE_SYNC`).
+   * `SAMANTHA_INTELLIGENCE_REFRESH` (also matches the legacy `TAMARA_INTELLIGENCE_REFRESH` event
+   * type — see `SUPPORTED_CALENDAR_EVENT_TYPES`' doc comment; AAOS-SAMANTHA-INTELLIGENCE-LAYER
+   * Phase 4, coordinator note section 7) — delegates every real decision (which signals to
+   * aggregate, how to synthesize them) to `IntelligenceService.refresh()`, which returns an
+   * honest, real, persisted result — never a fabricated count. Real daily 06:00 cadence via the
+   * pre-existing `"DAILY"` recurrence, checked by this SAME due-window cron rather than a second,
+   * parallel `@Cron` (same choice as `LOOKALIKE_SYNC`).
    */
-  private async runTamaraIntelligenceRefresh(): Promise<CalendarEventResult> {
+  private async runSamanthaIntelligenceRefresh(): Promise<CalendarEventResult> {
     const signals = await this.intelligenceService.refresh();
     const strategySummary = signals.campaignStrategy?.available
       ? signals.campaignStrategy.summary
@@ -566,14 +572,14 @@ export class SchedulerService {
     }
     const line = status.lookalikeEligible
       ? `👥 Lookalike: ${String(status.totalHotLeads)}/${String(status.minRequiredForLookalike)} hot leads terkumpul — Lookalike aktif.`
-      : `👥 Lookalike: ${String(status.totalHotLeads)}/${String(status.minRequiredForLookalike)} hot leads terkumpul (${String(Math.max(0, status.minRequiredForLookalike - status.totalHotLeads))} lagi untuk aktif Lookalike). Terus jalankan Jessy!`;
+      : `👥 Lookalike: ${String(status.totalHotLeads)}/${String(status.minRequiredForLookalike)} hot leads terkumpul (${String(Math.max(0, status.minRequiredForLookalike - status.totalHotLeads))} lagi untuk aktif Lookalike). Terus jalankan Clara!`;
     return line;
   }
 
   /**
-   * Daily Digest extension (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4, coordinator note section 7) —
-   * the latest real `intelligence_signals` row's real campaign-strategy summary, read via
-   * `IntelligenceService.getLatest()`. Returns `undefined` (no section) when no Tamara
+   * Daily Digest extension (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4, coordinator note section 7)
+   * — the latest real `intelligence_signals` row's real campaign-strategy summary, read via
+   * `IntelligenceService.getLatest()`. Returns `undefined` (no section) when no Samantha
    * Intelligence run has ever completed for this tenant, rather than appending an empty line.
    */
   private async buildIntelligenceDigestSection(): Promise<string | undefined> {
@@ -582,9 +588,9 @@ export class SchedulerService {
       return undefined;
     }
     const strategyLine = latest.campaignStrategy?.available
-      ? `  Rekomendasi Tamara: ${latest.campaignStrategy.summary}`
-      : "  Rekomendasi Tamara: AI campaign strategy tidak tersedia saat ini.";
-    return ["🧠 Tamara Intelligence:", strategyLine].join("\n");
+      ? `  Rekomendasi Samantha: ${latest.campaignStrategy.summary}`
+      : "  Rekomendasi Samantha: AI campaign strategy tidak tersedia saat ini.";
+    return ["🧠 Samantha Intelligence:", strategyLine].join("\n");
   }
 
   /** Sum of real `HOT`-status leads across every branch (`@aos/lead-store`'s `GetHotLeads`, per branch — there is no tenant-wide aggregate use case). A branch whose lookup fails contributes 0 and is logged, never aborts the whole digest. */

@@ -3,8 +3,8 @@ import { z } from "zod";
 import type { LlmUnavailableResponseDto } from "./llm-unavailable.dto.js";
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 ("PART 3: TAMARA DECISION ENGINE"). The ONE genuinely
- * LLM-dependent step of the wider Tamara Intelligence Layer effort (coordinator note point 4):
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 ("PART 3: SAMANTHA DECISION ENGINE"). The ONE genuinely
+ * LLM-dependent step of the wider Samantha Intelligence Layer effort (coordinator note point 4):
  * turns the already-aggregated, already-computed real signals from `packages/meta-ads-agent`'s
  * Phase 1-3 pure signal services into a `campaignMode`/angle/budget/targeting recommendation.
  *
@@ -73,9 +73,9 @@ export const CampaignStrategyRequestSchema = z.object({
   vertical: z.enum(["AUTOMOTIVE", "PROPERTY"]),
   tenantName: z.string().min(1),
   branchId: z.string().min(1),
-  /** Real brand-angle ids Tamara may choose for `brandCampaign.angle` (from `@aos/meta-ads-agent`'s `BRAND_ANGLES[vertical]`) — sent explicitly so the prompt's vocabulary always matches this request's real vertical. */
+  /** Real brand-angle ids Samantha may choose for `brandCampaign.angle` (from `@aos/meta-ads-agent`'s `BRAND_ANGLES[vertical]`) — sent explicitly so the prompt's vocabulary always matches this request's real vertical. */
   brandAngleIds: z.array(z.string().min(1)).min(1),
-  /** Real product-angle values Tamara may choose for `productCampaign.angle` (`AdAngle` members for AUTOMOTIVE, `PropertyAdAngle` string values for PROPERTY). */
+  /** Real product-angle values Samantha may choose for `productCampaign.angle` (`AdAngle` members for AUTOMOTIVE, `PropertyAdAngle` string values for PROPERTY). */
   productAngleValues: z.array(z.string().min(1)).min(1),
   seasonal: SeasonalContextSchema,
   trends: TrendsContextSchema,
@@ -104,7 +104,7 @@ const ProductCampaignSchema = z.object({
 });
 
 /**
- * The shape Tamara's `campaign-strategy` system prompt asks the model to return — spec PART 3's
+ * The shape Samantha's `campaign-strategy` system prompt asks the model to return — spec PART 3's
  * `CampaignStrategy` JSON, angle-vocabulary corrections aside (real `AdAngle`/`PropertyAdAngle`/
  * `BRAND_ANGLES` values, never the spec's fictional angle names).
  *

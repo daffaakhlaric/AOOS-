@@ -247,7 +247,7 @@ export class LeadsService {
   }
 
   /**
-   * `POST /api/v1/leads/:id/intervene` — manager-as-Jessy (coordinator note #5). Same send path as
+   * `POST /api/v1/leads/:id/intervene` — manager-as-Clara (coordinator note #5). Same send path as
    * `sendMessage`, but persisted with `sender_type = 'MANAGER_INTERVENTION'` — honestly, NOT
    * `'JESSY'` (the spec's own inline comment self-contradicts on this point; the coordinator note
    * resolves it). No `assignedSalesId` check — a manager may intervene on any lead regardless of
@@ -336,7 +336,7 @@ export class LeadsService {
   }
 
   /**
-   * `GET /api/v1/leads/analytics?days=` — real KPIs for `/jessy/analytics` (MENU RESTRUCTURE
+   * `GET /api/v1/leads/analytics?days=` — real KPIs for `/clara/analytics` (MENU RESTRUCTURE
    * FINAL), computed from `@aos/lead-store`'s real `leads`/`conversations`/`messages` data —
    * never fabricated. `GetLeadsQueryDto.branchId` is required (there is no cross-branch endpoint
    * of `aaos-api`'s own), so this fans out across `ALL_BRANCH_IDS` exactly like the dashboard
@@ -437,7 +437,7 @@ export class LeadsService {
     };
   }
 
-  /** Builds the `/jessy/analytics` daily chart series — real per-day counts derived from every fetched lead's real `createdAt`, never fabricated/interpolated points. */
+  /** Builds the `/clara/analytics` daily chart series — real per-day counts derived from every fetched lead's real `createdAt`, never fabricated/interpolated points. */
   private buildDailySeries(
     leads: ReadonlyArray<{ readonly createdAt: Date }>,
     days: number,

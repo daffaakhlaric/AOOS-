@@ -92,9 +92,9 @@ describe("buildCreativeBrief", () => {
     expect(result.value.adId).toBe(BASE.id);
   });
 
-  it("carries the real ad id through for a Tamara-originated brief", () => {
+  it("carries the real ad id through for a Samantha-originated brief", () => {
     const result = buildCreativeBrief({
-      pkg: { ...BASE, origin: "TAMARA", adId: "120000000000001" },
+      pkg: { ...BASE, origin: "SAMANTHA", adId: "120000000000001" },
       createdAt: NOW,
     });
     expect(result.ok).toBe(true);

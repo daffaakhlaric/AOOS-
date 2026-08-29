@@ -15,7 +15,7 @@ import { MetaInterestsService } from "./meta-interests.service.js";
  * global provider set (one composed Meta connector for the whole app, not a second one).
  *
  * `MetaInterestRepository` is exported so `SimulationModule` can read the real stored candidate
- * interests during its TAMARA stage without composing a second repository over the same table.
+ * interests during its SAMANTHA stage without composing a second repository over the same table.
  */
 @Module({
   controllers: [MetaInterestsController],

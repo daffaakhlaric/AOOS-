@@ -70,7 +70,7 @@ export class LeadsController {
     return this.leadsService.getMyLeads(query);
   }
 
-  /** `GET /api/v1/leads/analytics?days=` — real `/jessy/analytics` KPIs (MENU RESTRUCTURE FINAL). Registered before `:id` so the literal path segment `"analytics"` is never swallowed by `:id`, same reasoning as `"my"` above. */
+  /** `GET /api/v1/leads/analytics?days=` — real `/clara/analytics` KPIs (MENU RESTRUCTURE FINAL). Registered before `:id` so the literal path segment `"analytics"` is never swallowed by `:id`, same reasoning as `"my"` above. */
   @Get("analytics")
   async getAnalytics(
     @Query(new ZodValidationPipe(GetLeadsAnalyticsQuerySchema)) query: GetLeadsAnalyticsQueryDto,
@@ -120,7 +120,7 @@ export class LeadsController {
     return this.leadsService.sendMessage(id, body, correlationId);
   }
 
-  /** `POST /api/v1/leads/:id/intervene` — manager-as-Jessy, persisted as `sender_type = 'MANAGER_INTERVENTION'` (coordinator note #5). */
+  /** `POST /api/v1/leads/:id/intervene` — manager-as-Clara, persisted as `sender_type = 'MANAGER_INTERVENTION'` (coordinator note #5). */
   @Post(":id/intervene")
   async intervene(
     @Param("id") id: string,

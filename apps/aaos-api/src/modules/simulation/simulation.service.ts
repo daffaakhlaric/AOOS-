@@ -28,8 +28,8 @@ import {
 import { computeSimulationScoring } from "./domain/scoring.js";
 import type {
   AudienceTargetingPreview,
-  JessyPersonaRun,
-  JessyStageResult,
+  ClaraPersonaRun,
+  ClaraStageResult,
   KaiPromptDetail,
   KaiStageResult,
   SelectedAudienceInterest,
@@ -38,7 +38,7 @@ import type {
   SimulationResult,
   SimulationStep,
   StoredSimulation,
-  TamaraStageResult,
+  SamanthaStageResult,
 } from "./domain/simulation-record.js";
 import { selectTargetingCandidates } from "./domain/targeting-candidates.js";
 import type { ReviewSimulationBodyDto } from "./dto/review-simulation.dto.js";
@@ -53,7 +53,7 @@ import { callAaosSimulator, AaosSimulatorError } from "./infrastructure/aaos-sim
 import { SimulationRepository } from "./infrastructure/simulation.repository.js";
 
 /**
- * Orchestrates the "Simulasi Tamara × Kai × Jessy" dry run (Steps 1-6, AAOS-DASHBOARD-SIMULASI).
+ * Orchestrates the "Simulasi Samantha × Kai × Clara" dry run (Steps 1-6, AAOS-DASHBOARD-SIMULASI).
  * HARD SCOPE BOUNDARY: this is a preview/scoring tool only. Nothing in this class ever creates a
  * real Meta campaign, activates real WhatsApp auto-reply, or touches real CAPI — `approve`/
  * `reject` record the manager's decision on the row only (Step 6's "Review & Approve").
@@ -64,7 +64,7 @@ import { SimulationRepository } from "./infrastructure/simulation.repository.js"
  * detached async task (`void this.runPipeline(...)`); the dashboard polls
  * `GET /api/v1/simulation/:id/status` for progress.
  *
- * Step 3 (Kai) scope note: this pass wires the REAL `LlmService.creativeBrief` call (Tamara →
+ * Step 3 (Kai) scope note: this pass wires the REAL `LlmService.creativeBrief` call (Samantha →
  * Kai handoff, same as `SimulasiClient.tsx`'s existing "Generate Brief" step) but does NOT invoke
  * `@aos/creative-agent`'s `CreativeOrchestratorService` for real Kie AI video/image generation —
  * nothing in `aaos-api` composes that orchestrator today (verified: no `CreativeOrchestratorService`
@@ -166,45 +166,45 @@ export class SimulationService {
         "Simulasi dimulai dari data yang sudah di-cache/ditarik.",
       );
 
-      // --- Step 2: Tamara (real /api/v1/llm/analyze, in-process — see class doc) ---
-      await this.repository.updateStep(id, "TAMARA");
-      await this.log(id, "TAMARA", "INFO", "Tamara sedang menganalisa data iklan…");
-      const tamaraStart = Date.now();
+      // --- Step 2: Samantha (real /api/v1/llm/analyze, in-process — see class doc) ---
+      await this.repository.updateStep(id, "SAMANTHA");
+      await this.log(id, "SAMANTHA", "INFO", "Samantha sedang menganalisa data iklan…");
+      const samanthaStart = Date.now();
       const analyzeResult = await this.llmService.analyze({
         campaigns: body.campaigns,
         totals: body.totals,
       });
-      const baseTamara: TamaraStageResult = analyzeResult.available
+      const baseSamantha: SamanthaStageResult = analyzeResult.available
         ? {
             available: true,
             temuan: analyzeResult.temuan,
             rekomendasi: analyzeResult.rekomendasi,
             ringkasan: analyzeResult.ringkasan,
-            elapsedMs: Date.now() - tamaraStart,
-            coverageScore: 0, // computed below via scoreTamaraCoverage in computeSimulationScoring's inputs
+            elapsedMs: Date.now() - samanthaStart,
+            coverageScore: 0, // computed below via scoreSamanthaCoverage in computeSimulationScoring's inputs
           }
         : {
             available: false,
             reason: analyzeResult.reason,
-            elapsedMs: Date.now() - tamaraStart,
+            elapsedMs: Date.now() - samanthaStart,
             coverageScore: 0,
           };
       await this.log(
         id,
-        "TAMARA",
-        baseTamara.available ? "INFO" : "WARN",
-        baseTamara.available
-          ? `Tamara selesai menganalisa dalam ${baseTamara.elapsedMs}ms.`
-          : `Tamara tidak tersedia: ${baseTamara.reason ?? "unknown"}.`,
+        "SAMANTHA",
+        baseSamantha.available ? "INFO" : "WARN",
+        baseSamantha.available
+          ? `Samantha selesai menganalisa dalam ${baseSamantha.elapsedMs}ms.`
+          : `Samantha tidak tersedia: ${baseSamantha.reason ?? "unknown"}.`,
       );
 
       // --- Step 2b: audience targeting preview (display only — never sent to Meta) ---
       const audienceTargeting = await this.computeAudienceTargeting(id, body, tenantId, vertical);
-      const tamara: TamaraStageResult = { ...baseTamara, audienceTargeting };
+      const samantha: SamanthaStageResult = { ...baseSamantha, audienceTargeting };
 
       // --- Step 3: Kai (real /api/v1/llm/creative-brief; real Kie AI generation NOT invoked) ---
       await this.repository.updateStep(id, "KAI");
-      await this.log(id, "KAI", "INFO", "Tamara brief Kai untuk creative refresh…");
+      await this.log(id, "KAI", "INFO", "Samantha brief Kai untuk creative refresh…");
       const kaiStart = Date.now();
       const briefResult = await this.llmService.creativeBrief({
         ad: body.kaiAd,
@@ -226,7 +226,7 @@ export class SimulationService {
             },
             elapsedMs: Date.now() - kaiStart,
             videoGenerated: false,
-            note: "Brief nyata dari Tamara. Generate video/gambar Kie AI belum dijalankan pada simulasi ini.",
+            note: "Brief nyata dari Samantha. Generate video/gambar Kie AI belum dijalankan pada simulasi ini.",
             promptDetail: await this.resolveKaiPromptDetail(
               id,
               briefResult,
@@ -251,17 +251,17 @@ export class SimulationService {
           : `Kai tidak menerima brief: ${kai.reason ?? "unknown"}.`,
       );
 
-      // --- Step 4+5: Jessy + AI Judge (real cross-app HTTP call to apps/aaos-simulator) ---
-      await this.repository.updateStep(id, "JESSY");
-      const jessy = await this.runJessyStage(id, body.personaIds, vertical, body.listingId);
+      // --- Step 4+5: Clara + AI Judge (real cross-app HTTP call to apps/aaos-simulator) ---
+      await this.repository.updateStep(id, "CLARA");
+      const clara = await this.runClaraStage(id, body.personaIds, vertical, body.listingId);
 
       // --- Scoring ---
       await this.repository.updateStep(id, "JUDGE");
-      const scoring = computeSimulationScoring(tamara, kai, jessy, vertical);
+      const scoring = computeSimulationScoring(samantha, kai, clara, vertical);
       const result: SimulationResult = {
-        tamara: { ...tamara, coverageScore: scoring.tamaraCoverageScore },
+        samantha: { ...samantha, coverageScore: scoring.samanthaCoverageScore },
         kai,
-        jessy,
+        clara,
         scoring,
       };
       await this.log(
@@ -283,7 +283,7 @@ export class SimulationService {
 
   /**
    * AAOS-SIMULASI-TARGETING — computes the display-only "Campaign yang Akan Dibuat (Preview)"
-   * audience block, as a new step inside the TAMARA stage after the real `LlmService.analyze` call.
+   * audience block, as a new step inside the SAMANTHA stage after the real `LlmService.analyze` call.
    *
    * Two real sources, kept clearly distinguishable in the output:
    *  1. The branch's geo/age default from `@aos/meta-ads-connector`'s `BRANCH_AUDIENCE_DEFAULTS` —
@@ -337,7 +337,7 @@ export class SimulationService {
       if (candidates.length === 0) {
         await this.log(
           id,
-          "TAMARA",
+          "SAMANTHA",
           "WARN",
           "Belum ada kandidat interest Meta tersimpan — jalankan POST /api/v1/meta-interests/sync dulu. Targeting interest dilewati (bukan hasil palsu).",
           { candidateIds: [], selectedIds: [], rejectedIds: [] },
@@ -368,9 +368,9 @@ export class SimulationService {
       if (!selection.available) {
         await this.log(
           id,
-          "TAMARA",
+          "SAMANTHA",
           "WARN",
-          `Tamara tidak bisa memilih interest: ${selection.reason}. Menampilkan geo/usia default saja.`,
+          `Samantha tidak bisa memilih interest: ${selection.reason}. Menampilkan geo/usia default saja.`,
           { candidateIds: candidates.map((c) => c.id), selectedIds: [], rejectedIds: [] },
         );
         return {
@@ -394,9 +394,9 @@ export class SimulationService {
 
       await this.log(
         id,
-        "TAMARA",
+        "SAMANTHA",
         selection.rejectedIds.length > 0 ? "WARN" : "INFO",
-        `Tamara memilih ${interests.length} dari ${candidates.length} kandidat interest Meta` +
+        `Samantha memilih ${interests.length} dari ${candidates.length} kandidat interest Meta` +
           (selection.rejectedIds.length > 0
             ? `; ${selection.rejectedIds.length} id karangan ditolak server.`
             : "."),
@@ -418,7 +418,7 @@ export class SimulationService {
       this.logger.warn(`SimulationService.computeAudienceTargeting(${id}) failed: ${message}`);
       await this.log(
         id,
-        "TAMARA",
+        "SAMANTHA",
         "WARN",
         `Preview targeting gagal dihitung: ${message}. Simulasi tetap dilanjutkan.`,
       );
@@ -517,7 +517,7 @@ export class SimulationService {
    * AUTOMOTIVE ONLY — see `resolveKaiPromptDetail`'s doc for the PROPERTY sibling.
    *
    * NEVER FAILS THE RUN: any thrown error here is caught and logged; the panel degrades to
-   * `undefined` (an honest "not shown") rather than aborting a simulation whose Tamara/Kai brief
+   * `undefined` (an honest "not shown") rather than aborting a simulation whose Samantha/Kai brief
    * step already succeeded.
    */
   private async buildKaiPromptDetail(
@@ -575,35 +575,35 @@ export class SimulationService {
     return found.value.assets.map((asset) => asset.publicUrl.toString());
   }
 
-  private async runJessyStage(
+  private async runClaraStage(
     id: string,
     personaIds: readonly string[],
     vertical: "AUTOMOTIVE" | "PROPERTY",
     listingId: string | undefined,
-  ): Promise<JessyStageResult> {
-    const jessyStart = Date.now();
+  ): Promise<ClaraStageResult> {
+    const claraStart = Date.now();
     if (this.config.AAOS_SIMULATOR_BASE_URL.length === 0) {
       await this.log(
         id,
-        "JESSY",
+        "CLARA",
         "WARN",
-        "AAOS_SIMULATOR_BASE_URL belum dikonfigurasi — tahap Jessy/AI Judge dilewati (bukan hasil palsu).",
+        "AAOS_SIMULATOR_BASE_URL belum dikonfigurasi — tahap Clara/AI Judge dilewati (bukan hasil palsu).",
       );
       return {
         available: false,
         reason: "AAOS_SIMULATOR_BASE_URL is not configured",
         runs: [],
-        elapsedMs: Date.now() - jessyStart,
+        elapsedMs: Date.now() - claraStart,
       };
     }
 
-    const runs: JessyPersonaRun[] = [];
+    const runs: ClaraPersonaRun[] = [];
     for (const personaId of personaIds) {
       await this.log(
         id,
-        "JESSY",
+        "CLARA",
         "INFO",
-        `Menjalankan simulasi Jessy untuk persona "${personaId}"…`,
+        `Menjalankan simulasi Clara untuk persona "${personaId}"…`,
       );
       try {
         const run = await callAaosSimulator(
@@ -626,18 +626,18 @@ export class SimulationService {
         });
         await this.log(
           id,
-          "JESSY",
+          "CLARA",
           "INFO",
           `Persona "${personaId}": skor Judge ${run.overallScore} (${run.grade}).`,
         );
       } catch (caught) {
         const message = caught instanceof AaosSimulatorError ? caught.message : String(caught);
         runs.push({ personaId, ok: false, error: message });
-        await this.log(id, "JESSY", "ERROR", `Persona "${personaId}" gagal: ${message}`);
+        await this.log(id, "CLARA", "ERROR", `Persona "${personaId}" gagal: ${message}`);
       }
     }
 
-    return { available: true, runs, elapsedMs: Date.now() - jessyStart };
+    return { available: true, runs, elapsedMs: Date.now() - claraStart };
   }
 
   async getStatus(id: string): Promise<SimulationStatusResponseDto> {

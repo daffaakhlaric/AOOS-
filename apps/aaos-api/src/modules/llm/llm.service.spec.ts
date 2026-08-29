@@ -598,7 +598,7 @@ describe("LlmService", () => {
       await buildService().generateCaption(validCaptionBody);
       const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
         .messages;
-      expect(messages[0]?.content).toContain("Tamara");
+      expect(messages[0]?.content).toContain("Samantha");
       expect(messages[1]?.content).toContain("Xpander Cross 2019 - Cinere");
     });
   });
@@ -713,12 +713,12 @@ describe("LlmService", () => {
       await buildService().generateHashtags(validHashtagsBody);
       const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
         .messages;
-      expect(messages[0]?.content).toContain("Tamara");
+      expect(messages[0]?.content).toContain("Samantha");
       expect(messages[1]?.content).toContain("MobixCinere");
     });
   });
 
-  describe("campaignStrategy (AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4)", () => {
+  describe("campaignStrategy (AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4)", () => {
     const validCampaignStrategyBody: CampaignStrategyRequestDto = {
       vertical: "AUTOMOTIVE",
       tenantName: "DSS Motor",

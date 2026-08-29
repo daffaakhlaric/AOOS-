@@ -58,8 +58,8 @@ CREATE TABLE listings (
   photos            JSONB NOT NULL DEFAULT '[]'::jsonb,
   main_photo_url    TEXT,
 
-  -- Set by `POST /api/v1/listings/:id/publish-knowledge` (Jessy's `PropertyKnowledge` generation
-  -- -- spec Part 6/Listing Detail page's "Jadikan Knowledge Tamara" action).
+  -- Set by `POST /api/v1/listings/:id/publish-knowledge` (Clara's `PropertyKnowledge` generation
+  -- -- spec Part 6/Listing Detail page's "Jadikan Knowledge Samantha" action).
   in_knowledge_base BOOLEAN NOT NULL DEFAULT false,
 
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),

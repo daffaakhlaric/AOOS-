@@ -25,7 +25,7 @@ describe("SimulationModule", () => {
     expect(metadata).toContain(LlmModule);
   });
 
-  it("imports MetaInterestsModule (so the TAMARA stage reads the SAME real MetaInterestRepository the sync endpoint writes through)", () => {
+  it("imports MetaInterestsModule (so the SAMANTHA stage reads the SAME real MetaInterestRepository the sync endpoint writes through)", () => {
     const metadata = Reflect.getMetadata("imports", SimulationModule) as unknown[];
     expect(metadata).toContain(MetaInterestsModule);
   });

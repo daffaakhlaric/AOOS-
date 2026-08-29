@@ -14,10 +14,10 @@ import { SimulationService } from "./simulation.service.js";
 
 /**
  * `LlmModule` is imported (not re-provided) so `SimulationService` can inject the SAME real
- * `LlmService` `LlmController`'s own `/api/v1/llm/*` endpoints use — one Tamara implementation,
+ * `LlmService` `LlmController`'s own `/api/v1/llm/*` endpoints use — one Samantha implementation,
  * not two (coordinator note #1/#2: call the real thing, never reimplement it).
  *
- * `MetaInterestsModule` is imported for the same reason (AAOS-SIMULASI-TARGETING): the TAMARA
+ * `MetaInterestsModule` is imported for the same reason (AAOS-SIMULASI-TARGETING): the SAMANTHA
  * stage's audience-targeting step reads the real stored `meta_interests` catalogue through the
  * SAME `MetaInterestRepository` `POST /api/v1/meta-interests/sync` writes through — one repository
  * over that table, not a second one composed here.

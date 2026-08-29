@@ -1,6 +1,6 @@
 /**
  * One row of the append-only `creative_logs` audit trail (AAOS-CREATIVE-REVIEW) — the
- * "Log Tamara × Kai" tab's data.
+ * "Log Samantha × Kai" tab's data.
  *
  * Every entry corresponds to something that ACTUALLY happened in the real pipeline: a brief really
  * being handed to `@aos/creative-agent`, a real Kie AI generation really starting or finishing, a
@@ -10,7 +10,7 @@
  * Kept strictly distinct from `creative_packages`' own row-level `status`/`reviewedAt`: package
  * state is never mirrored here, and nothing reconstructs package state by replaying this table.
  */
-export type CreativeLogAgent = "TAMARA" | "KAI" | "KIE_AI" | "MANAGER" | "SYSTEM";
+export type CreativeLogAgent = "SAMANTHA" | "KAI" | "KIE_AI" | "MANAGER" | "SYSTEM";
 
 export type CreativeLogTarget = "KAI" | "KIE_AI" | "SISTEM";
 

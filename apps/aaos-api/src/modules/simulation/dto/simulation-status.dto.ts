@@ -25,8 +25,8 @@ export interface SimulationStatusResponseDto {
   readonly liveAt?: string;
   readonly rolledBackAt?: string;
   /**
-   * `result.tamara.audienceTargeting` (AAOS-SIMULASI-TARGETING) rides along inside `result` — no
-   * separate top-level field, exactly like `tamara`/`kai` already do.
+   * `result.samantha.audienceTargeting` (AAOS-SIMULASI-TARGETING) rides along inside `result` — no
+   * separate top-level field, exactly like `samantha`/`kai` already do.
    *
    * `logs[].payload` is populated only for the targeting step (the sole writer of
    * `simulation_logs.payload`); every other line omits it.

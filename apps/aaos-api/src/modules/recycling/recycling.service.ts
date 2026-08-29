@@ -278,7 +278,7 @@ export class RecyclingService {
       throw sendResult.error;
     }
 
-    // Best-effort: a recycling-pool lead should already have a conversation (they messaged Jessy
+    // Best-effort: a recycling-pool lead should already have a conversation (they messaged Clara
     // before becoming COLD/WARM), but a missing one is a real, non-fatal state — same discipline
     // `LeadsService.getLeadDetail` already applies to `ConversationNotFoundError`.
     const conversationResult = await this.leadStore.getConversation.execute(lead.id.toString());
@@ -289,7 +289,7 @@ export class RecyclingService {
         body: message,
         tenantId: this.config.AAOS_TENANT_ID,
         correlationId,
-        senderType: "JESSY",
+        senderType: "CLARA",
       });
       if (!saveResult.ok) {
         this.logger.warn(

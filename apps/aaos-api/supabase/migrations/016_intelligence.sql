@@ -1,12 +1,12 @@
--- AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 -- 016_intelligence.sql
+-- AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 -- 016_intelligence.sql
 -- Backs `modules/intelligence`'s IntelligenceService/IntelligenceSignalsRepository/
 -- CompetitorPageRepository. Same convention as 001-015: snake_case columns,
 -- `gen_random_uuid()` primary keys, `TIMESTAMPTZ` timestamps, lives in apps/aaos-api's own
 -- migration folder (per the wider effort's coordinator note section 7 -- these two tables are new,
 -- aaos-api-owned concepts, not backed by any real `@aos/*` package entity).
 --
--- `intelligence_signals` -- one row per real Tamara Intelligence run (manual refresh or the
--- TAMARA_INTELLIGENCE_REFRESH Kalender event below). Each `*_data` column holds the REAL,
+-- `intelligence_signals` -- one row per real Samantha Intelligence run (manual refresh or the
+-- SAMANTHA_INTELLIGENCE_REFRESH Kalender event below). Each `*_data` column holds the REAL,
 -- already-computed signal from the matching `packages/meta-ads-agent/src/intelligence/*` service
 -- (or an honest "unavailable"/"not composed" shape when that source degraded -- see
 -- `IntelligenceService`'s own doc), never a fabricated placeholder. `campaign_strategy` is the
@@ -57,7 +57,7 @@ CREATE TABLE competitor_pages (
 CREATE INDEX idx_competitor_pages_tenant ON competitor_pages(tenant_id);
 CREATE UNIQUE INDEX idx_competitor_pages_tenant_page ON competitor_pages(tenant_id, page_id);
 
--- Seed the TAMARA_INTELLIGENCE_REFRESH Kalender event (coordinator note section 7) -- a real
+-- Seed the SAMANTHA_INTELLIGENCE_REFRESH Kalender event (coordinator note section 7) -- a real
 -- "DAILY" recurrence at 06:00, checked by the SAME generic `calendar_events` due-window cron every
 -- other event type already uses (`SchedulerService.checkAndRunDueEvents`), not a second, parallel
 -- `@Cron`. No new recurrence type needed for this one (same choice as LOOKALIKE_SYNC).

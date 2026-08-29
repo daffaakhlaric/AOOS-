@@ -19,9 +19,9 @@ import { SosmedSchedulerService } from "./sosmed-scheduler.service.js";
 import { SosmedController } from "./sosmed.controller.js";
 
 /**
- * `modules/sosmed` (AAOS-SOSMED-AUTOMATION Phase 1-3) — new module for Tamara's organic social
+ * `modules/sosmed` (AAOS-SOSMED-AUTOMATION Phase 1-3) — new module for Samantha's organic social
  * media automation. `LlmModule` is imported (not re-provided) so `SosmedController` injects the
- * SAME real `LlmService` `LlmController`'s `/api/v1/llm/*` endpoints use — one Tamara
+ * SAME real `LlmService` `LlmController`'s `/api/v1/llm/*` endpoints use — one Samantha
  * implementation, same precedent `SimulationModule` already establishes.
  *
  * `ScheduledPostRepository` is provided here (built from the shared `SUPABASE_CLIENT`, same

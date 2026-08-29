@@ -106,7 +106,7 @@ export interface ListingListResponseDto {
   readonly total: number;
 }
 
-/** Response for `POST /api/v1/listings/:id/publish-knowledge` — spec Part 6's `PropertyKnowledge` interface, scoped to the single listing just published (the aggregate, all-listings shape is `ListingsService.buildPropertyKnowledge`, used server-side by Jessy's knowledge builder, not exposed as its own HTTP response here). */
+/** Response for `POST /api/v1/listings/:id/publish-knowledge` — spec Part 6's `PropertyKnowledge` interface, scoped to the single listing just published (the aggregate, all-listings shape is `ListingsService.buildPropertyKnowledge`, used server-side by Clara's knowledge builder, not exposed as its own HTTP response here). */
 export interface PublishKnowledgeResponseDto {
   readonly listing: ListingResponseDto;
   readonly inKnowledgeBase: true;

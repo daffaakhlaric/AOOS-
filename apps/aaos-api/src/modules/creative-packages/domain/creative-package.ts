@@ -21,7 +21,7 @@ export type CreativePackageStatus =
   "DRAFT" | "GENERATING" | "PENDING" | "APPROVED" | "REJECTED" | "FAILED";
 
 /** How the brief came to exist. Both require a human click before Kai/Kie AI ever runs. */
-export type CreativePackageOrigin = "MANUAL" | "TAMARA";
+export type CreativePackageOrigin = "MANUAL" | "SAMANTHA";
 
 /** `@aos/creative-agent`'s real `CreativeFormat` — a package-level decision, not a per-asset tag. */
 export type CreativePackageFormat = "VIDEO_AND_IMAGES" | "IMAGES_ONLY";
@@ -52,7 +52,7 @@ export interface StoredCreativePackage {
   readonly angle: string;
   /** `TargetPersona` member — a required `CreativeBrief` field, chosen by the manager. */
   readonly targetPersona: string;
-  /** Why this creative is being made (manager's words, or Tamara's real REFRESH reason). */
+  /** Why this creative is being made (manager's words, or Samantha's real REFRESH reason). */
   readonly reason: string;
   /** What the manager asked for. */
   readonly requestedFormat: CreativePackageFormat;
@@ -80,7 +80,7 @@ export interface StoredCreativePackage {
   readonly updatedAt: string;
 }
 
-/** Everything a manual/Tamara-approved brief needs before it is persisted as a `DRAFT`. */
+/** Everything a manual/Samantha-approved brief needs before it is persisted as a `DRAFT`. */
 export interface CreateCreativePackageInput {
   readonly id: string;
   readonly tenantId: string;

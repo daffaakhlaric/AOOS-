@@ -182,7 +182,7 @@ export class CreativePackagesService {
 
     await this.appendLog({
       packageId: id,
-      fromAgent: pkg.origin === "TAMARA" ? "TAMARA" : "MANAGER",
+      fromAgent: pkg.origin === "SAMANTHA" ? "SAMANTHA" : "MANAGER",
       toAgent: "KAI",
       eventType: "BRIEF_SENT",
       message: `Brief ${pkg.angle} untuk ${pkg.unitModel ?? pkg.unit} (${pkg.branch}) dikirim ke Kai.`,
@@ -403,9 +403,9 @@ export class CreativePackagesService {
   }
 }
 
-function defaultReason(origin: "MANUAL" | "TAMARA"): string {
-  return origin === "TAMARA"
-    ? "Disetujui manager dari rekomendasi Tamara."
+function defaultReason(origin: "MANUAL" | "SAMANTHA"): string {
+  return origin === "SAMANTHA"
+    ? "Disetujui manager dari rekomendasi Samantha."
     : "Brief manual dibuat manager.";
 }
 

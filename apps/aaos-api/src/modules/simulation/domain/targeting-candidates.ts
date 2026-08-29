@@ -1,7 +1,7 @@
 import type { StoredMetaInterest } from "../../meta-interests/domain/meta-interest.js";
 
 /**
- * How many real stored interests are shown to Tamara in one `selectTargeting` call. Kept well
+ * How many real stored interests are shown to Samantha in one `selectTargeting` call. Kept well
  * under `SelectTargetingRequestSchema`'s hard `max(40)` — the coordinator note is explicit that the
  * LLM must get a focused candidate set, never "the whole table".
  */
@@ -57,7 +57,7 @@ function scoreInterest(
 }
 
 /**
- * Picks the real stored `meta_interests` rows worth showing Tamara for one simulation
+ * Picks the real stored `meta_interests` rows worth showing Samantha for one simulation
  * (AAOS-SIMULASI-TARGETING).
  *
  * Deliberately a simple, inspectable keyword/topic filter — not an embedding search, not a second

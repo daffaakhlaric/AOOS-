@@ -25,7 +25,7 @@ CREATE TABLE creative_packages (
   -- The real `CreativeBrief` this package was generated from. `brief_id` is the
   -- `CreativeBriefId` (a UUID) handed to `@aos/creative-agent`'s `ProcessCreativeBrief`.
   brief_id                 TEXT NOT NULL,
-  -- Set only when the brief came from a Tamara REFRESH verdict on a real ad (origin='TAMARA').
+  -- Set only when the brief came from a Samantha REFRESH verdict on a real ad (origin='SAMANTHA').
   -- `stable_id` is the dashboard-facing `#C047`-style id `StableIdAssigner` already computes.
   ad_id                    TEXT,
   stable_id                TEXT,
@@ -41,8 +41,8 @@ CREATE TABLE creative_packages (
   -- `TargetPersona` member (PRIMARY_FAMILY | SECONDARY_BUSINESS) -- a required `CreativeBrief`
   -- field, persisted so re-running/retrying a brief uses the same real value the manager chose.
   target_persona           TEXT NOT NULL DEFAULT 'PRIMARY_FAMILY',
-  -- Why this creative is being made. Free text from the manager for a MANUAL brief; Tamara's real
-  -- REFRESH reason for a TAMARA one. Required non-empty by `CreativeBrief.create`.
+  -- Why this creative is being made. Free text from the manager for a MANUAL brief; Samantha's real
+  -- REFRESH reason for a SAMANTHA one. Required non-empty by `CreativeBrief.create`.
   reason                   TEXT NOT NULL,
   -- What the MANAGER asked for: 'VIDEO_AND_IMAGES' | 'IMAGES_ONLY' (@aos/creative-agent's real
   -- `CreativeFormat`). Kai may still DOWNGRADE to IMAGES_ONLY when a unit has no source photos --
@@ -51,7 +51,7 @@ CREATE TABLE creative_packages (
   decided_format           TEXT,
   primary_message          TEXT NOT NULL,
   urgency                  TEXT NOT NULL DEFAULT 'MEDIUM',
-  -- 'MANUAL' (Tab "Buat Manual") | 'TAMARA' (Tab "Rekomendasi Tamara", approved by a human).
+  -- 'MANUAL' (Tab "Buat Manual") | 'SAMANTHA' (Tab "Rekomendasi Samantha", approved by a human).
   -- There is deliberately no third "auto" origin: nothing in this system generates without a
   -- human approving that specific brief first.
   origin                   TEXT NOT NULL DEFAULT 'MANUAL',

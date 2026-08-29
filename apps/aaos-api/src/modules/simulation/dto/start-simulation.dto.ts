@@ -95,7 +95,7 @@ export const StartSimulationBodySchema = z.object({
    * it, and `SimulationService` records that persona's run as a real failure (`ok: false`), never
    * silently dropped or faked as a success.
    */
-  personaIds: z.array(z.string().min(1)).min(1, "Pilih minimal 1 persona untuk Jessy"),
+  personaIds: z.array(z.string().min(1)).min(1, "Pilih minimal 1 persona untuk Clara"),
   branch: z.string().min(1).optional(),
   /**
    * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the real `listings.id` the dashboard's Step 1

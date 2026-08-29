@@ -183,17 +183,17 @@ describe("SimulationRepository", () => {
     const repo = new SimulationRepository(client);
     await repo.create(INPUT);
 
-    await repo.updateStep("sim-1", "TAMARA");
-    expect((await repo.findById("sim-1"))?.currentStep).toBe("TAMARA");
+    await repo.updateStep("sim-1", "SAMANTHA");
+    expect((await repo.findById("sim-1"))?.currentStep).toBe("SAMANTHA");
 
     await repo.complete("sim-1", {
-      tamara: { available: true, elapsedMs: 1, coverageScore: 100 },
+      samantha: { available: true, elapsedMs: 1, coverageScore: 100 },
       kai: { available: true, elapsedMs: 1, videoGenerated: false, note: "n" },
-      jessy: { available: true, runs: [], elapsedMs: 1 },
+      clara: { available: true, runs: [], elapsedMs: 1 },
       scoring: {
-        tamaraCoverageScore: 100,
+        samanthaCoverageScore: 100,
         kaiScore: 100,
-        jessyScore: 0,
+        claraScore: 0,
         overallScore: 40,
         grade: "D",
         verdict: "INCOMPLETE",
@@ -224,7 +224,7 @@ describe("SimulationRepository", () => {
     const repo = new SimulationRepository(client);
     await repo.create(INPUT);
     await repo.appendLog("sim-1", {
-      step: "TAMARA",
+      step: "SAMANTHA",
       level: "INFO",
       message: "hello",
       createdAt: "2026-08-13T00:00:00.000Z",

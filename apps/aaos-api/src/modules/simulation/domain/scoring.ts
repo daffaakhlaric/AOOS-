@@ -1,15 +1,15 @@
 import type {
   Grade,
-  JessyStageResult,
+  ClaraStageResult,
   KaiStageResult,
   SimulationScoring,
-  TamaraStageResult,
+  SamanthaStageResult,
   Verdict,
 } from "./simulation-record.js";
 
 /**
  * `SIMULATION_CRITERIA` — coordinator note #9: these exact numbers (`minOverallScore: 70`,
- * `minTamaraScore: 65`) are the ORIGINAL spec's own proposed business rules, not derived from any
+ * `minSamanthaScore: 65`) are the ORIGINAL spec's own proposed business rules, not derived from any
  * existing real scoring logic elsewhere in this codebase. Implemented literally because they're
  * reasonable/self-consistent and don't conflict with anything real — but they are UI-spec-defined
  * thresholds, not verified against any backend contract. A future task may want these tuned once
@@ -17,7 +17,7 @@ import type {
  */
 export const SIMULATION_CRITERIA = {
   minOverallScore: 70,
-  minTamaraScore: 65,
+  minSamanthaScore: 65,
 } as const;
 
 /**
@@ -64,17 +64,17 @@ export const JUDGE_LABELS_BY_VERTICAL: Readonly<
  * `POST /api/v1/llm/analyze`'s real response is qualitative (findings/recommendations/summary —
  * see `llm.service.ts`), not a numeric score. This derives a deterministic, inspectable PROXY
  * score from real response field counts, so the simulation's overall gate has *something* numeric
- * to work with for Tamara's stage — never a fabricated/random number, always computed from the
+ * to work with for Samantha's stage — never a fabricated/random number, always computed from the
  * real response that was actually received. `available: false` (no API key / provider error /
  * invalid response) always scores 0 — an unavailable stage cannot count toward a passing gate.
  */
-export function scoreTamaraCoverage(tamara: TamaraStageResult): number {
-  if (!tamara.available) {
+export function scoreSamanthaCoverage(samantha: SamanthaStageResult): number {
+  if (!samantha.available) {
     return 0;
   }
-  const temuanScore = Math.min(tamara.temuan?.length ?? 0, 3) * 10; // up to 30
-  const rekomendasiScore = Math.min(tamara.rekomendasi?.length ?? 0, 3) * 10; // up to 30
-  const ringkasanScore = (tamara.ringkasan?.length ?? 0) > 0 ? 40 : 0; // 40
+  const temuanScore = Math.min(samantha.temuan?.length ?? 0, 3) * 10; // up to 30
+  const rekomendasiScore = Math.min(samantha.rekomendasi?.length ?? 0, 3) * 10; // up to 30
+  const ringkasanScore = (samantha.ringkasan?.length ?? 0) > 0 ? 40 : 0; // 40
   return Math.min(temuanScore + rekomendasiScore + ringkasanScore, 100);
 }
 
@@ -89,8 +89,8 @@ export function scoreKaiAvailability(kai: KaiStageResult): number {
 }
 
 /** Real numeric `overallScore` from `apps/aaos-simulator`'s AI Judge, averaged across every persona that actually completed (personas that errored are excluded from the average, not scored 0 — a transport/upstream failure isn't a conversation-quality signal). `undefined` (no persona completed) is treated as unavailable, scoring 0. */
-export function scoreJessy(jessy: JessyStageResult): number {
-  const completed = jessy.runs.filter((run) => run.ok && run.overallScore !== undefined);
+export function scoreClara(clara: ClaraStageResult): number {
+  const completed = clara.runs.filter((run) => run.ok && run.overallScore !== undefined);
   if (completed.length === 0) {
     return 0;
   }
@@ -99,12 +99,12 @@ export function scoreJessy(jessy: JessyStageResult): number {
 }
 
 /**
- * Weighting judgment call (coordinator note #9's same caveat applies): Jessy+Judge — the stage
- * with a real, upstream-computed numeric score — is weighted heaviest (60%); Tamara's derived
+ * Weighting judgment call (coordinator note #9's same caveat applies): Clara+Judge — the stage
+ * with a real, upstream-computed numeric score — is weighted heaviest (60%); Samantha's derived
  * coverage proxy 25%; Kai's binary availability signal 15% (it's the least informative of the
  * three, being available/unavailable only).
  */
-const WEIGHTS = { tamara: 0.25, kai: 0.15, jessy: 0.6 } as const;
+const WEIGHTS = { samantha: 0.25, kai: 0.15, clara: 0.6 } as const;
 
 function toGrade(overallScore: number): Grade {
   if (overallScore >= 90) return "A";
@@ -116,14 +116,14 @@ function toGrade(overallScore: number): Grade {
 
 /**
  * Computes the full `SimulationScoring` gate. `verdict` is `"INCOMPLETE"` (not `"NO-GO"`) whenever
- * the Jessy/Judge stage produced no completed persona run at all (e.g. `AAOS_SIMULATOR_BASE_URL`
+ * the Clara/Judge stage produced no completed persona run at all (e.g. `AAOS_SIMULATOR_BASE_URL`
  * unset) — an incomplete pipeline is a different, honestly-distinct outcome from "we ran it and it
  * failed the bar".
  */
 export function computeSimulationScoring(
-  tamara: TamaraStageResult,
+  samantha: SamanthaStageResult,
   kai: KaiStageResult,
-  jessy: JessyStageResult,
+  clara: ClaraStageResult,
   /**
    * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5 — the tenant's real resolved vertical
    * (`SimulationService.resolveVertical`). Optional and defaulted to `"AUTOMOTIVE"` so every
@@ -132,11 +132,11 @@ export function computeSimulationScoring(
    */
   vertical: "AUTOMOTIVE" | "PROPERTY" = "AUTOMOTIVE",
 ): SimulationScoring {
-  const tamaraCoverageScore = scoreTamaraCoverage(tamara);
+  const samanthaCoverageScore = scoreSamanthaCoverage(samantha);
   const kaiScore = scoreKaiAvailability(kai);
-  const jessyScore = scoreJessy(jessy);
+  const claraScore = scoreClara(clara);
   let overallScore =
-    tamaraCoverageScore * WEIGHTS.tamara + kaiScore * WEIGHTS.kai + jessyScore * WEIGHTS.jessy;
+    samanthaCoverageScore * WEIGHTS.samantha + kaiScore * WEIGHTS.kai + claraScore * WEIGHTS.clara;
 
   // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5, Step 5 — HOUSING-category-check criterion:
   // a PROPERTY simulation whose audience-targeting preview didn't set Meta's mandatory
@@ -144,19 +144,19 @@ export function computeSimulationScoring(
   // stays `undefined` for AUTOMOTIVE (the criterion doesn't apply to it at all — not "true").
   let housingCategoryOk: boolean | undefined;
   if (vertical === "PROPERTY") {
-    housingCategoryOk = (tamara.audienceTargeting?.specialAdCategories ?? []).includes("HOUSING");
+    housingCategoryOk = (samantha.audienceTargeting?.specialAdCategories ?? []).includes("HOUSING");
     if (!housingCategoryOk) {
       overallScore = Math.max(0, overallScore - HOUSING_CATEGORY_PENALTY);
     }
   }
 
-  const jessyIncomplete = jessy.runs.filter((run) => run.ok).length === 0;
+  const claraIncomplete = clara.runs.filter((run) => run.ok).length === 0;
   let verdict: Verdict;
-  if (jessyIncomplete) {
+  if (claraIncomplete) {
     verdict = "INCOMPLETE";
   } else if (
     overallScore >= SIMULATION_CRITERIA.minOverallScore &&
-    tamaraCoverageScore >= SIMULATION_CRITERIA.minTamaraScore &&
+    samanthaCoverageScore >= SIMULATION_CRITERIA.minSamanthaScore &&
     housingCategoryOk !== false
   ) {
     verdict = "GO";
@@ -167,9 +167,9 @@ export function computeSimulationScoring(
   }
 
   return {
-    tamaraCoverageScore,
+    samanthaCoverageScore,
     kaiScore,
-    jessyScore,
+    claraScore,
     overallScore: Math.round(overallScore * 10) / 10,
     grade: toGrade(overallScore),
     verdict,

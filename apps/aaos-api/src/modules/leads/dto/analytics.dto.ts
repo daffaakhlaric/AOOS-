@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * `GET /api/v1/leads/analytics?days=` query — the `/jessy/analytics` period selector (MENU
+ * `GET /api/v1/leads/analytics?days=` query — the `/clara/analytics` period selector (MENU
  * RESTRUCTURE FINAL). `days` is a simple lookback window (7/14/30), not a `from`/`to` range —
  * matches the spec mockup's "Last 7 days ▾" dropdown.
  */
@@ -23,7 +23,7 @@ export interface LeadsAnalyticsDailyPointDto {
 
 /**
  * `GET /api/v1/leads/analytics` response — real KPIs computed from `@aos/lead-store`'s real
- * `leads`/`conversations`/`messages` data (MENU RESTRUCTURE FINAL `/jessy/analytics`, never
+ * `leads`/`conversations`/`messages` data (MENU RESTRUCTURE FINAL `/clara/analytics`, never
  * client-side math over incomplete data). See `LeadsService.getAnalytics`'s docstring for the
  * exact formula behind each field.
  */

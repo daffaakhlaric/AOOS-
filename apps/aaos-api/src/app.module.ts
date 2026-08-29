@@ -395,8 +395,8 @@ export class AppModule {
         // endpoints only, per the coordinator note's risk-ordered build plan). No Kalender/
         // scheduler wiring yet — `SchedulerModule` does not import this module in this phase.
         SosmedModule,
-        // AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — new `intelligence` module (signals/refresh +
-        // competitor_pages CRUD endpoints + the TAMARA_INTELLIGENCE_REFRESH Kalender handler's
+        // AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 — new `intelligence` module (signals/refresh +
+        // competitor_pages CRUD endpoints + the SAMANTHA_INTELLIGENCE_REFRESH Kalender handler's
         // business logic + the Daily Digest extension). `SchedulerModule` separately imports this
         // module directly (same pattern as `RecyclingModule`/`AbTestingModule`/`LookalikeModule`)
         // so it can inject the exported `IntelligenceService`.

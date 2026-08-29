@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeSimulationScoring,
-  scoreJessy,
+  scoreClara,
   scoreKaiAvailability,
-  scoreTamaraCoverage,
+  scoreSamanthaCoverage,
 } from "./scoring.js";
-import type { JessyStageResult, KaiStageResult, TamaraStageResult } from "./simulation-record.js";
+import type { ClaraStageResult, KaiStageResult, SamanthaStageResult } from "./simulation-record.js";
 
-function tamara(overrides: Partial<TamaraStageResult> = {}): TamaraStageResult {
+function samantha(overrides: Partial<SamanthaStageResult> = {}): SamanthaStageResult {
   return { available: true, elapsedMs: 100, coverageScore: 0, ...overrides };
 }
 
@@ -16,18 +16,18 @@ function kai(overrides: Partial<KaiStageResult> = {}): KaiStageResult {
   return { available: true, elapsedMs: 100, videoGenerated: false, note: "note", ...overrides };
 }
 
-function jessy(overrides: Partial<JessyStageResult> = {}): JessyStageResult {
+function clara(overrides: Partial<ClaraStageResult> = {}): ClaraStageResult {
   return { available: true, runs: [], elapsedMs: 100, ...overrides };
 }
 
-describe("scoreTamaraCoverage", () => {
-  it("scores 0 when Tamara is unavailable", () => {
-    expect(scoreTamaraCoverage(tamara({ available: false }))).toBe(0);
+describe("scoreSamanthaCoverage", () => {
+  it("scores 0 when Samantha is unavailable", () => {
+    expect(scoreSamanthaCoverage(samantha({ available: false }))).toBe(0);
   });
 
   it("scores up to 100 for a full real response (temuan + rekomendasi + ringkasan)", () => {
-    const score = scoreTamaraCoverage(
-      tamara({
+    const score = scoreSamanthaCoverage(
+      samantha({
         temuan: [
           { icon: "🔴", judul: "a", detail: "a" },
           { icon: "🔴", judul: "b", detail: "b" },
@@ -46,7 +46,7 @@ describe("scoreTamaraCoverage", () => {
       judul: `t${i}`,
       detail: `d${i}`,
     }));
-    const score = scoreTamaraCoverage(tamara({ temuan: manyTemuan, ringkasan: "x" }));
+    const score = scoreSamanthaCoverage(samantha({ temuan: manyTemuan, ringkasan: "x" }));
     expect(score).toBe(30 + 0 + 40);
   });
 });
@@ -58,15 +58,15 @@ describe("scoreKaiAvailability", () => {
   });
 });
 
-describe("scoreJessy", () => {
+describe("scoreClara", () => {
   it("scores 0 when no persona run completed", () => {
-    expect(scoreJessy(jessy({ runs: [] }))).toBe(0);
-    expect(scoreJessy(jessy({ runs: [{ personaId: "p", ok: false, error: "x" }] }))).toBe(0);
+    expect(scoreClara(clara({ runs: [] }))).toBe(0);
+    expect(scoreClara(clara({ runs: [{ personaId: "p", ok: false, error: "x" }] }))).toBe(0);
   });
 
   it("averages overallScore across completed runs only, excluding failed ones", () => {
-    const score = scoreJessy(
-      jessy({
+    const score = scoreClara(
+      clara({
         runs: [
           { personaId: "a", ok: true, overallScore: 80 },
           { personaId: "b", ok: true, overallScore: 90 },
@@ -79,14 +79,14 @@ describe("scoreJessy", () => {
 });
 
 describe("computeSimulationScoring", () => {
-  it('returns verdict "INCOMPLETE" when Jessy has no completed run', () => {
-    const scoring = computeSimulationScoring(tamara(), kai(), jessy({ runs: [] }));
+  it('returns verdict "INCOMPLETE" when Clara has no completed run', () => {
+    const scoring = computeSimulationScoring(samantha(), kai(), clara({ runs: [] }));
     expect(scoring.verdict).toBe("INCOMPLETE");
   });
 
-  it('returns "GO" when overall + Tamara coverage both clear the threshold', () => {
+  it('returns "GO" when overall + Samantha coverage both clear the threshold', () => {
     const scoring = computeSimulationScoring(
-      tamara({
+      samantha({
         temuan: [
           { icon: "a", judul: "a", detail: "a" },
           { icon: "b", judul: "b", detail: "b" },
@@ -95,18 +95,18 @@ describe("computeSimulationScoring", () => {
         ringkasan: "x",
       }),
       kai({ available: true }),
-      jessy({ runs: [{ personaId: "a", ok: true, overallScore: 90 }] }),
+      clara({ runs: [{ personaId: "a", ok: true, overallScore: 90 }] }),
     );
-    expect(scoring.tamaraCoverageScore).toBe(70);
+    expect(scoring.samanthaCoverageScore).toBe(70);
     expect(scoring.verdict).toBe("GO");
     expect(scoring.grade).toBe("B");
   });
 
   it('returns "NO-GO" for a low but complete run', () => {
     const scoring = computeSimulationScoring(
-      tamara({ available: false }),
+      samantha({ available: false }),
       kai({ available: false }),
-      jessy({ runs: [{ personaId: "a", ok: true, overallScore: 20 }] }),
+      clara({ runs: [{ personaId: "a", ok: true, overallScore: 20 }] }),
     );
     expect(scoring.verdict).toBe("NO-GO");
     expect(scoring.grade).toBe("F");
@@ -114,9 +114,9 @@ describe("computeSimulationScoring", () => {
 
   it("rounds overallScore to one decimal place", () => {
     const scoring = computeSimulationScoring(
-      tamara({ ringkasan: "x" }),
+      samantha({ ringkasan: "x" }),
       kai({ available: true }),
-      jessy({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
+      clara({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
     );
     expect(scoring.overallScore).toBeCloseTo(71.2, 5);
   });
@@ -124,9 +124,9 @@ describe("computeSimulationScoring", () => {
   describe("HOUSING-category-check criterion (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 5)", () => {
     it("leaves housingCategoryOk undefined and the score untouched for AUTOMOTIVE (default)", () => {
       const scoring = computeSimulationScoring(
-        tamara({ ringkasan: "x" }),
+        samantha({ ringkasan: "x" }),
         kai({ available: true }),
-        jessy({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
+        clara({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
       );
       expect(scoring.housingCategoryOk).toBeUndefined();
       expect(scoring.overallScore).toBeCloseTo(71.2, 5);
@@ -134,9 +134,9 @@ describe("computeSimulationScoring", () => {
 
     it("subtracts HOUSING_CATEGORY_PENALTY and sets housingCategoryOk=false for a PROPERTY run missing HOUSING", () => {
       const withoutHousing = computeSimulationScoring(
-        tamara({ ringkasan: "x", audienceTargeting: undefined }),
+        samantha({ ringkasan: "x", audienceTargeting: undefined }),
         kai({ available: true }),
-        jessy({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
+        clara({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
         "PROPERTY",
       );
       expect(withoutHousing.housingCategoryOk).toBe(false);
@@ -148,7 +148,7 @@ describe("computeSimulationScoring", () => {
 
     it("does not penalize a PROPERTY run whose preview correctly set specialAdCategories: ['HOUSING']", () => {
       const withHousing = computeSimulationScoring(
-        tamara({
+        samantha({
           ringkasan: "x",
           audienceTargeting: {
             branch: "BINTARO",
@@ -163,7 +163,7 @@ describe("computeSimulationScoring", () => {
           },
         }),
         kai({ available: true }),
-        jessy({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
+        clara({ runs: [{ personaId: "a", ok: true, overallScore: 77 }] }),
         "PROPERTY",
       );
       expect(withHousing.housingCategoryOk).toBe(true);

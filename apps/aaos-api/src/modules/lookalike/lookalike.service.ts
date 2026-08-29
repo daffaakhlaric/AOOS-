@@ -271,7 +271,7 @@ export class LookalikeService {
     const result = await connector.createCustomAudience.execute({
       adAccountId: adAccountIdResult.value,
       name: `AAOS-HotLeads-${this.tenantId}-${monthYear}`,
-      description: "Hot leads dari AAOS Jessy AI (score >= 65)",
+      description: "Hot leads dari AAOS Clara AI (score >= 65)",
       accessToken: connector.accessToken,
     });
     if (!result.ok) {

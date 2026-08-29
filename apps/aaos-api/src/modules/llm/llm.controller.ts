@@ -17,7 +17,7 @@ import {
 import { LlmService } from "./llm.service.js";
 
 /**
- * `POST /api/v1/llm/{analyze,creative-brief,chat}` — Tamara's OpenAI-backed endpoints. All
+ * `POST /api/v1/llm/{analyze,creative-brief,chat}` — Samantha's OpenAI-backed endpoints. All
  * `x-api-key`-guarded via the same `ApiKeyGuard` `modules/meta-ads` uses (this app has one shared
  * secret, not per-user tokens). Every response is `HttpCode(200)` even for the "AI unavailable"
  * fallback case — spec Section 7 requires a distinguishable response body the dashboard can branch

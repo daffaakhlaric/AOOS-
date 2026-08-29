@@ -36,9 +36,9 @@ const GO_LIVE_STEP: SimulationStep = "GO_LIVE";
  * (mandatory safety framing) and section 8 (real capability gaps) before changing anything here.
  *
  * HONEST DEVIATION (load-bearing, documented per this task's process note): Document 2 section F
- * describes Go Live as executing "the simulation's already-approved Tamara verdicts" via
- * `pauseAd`/`fixCampaignObjective`/`scaleAdSetBudget`. `TamaraStageResult.rekomendasi` (the only
- * Tamara output this simulation module stores) is free-text Indonesian
+ * describes Go Live as executing "the simulation's already-approved Samantha verdicts" via
+ * `pauseAd`/`fixCampaignObjective`/`scaleAdSetBudget`. `SamanthaStageResult.rekomendasi` (the only
+ * Samantha output this simulation module stores) is free-text Indonesian
  * `{ aksi, target, alasan, estimasi }` — NOT a structured `{ verdict, targetId, targetType }`
  * tuple `ExecuteVerdict` could run mechanically. Parsing that free text into real Meta mutation
  * calls would mean guessing/inventing target ids — exactly the kind of fabricated automated
@@ -46,7 +46,7 @@ const GO_LIVE_STEP: SimulationStep = "GO_LIVE";
  * precedents). This step is therefore an honest, logged SKIP, not a fake execution — see
  * `logVerdictExecutionSkip`. `rollback_data.mutatedEntities` is consequently always `[]` today;
  * the type and the rollback replay loop below are kept real and tested for when a future task
- * gives Tamara structured verdict output to replay.
+ * gives Samantha structured verdict output to replay.
  */
 @Injectable()
 export class GoLiveService {
@@ -163,7 +163,7 @@ export class GoLiveService {
         "INFO",
         "[DRY RUN] Would create a single Ad (status ACTIVE) under the new AdSet.",
       );
-      await this.logJessyCheck(id, simulation, true);
+      await this.logClaraCheck(id, simulation, true);
       await this.logCapiCheck(id, true);
       await this.log(
         id,
@@ -282,7 +282,7 @@ export class GoLiveService {
         adId,
       });
 
-      await this.logJessyCheck(id, simulation, false);
+      await this.logClaraCheck(id, simulation, false);
       await this.logCapiCheck(id, false);
 
       const liveAt = this.now().toISOString();
@@ -421,7 +421,7 @@ export class GoLiveService {
   /**
    * A real click-to-WhatsApp image ad's `link_data.link` needs a real `https://wa.me/<number>`
    * destination — resolved from the branch's real `waba_configs.phone_number` row (the same table
-   * `logJessyCheck` reads), never a placeholder. Throws `ValidationError` (fails the whole Go Live
+   * `logClaraCheck` reads), never a placeholder. Throws `ValidationError` (fails the whole Go Live
    * before the ad is created, not silently) when no branch/config is found — a fabricated
    * `wa.me/` link with no number would be worse than a clear error.
    */
@@ -450,7 +450,7 @@ export class GoLiveService {
     await this.log(
       id,
       "WARN",
-      "Eksekusi verdict Tamara (pause/fix/scale) DILEWATI: result.tamara.rekomendasi berupa teks bebas " +
+      "Eksekusi verdict Samantha (pause/fix/scale) DILEWATI: result.samantha.rekomendasi berupa teks bebas " +
         "(aksi/target/alasan/estimasi), bukan {verdict, targetId, targetType} terstruktur — tidak ada " +
         "cara aman untuk menjalankannya otomatis tanpa menerka target id. Ini SKIP yang jujur, bukan " +
         "eksekusi palsu.",
@@ -464,7 +464,7 @@ export class GoLiveService {
    * `packages/whatsapp-connector`/`apps/aaos-api`'s webhook handling (verified zero
    * `autoReply`/`auto_reply` matches).
    */
-  private async logJessyCheck(
+  private async logClaraCheck(
     id: string,
     simulation: StoredSimulation,
     dryRun: boolean,
@@ -480,15 +480,15 @@ export class GoLiveService {
       await this.log(
         id,
         active ? "INFO" : "WARN",
-        `${prefix}Jessy status-check: waba_configs untuk branch "${simulation.branch ?? "(unset)"}" ` +
+        `${prefix}Clara status-check: waba_configs untuk branch "${simulation.branch ?? "(unset)"}" ` +
           (branchConfig === undefined
             ? "tidak ditemukan."
-            : `status="${branchConfig.status}" (${active ? "aktif, Jessy akan merespons" : "TIDAK aktif"}).`) +
+            : `status="${branchConfig.status}" (${active ? "aktif, Clara akan merespons" : "TIDAK aktif"}).`) +
           " Ini pengecekan status nyata, bukan toggle — tidak ada gate on/off auto-reply lain di codebase ini.",
       );
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
-      await this.log(id, "WARN", `${prefix}Jessy status-check gagal dibaca: ${message}.`);
+      await this.log(id, "WARN", `${prefix}Clara status-check gagal dibaca: ${message}.`);
     }
   }
 

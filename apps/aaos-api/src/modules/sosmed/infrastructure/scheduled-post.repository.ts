@@ -152,7 +152,7 @@ export class ScheduledPostRepository {
         content_type: input.contentType ?? null,
         product_id: input.productId ?? null,
         angle: input.angle ?? null,
-        generated_by: input.generatedBy ?? "TAMARA",
+        generated_by: input.generatedBy ?? "SAMANTHA",
         kai_package_id: input.kaiPackageId ?? null,
         scheduled_at: input.scheduledAt ?? null,
         status: input.status ?? "DRAFT",

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * `POST /api/v1/leads/:id/intervene` body — manager-as-Jessy (coordinator note #5). This app has
+ * `POST /api/v1/leads/:id/intervene` body — manager-as-Clara (coordinator note #5). This app has
  * no per-request manager auth/JWT decoding (same "no auth infra beyond the shared `x-api-key`"
  * constraint `SendMessageBodySchema`'s docstring notes) — `managerName` is client-declared,
  * mirroring `salesName` in `SendMessageBodySchema`. Persisted with `sender_type =

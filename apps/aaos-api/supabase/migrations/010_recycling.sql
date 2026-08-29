@@ -22,7 +22,7 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Manager-authored/edited broadcast templates Jessy picks from (TAB 2).
+-- Manager-authored/edited broadcast templates Clara picks from (TAB 2).
 CREATE TABLE broadcast_templates (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       TEXT NOT NULL DEFAULT 'dss-motor',

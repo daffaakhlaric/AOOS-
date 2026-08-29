@@ -1,8 +1,8 @@
 import type { ListingResponseDto } from "../dto/listing.dto.js";
 
 /**
- * Spec Part 6's `PropertyKnowledge` interface — Jessy's real knowledge base for the PROPERTY
- * vertical. Automotive's Jessy knowledge is scraper-derived (`scraped_units`); PROPERTY has no
+ * Spec Part 6's `PropertyKnowledge` interface — Clara's real knowledge base for the PROPERTY
+ * vertical. Automotive's Clara knowledge is scraper-derived (`scraped_units`); PROPERTY has no
  * scraper (spec's `OVERVIEW` — "Scraper: TIDAK ADA → replaced by Listing Manager"), so this is
  * built from `listings` rows explicitly marked `in_knowledge_base = true` via
  * `POST /api/v1/listings/:id/publish-knowledge`, not every listing unconditionally.

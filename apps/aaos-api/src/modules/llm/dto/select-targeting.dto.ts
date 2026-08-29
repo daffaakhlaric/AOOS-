@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { LlmUnavailableResponseDto } from "./llm-unavailable.dto.js";
 
 /**
- * One REAL candidate interest handed to Tamara, sourced from the `meta_interests` table (itself
+ * One REAL candidate interest handed to Samantha, sourced from the `meta_interests` table (itself
  * populated only by real live `GET /search?type=adinterest` calls). The model may ONLY choose from
  * these — see `SelectTargetingLlmPayloadSchema` and `LlmService.selectTargeting`'s server-side
  * candidate-set check.
@@ -39,7 +39,7 @@ export const SelectTargetingRequestSchema = z.object({
 export type SelectTargetingRequestDto = z.infer<typeof SelectTargetingRequestSchema>;
 
 /**
- * The shape Tamara's `select-targeting` system prompt asks the model to return: the chosen
+ * The shape Samantha's `select-targeting` system prompt asks the model to return: the chosen
  * interest IDs plus a one-line Indonesian rationale.
  *
  * `interestIds` passing THIS schema is necessary but NOT sufficient — Zod can only check that the

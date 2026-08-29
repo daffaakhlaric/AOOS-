@@ -48,7 +48,7 @@ export const LEAD_STORE_CLOSING_REPOSITORY = Symbol("LEAD_STORE_CLOSING_REPOSITO
  */
 export const LEAD_STORE_SCORING_REPOSITORY = Symbol("LEAD_STORE_SCORING_REPOSITORY");
 /**
- * AAOS-LLM-TAMARA additions — module-local providers for `modules/llm`, following
+ * AAOS-LLM-SAMANTHA additions — module-local providers for `modules/llm`, following
  * `LLM_*`'s own precedent (a process-local implementation detail of one module, not
  * a real external integration composed in `app.module.ts`, so these are provided inside
  * `LlmModule` itself, not exported from `AppModule.forRoot`).

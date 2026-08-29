@@ -45,7 +45,7 @@ import {
 import type { OpenAiChatMessage, OpenAiClient } from "./infrastructure/OpenAiClient.js";
 
 /** Verbatim system prompt from the spec's `POST /api/v1/llm/analyze` section. */
-const ANALYZE_SYSTEM_PROMPT = `Kamu adalah Tamara, AI Marketing Manager untuk DSS Motor (Mobix)
+const ANALYZE_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk DSS Motor (Mobix)
 — dealer mobil bekas di Indonesia.
 
 Tugasmu: analisa data iklan Meta Ads dan berikan rekomendasi
@@ -64,7 +64,7 @@ Format response JSON:
 }`;
 
 /** Verbatim system prompt from the spec's `POST /api/v1/llm/creative-brief` section. */
-const CREATIVE_BRIEF_SYSTEM_PROMPT = `Kamu adalah Tamara, AI Marketing Manager untuk DSS Motor (Mobix).
+const CREATIVE_BRIEF_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk DSS Motor (Mobix).
 Kamu sedang brief Kai (Creative AI) untuk membuat iklan baru.
 
 Berikan brief dalam format JSON:
@@ -81,12 +81,12 @@ Berikan brief dalam format JSON:
 
 /**
  * AAOS-SIMULASI-TARGETING. Not a spec quote — this capability did not exist before this task.
- * Written in the same "Kamu adalah Tamara…" persona as the two prompts above, and worded to make
+ * Written in the same "Kamu adalah Samantha…" persona as the two prompts above, and worded to make
  * the candidate constraint explicit in the prompt itself (belt) on top of the server-side
  * candidate-set intersection in `selectTargeting` (braces — the prompt is a request, the
  * intersection is the guarantee).
  */
-const SELECT_TARGETING_SYSTEM_PROMPT = `Kamu adalah Tamara, AI Marketing Manager untuk DSS Motor (Mobix) — dealer mobil bekas di Indonesia.
+const SELECT_TARGETING_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk DSS Motor (Mobix) — dealer mobil bekas di Indonesia.
 
 Kamu diberi DAFTAR KANDIDAT interest Meta Ads yang nyata (hasil pencarian langsung ke Meta Graph API).
 Tugasmu: pilih 2-5 interest dari daftar itu yang paling relevan untuk menjual unit yang disebutkan.
@@ -103,9 +103,9 @@ Format response JSON:
 }`;
 
 /**
- * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — `LlmService.campaignStrategy`, the ONE genuinely
+ * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 — `LlmService.campaignStrategy`, the ONE genuinely
  * LLM-dependent step of that effort (coordinator note point 4). Adapted from the spec's
- * `TAMARA_CAMPAIGN_DECISION_PROMPT`, corrected onto real angle vocabulary: the AUTOMOTIVE product
+ * `SAMANTHA_CAMPAIGN_DECISION_PROMPT`, corrected onto real angle vocabulary: the AUTOMOTIVE product
  * angles are the real 7-member `AdAngle` enum, the PROPERTY product angles are the real 8-member
  * `PropertyAdAngle` string values, and the brand angles are `@aos/meta-ads-agent`'s new real
  * `BRAND_ANGLES` constant — never the spec's fictional `STOK_TERBATAS`/`PRICE_FOCUS`/
@@ -115,7 +115,7 @@ Format response JSON:
  * `LlmService.campaignStrategy` will actually accept post-parse (see that method's angle
  * membership check — belt-and-braces, same as `selectTargeting`'s candidate-id intersection).
  */
-const CAMPAIGN_STRATEGY_SYSTEM_PROMPT = `Kamu adalah Tamara, AI Campaign Manager untuk dealer mobil bekas (AUTOMOTIVE) atau platform properti (PROPERTY) di Indonesia — vertical yang sedang ditangani ada di field "vertical" pada data JSON yang diberikan.
+const CAMPAIGN_STRATEGY_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Campaign Manager untuk dealer mobil bekas (AUTOMOTIVE) atau platform properti (PROPERTY) di Indonesia — vertical yang sedang ditangani ada di field "vertical" pada data JSON yang diberikan.
 
 TUGASMU: berdasarkan semua real signal yang diberikan (seasonal, Google Trends, kompetitor, stok/listing, profil hot lead, riwayat closing), tentukan strategi campaign terbaik.
 
@@ -166,9 +166,9 @@ PANDUAN KEPUTUSAN:
 - Mix BRAND + PRODUCT umum: 30% brand (awareness) + 70% product (leads), boleh disesuaikan alasan konkret.
 - Jangan selalu fokus produk — brand awareness penting untuk jangka panjang.`;
 
-/** Not a literal spec quote (the spec's `/llm/chat` section has no system-prompt block of its own) — derived from the same "Kamu adalah Tamara..." persona used by the other two prompts, for general free-text conversation. */
+/** Not a literal spec quote (the spec's `/llm/chat` section has no system-prompt block of its own) — derived from the same "Kamu adalah Samantha..." persona used by the other two prompts, for general free-text conversation. */
 const CHAT_SYSTEM_PROMPT =
-  "Kamu adalah Tamara, AI Marketing Manager untuk DSS Motor (Mobix) — dealer mobil bekas di Indonesia. Jawab pertanyaan dengan jelas, actionable, dan dalam Bahasa Indonesia.";
+  "Kamu adalah Samantha, AI Marketing Manager untuk DSS Motor (Mobix) — dealer mobil bekas di Indonesia. Jawab pertanyaan dengan jelas, actionable, dan dalam Bahasa Indonesia.";
 
 /**
  * AAOS-SOSMED-AUTOMATION Phase 1. NOT a verbatim copy of the spec's `CAPTION_SYSTEM_PROMPT`
@@ -179,7 +179,7 @@ const CHAT_SYSTEM_PROMPT =
  * per-request variable data as `JSON.stringify(body)` in the user message — so this prompt follows
  * that same real, established shape rather than inventing a second one.
  */
-const GENERATE_CAPTION_SYSTEM_PROMPT = `Kamu adalah Tamara, Social Media Manager untuk tenant AAOS.
+const GENERATE_CAPTION_SYSTEM_PROMPT = `Kamu adalah Samantha, Social Media Manager untuk tenant AAOS.
 
 Tugas: buat DUA caption untuk posting organik dari satu brief konten (JSON di pesan user):
 - contentType: tipe konten (PROMO/EDUKASI/TESTIMONI/BTS/TIPS/MARKET_UPDATE)
@@ -207,7 +207,7 @@ Format response JSON:
  * `GENERATE_CAPTION_SYSTEM_PROMPT` above — static persona/task/format, variable brand/location/
  * product data sent as the user message's JSON body instead of interpolated into the prompt string.
  */
-const GENERATE_HASHTAGS_SYSTEM_PROMPT = `Kamu adalah Tamara, Social Media Manager untuk tenant AAOS.
+const GENERATE_HASHTAGS_SYSTEM_PROMPT = `Kamu adalah Samantha, Social Media Manager untuk tenant AAOS.
 
 Tugas: generate 8-12 hashtag relevan untuk satu posting organik, dari brief (JSON di pesan user):
 - productName: nama produk/unit/listing
@@ -227,10 +227,10 @@ Format response JSON:
 }`;
 
 /**
- * OpenAI-backed implementation of Tamara's `analyze`/`creativeBrief`/`chat` capabilities
+ * OpenAI-backed implementation of Samantha's `analyze`/`creativeBrief`/`chat` capabilities
  * (`src/modules/llm/llm.controller.ts`'s three endpoints), plus `selectTargeting`
  * (AAOS-SIMULASI-TARGETING) which is deliberately IN-PROCESS ONLY — it is called by
- * `SimulationService`'s TAMARA stage and has no HTTP endpoint of its own, because its input
+ * `SimulationService`'s SAMANTHA stage and has no HTTP endpoint of its own, because its input
  * (the real candidate interest set) must be assembled server-side from `meta_interests`, never
  * accepted from a client. Also `generateCaption`/`generateHashtags` (AAOS-SOSMED-AUTOMATION
  * Phase 1) — called by `modules/sosmed`'s `SosmedController` at `POST /api/v1/sosmed/
@@ -322,7 +322,7 @@ export class LlmService {
   }
 
   /**
-   * AAOS-TAMARA-INTELLIGENCE-LAYER Phase 4 — the campaign-strategy decision-synthesis step
+   * AAOS-SAMANTHA-INTELLIGENCE-LAYER Phase 4 — the campaign-strategy decision-synthesis step
    * (coordinator note point 4). Same cache/gate/call/validate/cache shape as every other method on
    * this service, plus one extra, load-bearing step mirroring `selectTargeting`'s candidate-set
    * intersection: `brandCampaign.angle`/`productCampaign.angle` are checked against the REAL
@@ -380,7 +380,7 @@ export class LlmService {
   }
 
   /**
-   * AAOS-SIMULASI-TARGETING: Tamara picks a relevant subset of REAL Meta interests from the real
+   * AAOS-SIMULASI-TARGETING: Samantha picks a relevant subset of REAL Meta interests from the real
    * candidates the caller queried out of `meta_interests`. Same cache/gate/validate shape as
    * `analyze`/`creativeBrief` above, plus one extra, load-bearing step:
    *

@@ -322,7 +322,7 @@ export class ListingsService {
     return toListingDto(updated);
   }
 
-  /** `POST /api/v1/listings/:id/publish-knowledge` — Listing Detail's "📚 Jadikan Knowledge Tamara" action. Marks this listing as included in Jessy's `PropertyKnowledge` (see `domain/property-knowledge.ts`). */
+  /** `POST /api/v1/listings/:id/publish-knowledge` — Listing Detail's "📚 Jadikan Knowledge Samantha" action. Marks this listing as included in Clara's `PropertyKnowledge` (see `domain/property-knowledge.ts`). */
   async publishKnowledge(tenantId: string, id: string): Promise<ListingResponseDto> {
     await this.requireRow(tenantId, id);
     const updated = await this.repository.updateById(id, {
@@ -332,7 +332,7 @@ export class ListingsService {
     return toListingDto(updated);
   }
 
-  /** The full `PropertyKnowledge` aggregate Jessy's knowledge builder consumes — every listing this tenant has explicitly published (`in_knowledge_base = true`). */
+  /** The full `PropertyKnowledge` aggregate Clara's knowledge builder consumes — every listing this tenant has explicitly published (`in_knowledge_base = true`). */
   async buildPropertyKnowledge(tenantId: string): Promise<PropertyKnowledge> {
     const rows = await this.repository.listByTenant(tenantId);
     return buildPropertyKnowledge(rows.map(toListingDto));

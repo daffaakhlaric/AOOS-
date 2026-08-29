@@ -62,7 +62,7 @@ CREATE TABLE ab_test_variants (
   -- generation failed or ad creation failed).
   status               TEXT NOT NULL DEFAULT 'PENDING_CREATIVE',
   -- Insights (real, re-pulled every AB_TEST_CHECK run via the same PullCampaignData use case
-  -- every other Tamara feature already uses -- see coordinator note section 1).
+  -- every other Samantha feature already uses -- see coordinator note section 1).
   spend                BIGINT NOT NULL DEFAULT 0,
   impressions          BIGINT NOT NULL DEFAULT 0,
   clicks               BIGINT NOT NULL DEFAULT 0,

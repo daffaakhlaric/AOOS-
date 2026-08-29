@@ -63,7 +63,7 @@ function buildFakeRepository(stored: StoredSimulation): SimulationRepository {
 }
 
 /**
- * AAOS-SIMULASI-TARGETING: the TAMARA stage now also reads the real `meta_interests` catalogue.
+ * AAOS-SIMULASI-TARGETING: the SAMANTHA stage now also reads the real `meta_interests` catalogue.
  * The default fake returns an EMPTY catalogue — that is the honest state of a deployment where
  * `POST /api/v1/meta-interests/sync` has never been run, and it keeps every pre-existing test
  * exercising exactly the pipeline it did before (targeting degrades to geo/age defaults only).
@@ -228,7 +228,7 @@ describe("SimulationService", () => {
     );
   });
 
-  it("runs the full pipeline end-to-end and persists a real computed score (Jessy configured)", async () => {
+  it("runs the full pipeline end-to-end and persists a real computed score (Clara configured)", async () => {
     const stored = buildStored();
     const repository = buildFakeRepository(stored);
     mockedCallAaosSimulator.mockResolvedValue({
@@ -276,7 +276,7 @@ describe("SimulationService", () => {
     expect(result.kai.promptDetail?.sourcePhotoUrls).toEqual([]);
   });
 
-  it("records Jessy as unavailable (never fabricated) when AAOS_SIMULATOR_BASE_URL is unset", async () => {
+  it("records Clara as unavailable (never fabricated) when AAOS_SIMULATOR_BASE_URL is unset", async () => {
     const stored = buildStored();
     const repository = buildFakeRepository(stored);
     const service = new SimulationService(
@@ -296,9 +296,9 @@ describe("SimulationService", () => {
     expect(mockedCallAaosSimulator).not.toHaveBeenCalled();
     const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
       string,
-      { jessy: { available: boolean }; scoring: { verdict: string } },
+      { clara: { available: boolean }; scoring: { verdict: string } },
     ];
-    expect(result.jessy.available).toBe(false);
+    expect(result.clara.available).toBe(false);
     expect(result.scoring.verdict).toBe("INCOMPLETE");
   });
 
@@ -322,10 +322,10 @@ describe("SimulationService", () => {
 
     const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
       string,
-      { jessy: { runs: ReadonlyArray<{ ok: boolean; error?: string }> } },
+      { clara: { runs: ReadonlyArray<{ ok: boolean; error?: string }> } },
     ];
-    expect(result.jessy.runs[0]?.ok).toBe(false);
-    expect(result.jessy.runs[0]?.error).toContain("upstream down");
+    expect(result.clara.runs[0]?.ok).toBe(false);
+    expect(result.clara.runs[0]?.error).toContain("upstream down");
   });
 
   it("fails the record when a stage throws unexpectedly", async () => {
@@ -418,9 +418,9 @@ describe("SimulationService", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
         string,
-        { tamara: { audienceTargeting?: Record<string, unknown> } },
+        { samantha: { audienceTargeting?: Record<string, unknown> } },
       ];
-      return { repository, targeting: result.tamara.audienceTargeting };
+      return { repository, targeting: result.samantha.audienceTargeting };
     }
 
     it("attaches the branch's geo/age default with its unreviewed caveat, even with no stored interests", async () => {
@@ -453,7 +453,7 @@ describe("SimulationService", () => {
       expect(targeting?.reasoning).toContain("mobil bekas");
     });
 
-    it("never shows an interest Tamara invented — only ids that survived the server-side candidate check", async () => {
+    it("never shows an interest Samantha invented — only ids that survived the server-side candidate check", async () => {
       const llm = buildFakeLlmService({
         // The real `LlmService.selectTargeting` already drops invented ids; this asserts the
         // simulation layer additionally only renders interests it can resolve from the real
@@ -473,7 +473,7 @@ describe("SimulationService", () => {
       expect((targeting?.interests as ReadonlyArray<{ id: string }>)[0]?.id).toBe("6003257869482");
     });
 
-    it("degrades honestly (no fabricated interests) when Tamara's selection is unavailable", async () => {
+    it("degrades honestly (no fabricated interests) when Samantha's selection is unavailable", async () => {
       const llm = buildFakeLlmService({
         selectTargeting: vi.fn(async () => ({
           available: false,
