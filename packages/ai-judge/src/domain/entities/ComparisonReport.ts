@@ -19,8 +19,8 @@ export interface DimensionDelta {
 }
 
 /**
- * A before/after comparison of two `JudgementResult`s for the same persona — e.g. Jessy v1 vs
- * Jessy v2 after a refinement pass (spec "Responsibilities": "Compare Jessy versions
+ * A before/after comparison of two `JudgementResult`s for the same persona — e.g. Clara v1 vs
+ * Clara v2 after a refinement pass (spec "Responsibilities": "Compare Clara versions
  * (before/after refinement)"). Immutable, purely derived from its two inputs (no I/O).
  */
 export interface ComparisonReport {

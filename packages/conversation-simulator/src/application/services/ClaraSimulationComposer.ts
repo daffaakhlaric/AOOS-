@@ -2,10 +2,10 @@ import { AssignmentMode, BranchManagerFactory, type BranchManager } from "@aos/b
 import { err, ok, type Result } from "@aos/common";
 import { InventoryConnectorFactory } from "@aos/dss-inventory-connector";
 import {
-  JessyAgentFactory,
+  ClaraAgentFactory,
   parseSalesAgentConfig,
-  type JessyAgentComposition,
-  type PropertyJessyAgentComposition,
+  type ClaraAgentComposition,
+  type PropertyClaraAgentComposition,
   type SalesAgentConfig,
 } from "@aos/sales-agent";
 
@@ -24,9 +24,9 @@ export interface SimulationClock {
 
 /**
  * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 (spec section 12 point 3) — `agent` is a union of
- * the 2 vertical-specific `JessyAgentFactory` compositions (`create()`'s automotive shape vs
+ * the 2 vertical-specific `ClaraAgentFactory` compositions (`create()`'s automotive shape vs
  * `createPropertyAgent()`'s PROPERTY shape). They are NOT structurally interchangeable (each
- * wraps a concretely-typed, vertical-specific `*JessyAgentService` class with its own private
+ * wraps a concretely-typed, vertical-specific `*ClaraAgentService` class with its own private
  * fields), so this is a real discriminated-by-`config.vertical` union, not a shared interface —
  * `SimulationRunnerService.runTurnLoop` only ever touches the members both shapes genuinely share
  * (`processIncomingMessage.execute(...)`/`followUpService`), which line up structurally across the
@@ -34,8 +34,8 @@ export interface SimulationClock {
  * for the vertical that composed them — mutually exclusive, mirroring the automotive-vs-PROPERTY
  * dispatch itself.
  */
-export interface JessySimulationComposition {
-  readonly agent: JessyAgentComposition | PropertyJessyAgentComposition;
+export interface ClaraSimulationComposition {
+  readonly agent: ClaraAgentComposition | PropertyClaraAgentComposition;
   readonly publisher: ObservablePublisher;
   readonly inventorySpy?: InventoryQueryServiceSpy;
   readonly listingSpy?: ListingQueryServiceSpy;
@@ -60,17 +60,17 @@ const BRANCH_MANAGER_CONFIG = {
 } as const;
 
 /**
- * Composes one fresh, fully-wired `JessyAgent` per simulation session (spec "Simulation Engine"
+ * Composes one fresh, fully-wired `ClaraAgent` per simulation session (spec "Simulation Engine"
  * step 2-3: "Create fresh LeadConversation" / "Create fresh MockInventoryStore"). Never mocks
  * `@aos/sales-agent` itself, `@aos/branch-manager`'s `AssignLead`, or (when `useRealInventory` is
  * `false` — design resolution #8) `@aos/dss-inventory-connector`'s real `MOCK`-mode sync — only
  * the clock and the 2 observation seams (`ObservablePublisher`, `InventoryQueryServiceSpy`) are
  * simulator-owned.
  */
-export class JessySimulationComposer {
+export class ClaraSimulationComposer {
   async compose(
     config: SimulatorConfig,
-  ): Promise<Result<JessySimulationComposition, SimulatorError>> {
+  ): Promise<Result<ClaraSimulationComposition, SimulatorError>> {
     const salesAgentConfigResult = parseSalesAgentConfig({ tenantId: config.tenantId });
     /* v8 ignore start -- unreachable in practice: `config.tenantId` is already validated
        non-empty by `SimulatorConfigSchema` before a `SimulatorConfig` can exist, and every other
@@ -144,7 +144,7 @@ export class JessySimulationComposer {
        for exceptional infra failures in that package's own design, not "no adapters available".
        This branch would only fire if that upstream contract changed. The real, verified
        `useRealInventory: true` behavior (composes successfully, 0 units synced) is covered by
-       `JessySimulationComposer.spec.ts`. */
+       `ClaraSimulationComposer.spec.ts`. */
     if (!syncResult.ok) {
       return err(
         new SimulatorError(
@@ -158,7 +158,7 @@ export class JessySimulationComposer {
 
     const inventorySpy = new InventoryQueryServiceSpy(inventoryConnector.queryService);
 
-    const agent = JessyAgentFactory.create({
+    const agent = ClaraAgentFactory.create({
       config: salesAgentConfig,
       branchId: config.branchId,
       publisher,
@@ -173,7 +173,7 @@ export class JessySimulationComposer {
 
   /**
    * The PROPERTY-vertical sibling composition path (spec section 12 point 3): wires
-   * `JessyAgentFactory.createPropertyAgent` with a real `IListingQueryService`
+   * `ClaraAgentFactory.createPropertyAgent` with a real `IListingQueryService`
    * (`InMemoryListingQueryService`, wrapped by the observation-seam `ListingQueryServiceSpy`) built
    * from `config.listings` — the already-fetched real listing data the caller (`apps/aaos-simulator`)
    * supplies. No inventory connector/sync is composed on this path — PROPERTY has no equivalent of
@@ -186,11 +186,11 @@ export class JessySimulationComposer {
     branchManager: BranchManager,
     clock: SimulationClock,
     now: () => Date,
-  ): Result<JessySimulationComposition, SimulatorError> {
+  ): Result<ClaraSimulationComposition, SimulatorError> {
     const listingQueryService = new InMemoryListingQueryService(config.listings ?? []);
     const listingSpy = new ListingQueryServiceSpy(listingQueryService);
 
-    const agent = JessyAgentFactory.createPropertyAgent({
+    const agent = ClaraAgentFactory.createPropertyAgent({
       config: salesAgentConfig,
       branchId: config.branchId,
       publisher,

@@ -8,7 +8,7 @@ import { unwrap } from "../helpers/result.js";
 
 /**
  * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 (spec section 12 point 3) — drives the REAL
- * `@aos/sales-agent` PROPERTY-vertical `JessyAgent` (`JessyAgentFactory.createPropertyAgent`)
+ * `@aos/sales-agent` PROPERTY-vertical `ClaraAgent` (`ClaraAgentFactory.createPropertyAgent`)
  * end-to-end through the public `SimulatorFactory`/`RunSimulation` surface, entirely in-memory.
  * Every existing persona script is written in automotive vocabulary ("Avanza", "kredit syariah",
  * etc.) that PROPERTY's own intent/scoring vocabulary doesn't recognize, so this deliberately does
@@ -29,7 +29,7 @@ describe("Integration: RunSimulation (vertical: PROPERTY)", () => {
 
     expect(result.messages.length).toBeGreaterThan(0);
     expect(result.status).not.toBe(SimulationStatus.FAILED);
-    expect(result.jessyUsedInventory).toBe(false);
+    expect(result.claraUsedInventory).toBe(false);
   });
 
   it("runs a full PROPERTY-vertical simulation session with real listing data wired through SimulatorConfig.listings", async () => {

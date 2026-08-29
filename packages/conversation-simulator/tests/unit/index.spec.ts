@@ -44,8 +44,8 @@ describe("public API (src/index.ts)", () => {
     expect(simulator.ok).toBe(true);
   });
 
-  it("does not export any internal application/domain implementation classes (SimulationRunnerService, JessySimulationComposer)", () => {
+  it("does not export any internal application/domain implementation classes (SimulationRunnerService, ClaraSimulationComposer)", () => {
     expect((PublicApi as Record<string, unknown>).SimulationRunnerService).toBeUndefined();
-    expect((PublicApi as Record<string, unknown>).JessySimulationComposer).toBeUndefined();
+    expect((PublicApi as Record<string, unknown>).ClaraSimulationComposer).toBeUndefined();
   });
 });

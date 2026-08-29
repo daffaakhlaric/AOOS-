@@ -13,9 +13,9 @@ function hasFlag(simulationResult: SimulationResult, criterion: ScoringCriterion
 }
 
 /**
- * Dimension 2 — did Jessy extract the 4 key qualification criteria? (spec "Dimension 2 —
+ * Dimension 2 — did Clara extract the 4 key qualification criteria? (spec "Dimension 2 —
  * Qualification", weight 25%). Ground truth for each flag is `SimulationResult.scoreProgression`
- * entries whose `reason` is the literal criterion name Jessy's own `ScoreCalculator`/
+ * entries whose `reason` is the literal criterion name Clara's own `ScoreCalculator`/
  * `SCORING_RULES` produces (`SimulationRunnerService` copies `payload.criterion` verbatim into
  * `reason` — see `application/services/SimulationRunnerService.ts`), not a re-derivation from raw
  * message text.
@@ -48,7 +48,7 @@ export class QualificationScorer implements IDimensionScorer {
         points: area ? 2.5 : 0,
         note: area
           ? "Area/lokasi berhasil diekstrak."
-          : "Jessy tidak berhasil extract area/lokasi dari lead.",
+          : "Clara tidak berhasil extract area/lokasi dari lead.",
       },
       {
         rule: "PAYMENT_EXTRACTED",
@@ -83,8 +83,8 @@ export class QualificationScorer implements IDimensionScorer {
         rule: "COLD_QUALIFYING_ATTEMPT",
         points: attempted ? 5 : 0,
         note: attempted
-          ? "Persona COLD/GHOST: Jessy tetap mencoba bertanya kualifikasi meski lead tidak menjawab."
-          : "Persona COLD/GHOST: Jessy tidak mencoba bertanya kualifikasi sama sekali.",
+          ? "Persona COLD/GHOST: Clara tetap mencoba bertanya kualifikasi meski lead tidak menjawab."
+          : "Persona COLD/GHOST: Clara tidak mencoba bertanya kualifikasi sama sekali.",
       };
       return {
         dimension: DimensionName.QUALIFICATION,

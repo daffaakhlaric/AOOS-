@@ -11,7 +11,7 @@ import { DimensionScoreValue } from "../../../../src/domain/value-objects/Dimens
 import { AiJudgeFactory } from "../../../../src/factories/AiJudgeFactory.js";
 import {
   BUYER,
-  JESSY,
+  CLARA,
   makeMessage,
   makeSimulationResult,
 } from "../../../fixtures/simulationResultFixtures.js";
@@ -25,14 +25,14 @@ describe("CompareVersions", () => {
 
     const before = await factory.value.judgeConversation.execute(
       makeSimulationResult({
-        messages: [makeMessage(1, JESSY, "Halo, saya Jessy dari Mobix By DSS Motor.")],
+        messages: [makeMessage(1, CLARA, "Halo, saya Clara dari Mobix By DSS Motor.")],
       }),
     );
     const after = await factory.value.judgeConversation.execute(
       makeSimulationResult({
         messages: [
           makeMessage(1, BUYER, "halo"),
-          makeMessage(2, JESSY, "Halo kak 😊 mau tanya apa nih?"),
+          makeMessage(2, CLARA, "Halo kak 😊 mau tanya apa nih?"),
         ],
       }),
     );

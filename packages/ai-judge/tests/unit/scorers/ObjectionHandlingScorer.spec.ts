@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ObjectionHandlingScorer } from "../../../src/scorers/ObjectionHandlingScorer.js";
 import {
   BUYER,
-  JESSY,
+  CLARA,
   makeMessage,
   makeSimulationResult,
 } from "../../fixtures/simulationResultFixtures.js";
@@ -21,7 +21,7 @@ const scorer = new ObjectionHandlingScorer();
 describe("ObjectionHandlingScorer", () => {
   it("no objection signal anywhere in the lead's messages -> score 10 (N/A)", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(1, BUYER, "mau xpander kak"), makeMessage(2, JESSY, "siap kak")],
+      messages: [makeMessage(1, BUYER, "mau xpander kak"), makeMessage(2, CLARA, "siap kak")],
       stageTransitions: [],
     });
     const result = scorer.score(sim);
@@ -33,7 +33,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "aku takut nanti bermasalah kak"),
-        makeMessage(2, JESSY, "Tenang kak, unit kita udah lewat Otospector, inspeksi 150 titik 🙏"),
+        makeMessage(2, CLARA, "Tenang kak, unit kita udah lewat Otospector, inspeksi 150 titik 🙏"),
       ],
       stageTransitions: [
         { turn: 2, from: ConversationStage.DISCOVERY, to: ConversationStage.OBJECTION },
@@ -47,7 +47,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "beneran aman gak kak unitnya"),
-        makeMessage(2, JESSY, "Aman banget kak, sudah dicek Otospector."),
+        makeMessage(2, CLARA, "Aman banget kak, sudah dicek Otospector."),
       ],
       stageTransitions: [
         { turn: 2, from: ConversationStage.DISCOVERY, to: ConversationStage.OBJECTION },
@@ -61,7 +61,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "ragu deh kak"),
-        makeMessage(2, JESSY, "Sudah inspeksi 150 titik kak, aman."),
+        makeMessage(2, CLARA, "Sudah inspeksi 150 titik kak, aman."),
       ],
       stageTransitions: [
         { turn: 2, from: ConversationStage.DISCOVERY, to: ConversationStage.OBJECTION },
@@ -75,7 +75,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "khawatir kak"),
-        makeMessage(2, JESSY, "Ada garansi resmi kak, tenang aja."),
+        makeMessage(2, CLARA, "Ada garansi resmi kak, tenang aja."),
       ],
       stageTransitions: [
         { turn: 2, from: ConversationStage.DISCOVERY, to: ConversationStage.OBJECTION },
@@ -89,7 +89,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "mahal banget sih"),
-        makeMessage(2, JESSY, "Wajar kak kalau ragu soal harga."),
+        makeMessage(2, CLARA, "Wajar kak kalau ragu soal harga."),
       ],
       stageTransitions: [
         { turn: 2, from: ConversationStage.DISCOVERY, to: ConversationStage.OBJECTION },
@@ -103,7 +103,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "mahal banget kak"),
-        makeMessage(2, JESSY, "Harus beli sekarang kak, stok terbatas banget!"),
+        makeMessage(2, CLARA, "Harus beli sekarang kak, stok terbatas banget!"),
       ],
       stageTransitions: [
         { turn: 2, from: ConversationStage.DISCOVERY, to: ConversationStage.OBJECTION },
@@ -118,7 +118,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "ragu kak"),
-        makeMessage(2, JESSY, "Wajar kak, boleh tanya apa aja."),
+        makeMessage(2, CLARA, "Wajar kak, boleh tanya apa aja."),
       ],
       stageTransitions: [
         { turn: 2, from: ConversationStage.DISCOVERY, to: ConversationStage.OBJECTION },
@@ -130,7 +130,7 @@ describe("ObjectionHandlingScorer", () => {
 
   it("wall-of-text response (>300 chars) -> WALL_OF_TEXT -1", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(1, BUYER, "ragu kak"), makeMessage(2, JESSY, "z".repeat(301))],
+      messages: [makeMessage(1, BUYER, "ragu kak"), makeMessage(2, CLARA, "z".repeat(301))],
       stageTransitions: [
         { turn: 2, from: ConversationStage.DISCOVERY, to: ConversationStage.OBJECTION },
       ],
@@ -143,7 +143,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "aku takut bermasalah kak"),
-        makeMessage(2, JESSY, "Oke kak, xpander ready kok."),
+        makeMessage(2, CLARA, "Oke kak, xpander ready kok."),
       ],
       stageTransitions: [],
     });
@@ -156,7 +156,7 @@ describe("ObjectionHandlingScorer", () => {
     const sim = makeSimulationResult({
       messages: [
         makeMessage(1, BUYER, "temen aku pernah beli disini terus rusak, kecewa banget katanya"),
-        makeMessage(2, JESSY, "Wah maaf kak, boleh cerita lebih detail?"),
+        makeMessage(2, CLARA, "Wah maaf kak, boleh cerita lebih detail?"),
       ],
       stageTransitions: [],
     });
@@ -164,7 +164,7 @@ describe("ObjectionHandlingScorer", () => {
     expect(result.appliedRules.some((r) => r.rule === "NO_OBJECTION_PRESENT")).toBe(false);
   });
 
-  it("when no Jessy response follows the objection, response text defaults to empty and dimension still scores deterministically", () => {
+  it("when no Clara response follows the objection, response text defaults to empty and dimension still scores deterministically", () => {
     const sim = makeSimulationResult({
       messages: [makeMessage(1, BUYER, "ragu deh kak")],
       stageTransitions: [],
@@ -180,7 +180,7 @@ describe("ObjectionHandlingScorer", () => {
         makeMessage(1, BUYER, "aku takut bermasalah kak"),
         makeMessage(
           2,
-          JESSY,
+          CLARA,
           "Tenang kak, sudah lewat Otospector inspeksi 150 titik dan ada garansi 🙏",
         ),
       ],

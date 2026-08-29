@@ -3,7 +3,7 @@ import { EventCategory } from "@aos/event-bus";
 import { ConversationStage, LeadTemperature } from "@aos/sales-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { JessySimulationComposer } from "../../../../src/application/services/JessySimulationComposer.js";
+import type { ClaraSimulationComposer } from "../../../../src/application/services/ClaraSimulationComposer.js";
 import { ObservablePublisher } from "../../../../src/application/services/ObservablePublisher.js";
 import { SimulationRunnerService } from "../../../../src/application/services/SimulationRunnerService.js";
 import { SimulatorError } from "../../../../src/domain/errors/SimulatorError.js";
@@ -53,7 +53,7 @@ describe("SimulationRunnerService", () => {
   function fakeComposer(agentOverrides: {
     processIncomingMessage: { execute: ReturnType<typeof vi.fn> };
     followUpService?: { applyNoReplyPenaltyIfStale: ReturnType<typeof vi.fn> };
-  }): JessySimulationComposer {
+  }): ClaraSimulationComposer {
     const clock = { current: NOW };
     return {
       compose: vi.fn().mockResolvedValue(
@@ -69,7 +69,7 @@ describe("SimulationRunnerService", () => {
           clock,
           salesAgentConfig: {
             tenantId: "tenant-x",
-            agentName: "Jessy",
+            agentName: "Clara",
             language: "id",
             hotThreshold: 65,
             warmThreshold: 31,
@@ -81,7 +81,7 @@ describe("SimulationRunnerService", () => {
           },
         }),
       ),
-    } as unknown as JessySimulationComposer;
+    } as unknown as ClaraSimulationComposer;
   }
 
   it("ends COMPLETED the instant handoff fires, even with script lines remaining", async () => {
@@ -174,10 +174,10 @@ describe("SimulationRunnerService", () => {
     expect(execute).toHaveBeenCalledTimes(3);
   });
 
-  it("returns err when Jessy's own use case returns an err Result mid-turn", async () => {
+  it("returns err when Clara's own use case returns an err Result mid-turn", async () => {
     const execute = vi
       .fn()
-      .mockResolvedValue(err(new SimulatorError(ErrorCode.INTERNAL, "jessy exploded")));
+      .mockResolvedValue(err(new SimulatorError(ErrorCode.INTERNAL, "clara exploded")));
     const registry = fakeRegistry(ReadyBuyer);
     const strategy = { nextMessage: vi.fn().mockReturnValue("halo") };
     const events = fakeEvents();
@@ -250,7 +250,7 @@ describe("SimulationRunnerService", () => {
     expect(error.message).toBe("nope");
   });
 
-  it("returns err when composing the Jessy agent fails", async () => {
+  it("returns err when composing the Clara agent fails", async () => {
     const registry = fakeRegistry(ReadyBuyer);
     const strategy = { nextMessage: vi.fn() };
     const events = fakeEvents();
@@ -258,7 +258,7 @@ describe("SimulationRunnerService", () => {
       compose: vi
         .fn()
         .mockResolvedValue(err(new SimulatorError(ErrorCode.INTERNAL, "compose failed"))),
-    } as unknown as JessySimulationComposer;
+    } as unknown as ClaraSimulationComposer;
     const runner = new SimulationRunnerService(
       registry as never,
       strategy as never,

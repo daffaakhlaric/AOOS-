@@ -5,14 +5,14 @@ import type { AppliedRule, DimensionScore } from "../domain/entities/DimensionSc
 import { DimensionName } from "../domain/value-objects/DimensionName.js";
 import { DimensionScoreValue } from "../domain/value-objects/DimensionScoreValue.js";
 
-import { jessyMessages } from "./SpeakerFilter.js";
+import { claraMessages } from "./SpeakerFilter.js";
 
-/** Dimension 6 — are Jessy's responses appropriately concise? (spec "Dimension 6 — Response Length", weight 10%). */
+/** Dimension 6 — are Clara's responses appropriately concise? (spec "Dimension 6 — Response Length", weight 10%). */
 export class ResponseLengthScorer implements IDimensionScorer {
   score(simulationResult: SimulationResult): DimensionScore {
-    const avg = simulationResult.avgJessyResponseLength;
-    const max = simulationResult.maxJessyResponseLength;
-    const longCount = jessyMessages(simulationResult.messages).filter(
+    const avg = simulationResult.avgClaraResponseLength;
+    const max = simulationResult.maxClaraResponseLength;
+    const longCount = claraMessages(simulationResult.messages).filter(
       (m) => m.text.length > 250,
     ).length;
 
@@ -22,25 +22,25 @@ export class ResponseLengthScorer implements IDimensionScorer {
       rules.push({
         rule: "AVG_VERY_CONCISE",
         points: 4,
-        note: `Rata-rata panjang respons Jessy ${avg} karakter — sangat ringkas (<=150).`,
+        note: `Rata-rata panjang respons Clara ${avg} karakter — sangat ringkas (<=150).`,
       });
     } else if (avg <= 200) {
       rules.push({
         rule: "AVG_CONCISE",
         points: 3,
-        note: `Rata-rata panjang respons Jessy ${avg} karakter — ringkas (151-200).`,
+        note: `Rata-rata panjang respons Clara ${avg} karakter — ringkas (151-200).`,
       });
     } else if (avg <= 250) {
       rules.push({
         rule: "AVG_ACCEPTABLE",
         points: 2,
-        note: `Rata-rata panjang respons Jessy ${avg} karakter — cukup (201-250).`,
+        note: `Rata-rata panjang respons Clara ${avg} karakter — cukup (201-250).`,
       });
     } else {
       rules.push({
         rule: "AVG_TOO_LONG",
         points: 0,
-        note: `Rata-rata panjang respons Jessy ${avg} karakter — terlalu panjang (>250).`,
+        note: `Rata-rata panjang respons Clara ${avg} karakter — terlalu panjang (>250).`,
       });
     }
 
@@ -67,8 +67,8 @@ export class ResponseLengthScorer implements IDimensionScorer {
       rule: "MORE_THAN_TWO_LONG_MESSAGES",
       points: tooManyLong ? -1 : 0,
       note: tooManyLong
-        ? `${longCount} pesan Jessy lebih dari 250 karakter — perlu dipotong.`
-        : `${longCount} pesan Jessy lebih dari 250 karakter — masih dalam batas wajar.`,
+        ? `${longCount} pesan Clara lebih dari 250 karakter — perlu dipotong.`
+        : `${longCount} pesan Clara lebih dari 250 karakter — masih dalam batas wajar.`,
     });
 
     const total = rules.reduce((sum, r) => sum + r.points, 0);

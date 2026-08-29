@@ -6,7 +6,7 @@
  * turn, even if the persona's script has remaining lines; (b) `COMPLETED` when the persona's
  * script is exhausted with no handoff; (c) `TIMEOUT` when `maxTurnsPerSimulation` is reached
  * without handoff or script exhaustion; (d) any thrown/unexpected error, or an unexpected `err`
- * `Result` from Jessy's own use case, is captured in `RunSimulation`'s `Result` err channel
+ * `Result` from Clara's own use case, is captured in `RunSimulation`'s `Result` err channel
  * (never thrown out of `RunSimulation`) — `FAILED` is what `RunAllScenarios` synthesizes into its
  * per-persona result when that happens, so a single persona's failure never aborts the batch.
  */

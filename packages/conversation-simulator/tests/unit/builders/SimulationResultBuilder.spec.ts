@@ -32,7 +32,7 @@ describe("SimulationResultBuilder", () => {
       })
       .withAppendedMessage({
         turn: 1,
-        speaker: SimulationSpeaker.JESSY,
+        speaker: SimulationSpeaker.CLARA,
         text: "Halo kak!",
         occurredAt: NOW,
       })
@@ -70,10 +70,10 @@ describe("SimulationResultBuilder", () => {
     expect(result.stageTransitions).toHaveLength(1);
     expect(result.expectedOutcome).toBe(LeadTemperature.HOT);
     expect(result.metExpectation).toBe(true);
-    expect(result.jessyUsedInventory).toBe(false);
+    expect(result.claraUsedInventory).toBe(false);
   });
 
-  it("computes avg/max/longest Jessy response length from JESSY-speaker messages only", () => {
+  it("computes avg/max/longest Clara response length from CLARA-speaker messages only", () => {
     const session = baseSession()
       .withAppendedMessage({
         turn: 1,
@@ -83,35 +83,35 @@ describe("SimulationResultBuilder", () => {
       })
       .withAppendedMessage({
         turn: 1,
-        speaker: SimulationSpeaker.JESSY,
+        speaker: SimulationSpeaker.CLARA,
         text: "short",
         occurredAt: NOW,
       })
       .withAppendedMessage({
         turn: 2,
-        speaker: SimulationSpeaker.JESSY,
-        text: "a longer jessy reply",
+        speaker: SimulationSpeaker.CLARA,
+        text: "a longer clara reply",
         occurredAt: NOW,
       });
 
     const result = SimulationResultBuilder.build(session, ReadyBuyer, 0, 0, LeadTemperature.COLD);
 
-    expect(result.maxJessyResponseLength).toBe("a longer jessy reply".length);
-    expect(result.longestJessyMessage).toBe("a longer jessy reply");
-    expect(result.avgJessyResponseLength).toBe(
-      ("short".length + "a longer jessy reply".length) / 2,
+    expect(result.maxClaraResponseLength).toBe("a longer clara reply".length);
+    expect(result.longestClaraMessage).toBe("a longer clara reply");
+    expect(result.avgClaraResponseLength).toBe(
+      ("short".length + "a longer clara reply".length) / 2,
     );
   });
 
-  it("defaults message-length aggregates to 0/empty when there are no Jessy messages", () => {
+  it("defaults message-length aggregates to 0/empty when there are no Clara messages", () => {
     const session = baseSession();
     const result = SimulationResultBuilder.build(session, ReadyBuyer, 0, 0, LeadTemperature.COLD);
-    expect(result.avgJessyResponseLength).toBe(0);
-    expect(result.maxJessyResponseLength).toBe(0);
-    expect(result.longestJessyMessage).toBe("");
+    expect(result.avgClaraResponseLength).toBe(0);
+    expect(result.maxClaraResponseLength).toBe(0);
+    expect(result.longestClaraMessage).toBe("");
   });
 
-  it("jessyHandledObjection is true only when a stage transition targets OBJECTION", () => {
+  it("claraHandledObjection is true only when a stage transition targets OBJECTION", () => {
     const withObjection = baseSession().withStageTransition({
       turn: 2,
       from: ConversationStage.GREETING,
@@ -125,11 +125,11 @@ describe("SimulationResultBuilder", () => {
 
     expect(
       SimulationResultBuilder.build(withObjection, ReadyBuyer, 0, 0, LeadTemperature.COLD)
-        .jessyHandledObjection,
+        .claraHandledObjection,
     ).toBe(true);
     expect(
       SimulationResultBuilder.build(withoutObjection, ReadyBuyer, 0, 0, LeadTemperature.COLD)
-        .jessyHandledObjection,
+        .claraHandledObjection,
     ).toBe(false);
   });
 
@@ -150,10 +150,10 @@ describe("SimulationResultBuilder", () => {
     expect(result.finalStage).toBe(ConversationStage.PRICE_INFO);
   });
 
-  it("followUpScheduled and jessyUsedInventory pass through from the session", () => {
-    const session = baseSession().withFollowUpScheduled().withJessyUsedInventory();
+  it("followUpScheduled and claraUsedInventory pass through from the session", () => {
+    const session = baseSession().withFollowUpScheduled().withClaraUsedInventory();
     const result = SimulationResultBuilder.build(session, ReadyBuyer, 0, 0, LeadTemperature.COLD);
     expect(result.followUpScheduled).toBe(true);
-    expect(result.jessyUsedInventory).toBe(true);
+    expect(result.claraUsedInventory).toBe(true);
   });
 });

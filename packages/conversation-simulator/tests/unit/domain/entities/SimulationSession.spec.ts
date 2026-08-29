@@ -31,7 +31,7 @@ describe("SimulationSession", () => {
     expect(session.handoffTriggered).toBe(false);
     expect(session.handoffAtTurn).toBeUndefined();
     expect(session.followUpScheduled).toBe(false);
-    expect(session.jessyUsedInventory).toBe(false);
+    expect(session.claraUsedInventory).toBe(false);
     expect(session.personaId).toBe(PersonaId.COLD_BUYER);
     expect(session.personaDifficulty).toBe(PersonaDifficulty.EASY);
     expect(session.startedAtMs).toBe(NOW.getTime());
@@ -90,10 +90,10 @@ describe("SimulationSession", () => {
     expect(session.handoffAtTurn).toBe(3);
   });
 
-  it("withFollowUpScheduled() / withJessyUsedInventory() flip their booleans", () => {
-    const session = freshSession().withFollowUpScheduled().withJessyUsedInventory();
+  it("withFollowUpScheduled() / withClaraUsedInventory() flip their booleans", () => {
+    const session = freshSession().withFollowUpScheduled().withClaraUsedInventory();
     expect(session.followUpScheduled).toBe(true);
-    expect(session.jessyUsedInventory).toBe(true);
+    expect(session.claraUsedInventory).toBe(true);
   });
 
   it("withStatus() replaces status without touching other fields", () => {

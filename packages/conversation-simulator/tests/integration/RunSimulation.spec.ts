@@ -8,9 +8,9 @@ import { makeSimulatorConfig } from "../fixtures/simulatorFixtures.js";
 import { unwrap } from "../helpers/result.js";
 
 /**
- * Drives the REAL `@aos/sales-agent` (Jessy) engine end-to-end, entirely in-memory (spec
+ * Drives the REAL `@aos/sales-agent` (Clara) engine end-to-end, entirely in-memory (spec
  * "Testing Requirements → integration/RunSimulation.spec.ts"). Nothing here is mocked except the
- * 2 simulator-owned observation seams (`ObservablePublisher`, `InventoryQueryServiceSpy`) — Jessy,
+ * 2 simulator-owned observation seams (`ObservablePublisher`, `InventoryQueryServiceSpy`) — Clara,
  * `@aos/branch-manager`'s `AssignLead`, and `@aos/dss-inventory-connector`'s `MOCK`-mode sync all
  * run for real.
  */
@@ -53,7 +53,7 @@ describe("Integration: RunSimulation", () => {
     expect(result.metExpectation).toBe(true);
   });
 
-  it("GhostBuyer goes COLD, never hands off, and Jessy schedules a follow up (spec business correctness)", async () => {
+  it("GhostBuyer goes COLD, never hands off, and Clara schedules a follow up (spec business correctness)", async () => {
     const simulator = unwrap(SimulatorFactory.create());
     const result = unwrap(
       await simulator.runSimulation.execute(PersonaId.GHOST_BUYER, makeSimulatorConfig()),
@@ -97,9 +97,9 @@ describe("Integration: RunSimulation", () => {
       await simulator.runSimulation.execute(PersonaId.SYARIAH_BUYER, makeSimulatorConfig()),
     );
 
-    const jessyReplies = result.messages.filter((m) => m.speaker === "JESSY").map((m) => m.text);
+    const claraReplies = result.messages.filter((m) => m.speaker === "CLARA").map((m) => m.text);
     expect(
-      jessyReplies.some(
+      claraReplies.some(
         (text) => text.includes("syariah") || text.includes("halal") || text.includes("murabahah"),
       ),
     ).toBe(true);
@@ -112,7 +112,7 @@ describe("Integration: RunSimulation", () => {
    * a new `COMPLAINT` intent was added, both routed to `ConversationStage.OBJECTION` by
    * `StageDetector`. `ComplainerBuyer`'s first 3 turns ("mobilnya beneran bagus gak sih?", "gak
    * takut unit bermasalah?", "kemarin temen beli mobil bekas rusak terus") now all real-detect as
-   * objections and Jessy responds with the new `QUALITY_OBJECTION_POOL` (mentions
+   * objections and Clara responds with the new `QUALITY_OBJECTION_POOL` (mentions
    * Otospector/150+ titik). The conversation still ends COLD, not the persona's aspirational WARM
    * pin: this script's only actual `ScoreCalculator`-recognized signal is PAYMENT (+25, from
    * "kredit" on turn 5) — it never mentions a unit model, budget amount, or area, so it cannot
@@ -120,18 +120,18 @@ describe("Integration: RunSimulation", () => {
    * of this specific script under the real (now object-detection-fixed) engine, not a remaining
    * bug — objection *detection and response* is exactly what this test now proves works.
    */
-  it("ComplainerBuyer now enters OBJECTION stage and Jessy responds with a quality/trust objection (AAOS-W3A-S1 fix)", async () => {
+  it("ComplainerBuyer now enters OBJECTION stage and Clara responds with a quality/trust objection (AAOS-W3A-S1 fix)", async () => {
     const simulator = unwrap(SimulatorFactory.create());
     const result = unwrap(
       await simulator.runSimulation.execute(PersonaId.COMPLAINER_BUYER, makeSimulatorConfig()),
     );
 
-    expect(result.jessyHandledObjection).toBe(true);
+    expect(result.claraHandledObjection).toBe(true);
     const objectionTurns = result.stageTransitions.filter((t) => t.to === "OBJECTION");
     expect(objectionTurns.length).toBeGreaterThan(0);
 
-    const jessyReplies = result.messages.filter((m) => m.speaker === "JESSY").map((m) => m.text);
-    expect(jessyReplies.some((text) => text.includes("150") || text.includes("Otospector"))).toBe(
+    const claraReplies = result.messages.filter((m) => m.speaker === "CLARA").map((m) => m.text);
+    expect(claraReplies.some((text) => text.includes("150") || text.includes("Otospector"))).toBe(
       true,
     );
 
@@ -139,23 +139,23 @@ describe("Integration: RunSimulation", () => {
     expect(result.finalTemperature).toBe(LeadTemperature.COLD);
   });
 
-  it("jessyHandledObjection IS true for a persona whose script contains a real HESITATION trigger word (ColdBuyer's 'lihat-lihat')", async () => {
+  it("claraHandledObjection IS true for a persona whose script contains a real HESITATION trigger word (ColdBuyer's 'lihat-lihat')", async () => {
     const simulator = unwrap(SimulatorFactory.create());
     const result = unwrap(
       await simulator.runSimulation.execute(PersonaId.COLD_BUYER, makeSimulatorConfig()),
     );
 
-    expect(result.jessyHandledObjection).toBe(true);
+    expect(result.claraHandledObjection).toBe(true);
     expect(result.stageTransitions.some((t) => t.to === "OBJECTION")).toBe(true);
   });
 
-  it("SpecificUnitBuyer's inventory is queried by Jessy", async () => {
+  it("SpecificUnitBuyer's inventory is queried by Clara", async () => {
     const simulator = unwrap(SimulatorFactory.create());
     const result = unwrap(
       await simulator.runSimulation.execute(PersonaId.SPECIFIC_UNIT_BUYER, makeSimulatorConfig()),
     );
 
-    expect(result.jessyUsedInventory).toBe(true);
+    expect(result.claraUsedInventory).toBe(true);
   });
 
   it("score progression is recorded, monotonically by turn, sourced from real LeadScoreUpdated events", async () => {
@@ -178,7 +178,7 @@ describe("Integration: RunSimulation", () => {
     expect(result.stageTransitions.length).toBeGreaterThan(0);
   });
 
-  it("every Jessy response stays at most 300 chars, across every persona", async () => {
+  it("every Clara response stays at most 300 chars, across every persona", async () => {
     const simulator = unwrap(SimulatorFactory.create());
     for (const personaId of [
       PersonaId.READY_BUYER,
@@ -189,7 +189,7 @@ describe("Integration: RunSimulation", () => {
         await simulator.runSimulation.execute(personaId, makeSimulatorConfig()),
       );
       for (const message of result.messages) {
-        if (message.speaker === "JESSY") {
+        if (message.speaker === "CLARA") {
           expect(message.text.length).toBeLessThanOrEqual(300);
         }
       }
@@ -208,7 +208,7 @@ describe("Integration: RunSimulation", () => {
   /**
    * The spec pins `FirstTimeBuyer` at WARM, but its literal script ends up mentioning enough
    * qualifying signals (unit interest via "beli mobil bekas", a budget amount "150 juta", plus
-   * the payment-method discussion) that real Jessy's scoring crosses `hotThreshold` — a real,
+   * the payment-method discussion) that real Clara's scoring crosses `hotThreshold` — a real,
    * verified property of this script under the real engine (see the other documented findings in
    * this file), not a bug in this package.
    */
@@ -229,7 +229,7 @@ describe("Integration: RunSimulation", () => {
         makeSimulatorConfig({ useRealInventory: true }),
       ),
     );
-    expect(result.jessyUsedInventory).toBe(false); // no real units synced without real credentials
+    expect(result.claraUsedInventory).toBe(false); // no real units synced without real credentials
     expect(result.status).not.toBe(SimulationStatus.FAILED);
   });
 

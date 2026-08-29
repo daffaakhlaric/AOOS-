@@ -24,7 +24,7 @@ export interface SimulationResult {
   readonly totalTurns: number;
   readonly durationMs: number;
 
-  // Jessy performance
+  // Clara performance
   readonly finalScore: number;
   readonly finalTemperature: LeadTemperature;
   readonly handoffTriggered: boolean;
@@ -40,11 +40,11 @@ export interface SimulationResult {
   readonly metExpectation: boolean;
 
   // Message analysis
-  readonly avgJessyResponseLength: number;
-  readonly maxJessyResponseLength: number;
-  readonly longestJessyMessage: string;
-  readonly jessyUsedInventory: boolean;
-  readonly jessyHandledObjection: boolean;
+  readonly avgClaraResponseLength: number;
+  readonly maxClaraResponseLength: number;
+  readonly longestClaraMessage: string;
+  readonly claraUsedInventory: boolean;
+  readonly claraHandledObjection: boolean;
 
   /**
    * Additive extension beyond the spec's literal interface (design resolution #3): `true` once

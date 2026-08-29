@@ -5,9 +5,9 @@
  * `packages/sales-agent/src/conversation/IntentDetector.ts` verbatim — copied rather than
  * imported because `IntentDetector`/`DetectedIntent` are internal to `@aos/sales-agent` (not
  * re-exported from its `src/index.ts`, and its `package.json` `exports` map only allows the `"."`
- * subpath, so no deep import is possible). Any future change to Jessy's own HESITATION/COMPLAINT
+ * subpath, so no deep import is possible). Any future change to Clara's own HESITATION/COMPLAINT
  * vocabulary must be mirrored here too, or the judge's "objection present" ground truth will
- * drift from what Jessy itself can detect.
+ * drift from what Clara itself can detect.
  */
 const ORIGINAL_HESITATION_PATTERNS: ReadonlyArray<RegExp> = [
   /pikir/i,
@@ -65,7 +65,7 @@ const COMPLAINT_PATTERNS: ReadonlyArray<RegExp> = [
   /rusak.*tem(?:a|e)n/i,
 ];
 
-/** `true` if `text` matches any HESITATION or COMPLAINT ground-truth pattern — Jessy's own definition of "an objection signal is present". */
+/** `true` if `text` matches any HESITATION or COMPLAINT ground-truth pattern — Clara's own definition of "an objection signal is present". */
 export function hasObjectionSignal(text: string): boolean {
   return (
     HESITATION_PATTERNS.some((p) => p.test(text)) || COMPLAINT_PATTERNS.some((p) => p.test(text))

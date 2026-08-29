@@ -34,7 +34,7 @@ describe("TextPatterns", () => {
 
   it("ROBOT_GREETING_PATTERN matches only the exact literal opener, anchored", () => {
     expect(
-      ROBOT_GREETING_PATTERN.test("Halo, saya Jessy dari Mobix By DSS Motor, apa kabar?"),
+      ROBOT_GREETING_PATTERN.test("Halo, saya Clara dari Mobix By DSS Motor, apa kabar?"),
     ).toBe(true);
     expect(ROBOT_GREETING_PATTERN.test("halo kak")).toBe(false);
   });

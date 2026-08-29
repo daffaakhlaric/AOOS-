@@ -2,7 +2,7 @@ import { ok } from "@aos/common";
 import { ConversationStage, LeadTemperature } from "@aos/sales-agent";
 import { describe, expect, it, vi } from "vitest";
 
-import type { JessySimulationComposer } from "../../../../src/application/services/JessySimulationComposer.js";
+import type { ClaraSimulationComposer } from "../../../../src/application/services/ClaraSimulationComposer.js";
 import { ObservablePublisher } from "../../../../src/application/services/ObservablePublisher.js";
 import { SimulationRunnerService } from "../../../../src/application/services/SimulationRunnerService.js";
 import { PersonaId } from "../../../../src/domain/value-objects/PersonaId.js";
@@ -13,7 +13,7 @@ import { unwrap } from "../../../helpers/result.js";
 /**
  * AAOS-W3D Fix 1: covers the same-turn CLOSING→HANDOFF transition-recording addition to
  * `SimulationRunnerService`'s turn loop — see its doc comment for the full architectural
- * reasoning (`JessyAgentService.processMessage` overrides `conversation.stage` straight to
+ * reasoning (`ClaraAgentService.processMessage` overrides `conversation.stage` straight to
  * `HANDOFF` the instant `becameHot` fires, which would otherwise hide the intermediate `CLOSING`
  * decision `StageDetector`'s top-priority HOT rule always makes on that same turn).
  */
@@ -31,7 +31,7 @@ function fakeComposer(
     processIncomingMessage: { execute: ReturnType<typeof vi.fn> };
   },
   publisher: ObservablePublisher,
-): JessySimulationComposer {
+): ClaraSimulationComposer {
   const clock = { current: NOW };
   return {
     compose: vi.fn().mockResolvedValue(
@@ -45,7 +45,7 @@ function fakeComposer(
         clock,
         salesAgentConfig: {
           tenantId: "tenant-x",
-          agentName: "Jessy",
+          agentName: "Clara",
           language: "id",
           hotThreshold: 65,
           warmThreshold: 31,
@@ -57,7 +57,7 @@ function fakeComposer(
         },
       }),
     ),
-  } as unknown as JessySimulationComposer;
+  } as unknown as ClaraSimulationComposer;
 }
 
 function fakeRegistry(): { get: ReturnType<typeof vi.fn> } {
@@ -167,7 +167,7 @@ describe("SimulationRunnerService — same-turn CLOSING recording (AAOS-W3D Fix 
       .mockResolvedValueOnce(
         ok({
           conversation: fakeConversation(ConversationStage.HANDOFF, 80),
-          outgoingMessage: { body: "Jessy sambungin ke tim ya kak" },
+          outgoingMessage: { body: "Clara sambungin ke tim ya kak" },
           temperature: LeadTemperature.HOT,
           becameHot: true,
           handoff: { salesName: "Sales Cinere" },

@@ -2,7 +2,7 @@
   "name": "@aos/ai-judge",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS AI Judge — evaluates Jessy conversation quality from SimulationResults across 6 dimensions. Produces Grade, Verdict (APPROVE/NEEDS_IMPROVEMENT/FAIL), actionable feedback, and golden dataset candidates.",
+  "description": "AAOS AI Judge — evaluates Clara conversation quality from SimulationResults across 6 dimensions. Produces Grade, Verdict (APPROVE/NEEDS_IMPROVEMENT/FAIL), actionable feedback, and golden dataset candidates.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

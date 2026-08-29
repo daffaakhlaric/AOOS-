@@ -8,7 +8,7 @@ import { PersonaId } from "../domain/value-objects/PersonaId.js";
  * Cari kredit syariah, sensitif soal riba.
  *
  * AAOS-W3A-S1 note: the original script only ever supplied one qualifying signal (PAYMENT, from
- * "kredit syariah") — real Jessy's `ScoreCalculator` only awards `PAYMENT`/`UNIT`/`BUDGET`/`AREA`
+ * "kredit syariah") — real Clara's `ScoreCalculator` only awards `PAYMENT`/`UNIT`/`BUDGET`/`AREA`
  * for their own literal keyword patterns, so a script that never mentions a unit model or a budget
  * amount could never cross `hotThreshold` (65), regardless of how syariah-focused it was. This
  * script keeps the same syariah narrative but adds a UNIT signal ("Avanza") and a BUDGET signal

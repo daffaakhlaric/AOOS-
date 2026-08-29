@@ -9,8 +9,8 @@ import type { JudgeError } from "../../domain/errors/JudgeError.js";
 import type { AiJudgeEvents } from "../../domain/events/AiJudgeEvents.js";
 
 /**
- * Compares two `JudgementResult`s for the same persona — "before" and "after" a Jessy refinement
- * pass (spec "Responsibilities: Compare Jessy versions (before/after refinement)"; exact shape is
+ * Compares two `JudgementResult`s for the same persona — "before" and "after" a Clara refinement
+ * pass (spec "Responsibilities: Compare Clara versions (before/after refinement)"; exact shape is
  * this implementation's design choice — see docs/AAOS-AI-JUDGE-REPORT.md "CompareVersions
  * design"). Purely derived from its two inputs — never re-scores, never touches `SimulationResult`.
  */

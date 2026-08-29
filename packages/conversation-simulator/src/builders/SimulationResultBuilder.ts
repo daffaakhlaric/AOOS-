@@ -5,7 +5,7 @@ import { SimulationSpeaker, type SimulationMessage } from "../domain/entities/Si
 import type { SimulationResult } from "../domain/entities/SimulationResult.js";
 import type { SimulationSession } from "../domain/entities/SimulationSession.js";
 
-/** Builder Pattern: turns a folded `SimulationSession` into the public `SimulationResult` (spec "builders/SimulationResultBuilder.ts") — the message-analysis aggregates (`avgJessyResponseLength`, `maxJessyResponseLength`, `longestJessyMessage`) are computed here, once, from the session's own recorded messages. */
+/** Builder Pattern: turns a folded `SimulationSession` into the public `SimulationResult` (spec "builders/SimulationResultBuilder.ts") — the message-analysis aggregates (`avgClaraResponseLength`, `maxClaraResponseLength`, `longestClaraMessage`) are computed here, once, from the session's own recorded messages. */
 export class SimulationResultBuilder {
   static build(
     session: SimulationSession,
@@ -14,17 +14,17 @@ export class SimulationResultBuilder {
     finalScore: number,
     finalTemperature: LeadTemperature,
   ): SimulationResult {
-    const jessyMessages = session.messages.filter(
-      (m: SimulationMessage) => m.speaker === SimulationSpeaker.JESSY,
+    const claraMessages = session.messages.filter(
+      (m: SimulationMessage) => m.speaker === SimulationSpeaker.CLARA,
     );
-    const lengths = jessyMessages.map((m) => m.text.length);
-    const maxJessyResponseLength = lengths.length === 0 ? 0 : Math.max(...lengths);
-    const longestJessyMessage =
-      jessyMessages.find((m) => m.text.length === maxJessyResponseLength)?.text ?? "";
-    const avgJessyResponseLength =
+    const lengths = claraMessages.map((m) => m.text.length);
+    const maxClaraResponseLength = lengths.length === 0 ? 0 : Math.max(...lengths);
+    const longestClaraMessage =
+      claraMessages.find((m) => m.text.length === maxClaraResponseLength)?.text ?? "";
+    const avgClaraResponseLength =
       lengths.length === 0 ? 0 : lengths.reduce((sum, len) => sum + len, 0) / lengths.length;
 
-    const jessyHandledObjection = session.stageTransitions.some(
+    const claraHandledObjection = session.stageTransitions.some(
       (t) => t.to === ConversationStage.OBJECTION,
     );
 
@@ -45,11 +45,11 @@ export class SimulationResultBuilder {
       finalStage: session.currentStage,
       expectedOutcome: persona.expectedOutcome,
       metExpectation: finalTemperature === persona.expectedOutcome,
-      avgJessyResponseLength,
-      maxJessyResponseLength,
-      longestJessyMessage,
-      jessyUsedInventory: session.jessyUsedInventory,
-      jessyHandledObjection,
+      avgClaraResponseLength,
+      maxClaraResponseLength,
+      longestClaraMessage,
+      claraUsedInventory: session.claraUsedInventory,
+      claraHandledObjection,
       followUpScheduled: session.followUpScheduled,
     };
   }

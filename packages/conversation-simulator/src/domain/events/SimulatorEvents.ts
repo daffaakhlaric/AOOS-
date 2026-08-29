@@ -8,7 +8,7 @@ import type { TurnCompleted } from "./TurnCompleted.js";
 
 /**
  * Wraps the real `@aos/event-bus` `IPublisher` for this package's 5 named events, mirroring
- * `@aos/sales-agent`'s `JessyAgentEvents` / `@aos/branch-manager`'s `BranchManagerEvents`
+ * `@aos/sales-agent`'s `ClaraAgentEvents` / `@aos/branch-manager`'s `BranchManagerEvents`
  * convention exactly.
  */
 export class SimulatorEvents {

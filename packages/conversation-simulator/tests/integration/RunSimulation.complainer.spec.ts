@@ -9,7 +9,7 @@ import { unwrap } from "../helpers/result.js";
 /**
  * AAOS-W3A-S1 Fix 2 + Fix 3 dedicated coverage: `ComplainerBuyer` driven against the REAL, now-fixed
  * `@aos/sales-agent` engine. Before this fix, none of `ComplainerBuyer`'s literal script phrases
- * matched the original 5-pattern HESITATION list, so Jessy never entered OBJECTION for this
+ * matched the original 5-pattern HESITATION list, so Clara never entered OBJECTION for this
  * persona — see `docs/AAOS-CONVERSATION-SIMULATOR-REPORT.md`'s changelog for the prior finding.
  */
 describe("Integration: RunSimulation — ComplainerBuyer (AAOS-W3A-S1)", () => {
@@ -19,7 +19,7 @@ describe("Integration: RunSimulation — ComplainerBuyer (AAOS-W3A-S1)", () => {
       await simulator.runSimulation.execute(PersonaId.COMPLAINER_BUYER, makeSimulatorConfig()),
     );
 
-    expect(result.jessyHandledObjection).toBe(true);
+    expect(result.claraHandledObjection).toBe(true);
     expect(result.stageTransitions.some((t) => t.to === "OBJECTION")).toBe(true);
   });
 
@@ -38,19 +38,19 @@ describe("Integration: RunSimulation — ComplainerBuyer (AAOS-W3A-S1)", () => {
       await simulator.runSimulation.execute(PersonaId.COMPLAINER_BUYER, makeSimulatorConfig()),
     );
 
-    const turn3Reply = result.messages.find((m) => m.turn === 3 && m.speaker === "JESSY");
+    const turn3Reply = result.messages.find((m) => m.turn === 3 && m.speaker === "CLARA");
     expect(turn3Reply).toBeDefined();
     expect(turn3Reply!.text.includes("Otospector") || turn3Reply!.text.includes("150")).toBe(true);
   });
 
-  it("Jessy responds to the objection turns with a quality/trust response mentioning Otospector or 150+ titik", async () => {
+  it("Clara responds to the objection turns with a quality/trust response mentioning Otospector or 150+ titik", async () => {
     const simulator = unwrap(SimulatorFactory.create());
     const result = unwrap(
       await simulator.runSimulation.execute(PersonaId.COMPLAINER_BUYER, makeSimulatorConfig()),
     );
 
-    const jessyReplies = result.messages.filter((m) => m.speaker === "JESSY").map((m) => m.text);
-    const qualityReplies = jessyReplies.filter(
+    const claraReplies = result.messages.filter((m) => m.speaker === "CLARA").map((m) => m.text);
+    const qualityReplies = claraReplies.filter(
       (text) => text.includes("Otospector") || text.includes("150"),
     );
     expect(qualityReplies.length).toBeGreaterThan(0);

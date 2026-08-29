@@ -2,7 +2,7 @@
   "name": "@aos/conversation-simulator",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS Conversation Simulator — runs AI buyer personas against Jessy to test conversation quality before production deployment.",
+  "description": "AAOS Conversation Simulator — runs AI buyer personas against Clara to test conversation quality before production deployment.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

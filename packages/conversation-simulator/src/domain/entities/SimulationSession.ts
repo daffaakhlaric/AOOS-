@@ -34,7 +34,7 @@ export interface SimulationSessionProps {
   readonly handoffTriggered: boolean;
   readonly handoffAtTurn?: number;
   readonly followUpScheduled: boolean;
-  readonly jessyUsedInventory: boolean;
+  readonly claraUsedInventory: boolean;
   readonly currentStage: ConversationStage;
   readonly currentTemperature: LeadTemperature;
   readonly currentScore: number;
@@ -68,7 +68,7 @@ export class SimulationSession {
       handoffTriggered: false,
       handoffAtTurn: undefined,
       followUpScheduled: false,
-      jessyUsedInventory: false,
+      claraUsedInventory: false,
       currentStage: ConversationStage.GREETING,
       currentTemperature: LeadTemperature.COLD,
       currentScore: 0,
@@ -119,8 +119,8 @@ export class SimulationSession {
     return this.props.followUpScheduled;
   }
 
-  get jessyUsedInventory(): boolean {
-    return this.props.jessyUsedInventory;
+  get claraUsedInventory(): boolean {
+    return this.props.claraUsedInventory;
   }
 
   get currentStage(): ConversationStage {
@@ -179,8 +179,8 @@ export class SimulationSession {
     return new SimulationSession({ ...this.props, followUpScheduled: true });
   }
 
-  withJessyUsedInventory(): SimulationSession {
-    return new SimulationSession({ ...this.props, jessyUsedInventory: true });
+  withClaraUsedInventory(): SimulationSession {
+    return new SimulationSession({ ...this.props, claraUsedInventory: true });
   }
 
   withStatus(status: SimulationStatus): SimulationSession {

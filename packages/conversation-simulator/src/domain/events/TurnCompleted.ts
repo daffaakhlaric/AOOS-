@@ -1,4 +1,4 @@
-/** Published after each simulated turn (buyer message + Jessy response) completes (topic `aaos.simulator.turn.completed`). */
+/** Published after each simulated turn (buyer message + Clara response) completes (topic `aaos.simulator.turn.completed`). */
 export interface TurnCompleted {
   readonly sessionId: string;
   readonly personaId: string;

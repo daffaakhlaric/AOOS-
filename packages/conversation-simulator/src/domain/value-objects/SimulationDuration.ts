@@ -1,4 +1,4 @@
-/** Elapsed wall-clock time for one simulation run, in milliseconds (spec "domain/value-objects/SimulationDuration.ts"). Always measured against real `Date.now()`, never the injectable Jessy clock — it answers "how long did this simulation take to execute", not "how much in-story time passed". */
+/** Elapsed wall-clock time for one simulation run, in milliseconds (spec "domain/value-objects/SimulationDuration.ts"). Always measured against real `Date.now()`, never the injectable Clara clock — it answers "how long did this simulation take to execute", not "how much in-story time passed". */
 export class SimulationDuration {
   private constructor(private readonly ms: number) {}
 

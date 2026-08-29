@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "@aos/common";
 import type { IPublisher } from "@aos/event-bus";
 
-import { JessySimulationComposer } from "../application/services/JessySimulationComposer.js";
+import { ClaraSimulationComposer } from "../application/services/ClaraSimulationComposer.js";
 import { ObservablePublisher } from "../application/services/ObservablePublisher.js";
 import { PersonaResponseService } from "../application/services/PersonaResponseService.js";
 import { SimulationRunnerService } from "../application/services/SimulationRunnerService.js";
@@ -29,8 +29,8 @@ export interface SimulatorFactoryOptions {
 /**
  * The composition root (Factory Pattern) — wires `PersonaRegistry`, `PersonaResponseService`
  * (Strategy Pattern), and `SimulationRunnerService` into the 4 public use cases (spec "Public
- * API"). Each `RunSimulation.execute()` call composes its own fresh, isolated `JessyAgent` (via
- * `JessySimulationComposer`) — this factory itself holds no per-session state.
+ * API"). Each `RunSimulation.execute()` call composes its own fresh, isolated `ClaraAgent` (via
+ * `ClaraSimulationComposer`) — this factory itself holds no per-session state.
  */
 export class SimulatorFactory {
   static create(options: SimulatorFactoryOptions = {}): Result<Simulator, SimulatorError> {
@@ -48,7 +48,7 @@ export class SimulatorFactory {
 
     const strategy = new PersonaResponseService();
     const events = new SimulatorEvents(options.publisher ?? new ObservablePublisher());
-    const composer = new JessySimulationComposer();
+    const composer = new ClaraSimulationComposer();
     const runner = new SimulationRunnerService(registry, strategy, events, composer);
     const runSimulation = new RunSimulation(runner);
 

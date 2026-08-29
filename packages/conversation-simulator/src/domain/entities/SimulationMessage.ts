@@ -1,7 +1,7 @@
-/** Who sent one `SimulationMessage` — the AI buyer persona or Jessy. */
+/** Who sent one `SimulationMessage` — the AI buyer persona or Clara. */
 export enum SimulationSpeaker {
   BUYER = "BUYER",
-  JESSY = "JESSY",
+  CLARA = "CLARA",
 }
 
 /** One turn in a simulated conversation (spec "domain/entities/SimulationMessage.ts"). */

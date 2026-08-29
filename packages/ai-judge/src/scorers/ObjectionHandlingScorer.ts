@@ -7,15 +7,15 @@ import { DimensionName } from "../domain/value-objects/DimensionName.js";
 import { DimensionScoreValue } from "../domain/value-objects/DimensionScoreValue.js";
 
 import { hasObjectionSignal } from "./ObjectionSignalPatterns.js";
-import { buyerMessages, JESSY_SPEAKER } from "./SpeakerFilter.js";
+import { buyerMessages, CLARA_SPEAKER } from "./SpeakerFilter.js";
 import { MOBIX_USP_PATTERN, PUSHY_PATTERN } from "./TextPatterns.js";
 
 /**
- * Dimension 3 — did Jessy handle hesitation/complaints well? (spec "Dimension 3 — Objection
+ * Dimension 3 — did Clara handle hesitation/complaints well? (spec "Dimension 3 — Objection
  * Handling", weight 15%). Implements design resolution #1 (see docs/AAOS-AI-JUDGE-REPORT.md):
  * "objection present" is independently ground-truthed by scanning the lead's own incoming
  * messages (`SimulationMessage.speaker === "BUYER"`) against `hasObjectionSignal`, never by
- * checking whether Jessy's own `stageTransitions`/`jessyHandledObjection` already say so — that
+ * checking whether Clara's own `stageTransitions`/`claraHandledObjection` already say so — that
  * would make the "-3 missed objection" rule structurally unreachable.
  */
 export class ObjectionHandlingScorer implements IDimensionScorer {
@@ -41,7 +41,7 @@ export class ObjectionHandlingScorer implements IDimensionScorer {
       (t) => t.to === ConversationStage.OBJECTION && t.turn >= objectionMessage.turn,
     );
     const response = simulationResult.messages.find(
-      (m) => m.speaker === JESSY_SPEAKER && m.turn > objectionMessage.turn,
+      (m) => m.speaker === CLARA_SPEAKER && m.turn > objectionMessage.turn,
     );
     const responseText = response?.text ?? "";
     const mentionsUsp = MOBIX_USP_PATTERN.test(responseText);
@@ -55,13 +55,13 @@ export class ObjectionHandlingScorer implements IDimensionScorer {
       rules.push({
         rule: "ENTERED_OBJECTION_STAGE",
         points: 4,
-        note: "Jessy masuk OBJECTION stage — StageDetector bekerja dengan baik.",
+        note: "Clara masuk OBJECTION stage — StageDetector bekerja dengan baik.",
       });
     } else {
       rules.push({
         rule: "MISSED_OBJECTION_STAGE",
         points: -3,
-        note: `Jessy tidak masuk OBJECTION stage meski lead bilang "${objectionMessage.text}".`,
+        note: `Clara tidak masuk OBJECTION stage meski lead bilang "${objectionMessage.text}".`,
       });
     }
 

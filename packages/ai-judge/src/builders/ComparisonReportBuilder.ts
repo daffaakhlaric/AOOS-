@@ -31,7 +31,7 @@ function dimensionScoreOf(result: JudgementResult, dimension: DimensionName): nu
 
 /**
  * Assembles a `ComparisonReport` diffing two `JudgementResult`s for the same persona — e.g.
- * "Jessy before refinement" vs "Jessy after refinement" (spec leaves the exact shape to this
+ * "Clara before refinement" vs "Clara after refinement" (spec leaves the exact shape to this
  * implementation; design documented in docs/AAOS-AI-JUDGE-REPORT.md "CompareVersions design").
  * Pure — no I/O, no randomness.
  */

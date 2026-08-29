@@ -7,7 +7,7 @@ import { unwrap } from "../helpers/result.js";
 
 /**
  * Drives the REAL `@aos/conversation-simulator` (which itself drives the real `@aos/sales-agent`
- * Jessy engine) end-to-end, then judges the resulting `SimulationResult` with the real `@aos/
+ * Clara engine) end-to-end, then judges the resulting `SimulationResult` with the real `@aos/
  * ai-judge` scorers — nothing mocked (spec "Testing Requirements → integration/JudgeConversation.spec.ts").
  * Expected outcomes are taken from `conversation-simulator`'s own currently-passing
  * `RunSimulation.spec.ts`/`.syariah.spec.ts`/`.complainer.spec.ts` — real, current, post-W3A-S1
@@ -61,7 +61,7 @@ describe("Integration: JudgeConversation", () => {
     const simulationResult = unwrap(
       await simulator.runSimulation.execute(PersonaId.COMPLAINER_BUYER, DEFAULT_SIMULATOR_CONFIG),
     );
-    expect(simulationResult.jessyHandledObjection).toBe(true);
+    expect(simulationResult.claraHandledObjection).toBe(true);
 
     const judge = unwrap(AiJudgeFactory.create());
     const judged = unwrap(await judge.judgeConversation.execute(simulationResult));

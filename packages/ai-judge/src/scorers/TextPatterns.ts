@@ -5,7 +5,7 @@
  * `SimulationResult`").
  */
 
-/** A representative range of emoji Jessy's response templates use (spec dimension 1: "😊🙏✅"). */
+/** A representative range of emoji Clara's response templates use (spec dimension 1: "😊🙏✅"). */
 export const EMOJI_PATTERN = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
 
 /** Casual Indonesian sentence-final particles (spec dimension 1: "kak, nih, deh, dong, sih"). */
@@ -14,8 +14,8 @@ export const CASUAL_WORDS_PATTERN = /\b(kak|nih|deh|dong|sih)\b/i;
 /** Stiff, overly formal openers (spec dimension 1: "Dengan hormat", "Perkenalkan"). */
 export const FORMAL_PHRASE_PATTERN = /Dengan hormat|Perkenalkan/i;
 
-/** The literal robot-greeting opener (spec dimension 1: "starts with 'Halo, saya Jessy dari Mobix By DSS Motor'"). */
-export const ROBOT_GREETING_PATTERN = /^Halo, saya Jessy dari Mobix By DSS Motor/;
+/** The literal robot-greeting opener (spec dimension 1: "starts with 'Halo, saya Clara dari Mobix By DSS Motor'"). */
+export const ROBOT_GREETING_PATTERN = /^Halo, saya Clara dari Mobix By DSS Motor/;
 
 /** A bullet point or numbered-list line (spec dimension 1: "contains bullet points or numbered list"). */
 export const BULLET_OR_NUMBERED_LIST_PATTERN = /(^|\n)\s*(?:[-•]|\d+[.)])\s+\S/m;

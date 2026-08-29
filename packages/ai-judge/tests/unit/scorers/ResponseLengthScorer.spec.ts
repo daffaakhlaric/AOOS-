@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ResponseLengthScorer } from "../../../src/scorers/ResponseLengthScorer.js";
 import {
-  JESSY,
+  CLARA,
   makeMessage,
   makeSimulationResult,
 } from "../../fixtures/simulationResultFixtures.js";
@@ -19,8 +19,8 @@ const scorer = new ResponseLengthScorer();
 describe("ResponseLengthScorer", () => {
   it("avg 130 chars -> AVG_VERY_CONCISE +4", () => {
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 130,
-      maxJessyResponseLength: 140,
+      avgClaraResponseLength: 130,
+      maxClaraResponseLength: 140,
       messages: [],
     });
     const result = scorer.score(sim);
@@ -29,8 +29,8 @@ describe("ResponseLengthScorer", () => {
 
   it("avg 180 chars -> AVG_CONCISE +3", () => {
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 180,
-      maxJessyResponseLength: 190,
+      avgClaraResponseLength: 180,
+      maxClaraResponseLength: 190,
       messages: [],
     });
     const result = scorer.score(sim);
@@ -39,8 +39,8 @@ describe("ResponseLengthScorer", () => {
 
   it("avg 220 chars -> AVG_ACCEPTABLE +2", () => {
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 220,
-      maxJessyResponseLength: 230,
+      avgClaraResponseLength: 220,
+      maxClaraResponseLength: 230,
       messages: [],
     });
     const result = scorer.score(sim);
@@ -49,8 +49,8 @@ describe("ResponseLengthScorer", () => {
 
   it("avg 260 chars -> AVG_TOO_LONG +0", () => {
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 260,
-      maxJessyResponseLength: 270,
+      avgClaraResponseLength: 260,
+      maxClaraResponseLength: 270,
       messages: [],
     });
     const result = scorer.score(sim);
@@ -59,8 +59,8 @@ describe("ResponseLengthScorer", () => {
 
   it("max > 300 chars -> MAX_OVER_300 -2", () => {
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 150,
-      maxJessyResponseLength: 310,
+      avgClaraResponseLength: 150,
+      maxClaraResponseLength: 310,
       messages: [],
     });
     const result = scorer.score(sim);
@@ -69,8 +69,8 @@ describe("ResponseLengthScorer", () => {
 
   it("max > 400 chars -> MAX_OVER_400 -3 (on top of MAX_OVER_300)", () => {
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 150,
-      maxJessyResponseLength: 410,
+      avgClaraResponseLength: 150,
+      maxClaraResponseLength: 410,
       messages: [],
     });
     const result = scorer.score(sim);
@@ -80,8 +80,8 @@ describe("ResponseLengthScorer", () => {
 
   it("max within bounds -> neither MAX_OVER rule applies", () => {
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 100,
-      maxJessyResponseLength: 120,
+      avgClaraResponseLength: 100,
+      maxClaraResponseLength: 120,
       messages: [],
     });
     const result = scorer.score(sim);
@@ -92,12 +92,12 @@ describe("ResponseLengthScorer", () => {
   it("more than 2 messages over 250 chars -> MORE_THAN_TWO_LONG_MESSAGES -1", () => {
     const long = "x".repeat(260);
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 150,
-      maxJessyResponseLength: 260,
+      avgClaraResponseLength: 150,
+      maxClaraResponseLength: 260,
       messages: [
-        makeMessage(1, JESSY, long),
-        makeMessage(2, JESSY, long),
-        makeMessage(3, JESSY, long),
+        makeMessage(1, CLARA, long),
+        makeMessage(2, CLARA, long),
+        makeMessage(3, CLARA, long),
       ],
     });
     const result = scorer.score(sim);
@@ -107,9 +107,9 @@ describe("ResponseLengthScorer", () => {
   it("exactly 2 messages over 250 chars -> MORE_THAN_TWO_LONG_MESSAGES not applied", () => {
     const long = "x".repeat(260);
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 150,
-      maxJessyResponseLength: 260,
-      messages: [makeMessage(1, JESSY, long), makeMessage(2, JESSY, long)],
+      avgClaraResponseLength: 150,
+      maxClaraResponseLength: 260,
+      messages: [makeMessage(1, CLARA, long), makeMessage(2, CLARA, long)],
     });
     const result = scorer.score(sim);
     expect(ruleFrom(result.appliedRules, "MORE_THAN_TWO_LONG_MESSAGES")).toBe(0);
@@ -117,8 +117,8 @@ describe("ResponseLengthScorer", () => {
 
   it("score is clamped 0-10", () => {
     const sim = makeSimulationResult({
-      avgJessyResponseLength: 500,
-      maxJessyResponseLength: 600,
+      avgClaraResponseLength: 500,
+      maxClaraResponseLength: 600,
       messages: [],
     });
     const result = scorer.score(sim);

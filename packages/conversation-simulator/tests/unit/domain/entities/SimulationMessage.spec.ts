@@ -6,10 +6,10 @@ import {
 } from "../../../../src/domain/entities/SimulationMessage.js";
 
 describe("SimulationSpeaker", () => {
-  it("has exactly 2 members: BUYER, JESSY", () => {
+  it("has exactly 2 members: BUYER, CLARA", () => {
     expect(Object.values(SimulationSpeaker)).toHaveLength(2);
     expect(SimulationSpeaker.BUYER).toBe("BUYER");
-    expect(SimulationSpeaker.JESSY).toBe("JESSY");
+    expect(SimulationSpeaker.CLARA).toBe("CLARA");
   });
 
   it("a SimulationMessage carries turn, speaker, text, and occurredAt", () => {
@@ -24,15 +24,15 @@ describe("SimulationSpeaker", () => {
     expect(message.text).toBe("halo min");
   });
 
-  it("a JESSY-speaker SimulationMessage is structurally identical apart from speaker", () => {
+  it("a CLARA-speaker SimulationMessage is structurally identical apart from speaker", () => {
     const at = new Date("2026-08-10T09:00:01.000Z");
     const message: SimulationMessage = {
       turn: 1,
-      speaker: SimulationSpeaker.JESSY,
+      speaker: SimulationSpeaker.CLARA,
       text: "Halo kak!",
       occurredAt: at,
     };
-    expect(message.speaker).toBe(SimulationSpeaker.JESSY);
+    expect(message.speaker).toBe(SimulationSpeaker.CLARA);
     expect(message.occurredAt).toBe(at);
   });
 });

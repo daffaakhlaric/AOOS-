@@ -6,7 +6,7 @@ import type { VersionCompared } from "./VersionCompared.js";
 
 /**
  * Wraps the real `@aos/event-bus` `IPublisher` for this package's 3 named events, mirroring
- * `@aos/conversation-simulator`'s `SimulatorEvents` / `@aos/sales-agent`'s `JessyAgentEvents`
+ * `@aos/conversation-simulator`'s `SimulatorEvents` / `@aos/sales-agent`'s `ClaraAgentEvents`
  * convention exactly.
  */
 export class AiJudgeEvents {

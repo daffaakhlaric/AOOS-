@@ -9,7 +9,7 @@ import { unwrap } from "../helpers/result.js";
 
 /**
  * AAOS-W3A-S1 Fix 1 + Fix 3 dedicated coverage: `SyariahBuyer` driven against the REAL, now-fixed
- * `@aos/sales-agent` engine (no mocking of Jessy herself — same convention as `RunSimulation.spec.ts`).
+ * `@aos/sales-agent` engine (no mocking of Clara herself — same convention as `RunSimulation.spec.ts`).
  */
 describe("Integration: RunSimulation — SyariahBuyer (AAOS-W3A-S1)", () => {
   it("reaches HOT + handoff within 8 turns (persona's own maxTurns)", async () => {
@@ -48,14 +48,14 @@ describe("Integration: RunSimulation — SyariahBuyer (AAOS-W3A-S1)", () => {
     expect(criteria).toEqual(["PAYMENT", "UNIT", "BUDGET"]);
   });
 
-  it("at least one Jessy reply carries syariah-specific wording (syariah/halal/murabahah) — the original gap #1", async () => {
+  it("at least one Clara reply carries syariah-specific wording (syariah/halal/murabahah) — the original gap #1", async () => {
     const simulator = unwrap(SimulatorFactory.create());
     const result = unwrap(
       await simulator.runSimulation.execute(PersonaId.SYARIAH_BUYER, makeSimulatorConfig()),
     );
 
-    const jessyReplies = result.messages.filter((m) => m.speaker === "JESSY").map((m) => m.text);
-    const syariahReplies = jessyReplies.filter(
+    const claraReplies = result.messages.filter((m) => m.speaker === "CLARA").map((m) => m.text);
+    const syariahReplies = claraReplies.filter(
       (text) => text.includes("syariah") || text.includes("halal") || text.includes("murabahah"),
     );
     expect(syariahReplies.length).toBeGreaterThan(0);
@@ -67,23 +67,23 @@ describe("Integration: RunSimulation — SyariahBuyer (AAOS-W3A-S1)", () => {
       await simulator.runSimulation.execute(PersonaId.SYARIAH_BUYER, makeSimulatorConfig()),
     );
 
-    const turn2JessyReply = result.messages.find((m) => m.turn === 2 && m.speaker === "JESSY");
-    expect(turn2JessyReply).toBeDefined();
+    const turn2ClaraReply = result.messages.find((m) => m.turn === 2 && m.speaker === "CLARA");
+    expect(turn2ClaraReply).toBeDefined();
     expect(
-      turn2JessyReply!.text.includes("syariah") ||
-        turn2JessyReply!.text.includes("halal") ||
-        turn2JessyReply!.text.includes("murabahah"),
+      turn2ClaraReply!.text.includes("syariah") ||
+        turn2ClaraReply!.text.includes("halal") ||
+        turn2ClaraReply!.text.includes("murabahah"),
     ).toBe(true);
   });
 
-  it("every Jessy reply in this simulation stays ≤ 300 chars", async () => {
+  it("every Clara reply in this simulation stays ≤ 300 chars", async () => {
     const simulator = unwrap(SimulatorFactory.create());
     const result = unwrap(
       await simulator.runSimulation.execute(PersonaId.SYARIAH_BUYER, makeSimulatorConfig()),
     );
 
     for (const message of result.messages) {
-      if (message.speaker === "JESSY") {
+      if (message.speaker === "CLARA") {
         expect(message.text.length).toBeLessThanOrEqual(300);
       }
     }

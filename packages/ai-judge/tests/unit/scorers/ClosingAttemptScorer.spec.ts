@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { ClosingAttemptScorer } from "../../../src/scorers/ClosingAttemptScorer.js";
 import {
-  JESSY,
+  CLARA,
   makeMessage,
   makeSimulationResult,
 } from "../../fixtures/simulationResultFixtures.js";
@@ -20,7 +20,7 @@ const scorer = new ClosingAttemptScorer();
 describe("ClosingAttemptScorer", () => {
   it("CLOSING stage reached at/before turn 10, mentions test drive -> high score", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(6, JESSY, "Kapan kak bisa jadwalkan test drive?")],
+      messages: [makeMessage(6, CLARA, "Kapan kak bisa jadwalkan test drive?")],
       stageTransitions: [
         { turn: 6, from: ConversationStage.PRICE_INFO, to: ConversationStage.CLOSING },
       ],
@@ -35,7 +35,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("closing reached but the message doesn't mention test drive/survey/jadwal -> MENTIONS_CLOSING_INTENT not awarded", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(6, JESSY, "Gimana kak, cocok gak?")],
+      messages: [makeMessage(6, CLARA, "Gimana kak, cocok gak?")],
       stageTransitions: [
         { turn: 6, from: ConversationStage.PRICE_INFO, to: ConversationStage.CLOSING },
       ],
@@ -47,7 +47,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("closing after turn 10 -> CLOSING_NOT_TOO_LATE not awarded", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(11, JESSY, "Mau jadwal survei kak?")],
+      messages: [makeMessage(11, CLARA, "Mau jadwal survei kak?")],
       stageTransitions: [
         { turn: 11, from: ConversationStage.PRICE_INFO, to: ConversationStage.CLOSING },
       ],
@@ -59,7 +59,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("WARM lead (score 40), no closing attempt -> NO_CLOSING_ON_WARM_LEAD -3", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(3, JESSY, "Oke kak siap.")],
+      messages: [makeMessage(3, CLARA, "Oke kak siap.")],
       stageTransitions: [],
       finalScore: 40,
     });
@@ -69,7 +69,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("COLD lead, no closing -> N/A (correct, no penalty)", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(3, JESSY, "Oke kak siap.")],
+      messages: [makeMessage(3, CLARA, "Oke kak siap.")],
       stageTransitions: [],
       finalScore: 10,
     });
@@ -80,7 +80,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("closing attempted on a COLD lead (score < 20) -> CLOSING_ON_COLD_LEAD -2", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(3, JESSY, "Mau jadwal test drive kak?")],
+      messages: [makeMessage(3, CLARA, "Mau jadwal test drive kak?")],
       stageTransitions: [
         { turn: 3, from: ConversationStage.GREETING, to: ConversationStage.CLOSING },
       ],
@@ -93,8 +93,8 @@ describe("ClosingAttemptScorer", () => {
   it("multiple identical closing messages -> SPAMMY_DUPLICATE_CLOSING -1", () => {
     const sim = makeSimulationResult({
       messages: [
-        makeMessage(6, JESSY, "Mau jadwal test drive kak?"),
-        makeMessage(7, JESSY, "Mau jadwal test drive kak?"),
+        makeMessage(6, CLARA, "Mau jadwal test drive kak?"),
+        makeMessage(7, CLARA, "Mau jadwal test drive kak?"),
       ],
       stageTransitions: [
         { turn: 6, from: ConversationStage.PRICE_INFO, to: ConversationStage.CLOSING },
@@ -107,7 +107,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("closing message is natural (not the abrupt formal example) -> CLOSING_IS_NATURAL +1", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(6, JESSY, "Kalau cocok, kita jadwalin test drive yuk kak 😊")],
+      messages: [makeMessage(6, CLARA, "Kalau cocok, kita jadwalin test drive yuk kak 😊")],
       stageTransitions: [
         { turn: 6, from: ConversationStage.PRICE_INFO, to: ConversationStage.CLOSING },
       ],
@@ -119,7 +119,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("abrupt formal closing question -> CLOSING_IS_NATURAL not awarded", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(6, JESSY, "Apakah Anda tertarik untuk survei?")],
+      messages: [makeMessage(6, CLARA, "Apakah Anda tertarik untuk survei?")],
       stageTransitions: [
         { turn: 6, from: ConversationStage.PRICE_INFO, to: ConversationStage.CLOSING },
       ],
@@ -131,7 +131,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("no closing reached at all -> only base rules apply, others are 0/no-op", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(3, JESSY, "Oke kak")],
+      messages: [makeMessage(3, CLARA, "Oke kak")],
       stageTransitions: [],
       finalScore: 25,
     });
@@ -145,7 +145,7 @@ describe("ClosingAttemptScorer", () => {
 
   it("score is clamped 0-10", () => {
     const sim = makeSimulationResult({
-      messages: [makeMessage(6, JESSY, "Kalau cocok, kita jadwalin test drive yuk kak 😊")],
+      messages: [makeMessage(6, CLARA, "Kalau cocok, kita jadwalin test drive yuk kak 😊")],
       stageTransitions: [
         { turn: 6, from: ConversationStage.PRICE_INFO, to: ConversationStage.CLOSING },
       ],

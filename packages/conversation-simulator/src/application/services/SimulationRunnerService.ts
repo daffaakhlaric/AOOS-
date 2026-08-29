@@ -16,8 +16,8 @@ import type { PersonaId } from "../../domain/value-objects/PersonaId.js";
 import { SimulationStatus } from "../../domain/value-objects/SimulationStatus.js";
 import type { PersonaRegistry } from "../../registry/PersonaRegistry.js";
 
-import type { JessySimulationComposition } from "./JessySimulationComposer.js";
-import { JessySimulationComposer } from "./JessySimulationComposer.js";
+import type { ClaraSimulationComposition } from "./ClaraSimulationComposer.js";
+import { ClaraSimulationComposer } from "./ClaraSimulationComposer.js";
 
 interface ScoreUpdatedPayload {
   readonly newScore: number;
@@ -32,12 +32,12 @@ interface TurnLoopOutcome {
 
 /**
  * The simulation engine (spec "Simulation Engine"). Runs one persona's script turn-by-turn
- * against a freshly-composed real `@aos/sales-agent` `JessyAgent`, recording every message, score
+ * against a freshly-composed real `@aos/sales-agent` `ClaraAgent`, recording every message, score
  * change, and stage transition, and applying the 4 end-condition rules in strict priority order
  * (design resolution #2): (a) `HandoffTriggered` on the current turn ends the run as `COMPLETED`
  * immediately, even with script lines remaining; (b) script exhaustion with no handoff →
  * `COMPLETED`; (c) `maxTurnsPerSimulation` reached → `TIMEOUT`; (d) any thrown/unexpected error,
- * or an `err` Result from Jessy's own use case, is caught and returned via this method's own
+ * or an `err` Result from Clara's own use case, is caught and returned via this method's own
  * `Result` err channel — never thrown out of `runSimulation`.
  */
 export class SimulationRunnerService implements ISimulationRunner {
@@ -47,7 +47,7 @@ export class SimulationRunnerService implements ISimulationRunner {
     private readonly personaRegistry: PersonaRegistry,
     private readonly personaStrategy: IPersonaStrategy,
     private readonly events: SimulatorEvents,
-    private readonly composer: JessySimulationComposer = new JessySimulationComposer(),
+    private readonly composer: ClaraSimulationComposer = new ClaraSimulationComposer(),
   ) {}
 
   getResult(sessionId: string): Result<SimulationResult, SimulatorError> {
@@ -124,7 +124,7 @@ export class SimulationRunnerService implements ISimulationRunner {
       return err(
         new SimulatorError(
           ErrorCode.INTERNAL,
-          "Jessy's use case returned an unexpected error mid-simulation",
+          "Clara's use case returned an unexpected error mid-simulation",
         ),
       );
     }
@@ -159,7 +159,7 @@ export class SimulationRunnerService implements ISimulationRunner {
   private async runTurnLoop(
     initialSession: SimulationSession,
     persona: BuyerPersona,
-    composition: JessySimulationComposition,
+    composition: ClaraSimulationComposition,
     config: SimulatorConfig,
     correlationId: string,
   ): Promise<TurnLoopOutcome> {
@@ -214,23 +214,23 @@ export class SimulationRunnerService implements ISimulationRunner {
 
       session = session.withAppendedMessage({
         turn,
-        speaker: SimulationSpeaker.JESSY,
+        speaker: SimulationSpeaker.CLARA,
         text: outgoingMessage.body.toString(),
         occurredAt: clock.current,
       });
 
       /**
        * AAOS-W3D Fix 1: when a message pushes the score past `hotThreshold` this same turn,
-       * `JessyAgentService.processMessage` immediately overrides the returned `conversation.stage`
+       * `ClaraAgentService.processMessage` immediately overrides the returned `conversation.stage`
        * to `HANDOFF` (right after triggering the real handoff) — so the intermediate `CLOSING`
        * decision `@aos/sales-agent`'s own `StageDetector` made for this turn (its top-priority rule:
        * `score >= hotThreshold` always yields `CLOSING`, unconditionally — see
        * `StageDetector.detect`) would otherwise never show up as its own `stageTransitions` entry,
-       * even though Jessy's actual outbound message this turn IS that CLOSING-stage reply (the
+       * even though Clara's actual outbound message this turn IS that CLOSING-stage reply (the
        * override only touches the stored `conversation.stage`, never `outgoingMessage`). Recording
        * it explicitly here — before the HANDOFF transition below — reflects what really happened
-       * this turn: Jessy attempted a closing push, which immediately succeeded into a handoff.
-       * `becameHot` is exactly the signal `JessyAgentService` uses for the same override, so this
+       * this turn: Clara attempted a closing push, which immediately succeeded into a handoff.
+       * `becameHot` is exactly the signal `ClaraAgentService` uses for the same override, so this
        * relies on no invariant beyond the one that override itself already depends on.
        */
       if (becameHot && session.currentStage !== ConversationStage.CLOSING) {
@@ -265,7 +265,7 @@ export class SimulationRunnerService implements ISimulationRunner {
       }
 
       if (inventorySpy?.wasUsedWithResult === true || listingSpy?.wasUsedWithResult === true) {
-        session = session.withJessyUsedInventory();
+        session = session.withClaraUsedInventory();
       }
 
       session = session
@@ -311,7 +311,7 @@ export class SimulationRunnerService implements ISimulationRunner {
 
     /* v8 ignore start -- unreachable: `SimulatorConfigSchema.maxTurnsPerSimulation` is validated
        positive (>= 1) at parse time, so the loop above always executes at least one iteration and
-       always returns from inside it (script-exhausted, handoff, Jessy error, or the
+       always returns from inside it (script-exhausted, handoff, Clara error, or the
        `turn === config.maxTurnsPerSimulation` check on its final iteration) — this line exists
        only to satisfy TypeScript's control-flow analysis for a function that must return. */
     return { session: session.withStatus(SimulationStatus.TIMEOUT), failed: false };
@@ -326,13 +326,13 @@ export class SimulationRunnerService implements ISimulationRunner {
    * test exercises) on the last real `LeadConversation` this session produced, so the -10
    * `NO_REPLY` penalty is actually applied and recorded here as a `scoreProgression` entry, rather
    * than left as untested dead code in this package. `followUpScheduled` itself is already `true`
-   * by this point for any COLD/WARM persona (`JessyAgentService.processMessage`'s normal
+   * by this point for any COLD/WARM persona (`ClaraAgentService.processMessage`'s normal
    * COLD/WARM branch schedules + emits `FollowUpScheduled` on every such turn); this phase's job
    * is purely to exercise the *timeout* seam, not to (re)trigger scheduling.
    */
   private runNoReplyTimeoutPhase(
     session: SimulationSession,
-    composition: JessySimulationComposition,
+    composition: ClaraSimulationComposition,
     nextTurn: number,
     conversation: LeadConversation,
   ): SimulationSession {

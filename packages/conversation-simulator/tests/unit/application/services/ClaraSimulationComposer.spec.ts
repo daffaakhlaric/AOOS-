@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { JessySimulationComposer } from "../../../../src/application/services/JessySimulationComposer.js";
+import { ClaraSimulationComposer } from "../../../../src/application/services/ClaraSimulationComposer.js";
 import { makeSimulatorConfig } from "../../../fixtures/simulatorFixtures.js";
 import { unwrap } from "../../../helpers/result.js";
 
-describe("JessySimulationComposer", () => {
-  it("compose() with useRealInventory:false (default) wires a real, fully-synced MOCK-mode Jessy agent", async () => {
-    const composer = new JessySimulationComposer();
+describe("ClaraSimulationComposer", () => {
+  it("compose() with useRealInventory:false (default) wires a real, fully-synced MOCK-mode Clara agent", async () => {
+    const composer = new ClaraSimulationComposer();
     const composition = unwrap(await composer.compose(makeSimulatorConfig()));
 
     expect(composition.agent.processIncomingMessage).toBeDefined();
@@ -17,7 +17,7 @@ describe("JessySimulationComposer", () => {
   });
 
   it("compose() clock is mutable and independently controlled per composition", async () => {
-    const composer = new JessySimulationComposer();
+    const composer = new ClaraSimulationComposer();
     const composition = unwrap(await composer.compose(makeSimulatorConfig()));
     const before = composition.clock.current;
     composition.clock.current = new Date(before.getTime() + 1000);
@@ -31,11 +31,11 @@ describe("JessySimulationComposer", () => {
    * (`ok(SyncSession)` with `.status === "FAILED"`), not a `Result.err` — so `compose()` itself
    * still succeeds here, just with an empty inventory. This is the honest, non-silent limitation
    * this design resolution asked to be documented: `useRealInventory: true` composes a working
-   * Jessy agent, but one that can never find real units until real credentials are wired up
+   * Clara agent, but one that can never find real units until real credentials are wired up
    * (out of scope for this package).
    */
   it("compose() with useRealInventory:true (design resolution #8) composes successfully but with 0 real units synced, since no real credentials are configured in this package", async () => {
-    const composer = new JessySimulationComposer();
+    const composer = new ClaraSimulationComposer();
     const composition = unwrap(
       await composer.compose(makeSimulatorConfig({ useRealInventory: true })),
     );
@@ -43,14 +43,14 @@ describe("JessySimulationComposer", () => {
   });
 
   it("compose() seeds a sales human for the configured branch so handoffs can succeed", async () => {
-    const composer = new JessySimulationComposer();
+    const composer = new ClaraSimulationComposer();
     const composition = unwrap(await composer.compose(makeSimulatorConfig()));
     expect(composition.agent.handoffService).toBeDefined();
   });
 
   describe("vertical: PROPERTY (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8)", () => {
-    it("compose() wires a real PROPERTY JessyAgent via JessyAgentFactory.createPropertyAgent", async () => {
-      const composer = new JessySimulationComposer();
+    it("compose() wires a real PROPERTY ClaraAgent via ClaraAgentFactory.createPropertyAgent", async () => {
+      const composer = new ClaraSimulationComposer();
       const composition = unwrap(
         await composer.compose(makeSimulatorConfig({ vertical: "PROPERTY" })),
       );
@@ -64,7 +64,7 @@ describe("JessySimulationComposer", () => {
     });
 
     it("compose() with no listings supplied composes successfully with 0 active listings", async () => {
-      const composer = new JessySimulationComposer();
+      const composer = new ClaraSimulationComposer();
       const composition = unwrap(
         await composer.compose(makeSimulatorConfig({ vertical: "PROPERTY" })),
       );
@@ -72,7 +72,7 @@ describe("JessySimulationComposer", () => {
     });
 
     it("compose() wraps SimulatorConfig.listings into the real IListingQueryService seam", async () => {
-      const composer = new JessySimulationComposer();
+      const composer = new ClaraSimulationComposer();
       const composition = unwrap(
         await composer.compose(
           makeSimulatorConfig({
@@ -94,7 +94,7 @@ describe("JessySimulationComposer", () => {
     });
 
     it("compose() seeds a sales human so PROPERTY handoffs can succeed", async () => {
-      const composer = new JessySimulationComposer();
+      const composer = new ClaraSimulationComposer();
       const composition = unwrap(
         await composer.compose(makeSimulatorConfig({ vertical: "PROPERTY" })),
       );

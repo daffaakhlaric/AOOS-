@@ -6,10 +6,10 @@ import type { AppliedRule, DimensionScore } from "../domain/entities/DimensionSc
 import { DimensionName } from "../domain/value-objects/DimensionName.js";
 import { DimensionScoreValue } from "../domain/value-objects/DimensionScoreValue.js";
 
-import { JESSY_SPEAKER } from "./SpeakerFilter.js";
+import { CLARA_SPEAKER } from "./SpeakerFilter.js";
 import { ABRUPT_CLOSING_PATTERN, CLOSING_INTENT_PATTERN } from "./TextPatterns.js";
 
-/** Dimension 4 — did Jessy push toward test drive/survey? (spec "Dimension 4 — Closing Attempt", weight 20%). */
+/** Dimension 4 — did Clara push toward test drive/survey? (spec "Dimension 4 — Closing Attempt", weight 20%). */
 export class ClosingAttemptScorer implements IDimensionScorer {
   score(simulationResult: SimulationResult): DimensionScore {
     const closingTransition = simulationResult.stageTransitions.find(
@@ -22,19 +22,19 @@ export class ClosingAttemptScorer implements IDimensionScorer {
       rules.push({
         rule: "CLOSING_ATTEMPTED",
         points: 4,
-        note: `Jessy mencoba closing pada turn ke-${closingTransition.turn}.`,
+        note: `Clara mencoba closing pada turn ke-${closingTransition.turn}.`,
       });
     } else {
       rules.push({
         rule: "NO_CLOSING_ATTEMPT",
         points: 0,
-        note: "Jessy tidak pernah mencapai CLOSING stage.",
+        note: "Clara tidak pernah mencapai CLOSING stage.",
       });
     }
 
     const closingMessages = closingReached
       ? simulationResult.messages.filter(
-          (m) => m.speaker === JESSY_SPEAKER && m.turn >= closingTransition.turn,
+          (m) => m.speaker === CLARA_SPEAKER && m.turn >= closingTransition.turn,
         )
       : [];
     const closingMessage = closingMessages[0];
@@ -79,7 +79,7 @@ export class ClosingAttemptScorer implements IDimensionScorer {
       rule: "NO_CLOSING_ON_WARM_LEAD",
       points: warmOrHotNoClosing ? -3 : 0,
       note: warmOrHotNoClosing
-        ? `Jessy tidak mencoba closing meski lead sudah WARM (score ${simulationResult.finalScore}).`
+        ? `Clara tidak mencoba closing meski lead sudah WARM (score ${simulationResult.finalScore}).`
         : "Tidak berlaku: lead tidak cukup WARM, atau closing sudah dicoba.",
     });
 

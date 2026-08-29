@@ -6,7 +6,7 @@ import type { AppliedRule, DimensionScore } from "../domain/entities/DimensionSc
 import { DimensionName } from "../domain/value-objects/DimensionName.js";
 import { DimensionScoreValue } from "../domain/value-objects/DimensionScoreValue.js";
 
-import { JESSY_SPEAKER } from "./SpeakerFilter.js";
+import { CLARA_SPEAKER } from "./SpeakerFilter.js";
 import {
   CASUAL_WORDS_PATTERN,
   EMOJI_PATTERN,
@@ -44,9 +44,9 @@ export class HandoffQualityScorer implements IDimensionScorer {
     const scoreAtHandoff = this.scoreAtOrBefore(simulationResult, handoffTurn);
     const handoffMessage =
       simulationResult.messages.find(
-        (m) => m.speaker === JESSY_SPEAKER && m.turn === handoffTurn,
+        (m) => m.speaker === CLARA_SPEAKER && m.turn === handoffTurn,
       ) ??
-      simulationResult.messages.find((m) => m.speaker === JESSY_SPEAKER && m.turn >= handoffTurn);
+      simulationResult.messages.find((m) => m.speaker === CLARA_SPEAKER && m.turn >= handoffTurn);
     const text = handoffMessage?.text ?? "";
     const isWarm =
       (CASUAL_WORDS_PATTERN.test(text) || EMOJI_PATTERN.test(text)) &&

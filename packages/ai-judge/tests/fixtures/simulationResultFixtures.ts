@@ -9,7 +9,7 @@ import {
 import { LeadTemperature } from "@aos/sales-agent";
 
 type Speaker = SimulationMessage["speaker"];
-export const JESSY: Speaker = "JESSY" as Speaker;
+export const CLARA: Speaker = "CLARA" as Speaker;
 export const BUYER: Speaker = "BUYER" as Speaker;
 
 let sessionSequence = 0;
@@ -21,7 +21,7 @@ export function makeMessage(turn: number, speaker: Speaker, text: string): Simul
 
 /**
  * A fully-defaulted `SimulationResult` fixture — a short, high-scoring "happy path" conversation
- * by default (concise casual Jessy replies, all 4 qualification flags, no objection, closing +
+ * by default (concise casual Clara replies, all 4 qualification flags, no objection, closing +
  * handoff both present and well-timed) so most scorer tests only need to override 1-2 fields to
  * isolate the rule under test.
  */
@@ -33,9 +33,9 @@ export function makeSimulationResult(overrides: Partial<SimulationResult> = {}):
     personaDifficulty: PersonaDifficulty.EASY,
     status: SimulationStatus.COMPLETED,
     messages: [
-      makeMessage(1, JESSY, "Halo kak, mau tanya-tanya soal mobil apa nih? 😊"),
+      makeMessage(1, CLARA, "Halo kak, mau tanya-tanya soal mobil apa nih? 😊"),
       makeMessage(1, BUYER, "mau xpander kak, budget 250 juta, mau kredit, di bintaro"),
-      makeMessage(2, JESSY, "Oke kak, xpander ready nih di Bintaro 👍"),
+      makeMessage(2, CLARA, "Oke kak, xpander ready nih di Bintaro 👍"),
     ],
     totalTurns: 2,
     durationMs: 5_000,
@@ -53,11 +53,11 @@ export function makeSimulationResult(overrides: Partial<SimulationResult> = {}):
     finalStage: undefined,
     expectedOutcome: LeadTemperature.HOT,
     metExpectation: false,
-    avgJessyResponseLength: 40,
-    maxJessyResponseLength: 45,
-    longestJessyMessage: "Oke kak, xpander ready nih di Bintaro 👍",
-    jessyUsedInventory: true,
-    jessyHandledObjection: false,
+    avgClaraResponseLength: 40,
+    maxClaraResponseLength: 45,
+    longestClaraMessage: "Oke kak, xpander ready nih di Bintaro 👍",
+    claraUsedInventory: true,
+    claraHandledObjection: false,
     followUpScheduled: false,
   };
   return { ...defaults, ...overrides };

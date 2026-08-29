@@ -12,8 +12,8 @@ import type { Branch } from "@aos/meta-ads-connector";
 /**
  * Instrumented decorator around `@aos/dss-inventory-connector`'s real `IInventoryQueryService`
  * (design resolution #4). `@aos/sales-agent`'s exported event list has no dedicated "inventory
- * queried" event, so `jessyUsedInventory` can't be derived from event-bus listening alone — this
- * spy wraps the exact seam `JessyAgentFactory` injects (`options.inventoryQueryService`), and
+ * queried" event, so `claraUsedInventory` can't be derived from event-bus listening alone — this
+ * spy wraps the exact seam `ClaraAgentFactory` injects (`options.inventoryQueryService`), and
  * records whether `getAvailableByBranch`/`getAvailable` — the 2 methods `@aos/sales-agent`'s own
  * `InventoryQuerier.findForLead`/`findAlternative` call — were ever invoked with a non-empty
  * result during the session. Delegates every method to the real, fully-synced service; never

@@ -62,11 +62,11 @@ export class RunAllScenarios {
         finalStage: undefined,
         expectedOutcome: persona.expectedOutcome,
         metExpectation: false,
-        avgJessyResponseLength: 0,
-        maxJessyResponseLength: 0,
-        longestJessyMessage: "",
-        jessyUsedInventory: false,
-        jessyHandledObjection: false,
+        avgClaraResponseLength: 0,
+        maxClaraResponseLength: 0,
+        longestClaraMessage: "",
+        claraUsedInventory: false,
+        claraHandledObjection: false,
         followUpScheduled: false,
       });
     }

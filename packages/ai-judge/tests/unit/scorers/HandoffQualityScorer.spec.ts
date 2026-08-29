@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { HandoffQualityScorer } from "../../../src/scorers/HandoffQualityScorer.js";
 import {
-  JESSY,
+  CLARA,
   makeMessage,
   makeSimulationResult,
 } from "../../fixtures/simulationResultFixtures.js";
@@ -25,7 +25,7 @@ describe("HandoffQualityScorer", () => {
       finalTemperature: LeadTemperature.HOT,
       finalScore: 70,
       scoreProgression: [{ turn: 6, score: 70, delta: 5, reason: "BUDGET" }],
-      messages: [makeMessage(6, JESSY, "Oke kak! Jessy sambungin ke Andi dari tim kita ya 🙏")],
+      messages: [makeMessage(6, CLARA, "Oke kak! Clara sambungin ke Andi dari tim kita ya 🙏")],
     });
     const result = scorer.score(sim);
     expect(ruleFrom(result.appliedRules, "CORRECT_THRESHOLD")).toBe(4);
@@ -63,7 +63,7 @@ describe("HandoffQualityScorer", () => {
       handoffAtTurn: 4,
       finalScore: 45,
       scoreProgression: [{ turn: 4, score: 45, delta: 5, reason: "BUDGET" }],
-      messages: [makeMessage(4, JESSY, "Oke kak! Jessy sambungin ke tim kita ya 🙏")],
+      messages: [makeMessage(4, CLARA, "Oke kak! Clara sambungin ke tim kita ya 🙏")],
     });
     const result = scorer.score(sim);
     expect(ruleFrom(result.appliedRules, "PREMATURE_HANDOFF")).toBe(-3);
@@ -76,7 +76,7 @@ describe("HandoffQualityScorer", () => {
       handoffAtTurn: 12,
       finalScore: 70,
       scoreProgression: [{ turn: 12, score: 70, delta: 5, reason: "BUDGET" }],
-      messages: [makeMessage(12, JESSY, "Oke kak! Jessy sambungin ke tim kita ya 🙏")],
+      messages: [makeMessage(12, CLARA, "Oke kak! Clara sambungin ke tim kita ya 🙏")],
     });
     const result = scorer.score(sim);
     expect(ruleFrom(result.appliedRules, "REASONABLE_TURNS")).toBe(0);
@@ -89,7 +89,7 @@ describe("HandoffQualityScorer", () => {
       finalScore: 70,
       scoreProgression: [{ turn: 6, score: 70, delta: 5, reason: "BUDGET" }],
       messages: [
-        makeMessage(6, JESSY, "Dengan hormat, Perkenalkan tim sales kami akan menghubungi Anda."),
+        makeMessage(6, CLARA, "Dengan hormat, Perkenalkan tim sales kami akan menghubungi Anda."),
       ],
     });
     const result = scorer.score(sim);
@@ -103,25 +103,25 @@ describe("HandoffQualityScorer", () => {
       handoffAtTurn: 6,
       finalScore: 70,
       scoreProgression: [{ turn: 6, score: 70, delta: 5, reason: "BUDGET" }],
-      messages: [makeMessage(6, JESSY, "Oke kak 🙏 sebentar ya")],
+      messages: [makeMessage(6, CLARA, "Oke kak 🙏 sebentar ya")],
     });
     const result = scorer.score(sim);
     expect(ruleFrom(result.appliedRules, "MENTIONS_SALES_TEAM")).toBe(0);
   });
 
-  it("falls back to the next Jessy message when none exists exactly at the handoff turn", () => {
+  it("falls back to the next Clara message when none exists exactly at the handoff turn", () => {
     const sim = makeSimulationResult({
       handoffTriggered: true,
       handoffAtTurn: 5,
       finalScore: 70,
       scoreProgression: [{ turn: 5, score: 70, delta: 5, reason: "BUDGET" }],
-      messages: [makeMessage(6, JESSY, "Oke kak! Jessy sambungin ke tim kita ya 🙏")],
+      messages: [makeMessage(6, CLARA, "Oke kak! Clara sambungin ke tim kita ya 🙏")],
     });
     const result = scorer.score(sim);
     expect(ruleFrom(result.appliedRules, "MENTIONS_SALES_TEAM")).toBe(1);
   });
 
-  it("defaults to an empty message when no Jessy message exists at or after the handoff turn", () => {
+  it("defaults to an empty message when no Clara message exists at or after the handoff turn", () => {
     const sim = makeSimulationResult({
       handoffTriggered: true,
       handoffAtTurn: 5,
@@ -140,7 +140,7 @@ describe("HandoffQualityScorer", () => {
       handoffAtTurn: 3,
       finalScore: 70,
       scoreProgression: [],
-      messages: [makeMessage(3, JESSY, "Oke kak! Jessy sambungin ke tim kita ya 🙏")],
+      messages: [makeMessage(3, CLARA, "Oke kak! Clara sambungin ke tim kita ya 🙏")],
     });
     const result = scorer.score(sim);
     expect(ruleFrom(result.appliedRules, "CORRECT_THRESHOLD")).toBe(4);
@@ -152,7 +152,7 @@ describe("HandoffQualityScorer", () => {
       handoffAtTurn: 6,
       finalScore: 70,
       scoreProgression: [{ turn: 6, score: 70, delta: 5, reason: "BUDGET" }],
-      messages: [makeMessage(6, JESSY, "Oke kak! Jessy sambungin ke tim kita ya 🙏")],
+      messages: [makeMessage(6, CLARA, "Oke kak! Clara sambungin ke tim kita ya 🙏")],
     });
     const result = scorer.score(sim);
     expect(result.score.value).toBeLessThanOrEqual(10);
