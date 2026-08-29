@@ -167,7 +167,7 @@ describe("RecommendationService", () => {
       adAccount: buildAdAccountFixture(),
       now,
     });
-    expect(result.ok && result.value.summary).toContain("Tamara");
+    expect(result.ok && result.value.summary).toContain("Samantha");
   });
 
   it("targetGapClosedPercentage is 100 when the target is already met", () => {

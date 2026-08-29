@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ObjectiveBuilder } from "../../../src/builders/ObjectiveBuilder.js";
-import { TamaraRecommendationBuilder } from "../../../src/builders/TamaraRecommendationBuilder.js";
+import { SamanthaRecommendationBuilder } from "../../../src/builders/SamanthaRecommendationBuilder.js";
 import { ObjectiveProgress } from "../../../src/domain/entities/ObjectiveProgress.js";
 import { BudgetAllocation } from "../../../src/domain/value-objects/BudgetAllocation.js";
 import { ForecastScore } from "../../../src/domain/value-objects/ForecastScore.js";
@@ -119,7 +119,7 @@ describe("InMemoryObjectiveRepository", () => {
     const repo = new InMemoryObjectiveRepository();
     const objective = unwrap(new ObjectiveBuilder().build());
     const recommendation = unwrap(
-      new TamaraRecommendationBuilder().withObjectiveId(objective.id).build(),
+      new SamanthaRecommendationBuilder().withObjectiveId(objective.id).build(),
     );
     expect(repo.findLatestRecommendation(objective.id).some).toBe(false);
     repo.saveRecommendation(recommendation);
@@ -155,7 +155,7 @@ describe("InMemoryObjectiveRepository", () => {
     repo.save(objective);
     repo.saveProgress(buildProgress(objective.id));
     repo.saveRecommendation(
-      unwrap(new TamaraRecommendationBuilder().withObjectiveId(objective.id).build()),
+      unwrap(new SamanthaRecommendationBuilder().withObjectiveId(objective.id).build()),
     );
     repo.clear();
     expect(repo.findById(objective.id).some).toBe(false);

@@ -2,7 +2,7 @@ import type { Option } from "@aos/common";
 
 import type { Objective } from "../domain/entities/Objective.js";
 import type { ObjectiveProgress } from "../domain/entities/ObjectiveProgress.js";
-import type { TamaraRecommendation } from "../domain/entities/TamaraRecommendation.js";
+import type { SamanthaRecommendation } from "../domain/entities/SamanthaRecommendation.js";
 import type { ObjectiveId } from "../domain/value-objects/ObjectiveId.js";
 import type { InMemoryObjectiveRepository } from "../infrastructure/repositories/InMemoryObjectiveRepository.js";
 
@@ -31,7 +31,7 @@ export class ObjectiveRegistry {
     return this.repository.findLatestProgress(id);
   }
 
-  getRecommendation(id: ObjectiveId): Option<TamaraRecommendation> {
+  getRecommendation(id: ObjectiveId): Option<SamanthaRecommendation> {
     return this.repository.findLatestRecommendation(id);
   }
 }

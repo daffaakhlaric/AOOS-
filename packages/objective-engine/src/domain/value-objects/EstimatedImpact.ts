@@ -11,8 +11,8 @@ export interface EstimatedImpactInput {
 }
 
 /**
- * The projected effect of executing a `TamaraRecommendation`'s actions, referenced but not
- * detailed by the spec's `TamaraRecommendation.estimatedImpact` field. Shape chosen to map 1:1
+ * The projected effect of executing a `SamanthaRecommendation`'s actions, referenced but not
+ * detailed by the spec's `SamanthaRecommendation.estimatedImpact` field. Shape chosen to map 1:1
  * onto the recommendation algorithm's own steps 4/6/7 so every field has a traceable source.
  */
 export class EstimatedImpact {

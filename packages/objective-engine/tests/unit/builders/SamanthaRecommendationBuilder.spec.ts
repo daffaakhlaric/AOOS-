@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { TamaraRecommendationBuilder } from "../../../src/builders/TamaraRecommendationBuilder.js";
+import { SamanthaRecommendationBuilder } from "../../../src/builders/SamanthaRecommendationBuilder.js";
 import { EstimatedImpact } from "../../../src/domain/value-objects/EstimatedImpact.js";
 import { ObjectiveId } from "../../../src/domain/value-objects/ObjectiveId.js";
 import { RecommendedAction } from "../../../src/domain/value-objects/RecommendedAction.js";
 import { unwrap } from "../../helpers/result.js";
 
-describe("TamaraRecommendationBuilder", () => {
-  it("builds a valid default TamaraRecommendation with 0 confidence, no actions", () => {
-    const rec = unwrap(new TamaraRecommendationBuilder().build());
+describe("SamanthaRecommendationBuilder", () => {
+  it("builds a valid default SamanthaRecommendation with 0 confidence, no actions", () => {
+    const rec = unwrap(new SamanthaRecommendationBuilder().build());
     expect(rec.actions).toEqual([]);
     expect(rec.confidence).toBe(0);
     expect(rec.summary.length).toBeGreaterThan(0);
@@ -16,7 +16,7 @@ describe("TamaraRecommendationBuilder", () => {
 
   it("withObjectiveId overrides the generated id", () => {
     const id = ObjectiveId.generate();
-    const rec = unwrap(new TamaraRecommendationBuilder().withObjectiveId(id).build());
+    const rec = unwrap(new SamanthaRecommendationBuilder().withObjectiveId(id).build());
     expect(rec.objectiveId).toBe(id);
   });
 
@@ -42,7 +42,7 @@ describe("TamaraRecommendationBuilder", () => {
     );
 
     const rec = unwrap(
-      new TamaraRecommendationBuilder()
+      new SamanthaRecommendationBuilder()
         .withObjectiveId(id)
         .withGeneratedAt(generatedAt)
         .withSummary("custom summary")
@@ -61,7 +61,7 @@ describe("TamaraRecommendationBuilder", () => {
   });
 
   it("propagates a build() failure from an invalid override (empty summary)", () => {
-    const result = new TamaraRecommendationBuilder().withSummary("").build();
+    const result = new SamanthaRecommendationBuilder().withSummary("").build();
     expect(result.ok).toBe(false);
   });
 });

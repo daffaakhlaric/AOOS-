@@ -3,7 +3,7 @@ import { none, some, type Option } from "@aos/common";
 import type { IObjectiveRepository } from "../../contracts/IObjectiveRepository.js";
 import type { Objective } from "../../domain/entities/Objective.js";
 import type { ObjectiveProgress } from "../../domain/entities/ObjectiveProgress.js";
-import type { TamaraRecommendation } from "../../domain/entities/TamaraRecommendation.js";
+import type { SamanthaRecommendation } from "../../domain/entities/SamanthaRecommendation.js";
 import type { ObjectiveId } from "../../domain/value-objects/ObjectiveId.js";
 import type { ObjectivePeriod } from "../../domain/value-objects/ObjectivePeriod.js";
 import { ObjectiveStatus } from "../../domain/value-objects/ObjectiveStatus.js";
@@ -17,7 +17,7 @@ import { ObjectiveStatus } from "../../domain/value-objects/ObjectiveStatus.js";
 export class InMemoryObjectiveRepository implements IObjectiveRepository {
   private readonly objectivesById = new Map<string, Objective>();
   private readonly progressByObjectiveId = new Map<string, ObjectiveProgress>();
-  private readonly recommendationByObjectiveId = new Map<string, TamaraRecommendation>();
+  private readonly recommendationByObjectiveId = new Map<string, SamanthaRecommendation>();
 
   findById(id: ObjectiveId): Option<Objective> {
     const found = this.objectivesById.get(id.toString());
@@ -50,12 +50,12 @@ export class InMemoryObjectiveRepository implements IObjectiveRepository {
     this.progressByObjectiveId.set(progress.objectiveId.toString(), progress);
   }
 
-  findLatestRecommendation(objectiveId: ObjectiveId): Option<TamaraRecommendation> {
+  findLatestRecommendation(objectiveId: ObjectiveId): Option<SamanthaRecommendation> {
     const found = this.recommendationByObjectiveId.get(objectiveId.toString());
     return found === undefined ? none : some(found);
   }
 
-  saveRecommendation(recommendation: TamaraRecommendation): void {
+  saveRecommendation(recommendation: SamanthaRecommendation): void {
     this.recommendationByObjectiveId.set(recommendation.objectiveId.toString(), recommendation);
   }
 

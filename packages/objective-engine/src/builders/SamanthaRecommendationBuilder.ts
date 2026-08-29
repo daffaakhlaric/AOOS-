@@ -2,19 +2,19 @@ import type { Result } from "@aos/common";
 import type { ValidationError } from "@aos/errors";
 
 import {
-  TamaraRecommendation,
-  type TamaraRecommendationProps,
-} from "../domain/entities/TamaraRecommendation.js";
+  SamanthaRecommendation,
+  type SamanthaRecommendationProps,
+} from "../domain/entities/SamanthaRecommendation.js";
 import { EstimatedImpact } from "../domain/value-objects/EstimatedImpact.js";
 import { ObjectiveId } from "../domain/value-objects/ObjectiveId.js";
 import type { RecommendedAction } from "../domain/value-objects/RecommendedAction.js";
 
-/** Builder Pattern class for constructing `TamaraRecommendation` entities, mirroring `ObjectiveBuilder`/`@aos/meta-ads-connector`'s `CampaignBuilder` convention. */
-export class TamaraRecommendationBuilder {
-  private props: TamaraRecommendationProps = {
+/** Builder Pattern class for constructing `SamanthaRecommendation` entities, mirroring `ObjectiveBuilder`/`@aos/meta-ads-connector`'s `CampaignBuilder` convention. */
+export class SamanthaRecommendationBuilder {
+  private props: SamanthaRecommendationProps = {
     objectiveId: ObjectiveId.generate(),
     generatedAt: new Date("2026-08-09T00:00:00.000Z"),
-    summary: "Tamara belum memiliki rekomendasi untuk objective ini.",
+    summary: "Samantha belum memiliki rekomendasi untuk objective ini.",
     actions: [],
     estimatedImpact: unwrapOrThrow(
       EstimatedImpact.create({
@@ -56,8 +56,8 @@ export class TamaraRecommendationBuilder {
     return this;
   }
 
-  build(): Result<TamaraRecommendation, ValidationError> {
-    return TamaraRecommendation.create(this.props);
+  build(): Result<SamanthaRecommendation, ValidationError> {
+    return SamanthaRecommendation.create(this.props);
   }
 }
 
@@ -65,7 +65,7 @@ function unwrapOrThrow<T>(result: Result<T, ValidationError>): T {
   /* v8 ignore next 5 */
   if (!result.ok) {
     throw new Error(
-      `TamaraRecommendationBuilder default construction failed: ${result.error.message}`,
+      `SamanthaRecommendationBuilder default construction failed: ${result.error.message}`,
     );
   }
   return result.value;

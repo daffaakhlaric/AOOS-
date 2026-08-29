@@ -5,7 +5,7 @@ import { Verdict } from "@aos/meta-ads-connector";
 import { calculateAverageRphD3 } from "../../calculators/BackwardPlanningCalculator.js";
 import type { Objective } from "../../domain/entities/Objective.js";
 import type { ObjectiveProgress } from "../../domain/entities/ObjectiveProgress.js";
-import { TamaraRecommendation } from "../../domain/entities/TamaraRecommendation.js";
+import { SamanthaRecommendation } from "../../domain/entities/SamanthaRecommendation.js";
 import { InvalidObjectiveError, type ObjectiveError } from "../../domain/errors/index.js";
 import { EstimatedImpact } from "../../domain/value-objects/EstimatedImpact.js";
 import {
@@ -25,12 +25,12 @@ const SCALE_THRESHOLD_FACTOR = 0.7; // "at least 30% cheaper than average"
 const PAUSE_THRESHOLD_FACTOR = 2.0; // "at least 2x more expensive than average"
 
 /**
- * Implements the Tamara Recommendation Generation algorithm (spec steps 1-8), used by the
+ * Implements the Samantha Recommendation Generation algorithm (spec steps 1-8), used by the
  * `GenerateRecommendation` use case. Exported publicly (spec index.ts) so a caller can also
  * invoke it directly for testing/composition without going through the full use case.
  */
 export class RecommendationService {
-  generate(input: RecommendationInput): Result<TamaraRecommendation, ObjectiveError> {
+  generate(input: RecommendationInput): Result<SamanthaRecommendation, ObjectiveError> {
     const ads = flattenAds(input.adAccount);
     const avgRphD3 = calculateAverageRphD3(input.adAccount);
 
@@ -105,7 +105,7 @@ export class RecommendationService {
         // AAOS-W1D-S3: names the actual fix target — DSS Motor's real strategy objective
         // (OUTCOME_LEADS + CTWA straight to WhatsApp), not just "needs fixing" in the abstract.
         // Note: this file lives in @aos/objective-engine (not @aos/meta-ads-agent, where the
-        // W1D-S3 spec's "Update TamaraRecommendation — FIX action" section assumed it would be) —
+        // W1D-S3 spec's "Update SamanthaRecommendation — FIX action" section assumed it would be) —
         // it's the real, current location of "GenerateRecommendation's FIX action output".
         reason:
           "Verdict FIX dari meta-ads-connector — objective perlu diganti ke OUTCOME_LEADS + CTWA (lead langsung ke WhatsApp)",
@@ -169,7 +169,7 @@ export class RecommendationService {
       additionalLeadsEstimate,
     });
 
-    const recommendationResult = TamaraRecommendation.create({
+    const recommendationResult = SamanthaRecommendation.create({
       objectiveId: input.objective.id,
       generatedAt: input.now,
       summary,
@@ -234,8 +234,8 @@ function buildSummary(input: SummaryInput): string {
   }
 
   if (parts.length === 0) {
-    return "Tamara tidak menemukan tindakan yang perlu diambil saat ini — seluruh iklan berada dalam performa yang stabil.";
+    return "Samantha tidak menemukan tindakan yang perlu diambil saat ini — seluruh iklan berada dalam performa yang stabil.";
   }
 
-  return `Tamara merekomendasikan ${parts.join(", ")}. Estimasi tambahan ${input.additionalLeadsEstimate} hot leads.`;
+  return `Samantha merekomendasikan ${parts.join(", ")}. Estimasi tambahan ${input.additionalLeadsEstimate} hot leads.`;
 }

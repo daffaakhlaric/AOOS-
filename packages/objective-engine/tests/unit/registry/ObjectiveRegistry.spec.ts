@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ObjectiveBuilder } from "../../../src/builders/ObjectiveBuilder.js";
-import { TamaraRecommendationBuilder } from "../../../src/builders/TamaraRecommendationBuilder.js";
+import { SamanthaRecommendationBuilder } from "../../../src/builders/SamanthaRecommendationBuilder.js";
 import { ObjectiveProgress } from "../../../src/domain/entities/ObjectiveProgress.js";
 import { BudgetAllocation } from "../../../src/domain/value-objects/BudgetAllocation.js";
 import { ForecastScore } from "../../../src/domain/value-objects/ForecastScore.js";
@@ -74,7 +74,7 @@ describe("ObjectiveRegistry", () => {
     const objective = unwrap(new ObjectiveBuilder().build());
     repository.save(objective);
     const recommendation = unwrap(
-      new TamaraRecommendationBuilder().withObjectiveId(objective.id).build(),
+      new SamanthaRecommendationBuilder().withObjectiveId(objective.id).build(),
     );
     repository.saveRecommendation(recommendation);
     const found = registry.getRecommendation(objective.id);

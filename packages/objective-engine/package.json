@@ -2,7 +2,7 @@
   "name": "@aos/objective-engine",
   "version": "0.1.0",
   "private": true,
-  "description": "AAOS Objective Engine — manages DSS Motor's monthly lead objectives, tracks progress, forecasts outcomes, and generates Tamara's campaign recommendations.",
+  "description": "AAOS Objective Engine — manages DSS Motor's monthly lead objectives, tracks progress, forecasts outcomes, and generates Samantha's campaign recommendations.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",

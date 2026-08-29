@@ -4,7 +4,7 @@ import type { AdAccount } from "@aos/meta-ads-connector";
 import type { getTracer } from "@aos/telemetry";
 
 import type { IObjectiveRepository } from "../../contracts/IObjectiveRepository.js";
-import type { TamaraRecommendation } from "../../domain/entities/TamaraRecommendation.js";
+import type { SamanthaRecommendation } from "../../domain/entities/SamanthaRecommendation.js";
 import { ObjectiveNotFoundError, type ObjectiveError } from "../../domain/errors/index.js";
 import type { ObjectiveEngineEvents } from "../../domain/events/ObjectiveEngineEvents.js";
 import type { ObjectiveId } from "../../domain/value-objects/ObjectiveId.js";
@@ -18,7 +18,7 @@ export interface GenerateRecommendationInput {
   readonly correlationId: string;
 }
 
-/** Runs the Tamara recommendation algorithm for an Objective and stores/publishes the result (spec: "GenerateRecommendation"). */
+/** Runs the Samantha recommendation algorithm for an Objective and stores/publishes the result (spec: "GenerateRecommendation"). */
 export class GenerateRecommendation {
   constructor(
     private readonly repository: IObjectiveRepository,
@@ -31,7 +31,7 @@ export class GenerateRecommendation {
 
   async execute(
     input: GenerateRecommendationInput,
-  ): Promise<Result<TamaraRecommendation, ObjectiveError>> {
+  ): Promise<Result<SamanthaRecommendation, ObjectiveError>> {
     return this.tracer.startActiveSpan(
       "objective-engine.generate-recommendation",
       async (span: { end: () => void }) => {
@@ -46,7 +46,7 @@ export class GenerateRecommendation {
 
   private async run(
     input: GenerateRecommendationInput,
-  ): Promise<Result<TamaraRecommendation, ObjectiveError>> {
+  ): Promise<Result<SamanthaRecommendation, ObjectiveError>> {
     const found = this.repository.findById(input.objectiveId);
     if (!found.some) {
       return err(

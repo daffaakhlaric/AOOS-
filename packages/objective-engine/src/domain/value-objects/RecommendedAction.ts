@@ -26,7 +26,7 @@ export interface RecommendedActionInput {
   readonly priority: RecommendedActionPriority;
 }
 
-/** One item of Tamara's action plan — scale/pause/fix/refresh/reallocate a specific campaign/adset/ad. */
+/** One item of Samantha's action plan — scale/pause/fix/refresh/reallocate a specific campaign/adset/ad. */
 export class RecommendedAction {
   private constructor(private readonly props: RecommendedActionInput) {}
 

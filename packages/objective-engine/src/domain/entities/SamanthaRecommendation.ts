@@ -7,7 +7,7 @@ import type { RecommendedAction } from "../value-objects/RecommendedAction.js";
 
 export type { RecommendedAction } from "../value-objects/RecommendedAction.js";
 
-export interface TamaraRecommendationProps {
+export interface SamanthaRecommendationProps {
   readonly objectiveId: ObjectiveId;
   readonly generatedAt: Date;
   readonly summary: string;
@@ -16,22 +16,24 @@ export interface TamaraRecommendationProps {
   readonly confidence: number; // 0-100
 }
 
-/** Tamara's generated action plan for an Objective, produced by `GenerateRecommendation` (spec: "TamaraRecommendation (Entity)"). */
-export class TamaraRecommendation {
-  private constructor(private readonly props: TamaraRecommendationProps) {}
+/** Samantha's generated action plan for an Objective, produced by `GenerateRecommendation` (spec: "SamanthaRecommendation (Entity)"). */
+export class SamanthaRecommendation {
+  private constructor(private readonly props: SamanthaRecommendationProps) {}
 
-  static create(props: TamaraRecommendationProps): Result<TamaraRecommendation, ValidationError> {
+  static create(
+    props: SamanthaRecommendationProps,
+  ): Result<SamanthaRecommendation, ValidationError> {
     if (typeof props.summary !== "string" || props.summary.trim().length === 0) {
-      return err(new ValidationError("TamaraRecommendation.summary must be a non-empty string"));
+      return err(new ValidationError("SamanthaRecommendation.summary must be a non-empty string"));
     }
     if (!Number.isFinite(props.confidence) || props.confidence < 0 || props.confidence > 100) {
       return err(
         new ValidationError(
-          `TamaraRecommendation.confidence must be within 0-100, received: ${String(props.confidence)}`,
+          `SamanthaRecommendation.confidence must be within 0-100, received: ${String(props.confidence)}`,
         ),
       );
     }
-    return ok(new TamaraRecommendation({ ...props, actions: [...props.actions] }));
+    return ok(new SamanthaRecommendation({ ...props, actions: [...props.actions] }));
   }
 
   get objectiveId(): ObjectiveId {

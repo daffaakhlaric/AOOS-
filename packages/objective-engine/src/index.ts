@@ -35,9 +35,9 @@ export type { RecommendationInput } from "./application/services/RecommendationS
 export type { Objective } from "./domain/entities/Objective.js";
 export type { ObjectiveProgress } from "./domain/entities/ObjectiveProgress.js";
 export type {
-  TamaraRecommendation,
+  SamanthaRecommendation,
   RecommendedAction,
-} from "./domain/entities/TamaraRecommendation.js";
+} from "./domain/entities/SamanthaRecommendation.js";
 export type { ObjectiveId } from "./domain/value-objects/ObjectiveId.js";
 export type { ObjectivePeriod } from "./domain/value-objects/ObjectivePeriod.js";
 export type { OnTrackStatus } from "./domain/value-objects/OnTrackStatus.js";
