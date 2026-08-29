@@ -38,8 +38,10 @@ export interface MessageDto {
   readonly sentAt?: string;
   readonly createdAt: string;
   /**
-   * AAOS-CHAT-ROOM-JESSY — who authored an OUTGOING message (`"JESSY"` | `"SALES_HUMAN"` |
-   * `"MANAGER_INTERVENTION"`), `undefined` for every INCOMING message (always the lead).
+   * AAOS-CHAT-ROOM-CLARA — who authored an OUTGOING message (`"CLARA"` | `"SALES_HUMAN"` |
+   * `"MANAGER_INTERVENTION"` | `"JESSY"` — the last a legacy read-only value, pre-agent-rename
+   * rows only, never written going forward), `undefined` for every INCOMING message (always the
+   * lead).
    */
   readonly senderType?: string;
   readonly senderName?: string;
@@ -70,7 +72,7 @@ export interface ConversationSummaryDto {
   readonly lastMessageAt: string;
 }
 
-/** `GET /api/leads/:leadId` — coordinator note #2's honest lead-detail shape: real qualification flags + the REAL conversation history, no fabricated "Jessy summary" prose. */
+/** `GET /api/leads/:leadId` — coordinator note #2's honest lead-detail shape: real qualification flags + the REAL conversation history, no fabricated "Clara summary" prose. */
 export interface LeadDetailDto extends LeadDto {
   readonly conversation?: ConversationSummaryDto;
   readonly messages: readonly MessageDto[];

@@ -180,7 +180,7 @@ describe("InboxClient", () => {
     expect(screen.queryByText("Bu Other")).not.toBeInTheDocument();
   });
 
-  it("selecting a conversation loads the detail and sends a reply as the sales human (never Jessy)", async () => {
+  it("selecting a conversation loads the detail and sends a reply as the sales human (never Clara)", async () => {
     useSalesSession.mockReturnValue({
       session: { salesHumanId: "sh-1", branchId: "BINTARO", email: "ahmad@mobix.id" },
       loading: false,

@@ -95,7 +95,7 @@ export function subscribeToHotLeads(
     .subscribe();
 }
 
-/** Raw `postgres_changes` `messages` row shape — snake_case, matching `@aos/lead-store`'s real `messages` table columns (`MessageMapper`'s `MessageRow` + AAOS-CHAT-ROOM-JESSY's `sender_type`/`sender_name`). */
+/** Raw `postgres_changes` `messages` row shape — snake_case, matching `@aos/lead-store`'s real `messages` table columns (`MessageMapper`'s `MessageRow` + AAOS-CHAT-ROOM-CLARA's `sender_type`/`sender_name`). */
 export interface RealtimeMessageRow {
   readonly id: string;
   readonly conversation_id: string;
@@ -155,7 +155,7 @@ export interface LeadChatSubscriptionHandlers {
 /**
  * Subscribes to live `messages`/`scoring_events` INSERTs for ONE lead's chat room — this app's
  * SECOND direct-Supabase-Realtime exception (the first is `subscribeToHotLeads` above), per
- * AAOS-CHAT-ROOM-JESSY coordinator note #3: `messages`/`scoring_events` writes still originate
+ * AAOS-CHAT-ROOM-CLARA coordinator note #3: `messages`/`scoring_events` writes still originate
  * server-side (`aaos-api`'s webhook path / `POST /leads/:id/message`); this is a read-side push
  * notification of a write that already happened, not a new write path. RLS scopes a sales human's
  * subscription to their own branch (`002_rls_policies.sql`'s existing `sales_view_own_branch_*`

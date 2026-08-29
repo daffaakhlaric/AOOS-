@@ -51,11 +51,13 @@ function senderLabel(message: MessageDto, salesName: string): string {
   if (message.direction === "INCOMING") {
     return "Lead";
   }
-  if (message.senderType === "JESSY") {
-    return "Jessy (AI)";
+  // "JESSY" is the pre-agent-rename legacy value — still real, still stored on old rows,
+  // never written going forward (see crm.types.ts's MessageDto.senderType doc).
+  if (message.senderType === "CLARA" || message.senderType === "JESSY") {
+    return "Clara (AI)";
   }
   if (message.senderType === "MANAGER_INTERVENTION") {
-    return `Jessy (intervensi — ${message.senderName ?? "Manager"})`;
+    return `Clara (intervensi — ${message.senderName ?? "Manager"})`;
   }
   return message.senderName ?? salesName;
 }
@@ -63,12 +65,12 @@ function senderLabel(message: MessageDto, salesName: string): string {
 /**
  * `/inbox` (AAOS-SALES-MGMT-CRM-AUTH, coordinator note #2) — the new primary conversation entry
  * point, replacing `/leads`. 3-panel layout matching the spec's Part 7 mockup and closely mirroring
- * `apps/aaos-dashboard`'s `JessyInboxClient.tsx` (same structural pattern, same real
+ * `apps/aaos-dashboard`'s `ClaraInboxClient.tsx` (same structural pattern, same real
  * `leads`-scoped `aaos-api` endpoints — `GET/POST /api/leads/:id/message`,
  * `GET /api/leads/:id/scoring-history` — no separate `/conversations` namespace), but scoped to
  * THIS signed-in sales human's own session (`useSalesSession()`) rather than a manager's global
- * view, and with no "Reply as Jessy" toggle: every reply sent from here is a real sales human
- * reply (`sender_type = 'SALES_HUMAN'`) — this app never impersonates Jessy.
+ * view, and with no "Reply as Clara" toggle: every reply sent from here is a real sales human
+ * reply (`sender_type = 'SALES_HUMAN'`) — this app never impersonates Clara.
  *
  * Tabs:
  *  - "Saya": `lead.assignedSalesId === session.salesHumanId`.
@@ -77,7 +79,7 @@ function senderLabel(message: MessageDto, salesName: string): string {
  *  - "Belum dibaca": REAL signal, not fabricated — `messages.read_at` is a genuine column
  *    (`001_initial_schema.sql`) this app previously never read. A lead counts as unread when its
  *    latest message (`GET /api/leads/:id/messages?limit=1&order=desc`, reusing the real paginated
- *    endpoint from Chat Room Jessy) is `direction === "INCOMING"` with `readAt === undefined`.
+ *    endpoint from Chat Room Clara) is `direction === "INCOMING"` with `readAt === undefined`.
  *    Computed with one small bounded-fanout request per visible lead (capped at
  *    `UNREAD_LOOKUP_CAP` — a documented, deliberate MVP limit for a single-branch sales team's
  *    real lead volume, not a fabricated count) rather than a new bulk aggregate endpoint, keeping
@@ -539,7 +541,7 @@ export function InboxClient(): React.ReactElement {
                 : "border-brand-warning/30 bg-brand-warning/10"
             }`}
           >
-            <p className="text-[10px] text-ink-muted">SCORE JESSY</p>
+            <p className="text-[10px] text-ink-muted">SCORE CLARA</p>
             <p
               className={`text-xl font-bold ${
                 leadDetail.score >= 65 ? "text-brand-success" : "text-brand-warning"

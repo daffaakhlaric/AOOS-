@@ -12,7 +12,7 @@ export interface MessagesPageDto {
 
 /**
  * `GET /api/leads/:leadId/messages?page=&limit=&order=` — proxies `aaos-api`'s real, already-built
- * `GET /api/v1/leads/:id/messages` (AAOS-CHAT-ROOM-JESSY, reused per coordinator note #2 rather than
+ * `GET /api/v1/leads/:id/messages` (AAOS-CHAT-ROOM-CLARA, reused per coordinator note #2 rather than
  * a new `/conversations` namespace). `/inbox` uses `limit=1&order=desc` to read each visible lead's
  * latest message for the "Belum dibaca" tab's real `readAt`-based unread signal — see
  * `InboxClient.tsx`'s docstring.
