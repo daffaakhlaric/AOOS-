@@ -111,7 +111,7 @@ export function ReportClient({ personas }: ReportClientProps): React.ReactElemen
       <ApproveButton
         approved={approved}
         onApprove={handleApprove}
-        label="Approve Jessy untuk Deploy"
+        label="Approve Clara untuk Deploy"
       />
     </div>
   );

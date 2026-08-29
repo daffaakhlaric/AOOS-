@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "AAOS Jessy Simulator",
-  description: "Test kualitas Jessy sebelum deploy ke WhatsApp — internal tool for DSS Motor.",
+  title: "AAOS Clara Simulator",
+  description: "Test kualitas Clara sebelum deploy ke WhatsApp — internal tool for DSS Motor.",
 };
 
 export default function RootLayout({

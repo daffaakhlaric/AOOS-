@@ -7,7 +7,7 @@ import { ApproveButton } from "@/components/simulator/ApproveButton";
 describe("ApproveButton", () => {
   it("renders the default label when not approved", () => {
     render(<ApproveButton approved={false} onApprove={vi.fn()} />);
-    expect(screen.getByTestId("approve-button")).toHaveTextContent("Approve Jessy");
+    expect(screen.getByTestId("approve-button")).toHaveTextContent("Approve Clara");
   });
 
   it("calls onApprove when clicked — a purely local, in-session UI action (no network call)", async () => {
@@ -34,10 +34,10 @@ describe("ApproveButton", () => {
     expect(screen.getByTestId("approve-button")).toBeDisabled();
   });
 
-  it("supports a custom label (report page's 'Approve Jessy untuk Deploy')", () => {
+  it("supports a custom label (report page's 'Approve Clara untuk Deploy')", () => {
     render(
-      <ApproveButton approved={false} onApprove={vi.fn()} label="Approve Jessy untuk Deploy" />,
+      <ApproveButton approved={false} onApprove={vi.fn()} label="Approve Clara untuk Deploy" />,
     );
-    expect(screen.getByTestId("approve-button")).toHaveTextContent("Approve Jessy untuk Deploy");
+    expect(screen.getByTestId("approve-button")).toHaveTextContent("Approve Clara untuk Deploy");
   });
 });

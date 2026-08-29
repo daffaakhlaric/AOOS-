@@ -7,7 +7,7 @@ export interface ConversationViewProps {
   readonly simulationResult: SimulationResultDto | undefined;
 }
 
-/** Message bubbles for buyer + Jessy, plus handoff badge and turn/duration summary (spec "components/simulator/ConversationView.tsx"). */
+/** Message bubbles for buyer + Clara, plus handoff badge and turn/duration summary (spec "components/simulator/ConversationView.tsx"). */
 export function ConversationView({ simulationResult }: ConversationViewProps): React.ReactElement {
   if (!simulationResult) {
     return (

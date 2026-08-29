@@ -12,7 +12,7 @@ import SimulatorPage from "@/app/simulator/page";
 describe("SimulatorPage", () => {
   it("renders the page heading", () => {
     render(<SimulatorPage />);
-    expect(screen.getByText("🎮 Jessy Simulator")).toBeInTheDocument();
+    expect(screen.getByText("🎮 Clara Simulator")).toBeInTheDocument();
   });
 
   it("renders all 10 real persona names from the real PersonaRegistry", () => {

@@ -83,7 +83,7 @@ describe("SimulatorClient", () => {
     await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
   });
 
-  it("Approve Jessy is disabled until a run has completed, then approves locally without another fetch call", async () => {
+  it("Approve Clara is disabled until a run has completed, then approves locally without another fetch call", async () => {
     const user = userEvent.setup();
     const successBody: SimulateResponse = {
       simulationResult: buildSimulationResult(),

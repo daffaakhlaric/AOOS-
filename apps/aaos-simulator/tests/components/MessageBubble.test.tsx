@@ -18,8 +18,8 @@ describe("MessageBubble", () => {
     expect(bubble.querySelector("div")?.className).not.toContain("bg-brand-primary");
   });
 
-  it("right-aligns and blue-fills a JESSY message", () => {
-    render(<MessageBubble message={buildMessage({ speaker: "JESSY" })} />);
+  it("right-aligns and blue-fills a CLARA message", () => {
+    render(<MessageBubble message={buildMessage({ speaker: "CLARA" })} />);
     const bubble = screen.getByTestId("message-bubble");
     expect(bubble.className).toContain("justify-end");
     expect(bubble.querySelector("div")?.className).toContain("bg-brand-primary");

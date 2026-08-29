@@ -37,10 +37,10 @@ export interface ImprovementSuggestion {
   readonly suggestion: string;
 }
 
-/** JSON-safe mirror of `SimulationMessage` (`SimulationSpeaker` is a plain string enum, `"BUYER" | "JESSY"`, not re-exported from the package's top-level `src/index.ts` — so the literal union is used directly instead of importing it). */
+/** JSON-safe mirror of `SimulationMessage` (`SimulationSpeaker` is a plain string enum, `"BUYER" | "CLARA"`, not re-exported from the package's top-level `src/index.ts` — so the literal union is used directly instead of importing it). */
 export interface SimulationMessageDto {
   readonly turn: number;
-  readonly speaker: "BUYER" | "JESSY";
+  readonly speaker: "BUYER" | "CLARA";
   readonly text: string;
   readonly occurredAt: string;
 }
@@ -78,11 +78,11 @@ export interface SimulationResultDto {
   readonly finalStage?: ConversationStage;
   readonly expectedOutcome: LeadTemperature;
   readonly metExpectation: boolean;
-  readonly avgJessyResponseLength: number;
-  readonly maxJessyResponseLength: number;
-  readonly longestJessyMessage: string;
-  readonly jessyUsedInventory: boolean;
-  readonly jessyHandledObjection: boolean;
+  readonly avgClaraResponseLength: number;
+  readonly maxClaraResponseLength: number;
+  readonly longestClaraMessage: string;
+  readonly claraUsedInventory: boolean;
+  readonly claraHandledObjection: boolean;
   readonly followUpScheduled: boolean;
 }
 

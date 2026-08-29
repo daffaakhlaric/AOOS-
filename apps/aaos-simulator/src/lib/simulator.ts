@@ -13,8 +13,8 @@ import type { SimulationResultDto } from "../types/simulator.types";
  * Server-side composition of `@aos/conversation-simulator` (spec "lib/simulator.ts": "init
  * SimulatorFactory"). `SimulatorFactory.create()` is fully self-contained — it composes its own
  * fresh `@aos/branch-manager`/`@aos/dss-inventory-connector`/`@aos/sales-agent` instances inside
- * `JessySimulationComposer` per simulation session (see `packages/conversation-simulator/src/
- * application/services/JessySimulationComposer.ts`) — so this module does not (and should not)
+ * `ClaraSimulationComposer` per simulation session (see `packages/conversation-simulator/src/
+ * application/services/ClaraSimulationComposer.ts`) — so this module does not (and should not)
  * wire those three packages in manually.
  *
  * Never imported into a `"use client"` component (design resolution #5) — only the two Route
@@ -66,11 +66,11 @@ export function toSimulationResultDto(result: SimulationResult): SimulationResul
     finalStage: result.finalStage,
     expectedOutcome: result.expectedOutcome,
     metExpectation: result.metExpectation,
-    avgJessyResponseLength: result.avgJessyResponseLength,
-    maxJessyResponseLength: result.maxJessyResponseLength,
-    longestJessyMessage: result.longestJessyMessage,
-    jessyUsedInventory: result.jessyUsedInventory,
-    jessyHandledObjection: result.jessyHandledObjection,
+    avgClaraResponseLength: result.avgClaraResponseLength,
+    maxClaraResponseLength: result.maxClaraResponseLength,
+    longestClaraMessage: result.longestClaraMessage,
+    claraUsedInventory: result.claraUsedInventory,
+    claraHandledObjection: result.claraHandledObjection,
     followUpScheduled: result.followUpScheduled,
   };
 }

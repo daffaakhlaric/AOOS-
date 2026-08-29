@@ -124,7 +124,7 @@ export async function POST(
   /* v8 ignore start -- unreachable in practice: `personaId` is already validated against
      `VALID_PERSONA_IDS` above and `DEFAULT_SIMULATOR_CONFIG` is a valid, pre-parsed
      `SimulatorConfig`, so `RunSimulation.execute` only returns `err` for a thrown/unexpected
-     failure from Jessy's own use cases (`@aos/conversation-simulator`'s own design resolution
+     failure from Clara's own use cases (`@aos/conversation-simulator`'s own design resolution
      #2d) — not exercised by any of the 10 real personas' fixed scripts today. */
   if (!simulationOutcome.ok) {
     return NextResponse.json(

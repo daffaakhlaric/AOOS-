@@ -28,8 +28,8 @@ export default function SimulatorPage(): React.ReactElement {
     <main className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-ink">🎮 Jessy Simulator</h1>
-          <p className="text-sm text-ink-muted">Test kualitas Jessy sebelum deploy ke WhatsApp</p>
+          <h1 className="text-xl font-semibold text-ink">🎮 Clara Simulator</h1>
+          <p className="text-sm text-ink-muted">Test kualitas Clara sebelum deploy ke WhatsApp</p>
         </div>
         <Link
           href="/report"

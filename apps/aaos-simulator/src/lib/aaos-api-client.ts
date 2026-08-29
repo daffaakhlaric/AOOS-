@@ -15,7 +15,7 @@ import type { PropertyListingData } from "@aos/conversation-simulator";
  * Never throws — a missing/misconfigured `AAOS_API_BASE_URL`/`AAOS_API_KEY`, a network failure, a
  * non-2xx response, or an unexpected body shape all resolve to `undefined` (an honest "no real
  * listing data available", not a fabricated one) so a listing-fetch failure never fails the whole
- * simulation request; `JessySimulationComposer`'s PROPERTY branch already composes successfully
+ * simulation request; `ClaraSimulationComposer`'s PROPERTY branch already composes successfully
  * with 0 listings.
  */
 

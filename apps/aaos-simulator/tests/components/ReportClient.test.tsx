@@ -75,7 +75,7 @@ describe("ReportClient", () => {
     expect(screen.getByText("Gagal menjalankan simulasi.")).toBeInTheDocument();
   });
 
-  it("allows approving Jessy for deploy once the report has loaded (local state only, no extra fetch)", async () => {
+  it("allows approving Clara for deploy once the report has loaded (local state only, no extra fetch)", async () => {
     const user = userEvent.setup();
     const body: SimulateAllResponse = {
       results: [buildSimulateAllResultEntry()],
