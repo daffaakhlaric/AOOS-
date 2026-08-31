@@ -4,10 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
+import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { IntelligenceModule } from "../intelligence/intelligence.module.js";
+import { ListingsModule } from "../listings/listings.module.js";
 import { LlmModule } from "../llm/llm.module.js";
+import { LocationResolverModule } from "../location-resolver/location-resolver.module.js";
 import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
 
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
@@ -22,7 +26,7 @@ type FactoryProvider = {
 };
 
 describe("SchedulerModule", () => {
-  it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule/IntelligenceModule so SchedulerService can inject the real LlmService/RecyclingService/AbTestingService/LookalikeService/IntelligenceService", () => {
+  it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule/IntelligenceModule/ListingsModule/LocationResolverModule/ModeGuardModule/ActivityLogModule so SchedulerService can inject every real dependency (Phase C: PROPERTY campaign-trigger wiring)", () => {
     const metadata = Reflect.getMetadata("imports", SchedulerModule) as unknown[];
     expect(metadata).toEqual([
       LlmModule,
@@ -30,6 +34,10 @@ describe("SchedulerModule", () => {
       AbTestingModule,
       LookalikeModule,
       IntelligenceModule,
+      ListingsModule,
+      LocationResolverModule,
+      ModeGuardModule,
+      ActivityLogModule,
     ]);
   });
 

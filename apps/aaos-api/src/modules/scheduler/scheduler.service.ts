@@ -17,10 +17,12 @@ import {
 } from "@aos/meta-ads-agent";
 import {
   AdAccountId,
+  AdStatus,
   MetaAdsSyncService,
   Verdict,
   type Ad,
   type AdAccount,
+  type Campaign,
 } from "@aos/meta-ads-connector";
 import type { MobixScraperService } from "@aos/mobix-web-scraper";
 import type { ObjectiveEngine } from "@aos/objective-engine";
@@ -37,20 +39,33 @@ import {
   OBJECTIVE_ENGINE,
 } from "../../di-tokens.js";
 import { AbTestingService } from "../abtesting/abtesting.service.js";
+import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { IntelligenceService } from "../intelligence/intelligence.service.js";
+import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
+import { ListingsService } from "../listings/listings.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import {
+  LocationResolverService,
+  type ResolvedLocation,
+} from "../location-resolver/location-resolver.service.js";
 import { LookalikeService } from "../lookalike/lookalike.service.js";
 import {
   AdTenantIndexRepository,
   indexPulledAdAccount,
 } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
+import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import { isSupportedCalendarEventType } from "./domain/calendar-event.js";
+import {
+  shouldCreateNewCampaign,
+  type CampaignTriggerDecision,
+  type CampaignTriggerReason,
+} from "./domain/campaign-trigger.js";
 import type {
   CreateCalendarEventBodyDto,
   GetCalendarQueryDto,
@@ -107,6 +122,10 @@ export class SchedulerService {
     private readonly intelligenceService: IntelligenceService,
     private readonly adTenantIndex: AdTenantIndexRepository,
     private readonly tenants: TenantRepository,
+    private readonly listingsService: ListingsService,
+    private readonly locationResolver: LocationResolverService,
+    private readonly modeGuard: ModeGuardService,
+    private readonly activityLogger: ActivityLogger,
   ) {}
 
   /**
@@ -361,6 +380,15 @@ export class SchedulerService {
         ? await this.llmService.analyze(analyzePayload)
         : undefined;
 
+    // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4 — PROPERTY-only campaign-creation trigger
+    // check, gated by ModeGuardService and logged by ActivityLogger. No-ops (checked: 0) for
+    // AUTOMOTIVE tenants (see `runPropertyCampaignTriggerCheck`'s own doc).
+    const propertyCampaignTriggers = await this.runPropertyCampaignTriggerCheck(
+      tenantId,
+      correlationId,
+      adAccounts,
+    );
+
     return {
       summary: `${String(campaigns)} kamp · ${String(pause)} PAUSE · ${String(scale)} SCALE`,
       campaigns,
@@ -368,6 +396,8 @@ export class SchedulerService {
       pause,
       scale,
       aiAvailable: analysis?.available ?? false,
+      propertyCampaignTriggersChecked: propertyCampaignTriggers.checked,
+      propertyCampaignTriggersFired: propertyCampaignTriggers.triggered,
     };
   }
 
@@ -420,6 +450,15 @@ export class SchedulerService {
       }
     }
 
+    // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4 — same PROPERTY-only campaign-creation
+    // trigger check as `runSamanthaAnalyze` (see that method's comment / `runPropertyCampaignTriggerCheck`'s
+    // own doc for why both handlers run it — the design doc names both as the real wiring point).
+    const propertyCampaignTriggers = await this.runPropertyCampaignTriggerCheck(
+      tenantId,
+      correlationId,
+      adAccounts,
+    );
+
     return {
       summary:
         refreshNeeded > 0
@@ -427,6 +466,8 @@ export class SchedulerService {
           : "Tidak ada iklan jenuh",
       refreshNeeded,
       ads: refreshedAdNames,
+      propertyCampaignTriggersChecked: propertyCampaignTriggers.checked,
+      propertyCampaignTriggersFired: propertyCampaignTriggers.triggered,
     };
   }
 
@@ -660,6 +701,174 @@ export class SchedulerService {
   }
 
   /**
+   * AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4 — the real wiring point for
+   * `shouldCreateNewCampaign` into `runSamanthaAnalyze`/`runKaiRefreshCheck`. PROPERTY-only: reads
+   * this tenant's real `vertical` (`TenantRepository.findByTenantId`, already injected for
+   * `ModeGuardService`'s own resolution) and no-ops (`{ checked: 0, triggered: 0 }`) for anything
+   * else, e.g. `dss-motor` (AUTOMOTIVE) — `AreaPriority`/`Branch`-based targeting there is
+   * unchanged, no regression.
+   *
+   * For every real `AKTIF` listing (`ListingsService.list`), matches it against this same pull's
+   * already-fetched `adAccounts` (`campaign.name` containing the listing's title, `AdStatus.ACTIVE`
+   * only — there is no explicit `listings.campaign_id` column anywhere in this schema to join on,
+   * so this is a documented, honest heuristic, not a fabricated link) to compute real
+   * `hasActiveCampaign`/`maxFrequency`/`cplIDR` signals, then a real tenant-wide average CPL across
+   * every listing with a computable CPL this same pull (this codebase's own portfolio, not an
+   * external/fabricated benchmark) as `benchmarkCplIDR`. `shouldCreateNewCampaign` (pure,
+   * `domain/campaign-trigger.ts`) decides per listing; a listing that should trigger has its
+   * decision recorded via `recordCampaignTriggerDecision` — never left as a decision with no trace.
+   *
+   * Best-effort per listing (same "never let a side-check take down the whole handler" discipline
+   * `countHotLeads`/`indexPulledAdAccount` already establish in this file): one listing's recording
+   * failure is logged and skipped, never aborts the rest of this check or the calling
+   * `runSamanthaAnalyze`/`runKaiRefreshCheck`.
+   */
+  private async runPropertyCampaignTriggerCheck(
+    tenantId: string,
+    correlationId: string,
+    adAccounts: readonly AdAccount[],
+  ): Promise<{ readonly checked: number; readonly triggered: number }> {
+    let tenant;
+    try {
+      tenant = await this.tenants.findByTenantId(tenantId);
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.runPropertyCampaignTriggerCheck: findByTenantId(${tenantId}) failed: ${String(caught)}`,
+      );
+      return { checked: 0, triggered: 0 };
+    }
+    if (tenant === undefined || tenant.vertical !== "PROPERTY") {
+      return { checked: 0, triggered: 0 };
+    }
+
+    const { listings } = await this.listingsService.list(tenantId, { status: "AKTIF" });
+    const now = new Date();
+
+    const perListing = listings.map((listing) => ({
+      listing,
+      matched: matchActiveCampaignForListing(listing, adAccounts),
+    }));
+
+    const definedCpls = perListing
+      .map(({ matched }) => matched.cplIDR)
+      .filter((cpl): cpl is number => cpl !== undefined);
+    const benchmarkCplIDR =
+      definedCpls.length > 0
+        ? definedCpls.reduce((sum, value) => sum + value, 0) / definedCpls.length
+        : undefined;
+
+    let triggered = 0;
+    for (const { listing, matched } of perListing) {
+      const decision = shouldCreateNewCampaign(
+        {
+          listingId: listing.id,
+          listingCreatedAt: new Date(listing.createdAt),
+          hasActiveCampaign: matched.hasActiveCampaign,
+          ...(matched.maxFrequency !== undefined ? { maxFrequency: matched.maxFrequency } : {}),
+          ...(matched.cplIDR !== undefined ? { cplIDR: matched.cplIDR } : {}),
+          ...(benchmarkCplIDR !== undefined ? { benchmarkCplIDR } : {}),
+        },
+        now,
+      );
+      if (!decision.shouldCreate) {
+        continue;
+      }
+      try {
+        await this.recordCampaignTriggerDecision(tenantId, correlationId, listing, decision);
+        triggered += 1;
+      } catch (caught) {
+        this.logger.warn(
+          `SchedulerService.runPropertyCampaignTriggerCheck: recordCampaignTriggerDecision(${listing.id}) failed: ${String(caught)}`,
+        );
+      }
+    }
+
+    return { checked: perListing.length, triggered };
+  }
+
+  /**
+   * Records one real `shouldCreateNewCampaign` trigger as an `agent_activities` row, gated by
+   * `ModeGuardService.executeOrSimulate` per the design doc's own instruction ("a campaign-creation
+   * decision reached here should route through the same DEV/LIVE gate `CampaignsService
+   * .createCampaign` already uses") and logged by `ActivityLogger` (Phase B), same real
+   * `mode`-from-`ModeGuardService`/`status`-from-outcome discipline `CampaignsService.createCampaign`
+   * already establishes.
+   *
+   * Deliberately does NOT call `CampaignsService.createCampaign` itself: that method's
+   * `CreateCampaignBodyDto.branch` only accepts the AUTOMOTIVE `Branch` enum — real HOUSING-aware
+   * campaign payload construction for PROPERTY does not exist anywhere in this codebase yet
+   * (`PropertyBranchAudienceDefaults.ts`'s own doc comment: "Real HOUSING-aware campaign payload
+   * construction is Phase 3 (Go Live) scope"). Creating a fake `Branch` value to force-fit that API
+   * would be a fabrication this codebase's own discipline forbids, and building a second,
+   * PROPERTY-shaped campaign-creation path here would be exactly the "second, ungated way to create
+   * a campaign" the design doc explicitly rules out. So both the LIVE and DEV branches below
+   * resolve the real target location (`LocationResolverService`) and record an honest
+   * recommendation — LIVE (`SUCCESS`) meaning "ready for real campaign creation once Phase 3 wires
+   * it up", DEV (`SIMULATED`) meaning this tenant would not even reach that state today.
+   */
+  private async recordCampaignTriggerDecision(
+    tenantId: string,
+    correlationId: string,
+    listing: ListingResponseDto,
+    decision: CampaignTriggerDecision,
+  ): Promise<void> {
+    const mode = await this.modeGuard.resolveMode(tenantId);
+    const activityId = await this.activityLogger.start({
+      tenantId,
+      agent: "SAMANTHA",
+      actionType: "CAMPAIGN_TRIGGER_RECOMMENDATION",
+      mode,
+      loopId: correlationId,
+      input: { listingId: listing.id, listingTitle: listing.title, reasons: decision.reasons },
+    });
+
+    try {
+      const result = await this.modeGuard.executeOrSimulate(
+        tenantId,
+        () => this.buildCampaignTriggerOutput(listing, decision, false),
+        () => this.buildCampaignTriggerOutput(listing, decision, true),
+      );
+      await this.activityLogger.complete(activityId, {
+        status: result.simulated ? "SIMULATED" : "SUCCESS",
+        ...(result.simulated ? { devPreview: result } : { output: result }),
+      });
+    } catch (error) {
+      await this.activityLogger.fail(activityId, error);
+      throw error;
+    }
+  }
+
+  private async buildCampaignTriggerOutput(
+    listing: ListingResponseDto,
+    decision: CampaignTriggerDecision,
+    simulated: boolean,
+  ): Promise<{
+    readonly simulated: boolean;
+    readonly reasons: readonly CampaignTriggerReason[];
+    readonly resolvedLocation: ResolvedLocation;
+    readonly note: string;
+  }> {
+    const resolvedLocation = await this.locationResolver.resolve({
+      listingTitle: listing.title,
+      propertyType: listing.propertyType,
+      price: listing.price,
+      ...(listing.city !== undefined ? { city: listing.city } : {}),
+      ...(listing.province !== undefined ? { province: listing.province } : {}),
+      ...(listing.address !== undefined ? { address: listing.address } : {}),
+      ...(listing.branchId !== undefined ? { branchId: listing.branchId } : {}),
+    });
+    return {
+      simulated,
+      reasons: decision.reasons,
+      resolvedLocation,
+      note:
+        "Rekomendasi campaign baru — real HOUSING-aware campaign payload construction belum " +
+        "diimplementasikan (CampaignsService.createCampaign saat ini hanya menerima Branch " +
+        "AUTOMOTIVE). Pembuatan campaign nyata di Meta menunggu Phase 3 (Go Live).",
+    };
+  }
+
+  /**
    * Pulls every configured ad account's real campaign hierarchy (`MetaAdsSyncService.syncAccounts`
    * — one `PullCampaignData` call per account, independent failures). Throws only when EVERY
    * account failed. AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves this tenant's own
@@ -851,6 +1060,54 @@ function flattenAds(account: AdAccount): Ad[] {
 
 function countAds(account: AdAccount): number {
   return flattenAds(account).length;
+}
+
+/** One listing's real, active-campaign-matched signals (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4). See `runPropertyCampaignTriggerCheck`'s doc for the matching heuristic's honest limitation. */
+interface MatchedCampaignSignals {
+  readonly hasActiveCampaign: boolean;
+  readonly maxFrequency?: number;
+  readonly cplIDR?: number;
+}
+
+/** Pure — matches `listing` against every `AdStatus.ACTIVE` campaign across `adAccounts` whose real `name` contains the listing's real `title` (case-insensitive substring; no `listings.campaign_id` column exists anywhere in this schema to join on instead), and aggregates that campaign's real ad-level `frequency`/spend/lead metrics. */
+function matchActiveCampaignForListing(
+  listing: ListingResponseDto,
+  adAccounts: readonly AdAccount[],
+): MatchedCampaignSignals {
+  const needle = listing.title.toLowerCase();
+  let hasActiveCampaign = false;
+  let maxFrequency: number | undefined;
+  let totalSpend = 0;
+  let totalLeads = 0;
+
+  const isMatch = (campaign: Campaign): boolean =>
+    campaign.status === AdStatus.ACTIVE && campaign.name.toLowerCase().includes(needle);
+
+  for (const account of adAccounts) {
+    for (const campaign of account.campaigns) {
+      if (!isMatch(campaign)) {
+        continue;
+      }
+      hasActiveCampaign = true;
+      for (const adSet of campaign.adSets) {
+        for (const ad of adSet.ads) {
+          maxFrequency =
+            maxFrequency === undefined
+              ? ad.metrics.frequency
+              : Math.max(maxFrequency, ad.metrics.frequency);
+          totalSpend += ad.metrics.spend.toNumber();
+          totalLeads += ad.metrics.totalLead;
+        }
+      }
+    }
+  }
+
+  const cplIDR = totalLeads > 0 ? totalSpend / totalLeads : undefined;
+  return {
+    hasActiveCampaign,
+    ...(maxFrequency !== undefined ? { maxFrequency } : {}),
+    ...(cplIDR !== undefined ? { cplIDR } : {}),
+  };
 }
 
 function toAnalyzeCampaigns(adAccounts: readonly AdAccount[]): AnalyzeRequestDto["campaigns"] {

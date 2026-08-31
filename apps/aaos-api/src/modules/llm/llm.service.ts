@@ -38,6 +38,11 @@ import {
 } from "./dto/generate-hashtags.dto.js";
 import { unavailable, type LlmUnavailableResponseDto } from "./dto/llm-unavailable.dto.js";
 import {
+  ResolveLocationLlmPayloadSchema,
+  type ResolveLocationRequestDto,
+  type ResolveLocationResponseDto,
+} from "./dto/resolve-location.dto.js";
+import {
   SelectTargetingLlmPayloadSchema,
   type SelectTargetingRequestDto,
   type SelectTargetingResponseDto,
@@ -165,6 +170,31 @@ PANDUAN KEPUTUSAN:
 - Jika tidak ada unit/listing spesifik yang mendesak → BRAND campaign lebih aman.
 - Mix BRAND + PRODUCT umum: 30% brand (awareness) + 70% product (leads), boleh disesuaikan alasan konkret.
 - Jangan selalu fokus produk — brand awareness penting untuk jangka panjang.`;
+
+/**
+ * AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 1 — `LocationResolverService`'s only prompt.
+ * PROPERTY-only (AUTOMOTIVE keeps using the existing `Branch`-based `AreaPriority`, unchanged).
+ * Same static-persona-plus-JSON-user-message shape as every other prompt in this file — the real,
+ * per-listing variable data (title/type/price/city/province/address/branch) is sent as the user
+ * message's `JSON.stringify(body)`, never interpolated into this string.
+ */
+const RESOLVE_LOCATION_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk platform properti (PROPERTY) di Indonesia.
+
+Tugasmu: berdasarkan data satu listing properti (JSON di pesan user — judul, tipe properti, harga, kota/provinsi/alamat jika ada, nama cabang jika ada), tentukan target lokasi iklan Meta Ads yang paling relevan: kota-kota tujuan dan radius (km) di sekitarnya, plus estimasi rentang usia pembeli yang relevan (untuk preview saja).
+
+ATURAN KERAS:
+- "cities" HANYA nama kota/kabupaten Indonesia yang nyata dan relevan dengan lokasi listing (maksimal 6).
+- Jika listing punya kota/provinsi eksplisit, jadikan itu prioritas utama, radius menyesuaikan seberapa jauh pembeli realistis mau mencari properti sejenis (properti murah/kecil → radius lebih sempit, properti mahal/besar → boleh lebih luas antar kota Jabodetabek dsb).
+- "reasoning" ditulis dalam Bahasa Indonesia, satu atau dua kalimat.
+
+Format response JSON:
+{
+  "cities": ["kota1", "kota2"],
+  "radiusKm": 25,
+  "ageMin": 27,
+  "ageMax": 55,
+  "reasoning": "alasan singkat dalam Bahasa Indonesia"
+}`;
 
 /** Not a literal spec quote (the spec's `/llm/chat` section has no system-prompt block of its own) — derived from the same "Kamu adalah Samantha..." persona used by the other two prompts, for general free-text conversation. */
 const CHAT_SYSTEM_PROMPT =
@@ -434,6 +464,49 @@ export class LlmService {
       rejectedIds,
     };
     this.cache.set("select-targeting", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 1 — `LocationResolverService`'s only call
+   * into `LlmService`. Same cache/gate/call/validate/cache shape as every other method on this
+   * service — no freestanding OpenAI client, no bespoke composition. The real deterministic
+   * fallback (`propertyBranchAudienceDefault` from `@aos/meta-ads-connector`) lives in
+   * `LocationResolverService`, not here — this method only ever returns the LLM outcome (available
+   * or a typed `LlmUnavailableResponseDto`), same as `analyze`/`creativeBrief`/`selectTargeting`.
+   */
+  async resolveLocation(body: ResolveLocationRequestDto): Promise<ResolveLocationResponseDto> {
+    const cached = this.cache.get("resolve-location", body) as
+      ResolveLocationResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: RESOLVE_LOCATION_SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : ResolveLocationLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: ResolveLocationResponseDto = { available: true, ...validated.data };
+    this.cache.set("resolve-location", body, response);
     return response;
   }
 

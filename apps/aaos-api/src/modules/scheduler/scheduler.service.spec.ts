@@ -16,10 +16,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { AbTestingService } from "../abtesting/abtesting.service.js";
+import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import type { IntelligenceService } from "../intelligence/intelligence.service.js";
+import type { ListingListResponseDto } from "../listings/dto/listing.dto.js";
+import type { ListingsService } from "../listings/listings.service.js";
 import type { LlmService } from "../llm/llm.service.js";
+import type {
+  LocationResolverService,
+  ResolvedLocation,
+} from "../location-resolver/location-resolver.service.js";
 import type { LookalikeService } from "../lookalike/lookalike.service.js";
 import type { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
+import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
 import type { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -103,13 +111,62 @@ function buildFakeAdTenantIndex(): AdTenantIndexRepository {
 }
 
 function buildFakeTenantRepository(
-  rows: readonly { readonly tenant_id: string; readonly status: string }[] = [
-    { tenant_id: "dss-motor", status: "ACTIVE" },
-  ],
+  rows: readonly {
+    readonly tenant_id: string;
+    readonly status: string;
+    readonly vertical?: string;
+  }[] = [{ tenant_id: "dss-motor", status: "ACTIVE", vertical: "AUTOMOTIVE" }],
 ): TenantRepository {
   return {
     list: vi.fn(async () => rows),
+    findByTenantId: vi.fn(async (tenantId: string) =>
+      rows.find((row) => row.tenant_id === tenantId),
+    ),
   } as unknown as TenantRepository;
+}
+
+function buildFakeListingsService(
+  listings: ListingListResponseDto["listings"] = [],
+): ListingsService {
+  return {
+    list: vi.fn(async () => ({ listings, total: listings.length })),
+  } as unknown as ListingsService;
+}
+
+function buildFakeLocationResolverService(
+  result?: Partial<ResolvedLocation>,
+): LocationResolverService {
+  return {
+    resolve: vi.fn(async () => ({
+      cities: ["Jakarta"],
+      radiusKm: 25,
+      ageMin: 25,
+      ageMax: 55,
+      source: "FALLBACK",
+      reasoning: "fallback",
+      ...result,
+    })),
+  } as unknown as LocationResolverService;
+}
+
+function buildFakeModeGuardService(mode: "DEV" | "LIVE" = "LIVE"): ModeGuardService {
+  return {
+    resolveMode: vi.fn(async () => mode),
+    executeOrSimulate: vi.fn(
+      async (_tenantId: string, executeFn: () => unknown, simulateFn: () => unknown) =>
+        mode === "DEV" ? simulateFn() : executeFn(),
+    ),
+  } as unknown as ModeGuardService;
+}
+
+function buildFakeActivityLogger(): ActivityLogger {
+  return {
+    start: vi.fn(async () => "activity-1"),
+    logToolCall: vi.fn(async () => undefined),
+    logReasoning: vi.fn(async () => undefined),
+    complete: vi.fn(async () => undefined),
+    fail: vi.fn(async () => undefined),
+  } as unknown as ActivityLogger;
 }
 
 function buildFakeScraper(ok = true): MobixScraperService {
@@ -260,6 +317,10 @@ function buildService(
     intelligenceService?: IntelligenceService;
     adTenantIndex?: AdTenantIndexRepository;
     tenants?: TenantRepository;
+    listingsService?: ListingsService;
+    locationResolver?: LocationResolverService;
+    modeGuard?: ModeGuardService;
+    activityLogger?: ActivityLogger;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -290,6 +351,10 @@ function buildService(
     options.intelligenceService ?? buildFakeIntelligenceService(),
     options.adTenantIndex ?? buildFakeAdTenantIndex(),
     options.tenants ?? buildFakeTenantRepository(),
+    options.listingsService ?? buildFakeListingsService(),
+    options.locationResolver ?? buildFakeLocationResolverService(),
+    options.modeGuard ?? buildFakeModeGuardService(),
+    options.activityLogger ?? buildFakeActivityLogger(),
   );
 }
 
@@ -428,6 +493,166 @@ describe("SchedulerService.executeEvent", () => {
       expect.any(Number),
       expect.objectContaining({ refreshNeeded: 0, summary: "Tidak ada iklan jenuh" }),
     );
+  });
+
+  describe("PROPERTY campaign-trigger wiring (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C)", () => {
+    const propertyTenants = [{ tenant_id: "dss-motor", status: "ACTIVE", vertical: "PROPERTY" }];
+
+    function buildListing(): ListingListResponseDto["listings"][number] {
+      return {
+        id: "listing-1",
+        title: "Rumah Baru Tanpa Campaign",
+        propertyType: "RUMAH",
+        listingStatus: "AKTIF",
+        price: 1_000_000_000,
+        branchId: "BINTARO",
+        highlights: [],
+        photos: [],
+        inKnowledgeBase: false,
+        // Old enough to be past NEW_LISTING_WINDOW_MS (48h) and unmatched by any campaign name
+        // below, so this fires NO_ACTIVE_CAMPAIGN, not NEW_LISTING_WITHOUT_CAMPAIGN.
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      };
+    }
+
+    it("AUTOMOTIVE tenants are never checked (no-op, AreaPriority/Branch targeting unchanged)", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const service = buildService({
+        repository,
+        listingsService,
+        tenants: buildFakeTenantRepository([
+          { tenant_id: "dss-motor", status: "ACTIVE", vertical: "AUTOMOTIVE" },
+        ]),
+      });
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(listingsService.list).not.toHaveBeenCalled();
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({
+          propertyCampaignTriggersChecked: 0,
+          propertyCampaignTriggersFired: 0,
+        }),
+      );
+    });
+
+    it("DEV mode never creates a real campaign — records a SIMULATED activity via ActivityLogger", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const modeGuard = buildFakeModeGuardService("DEV");
+      const activityLogger = buildFakeActivityLogger();
+      const service = buildService({
+        repository,
+        listingsService,
+        modeGuard,
+        activityLogger,
+        tenants: buildFakeTenantRepository(propertyTenants),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(modeGuard.resolveMode).toHaveBeenCalledWith("dss-motor");
+      expect(modeGuard.executeOrSimulate).toHaveBeenCalled();
+      expect(activityLogger.start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId: "dss-motor",
+          agent: "SAMANTHA",
+          actionType: "CAMPAIGN_TRIGGER_RECOMMENDATION",
+          mode: "DEV",
+        }),
+      );
+      expect(activityLogger.complete).toHaveBeenCalledWith(
+        "activity-1",
+        expect.objectContaining({
+          status: "SIMULATED",
+          devPreview: expect.objectContaining({ simulated: true }),
+        }),
+      );
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({
+          propertyCampaignTriggersChecked: 1,
+          propertyCampaignTriggersFired: 1,
+        }),
+      );
+    });
+
+    it("LIVE mode records a SUCCESS activity (real recommendation, still never calls CampaignsService)", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const modeGuard = buildFakeModeGuardService("LIVE");
+      const activityLogger = buildFakeActivityLogger();
+      const service = buildService({
+        repository,
+        listingsService,
+        modeGuard,
+        activityLogger,
+        tenants: buildFakeTenantRepository(propertyTenants),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(activityLogger.start).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: "LIVE", actionType: "CAMPAIGN_TRIGGER_RECOMMENDATION" }),
+      );
+      expect(activityLogger.complete).toHaveBeenCalledWith(
+        "activity-1",
+        expect.objectContaining({
+          status: "SUCCESS",
+          output: expect.objectContaining({ simulated: false }),
+        }),
+      );
+    });
+
+    it("no trigger fires (and nothing is logged) when the listing already has a matching real ACTIVE campaign with healthy signals", async () => {
+      const ad = unwrap(new AdBuilder().build());
+      const adSet = unwrap(new AdSetBuilder().withAds([ad]).build());
+      const campaign = unwrap(
+        new CampaignBuilder()
+          .withName("Rumah Baru Tanpa Campaign - Product")
+          .withAdSets([adSet])
+          .build(),
+      );
+      const adAccount = {
+        id: campaign.adSets[0]?.adAccountId,
+        name: "Acc",
+        businessManagerId: "bm",
+        currency: "IDR",
+        timezone: "Asia/Jakarta",
+        campaigns: [campaign],
+        syncedAt: new Date(),
+      } as unknown as AdAccount;
+
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const activityLogger = buildFakeActivityLogger();
+      const service = buildService({
+        repository,
+        listingsService,
+        activityLogger,
+        connector: buildFakeConnector(adAccount),
+        tenants: buildFakeTenantRepository(propertyTenants),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "KAI_REFRESH_CHECK" }));
+
+      expect(activityLogger.start).not.toHaveBeenCalled();
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({
+          propertyCampaignTriggersChecked: 1,
+          propertyCampaignTriggersFired: 0,
+        }),
+      );
+    });
   });
 
   it("DAILY_DIGEST builds a real digest from the current Objective and pulled AdAccount", async () => {
