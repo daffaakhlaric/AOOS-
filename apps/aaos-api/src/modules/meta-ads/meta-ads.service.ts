@@ -4,6 +4,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
@@ -39,6 +40,7 @@ export class MetaAdsService {
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly adTenantIndex: AdTenantIndexRepository,
     private readonly modeGuard: ModeGuardService,
+    private readonly activityLogger: ActivityLogger,
   ) {}
 
   async pullCampaigns(
@@ -119,6 +121,11 @@ export class MetaAdsService {
    * really does pause/scale/fix a live Meta campaign. In DEV mode, `simulateFn` returns an honest
    * `{ action: "SIMULATED", simulated: true, ... }` describing what WOULD have run, never a
    * fabricated real-looking result and never a real Meta API call.
+   *
+   * AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B: also the first of the 2 real `ActivityLogger`
+   * call sites — one `agent_activities` row per invocation, `mode` taken from
+   * `ModeGuardService.resolveMode`'s own real resolution (not guessed), `status` taken from the
+   * SAME real outcome `executeOrSimulate` already produced (`result.simulated`).
    */
   async executeVerdict(
     body: ExecuteVerdictBodyDto,
@@ -130,29 +137,50 @@ export class MetaAdsService {
     }
     const connector = connectorResult.value;
 
-    return this.modeGuard.executeOrSimulate<ExecuteVerdictResponseDto>(
-      this.config.AAOS_TENANT_ID,
-      async () => {
-        const result = await connector.executeVerdict.execute({
-          verdict: Verdict[body.verdict],
-          targetId: body.targetId,
-          targetType: body.targetType,
-          accessToken: connector.accessToken,
-          tenantId: this.config.AAOS_TENANT_ID,
-          correlationId,
-        });
-        if (!result.ok) {
-          throw result.error;
-        }
-        return { ...result.value, simulated: false };
-      },
-      () =>
-        Promise.resolve({
-          action: "SIMULATED",
-          targetId: body.targetId,
-          targetType: body.targetType,
-          simulated: true,
-        }),
-    );
+    const mode = await this.modeGuard.resolveMode(this.config.AAOS_TENANT_ID);
+    const activityId = await this.activityLogger.start({
+      tenantId: this.config.AAOS_TENANT_ID,
+      agent: "SAMANTHA",
+      actionType: "EXECUTE_VERDICT",
+      mode,
+      loopId: correlationId,
+      input: { verdict: body.verdict, targetId: body.targetId, targetType: body.targetType },
+    });
+
+    try {
+      const result = await this.modeGuard.executeOrSimulate<ExecuteVerdictResponseDto>(
+        this.config.AAOS_TENANT_ID,
+        async () => {
+          const executed = await connector.executeVerdict.execute({
+            verdict: Verdict[body.verdict],
+            targetId: body.targetId,
+            targetType: body.targetType,
+            accessToken: connector.accessToken,
+            tenantId: this.config.AAOS_TENANT_ID,
+            correlationId,
+          });
+          if (!executed.ok) {
+            throw executed.error;
+          }
+          return { ...executed.value, simulated: false };
+        },
+        () =>
+          Promise.resolve({
+            action: "SIMULATED",
+            targetId: body.targetId,
+            targetType: body.targetType,
+            simulated: true,
+          }),
+      );
+
+      await this.activityLogger.complete(activityId, {
+        status: result.simulated ? "SIMULATED" : "SUCCESS",
+        ...(result.simulated ? { devPreview: result } : { output: result }),
+      });
+      return result;
+    } catch (error) {
+      await this.activityLogger.fail(activityId, error);
+      throw error;
+    }
   }
 }

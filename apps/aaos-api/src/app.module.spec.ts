@@ -109,7 +109,11 @@ describe("AppModule.forRoot", () => {
     // Meta/WhatsApp webhook secret resolver — composed here alongside both connector registries
     // via a new local SystemWebhookConfigRepository instance, no new import; see di-tokens.ts's
     // WEBHOOK_SECRETS_SERVICE doc for why it's global instead of module-scoped).
-    expect(dynamicModule.imports).toHaveLength(27);
+    // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B: +1 import (ActivityLogModule, exporting
+    // ActivityLogger — MetaAdsModule/CampaignsModule each import it directly, same "small
+    // standalone module" pattern ModeGuardModule already establishes) — no new global provider
+    // (ActivityRepository is composed locally from the existing SUPABASE_CLIENT).
+    expect(dynamicModule.imports).toHaveLength(28);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

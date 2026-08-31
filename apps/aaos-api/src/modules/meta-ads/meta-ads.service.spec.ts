@@ -1,7 +1,7 @@
 import { ok } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 import { MetaAdsConnectorFactory, Verdict, type MetaAdsConnector } from "@aos/meta-ads-connector";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { toConnectorConfig } from "../../config/to-connector-config.js";
@@ -49,7 +49,21 @@ function buildFakeModeGuard(dev = false) {
   };
 }
 
-function buildService(dev = false): MetaAdsService {
+/** Minimal `ActivityLogger` test double (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B) — `start` always returns a fixed id, `complete`/`fail`/`logToolCall`/`logReasoning` are no-op spies so this file's tests can assert real wiring without a real Supabase round-trip. */
+function buildFakeActivityLogger() {
+  return {
+    start: vi.fn(async () => "activity-1"),
+    complete: vi.fn(async () => undefined),
+    fail: vi.fn(async () => undefined),
+    logToolCall: vi.fn(async () => undefined),
+    logReasoning: vi.fn(async () => undefined),
+  };
+}
+
+function buildService(
+  dev = false,
+  activityLogger: ReturnType<typeof buildFakeActivityLogger> = buildFakeActivityLogger(),
+): MetaAdsService {
   const config = buildTestConfig();
   const connectorConfig = toConnectorConfig(config);
   if (!connectorConfig.ok) {
@@ -64,6 +78,7 @@ function buildService(dev = false): MetaAdsService {
     toRegistry(config, connector) as never,
     buildFakeAdTenantIndex() as never,
     buildFakeModeGuard(dev) as never,
+    activityLogger as never,
   );
 }
 
@@ -126,6 +141,7 @@ describe("MetaAdsService", () => {
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
+        buildFakeActivityLogger() as never,
       );
       await expect(
         service.pullCampaigns({ datePreset: "last_30d" }, "corr-5"),
@@ -155,6 +171,7 @@ describe("MetaAdsService", () => {
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
+        buildFakeActivityLogger() as never,
       );
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
@@ -181,6 +198,7 @@ describe("MetaAdsService", () => {
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
+        buildFakeActivityLogger() as never,
       );
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
@@ -276,6 +294,67 @@ describe("MetaAdsService", () => {
       );
       expect(result.action).toBe("NO_ACTION");
       expect(Verdict.REVIEW).toBe("REVIEW");
+    });
+
+    describe("ActivityLogger wiring (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B)", () => {
+      it("starts a RUNNING activity with mode LIVE and completes it SUCCESS for a real LIVE-mode execution", async () => {
+        registerHappyPathMetaApiHandlers();
+        const activityLogger = buildFakeActivityLogger();
+        const service = buildService(false, activityLogger);
+        const result = await service.executeVerdict(
+          { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
+          "corr-activity-live",
+        );
+
+        expect(activityLogger.start).toHaveBeenCalledTimes(1);
+        expect(activityLogger.start).toHaveBeenCalledWith(
+          expect.objectContaining({
+            agent: "SAMANTHA",
+            actionType: "EXECUTE_VERDICT",
+            mode: "LIVE",
+            loopId: "corr-activity-live",
+          }),
+        );
+        expect(activityLogger.complete).toHaveBeenCalledTimes(1);
+        expect(activityLogger.complete).toHaveBeenCalledWith(
+          "activity-1",
+          expect.objectContaining({ status: "SUCCESS", output: result }),
+        );
+        expect(activityLogger.fail).not.toHaveBeenCalled();
+      });
+
+      it("starts a RUNNING activity with mode DEV and completes it SIMULATED for a DEV-mode call", async () => {
+        const activityLogger = buildFakeActivityLogger();
+        const service = buildService(true, activityLogger);
+        const result = await service.executeVerdict(
+          { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
+          "corr-activity-dev",
+        );
+
+        expect(activityLogger.start).toHaveBeenCalledWith(expect.objectContaining({ mode: "DEV" }));
+        expect(activityLogger.complete).toHaveBeenCalledWith(
+          "activity-1",
+          expect.objectContaining({ status: "SIMULATED", devPreview: result }),
+        );
+        expect(activityLogger.fail).not.toHaveBeenCalled();
+      });
+
+      it("fails the activity with the real thrown error when the Meta API rejects the mutation", async () => {
+        const activityLogger = buildFakeActivityLogger();
+        const service = buildService(false, activityLogger);
+        registerMetaApiPostErrorHandler(403);
+        const { PermissionError } = await import("@aos/meta-ads-connector");
+        await expect(
+          service.executeVerdict(
+            { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
+            "corr-activity-error",
+          ),
+        ).rejects.toBeInstanceOf(PermissionError);
+
+        expect(activityLogger.fail).toHaveBeenCalledTimes(1);
+        expect(activityLogger.fail).toHaveBeenCalledWith("activity-1", expect.any(PermissionError));
+        expect(activityLogger.complete).not.toHaveBeenCalled();
+      });
     });
   });
 });

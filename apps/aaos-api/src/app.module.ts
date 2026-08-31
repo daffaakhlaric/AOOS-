@@ -70,6 +70,7 @@ import { AaosExceptionFilter } from "./filters/aaos-exception.filter.js";
 import { LoggingInterceptor } from "./interceptors/logging.interceptor.js";
 import { TracingInterceptor } from "./interceptors/tracing.interceptor.js";
 import { AbTestingModule } from "./modules/abtesting/abtesting.module.js";
+import { ActivityLogModule } from "./modules/activity-log/activity-log.module.js";
 import { AssetsModule } from "./modules/assets/assets.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
@@ -401,6 +402,12 @@ export class AppModule {
         // module directly (same pattern as `RecyclingModule`/`AbTestingModule`/`LookalikeModule`)
         // so it can inject the exported `IntelligenceService`.
         IntelligenceModule,
+        // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B — new `activity-log` module (`GET
+        // /api/v1/activity-log` + the exported `ActivityLogger`, which `MetaAdsModule`/
+        // `CampaignsModule` each import directly to log their own gated actions — same
+        // "each real consumer imports the small standalone module directly" pattern
+        // `ModeGuardModule` already establishes).
+        ActivityLogModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

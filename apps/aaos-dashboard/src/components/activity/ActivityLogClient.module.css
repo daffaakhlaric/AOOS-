@@ -1,0 +1,100 @@
+.page {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filterSelect {
+  font-size: 13px;
+  padding: 7px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 100px 1fr 60px 100px 160px;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 10px 14px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.rowAgent {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--gray-900);
+}
+
+.rowAction {
+  font-size: 13px;
+  color: var(--gray-700);
+}
+
+.rowMode {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.rowTime {
+  font-size: 12px;
+  color: var(--gray-500);
+  text-align: right;
+}
+
+.badge {
+  display: inline-flex;
+  justify-self: start;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.badgeSuccess {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badgeSimulated {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.badgeError {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badgeRunning {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.emptyState {
+  font-size: 13px;
+  color: var(--gray-500);
+  padding: 24px;
+  text-align: center;
+}

@@ -52,6 +52,21 @@ describe("Sidebar", () => {
     expect(link).toHaveAttribute("href", "/listings");
   });
 
+  it("does NOT render Activity Log for AUTOMOTIVE (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B, PROPERTY-only)", async () => {
+    mockSettingsFetch("AUTOMOTIVE");
+    render(<Sidebar />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/settings"));
+    expect(screen.queryByText("Activity Log")).not.toBeInTheDocument();
+  });
+
+  it("renders Activity Log under OPERASIONAL for PROPERTY, linking to /property/activity", async () => {
+    mockSettingsFetch("PROPERTY");
+    render(<Sidebar />);
+    await waitFor(() => expect(screen.getByText("Activity Log")).toBeInTheDocument());
+    const link = screen.getByText("Activity Log").closest("a");
+    expect(link).toHaveAttribute("href", "/property/activity");
+  });
+
   it("renders the Lead Recycling nav item under CLARA (SALES AI), for both verticals", () => {
     mockSettingsFetch(undefined);
     render(<Sidebar />);

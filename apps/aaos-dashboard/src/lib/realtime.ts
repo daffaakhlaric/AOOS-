@@ -1,7 +1,12 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { createSupabaseBrowserClient } from "./supabase";
-import type { MessageDto, ScoringEventDto } from "@/types/dashboard.types";
+import type {
+  ActivityDto,
+  ActivityToolCallDto,
+  MessageDto,
+  ScoringEventDto,
+} from "@/types/dashboard.types";
 
 /**
  * AAOS-CHAT-ROOM-CLARA — this app's FIRST direct-Supabase-Realtime subscription (its `lib/
@@ -102,6 +107,120 @@ export function subscribeToLeadChat(
       (payload) => {
         handlers.onNewScoringEvent(
           toScoringEventDtoFromRealtimeRow(payload.new as RealtimeScoringEventRow),
+        );
+      },
+    )
+    .subscribe();
+}
+
+/**
+ * AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B — the Activity Log page's realtime feed. Same real
+ * `postgres_changes` mechanism as `subscribeToLeadChat` above (this file's class doc), reusing the
+ * same browser client. `aaos-api`'s `ActivityLogger.start` performs a plain `.insert(...)` into
+ * `agent_activities` (`021_agent_activities.sql`) — this subscription is a read-side push
+ * notification of that real write, never a manually-sent broadcast payload (the pasted spec's own
+ * mockup used `supabase.channel(...).send({ type: "broadcast", ... })`, corrected before this
+ * agent started — see that migration's own header doc).
+ *
+ * RLS: `021_agent_activities.sql`'s `manager_view_own_tenant_activities` policy is what lets a
+ * manager's browser client receive INSERTs for their own tenant's rows — without it this
+ * subscription silently receives nothing (same failure mode `subscribeToLeadChat`'s own doc warns
+ * about for `messages`/`scoring_events`).
+ */
+export interface RealtimeActivityToolCallEntry {
+  readonly tool: string;
+  readonly input?: unknown;
+  readonly output?: unknown;
+  readonly at: string;
+}
+
+export interface RealtimeActivityRow {
+  readonly id: string;
+  readonly loop_id: string | null;
+  readonly agent: string;
+  readonly action_type: string;
+  readonly mode: string;
+  readonly status: string;
+  readonly input: unknown;
+  readonly output: unknown;
+  readonly dev_preview: unknown;
+  readonly reasoning: string | null;
+  readonly tool_calls: readonly RealtimeActivityToolCallEntry[] | null;
+  readonly started_at: string;
+  readonly completed_at: string | null;
+  readonly duration_ms: number | null;
+  readonly error_message: string | null;
+  readonly error_stack: string | null;
+  readonly created_at: string;
+}
+
+function toToolCallDto(entry: RealtimeActivityToolCallEntry): ActivityToolCallDto {
+  return { tool: entry.tool, input: entry.input, output: entry.output, at: entry.at };
+}
+
+export function toActivityDtoFromRealtimeRow(row: RealtimeActivityRow): ActivityDto {
+  return {
+    id: row.id,
+    loopId: row.loop_id ?? undefined,
+    agent: row.agent,
+    actionType: row.action_type,
+    mode: row.mode,
+    status: row.status,
+    input: row.input ?? undefined,
+    output: row.output ?? undefined,
+    devPreview: row.dev_preview ?? undefined,
+    reasoning: row.reasoning ?? undefined,
+    toolCalls: (row.tool_calls ?? []).map(toToolCallDto),
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? undefined,
+    durationMs: row.duration_ms ?? undefined,
+    errorMessage: row.error_message ?? undefined,
+    errorStack: row.error_stack ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export interface ActivityLogSubscriptionHandlers {
+  readonly onNewActivity: (activity: ActivityDto) => void;
+  readonly onActivityUpdated: (activity: ActivityDto) => void;
+}
+
+/**
+ * Subscribes to live `agent_activities` INSERT (new `RUNNING` row) and UPDATE (a real
+ * `ActivityLogger.complete`/`.fail` terminal write landing) events, scoped to one tenant —
+ * `tenantId=eq.${tenantId}` mirrors `subscribeToLeadChat`'s own `lead_id=eq.${leadId}` filter
+ * shape.
+ */
+export function subscribeToActivityLog(
+  tenantId: string,
+  handlers: ActivityLogSubscriptionHandlers,
+): RealtimeChannel {
+  const supabase = createSupabaseBrowserClient();
+  return supabase
+    .channel(`activity-log-${tenantId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "agent_activities",
+        filter: `tenant_id=eq.${tenantId}`,
+      },
+      (payload) => {
+        handlers.onNewActivity(toActivityDtoFromRealtimeRow(payload.new as RealtimeActivityRow));
+      },
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "agent_activities",
+        filter: `tenant_id=eq.${tenantId}`,
+      },
+      (payload) => {
+        handlers.onActivityUpdated(
+          toActivityDtoFromRealtimeRow(payload.new as RealtimeActivityRow),
         );
       },
     )

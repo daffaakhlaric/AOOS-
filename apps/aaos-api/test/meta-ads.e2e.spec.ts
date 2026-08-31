@@ -76,6 +76,16 @@ describe("meta-ads e2e — GET /api/v1/campaigns, POST /api/v1/verdicts", () => 
   // Same sandbox-DNS-latency rationale as the GET /api/v1/campaigns test above — bumped as a
   // defensive measure in case test execution order/timing means this one hits the (per-app-instance,
   // one-time, then-cached) MetaAdsConnectorRegistry resolution before it's warm.
+  //
+  // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B: `MetaAdsService.executeVerdict` now ALSO calls
+  // `ModeGuardService.resolveMode` (deliberately uncached, per that service's own doc — a real
+  // `TenantRepository` read on every call, not just the first) AND `ActivityLogger.start`/
+  // `.complete` (2 more real `agent_activities` Supabase calls, best-effort/never-throwing but
+  // NOT faster to fail in this sandbox) — 3 more real network round trips on top of the
+  // connector registry's own, each paying the same ~7s sandbox DNS-failure cost this file's own
+  // comment already documents. Bumped further (was 15000) so this test measures real behavior,
+  // not sandbox network latency compounding across every real Supabase-backed call this endpoint
+  // now makes.
   it("POST /api/v1/verdicts PAUSE -> 200 with the connector's ExecutionResult", async () => {
     registerHappyPathMetaApiHandlers();
     const response = await request(app.getHttpServer())
@@ -85,7 +95,7 @@ describe("meta-ads e2e — GET /api/v1/campaigns, POST /api/v1/verdicts", () => 
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ action: "PAUSED", targetId: "120000000000003" });
-  }, 15000);
+  }, 40000);
 
   it("POST /api/v1/verdicts with an invalid body -> 422", async () => {
     const response = await request(app.getHttpServer())
@@ -121,7 +131,10 @@ describe("campaigns e2e — POST /api/v1/campaigns/create (AAOS-W1D-S3)", () => 
 
   // Same sandbox-DNS-latency rationale as meta-ads e2e's GET /api/v1/campaigns test above — this
   // describe block bootstraps its OWN app instance, so it independently pays the one-time,
-  // then-cached MetaAdsConnectorRegistry resolution cost for `dss-motor`.
+  // then-cached MetaAdsConnectorRegistry resolution cost for `dss-motor`, PLUS the same
+  // uncached-per-call `ModeGuardService.resolveMode` + 2 real `ActivityLogger` Supabase round
+  // trips this file's `POST /api/v1/verdicts` test above now documents (AAOS-PROPERTY-DEVLIVE-
+  // ACTIVITYLOG Phase B) — bumped from 15000 for the same reason.
   it("POST /api/v1/campaigns/create -> 200 with { campaignId, adSetId, simulated: false }", async () => {
     registerCreateCampaignMswHandlers({
       newCampaignId: "120000000000099",
@@ -146,7 +159,7 @@ describe("campaigns e2e — POST /api/v1/campaigns/create (AAOS-W1D-S3)", () => 
       adSetId: "120000000000100",
       simulated: false,
     });
-  }, 15000);
+  }, 40000);
 
   it("POST /api/v1/campaigns/create with an invalid body -> 422", async () => {
     const response = await request(app.getHttpServer())

@@ -3,6 +3,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
@@ -32,6 +33,7 @@ export class CampaignsService {
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly modeGuard: ModeGuardService,
+    private readonly activityLogger: ActivityLogger,
   ) {}
 
   /**
@@ -40,6 +42,10 @@ export class CampaignsService {
    * campaign+adset on Meta. DEV mode's `simulateFn` never touches Meta and returns an honest
    * `{ simulated: true }` with no ids — see `CreateCampaignResponseDto`'s doc for why fabricating
    * ids would be worse.
+   *
+   * AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B: the second of the 2 real `ActivityLogger` call
+   * sites — same real `mode`-from-`ModeGuardService`/`status`-from-`result.simulated` discipline
+   * `MetaAdsService.executeVerdict` establishes.
    */
   async createCampaign(
     body: CreateCampaignBodyDto,
@@ -56,25 +62,52 @@ export class CampaignsService {
     }
     const connector = connectorResult.value;
 
-    return this.modeGuard.executeOrSimulate<CreateCampaignResponseDto>(
-      this.config.AAOS_TENANT_ID,
-      async () => {
-        const result = await connector.createCampaign.execute({
-          adAccountId: adAccountIdResult.value,
-          name: body.name,
-          branch: body.branch,
-          funnel: body.funnel,
-          accessToken: connector.accessToken,
-          tenantId: this.config.AAOS_TENANT_ID,
-          correlationId,
-          dailyBudgetIDR: body.dailyBudgetIDR,
-        });
-        if (!result.ok) {
-          throw result.error;
-        }
-        return { ...result.value, simulated: false };
+    const mode = await this.modeGuard.resolveMode(this.config.AAOS_TENANT_ID);
+    const activityId = await this.activityLogger.start({
+      tenantId: this.config.AAOS_TENANT_ID,
+      agent: "SAMANTHA",
+      actionType: "CREATE_CAMPAIGN",
+      mode,
+      loopId: correlationId,
+      input: {
+        adAccountId: body.adAccountId,
+        name: body.name,
+        branch: body.branch,
+        funnel: body.funnel,
+        dailyBudgetIDR: body.dailyBudgetIDR,
       },
-      () => Promise.resolve({ simulated: true }),
-    );
+    });
+
+    try {
+      const result = await this.modeGuard.executeOrSimulate<CreateCampaignResponseDto>(
+        this.config.AAOS_TENANT_ID,
+        async () => {
+          const executed = await connector.createCampaign.execute({
+            adAccountId: adAccountIdResult.value,
+            name: body.name,
+            branch: body.branch,
+            funnel: body.funnel,
+            accessToken: connector.accessToken,
+            tenantId: this.config.AAOS_TENANT_ID,
+            correlationId,
+            dailyBudgetIDR: body.dailyBudgetIDR,
+          });
+          if (!executed.ok) {
+            throw executed.error;
+          }
+          return { ...executed.value, simulated: false };
+        },
+        () => Promise.resolve({ simulated: true }),
+      );
+
+      await this.activityLogger.complete(activityId, {
+        status: result.simulated ? "SIMULATED" : "SUCCESS",
+        ...(result.simulated ? { devPreview: result } : { output: result }),
+      });
+      return result;
+    } catch (error) {
+      await this.activityLogger.fail(activityId, error);
+      throw error;
+    }
   }
 }

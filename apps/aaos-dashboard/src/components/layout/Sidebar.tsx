@@ -54,6 +54,8 @@ const BRANCHES: NavItem = { href: "/branches", label: "Branch Settings", icon: "
 const GO_LIVE: NavItem = { href: "/go-live", label: "Go Live Monitor", icon: "🚀" };
 /** AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Part 2/4 — Meta token + WABA CRUD, added to OPERASIONAL per the coordinator note's Phase 1 scope. */
 const SETTINGS: NavItem = { href: "/settings", label: "Settings", icon: "⚙️" };
+/** AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B — PROPERTY-only real agent activity log + realtime UI, per the design doc's own Phase B point 4 (mirrors `LISTING_MANAGER`'s PROPERTY-only conditional add to OPERASIONAL, not an unconditional item every vertical gets). */
+const ACTIVITY_LOG: NavItem = { href: "/property/activity", label: "Activity Log", icon: "🪵" };
 
 /** CLARA (SALES AI) group — MENU RESTRUCTURE FINAL. `/knowledge`/`/simulator` moved here from OPERASIONAL. */
 const CLARA_ANALYTICS: NavItem = { href: "/clara/analytics", label: "Analytics", icon: "📊" };
@@ -169,7 +171,9 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
     {
       key: "operasional",
       label: "OPERASIONAL",
-      items: [OBJECTIVE, BRANCHES, GO_LIVE, SETTINGS],
+      items: isProperty
+        ? [OBJECTIVE, BRANCHES, GO_LIVE, ACTIVITY_LOG, SETTINGS]
+        : [OBJECTIVE, BRANCHES, GO_LIVE, SETTINGS],
     },
   ];
 }

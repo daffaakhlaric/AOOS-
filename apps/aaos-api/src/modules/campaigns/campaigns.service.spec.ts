@@ -1,7 +1,7 @@
 import { ok } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 import { Branch, Funnel, MetaAdsConnectorFactory } from "@aos/meta-ads-connector";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { toConnectorConfig } from "../../config/to-connector-config.js";
 import { createFakePublisher } from "../../test-support/fake-publisher.js";
@@ -26,7 +26,21 @@ function buildFakeModeGuard(dev = false) {
   };
 }
 
-function buildService(dev = false): CampaignsService {
+/** Minimal `ActivityLogger` test double (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B) — mirrors `meta-ads.service.spec.ts`'s own fake. */
+function buildFakeActivityLogger() {
+  return {
+    start: vi.fn(async () => "activity-1"),
+    complete: vi.fn(async () => undefined),
+    fail: vi.fn(async () => undefined),
+    logToolCall: vi.fn(async () => undefined),
+    logReasoning: vi.fn(async () => undefined),
+  };
+}
+
+function buildService(
+  dev = false,
+  activityLogger: ReturnType<typeof buildFakeActivityLogger> = buildFakeActivityLogger(),
+): CampaignsService {
   const config = buildTestConfig();
   const connectorConfig = toConnectorConfig(config);
   if (!connectorConfig.ok) {
@@ -44,7 +58,12 @@ function buildService(dev = false): CampaignsService {
         adAccountIds: config.META_AD_ACCOUNT_IDS,
       }),
   };
-  return new CampaignsService(config, registry as never, buildFakeModeGuard(dev) as never);
+  return new CampaignsService(
+    config,
+    registry as never,
+    buildFakeModeGuard(dev) as never,
+    activityLogger as never,
+  );
 }
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: "error" }));
@@ -134,5 +153,81 @@ describe("CampaignsService.createCampaign (AAOS-W1D-S3)", () => {
         "corr-4",
       ),
     ).rejects.toBeInstanceOf(MetaApiError);
+  });
+
+  describe("ActivityLogger wiring (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B)", () => {
+    it("starts a RUNNING activity with mode LIVE and completes it SUCCESS for a real creation", async () => {
+      registerCreateCampaignMswHandlers({
+        newCampaignId: "120000000000099",
+        newAdSetId: "120000000000100",
+      });
+      const activityLogger = buildFakeActivityLogger();
+      const service = buildService(false, activityLogger);
+      const dto = await service.createCampaign(
+        {
+          adAccountId: "act_752604553578354",
+          name: "Meta-CTWA-Leads-Mobix-Cinere",
+          branch: Branch.CINERE,
+          funnel: Funnel.CTWA,
+        },
+        "corr-activity-live",
+      );
+
+      expect(activityLogger.start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent: "SAMANTHA",
+          actionType: "CREATE_CAMPAIGN",
+          mode: "LIVE",
+          loopId: "corr-activity-live",
+        }),
+      );
+      expect(activityLogger.complete).toHaveBeenCalledWith(
+        "activity-1",
+        expect.objectContaining({ status: "SUCCESS", output: dto }),
+      );
+      expect(activityLogger.fail).not.toHaveBeenCalled();
+    });
+
+    it("starts a RUNNING activity with mode DEV and completes it SIMULATED for a DEV-mode call", async () => {
+      const activityLogger = buildFakeActivityLogger();
+      const service = buildService(true, activityLogger);
+      const dto = await service.createCampaign(
+        {
+          adAccountId: "act_752604553578354",
+          name: "Meta-CTWA-Leads-Mobix-Cinere",
+          branch: Branch.CINERE,
+          funnel: Funnel.CTWA,
+        },
+        "corr-activity-dev",
+      );
+
+      expect(activityLogger.start).toHaveBeenCalledWith(expect.objectContaining({ mode: "DEV" }));
+      expect(activityLogger.complete).toHaveBeenCalledWith(
+        "activity-1",
+        expect.objectContaining({ status: "SIMULATED", devPreview: dto }),
+      );
+      expect(activityLogger.fail).not.toHaveBeenCalled();
+    });
+
+    it("fails the activity with the real thrown error when Meta rejects the campaign creation", async () => {
+      registerCreateCampaignErrorHandler(400, 100);
+      const activityLogger = buildFakeActivityLogger();
+      const service = buildService(false, activityLogger);
+      const { MetaApiError } = await import("@aos/meta-ads-connector");
+      await expect(
+        service.createCampaign(
+          {
+            adAccountId: "act_752604553578354",
+            name: "Will Fail",
+            branch: Branch.UMUM,
+            funnel: Funnel.CTWA,
+          },
+          "corr-activity-error",
+        ),
+      ).rejects.toBeInstanceOf(MetaApiError);
+
+      expect(activityLogger.fail).toHaveBeenCalledWith("activity-1", expect.any(MetaApiError));
+      expect(activityLogger.complete).not.toHaveBeenCalled();
+    });
   });
 });

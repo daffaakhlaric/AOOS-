@@ -274,6 +274,46 @@ export interface ScoringEventDto {
   readonly createdAt: string;
 }
 
+/** One real tool call an agent action logged (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B) — mirrors `aaos-api`'s `ActivityToolCallDto`. */
+export interface ActivityToolCallDto {
+  readonly tool: string;
+  readonly input?: unknown;
+  readonly output?: unknown;
+  readonly at: string;
+}
+
+/**
+ * One `agent_activities` row — the new Activity Log page's list item + detail-drawer shape
+ * (design doc Phase B, mirrors `aaos-api`'s `ActivityResponseDto`). `status` is `"RUNNING" |
+ * "SUCCESS" | "SIMULATED" | "ERROR"`, `mode` is `"DEV" | "LIVE"` — kept as plain `string` here,
+ * same "server validates, dashboard trusts" convention `MessageDto.direction` already uses.
+ */
+export interface ActivityDto {
+  readonly id: string;
+  readonly loopId?: string;
+  readonly agent: string;
+  readonly actionType: string;
+  readonly mode: string;
+  readonly status: string;
+  readonly input?: unknown;
+  readonly output?: unknown;
+  readonly devPreview?: unknown;
+  readonly reasoning?: string;
+  readonly toolCalls: readonly ActivityToolCallDto[];
+  readonly startedAt: string;
+  readonly completedAt?: string;
+  readonly durationMs?: number;
+  readonly errorMessage?: string;
+  readonly errorStack?: string;
+  readonly createdAt: string;
+}
+
+/** `GET /api/activity-log` (dashboard proxy) — mirrors `aaos-api`'s `ActivityListResponseDto`. */
+export interface ActivityListDto {
+  readonly activities: readonly ActivityDto[];
+  readonly total: number;
+}
+
 /**
  * `GET /api/leads/:leadId/messages` (dashboard proxy) — mirrors `aaos-api`'s
  * `MessagesPageResponseDto` (MENU RESTRUCTURE FINAL `/clara/inbox`). Paginated thread for one
