@@ -8,15 +8,32 @@ import type { AdSetId } from "../domain/value-objects/AdSetId.js";
 import { AdStatus } from "../domain/value-objects/AdStatus.js";
 import type { Branch } from "../domain/value-objects/Branch.js";
 import type { CampaignId } from "../domain/value-objects/CampaignId.js";
+import type { CreativeAsset } from "../domain/value-objects/CreativeAsset.js";
 import type { Funnel } from "../domain/value-objects/Funnel.js";
 import { StableId } from "../domain/value-objects/StableId.js";
 import { Verdict } from "../domain/value-objects/Verdict.js";
-import type { MetaAd } from "../types/MetaApiTypes.js";
+import type { MetaAd, MetaAdCreative } from "../types/MetaApiTypes.js";
 
 import { mapInsightRowToMetrics } from "./MetricsMapper.js";
 
 const KNOWN_STATUSES: ReadonlySet<string> = new Set(Object.values(AdStatus));
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Maps the raw `creative{image_hash,video_id}` expansion into the domain's unified
+ * `CreativeAsset`. Real Meta ads never populate both fields (image XOR video creative), but if a
+ * malformed/unexpected response ever did, `image_hash` wins deterministically — arbitrary but
+ * documented, never silently dropping one field without a rule.
+ */
+function mapCreativeAsset(raw: MetaAdCreative | undefined): CreativeAsset | undefined {
+  if (raw?.image_hash !== undefined) {
+    return { kind: "IMAGE", imageHash: raw.image_hash };
+  }
+  if (raw?.video_id !== undefined) {
+    return { kind: "VIDEO", videoId: raw.video_id };
+  }
+  return undefined;
+}
 
 /**
  * Maps a single (already Zod-validated) raw Meta ad into the AAOS `Ad` entity.
@@ -84,5 +101,6 @@ export function mapAd(
     verdict: Verdict.REVIEW,
     createdAt,
     daysSinceCreation,
+    creativeAsset: mapCreativeAsset(raw.creative),
   });
 }

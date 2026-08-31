@@ -80,11 +80,26 @@ export const MetaAdSetListResponseSchema = z.object({
 });
 export type MetaAdSetListResponse = z.infer<typeof MetaAdSetListResponseSchema>;
 
+/**
+ * `creative{image_hash,video_id}` nested-field-expansion response (AAOS Analytics Platform Phase
+ * 2, "Asset-First Analytics"). Both fields are `.optional()`: Meta only ever populates one of the
+ * two (an ad's creative is an image XOR a video — see `domain/value-objects/CreativeAsset.ts`),
+ * and either can also be entirely absent (creative shapes that use neither field, or no creative
+ * attached). The `creative` object itself can also come back `{}` for such an ad rather than
+ * being omitted, hence both inner fields optional rather than the whole object being enough.
+ */
+export const MetaAdCreativeSchema = z.object({
+  image_hash: z.string().optional(),
+  video_id: z.string().optional(),
+});
+export type MetaAdCreative = z.infer<typeof MetaAdCreativeSchema>;
+
 export const MetaAdSchema = z.object({
   id: z.string(),
   name: z.string(),
   status: z.string(),
   created_time: z.string(),
+  creative: MetaAdCreativeSchema.optional(),
   insights: MetaInsightsEdgeSchema.optional(),
 });
 export type MetaAd = z.infer<typeof MetaAdSchema>;

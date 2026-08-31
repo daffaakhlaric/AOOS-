@@ -47,6 +47,16 @@ describe("MetaApiRequestBuilder", () => {
     );
   });
 
+  it("requests the ad's creative asset ids via Meta's nested-field-expansion syntax (AAOS Analytics Platform Phase 2)", () => {
+    const url = new URL(MetaApiRequestBuilder.adsUrl("120000002", "TOKEN", "last_14d"));
+    const fields = url.searchParams.get("fields") ?? "";
+    expect(fields).toContain("creative{image_hash,video_id}");
+    // exact field ordering matters for readability/diffability of the built URL, not correctness —
+    // Meta's `fields` param is comma-separated and order-insensitive — but pin it anyway so a
+    // future edit that silently drops the creative expansion fails this test loudly.
+    expect(fields).toContain("id,name,status,created_time,creative{image_hash,video_id}");
+  });
+
   it("builds the ad-account name-lookup URL requesting only the `name` field", () => {
     const url = new URL(MetaApiRequestBuilder.adAccountUrl("act_999", "TOKEN"));
     expect(url.origin + url.pathname).toBe(`${BASE}/act_999`);

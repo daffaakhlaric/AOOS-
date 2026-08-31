@@ -4,6 +4,7 @@ import { CorrelationId } from "../../common/correlation.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
+import type { AssetRollupResponseDto } from "./dto/asset-rollup.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import {
   ExecuteVerdictBodySchema,
@@ -38,6 +39,20 @@ export class MetaAdsController {
   @Get("meta-ads/accounts")
   async getAdAccounts(): Promise<readonly AdAccountOptionDto[]> {
     return this.metaAdsService.getAdAccounts();
+  }
+
+  /**
+   * `GET /api/v1/analytics/assets` — AAOS Analytics Platform Phase 2, "Asset-First Analytics".
+   * Same query contract as `GET /api/v1/campaigns` (`adAccountId?`, `datePreset?`) since it pulls
+   * the identical underlying `AdAccount` tree, just rolled up by creative asset id instead of
+   * returned as the raw campaign hierarchy.
+   */
+  @Get("analytics/assets")
+  async getAssetRollup(
+    @Query(new ZodValidationPipe(PullCampaignsQuerySchema)) query: PullCampaignsQueryDto,
+    @CorrelationId() correlationId: string,
+  ): Promise<AssetRollupResponseDto> {
+    return this.metaAdsService.getAssetRollup(query, correlationId);
   }
 
   @Post("verdicts")

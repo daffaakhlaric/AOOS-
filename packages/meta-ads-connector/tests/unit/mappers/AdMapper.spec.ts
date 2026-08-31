@@ -97,6 +97,88 @@ describe("mapAd", () => {
     expect(ad.stableId.toString()).toBe("#C003");
   });
 
+  describe("creativeAsset mapping", () => {
+    it("maps an image creative (image_hash present) to an IMAGE CreativeAsset", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({ creative: { image_hash: "abc123hash" } }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.creativeAsset).toEqual({ kind: "IMAGE", imageHash: "abc123hash" });
+    });
+
+    it("maps a video creative (video_id present) to a VIDEO CreativeAsset", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({ creative: { video_id: "vid_999" } }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.creativeAsset).toEqual({ kind: "VIDEO", videoId: "vid_999" });
+    });
+
+    it("maps to undefined when Meta returns no creative object at all", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({ creative: undefined }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.creativeAsset).toBeUndefined();
+    });
+
+    it("maps to undefined when creative comes back as an empty object", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({ creative: {} }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.creativeAsset).toBeUndefined();
+    });
+
+    it("prefers image_hash deterministically when both fields are unexpectedly present", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({ creative: { image_hash: "img_1", video_id: "vid_1" } }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.creativeAsset).toEqual({ kind: "IMAGE", imageHash: "img_1" });
+    });
+  });
+
   it("propagates a StableId assignment failure for an invalid placeholder sequence", () => {
     expect(
       unwrapErr(mapAd(makeAd(), campaignId, adSetId, adAccountId, Funnel.CTWA, Branch.UMUM, 0, now))

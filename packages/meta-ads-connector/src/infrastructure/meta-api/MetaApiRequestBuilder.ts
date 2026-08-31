@@ -8,7 +8,19 @@ const CAMPAIGN_FIELDS = ["id", "name", "objective", "status", "created_time"].jo
 
 const ADSET_FIELDS = ["id", "name", "status", "daily_budget"].join(",");
 
-const AD_FIELDS = ["id", "name", "status", "created_time"].join(",");
+/**
+ * `creative{image_hash,video_id}` — Meta's real nested-field-expansion syntax for pulling a
+ * connected/child object's own fields inline on the parent read, same `field{subfield,...}`
+ * grammar this file's own `insightsExpansion` already relies on for `insights.date_preset(...){...}`
+ * (Meta Graph API "Field Expansion" convention). Verified against Meta's Marketing API "Ad"
+ * reference: `creative` is a real field on the `Ad` node, and `image_hash`/`video_id` are real
+ * fields on the `AdCreative` node it expands to (AAOS Analytics Platform Phase 2, "Asset-First
+ * Analytics" — these two fields were previously only ever WRITE-side, in `MetaApiClient`'s
+ * `createAd` creative-spec payload; this is the first READ-side pull of them).
+ */
+const AD_FIELDS = ["id", "name", "status", "created_time", "creative{image_hash,video_id}"].join(
+  ",",
+);
 
 /**
  * `messaging_conversation_started` was removed from this list — it is not a valid top-level

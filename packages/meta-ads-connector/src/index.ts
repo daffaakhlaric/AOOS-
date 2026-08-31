@@ -95,6 +95,7 @@ export { CampaignObjective } from "./domain/value-objects/CampaignObjective.js";
 export { AdDestinationType } from "./domain/value-objects/AdDestinationType.js";
 export { LeadType } from "./domain/value-objects/LeadType.js";
 export { PublisherPlatform } from "./domain/value-objects/PublisherPlatform.js";
+export type { CreativeAsset } from "./domain/value-objects/CreativeAsset.js";
 
 // Domain — Events
 export type { LeadReceived } from "./domain/events/LeadReceived.js";
@@ -215,6 +216,15 @@ export { extractBranch } from "./utils/BranchExtractor.js";
 export { calculateActionBreakdown } from "./utils/D3Calculator.js";
 export { centsToRupiah, rupiahToCents, formatIDR } from "./utils/CurrencyUtils.js";
 export { hashPhoneForAudience, normalizePhoneForAudience } from "./utils/PhoneHasher.js";
+export { classifyAudience } from "./utils/AudienceClassifier.js";
+export type {
+  AudienceLabel,
+  AudienceTargetingSpec,
+  AudienceTargetingCustomAudience,
+  AudienceTargetingFlexibleSpecEntry,
+  AudienceTargetingInterest,
+  MetaCustomAudienceSubtype,
+} from "./utils/AudienceClassifier.js";
 
 // Mappers
 export { mapCampaign } from "./mappers/CampaignMapper.js";

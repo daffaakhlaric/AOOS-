@@ -92,6 +92,38 @@ describe("MetaAdSchema / MetaAdListResponseSchema", () => {
   it("accepts an empty ad list (adset with 0 ads edge case)", () => {
     expect(MetaAdListResponseSchema.safeParse({ data: [] }).success).toBe(true);
   });
+
+  it("accepts an ad with an image creative (creative.image_hash)", () => {
+    const result = MetaAdSchema.safeParse({
+      id: "1",
+      name: "n",
+      status: "ACTIVE",
+      created_time: "2026-01-01",
+      creative: { image_hash: "abc123" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an ad with a video creative (creative.video_id)", () => {
+    const result = MetaAdSchema.safeParse({
+      id: "1",
+      name: "n",
+      status: "ACTIVE",
+      created_time: "2026-01-01",
+      creative: { video_id: "vid_1" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an ad with no creative field at all (backward compatible)", () => {
+    const result = MetaAdSchema.safeParse({
+      id: "1",
+      name: "n",
+      status: "ACTIVE",
+      created_time: "2026-01-01",
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("MetaUpdateResponseSchema", () => {

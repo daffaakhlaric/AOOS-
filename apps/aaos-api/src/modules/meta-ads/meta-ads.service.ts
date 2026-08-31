@@ -1,5 +1,5 @@
 import { ValidationError } from "@aos/errors";
-import { AdAccountId, Verdict } from "@aos/meta-ads-connector";
+import { AdAccountId, Verdict, type AdAccount } from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
@@ -7,7 +7,9 @@ import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
+import { getAssetRollup } from "./asset-rollup.js";
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
+import type { AssetRollupResponseDto } from "./dto/asset-rollup.dto.js";
 import { toAdAccountResponseDto, type AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import type {
   ExecuteVerdictBodyDto,
@@ -47,6 +49,32 @@ export class MetaAdsService {
     query: PullCampaignsQueryDto,
     correlationId: string,
   ): Promise<AdAccountResponseDto> {
+    const adAccount = await this.pullAdAccount(query, correlationId);
+    return toAdAccountResponseDto(adAccount);
+  }
+
+  /**
+   * `GET /api/v1/analytics/assets` — AAOS Analytics Platform Phase 2, "Asset-First Analytics".
+   * Natural home is this module (not a new `analytics` module) — it consumes the exact same
+   * `AdAccount` pull `pullCampaigns` above already performs, just re-shaped by `getAssetRollup`
+   * (pure, testable on its own) instead of `toAdAccountResponseDto`. Deliberately re-pulls fresh
+   * from Meta (same as `pullCampaigns`) rather than reading `connector.registry`'s in-memory
+   * last-synced snapshot — this endpoint has no independent request contract yet for "give me the
+   * last sync, don't re-pull", and a stale silent read would be a worse default than the one real
+   * network call `pullCampaigns` itself already pays.
+   */
+  async getAssetRollup(
+    query: PullCampaignsQueryDto,
+    correlationId: string,
+  ): Promise<AssetRollupResponseDto> {
+    const adAccount = await this.pullAdAccount(query, correlationId);
+    return getAssetRollup(adAccount, new Date());
+  }
+
+  private async pullAdAccount(
+    query: PullCampaignsQueryDto,
+    correlationId: string,
+  ): Promise<AdAccount> {
     const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
     if (!connectorResult.ok) {
       throw connectorResult.error;
@@ -80,7 +108,7 @@ export class MetaAdsService {
     // later Meta lead webhook can resolve this tenant honestly.
     await indexPulledAdAccount(this.adTenantIndex, this.config.AAOS_TENANT_ID, result.value);
 
-    return toAdAccountResponseDto(result.value);
+    return result.value;
   }
 
   /**

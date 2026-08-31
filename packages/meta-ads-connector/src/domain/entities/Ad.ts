@@ -8,6 +8,7 @@ import type { AdSetId } from "../value-objects/AdSetId.js";
 import { AdStatus } from "../value-objects/AdStatus.js";
 import type { Branch } from "../value-objects/Branch.js";
 import type { CampaignId } from "../value-objects/CampaignId.js";
+import type { CreativeAsset } from "../value-objects/CreativeAsset.js";
 import type { Funnel } from "../value-objects/Funnel.js";
 import type { StableId } from "../value-objects/StableId.js";
 import { Verdict } from "../value-objects/Verdict.js";
@@ -27,6 +28,13 @@ export interface AdProps {
   readonly verdict: Verdict;
   readonly createdAt: Date;
   readonly daysSinceCreation: number;
+  /**
+   * Optional key (not just an optional-valued required key) — every existing `AdProps` object
+   * literal across this package (builders, mappers, tests) predates this field and must keep
+   * compiling unchanged. `undefined`/omitted means Meta reported no creative asset id for this ad
+   * — see `CreativeAsset`'s own docstring for when that happens.
+   */
+  readonly creativeAsset?: CreativeAsset;
 }
 
 /** The `#C` entity — a single Meta ad, carrying its computed metrics and VerdictEngine verdict. */
@@ -118,6 +126,10 @@ export class Ad {
 
   get daysSinceCreation(): number {
     return this.props.daysSinceCreation;
+  }
+
+  get creativeAsset(): CreativeAsset | undefined {
+    return this.props.creativeAsset;
   }
 
   /** Returns a shallow-cloned Ad with a new verdict — Ads are immutable, so this never mutates `this`. */

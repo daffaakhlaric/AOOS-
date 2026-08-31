@@ -9,6 +9,7 @@ import { AdSetId } from "../domain/value-objects/AdSetId.js";
 import { AdStatus } from "../domain/value-objects/AdStatus.js";
 import { Branch } from "../domain/value-objects/Branch.js";
 import { CampaignId } from "../domain/value-objects/CampaignId.js";
+import type { CreativeAsset } from "../domain/value-objects/CreativeAsset.js";
 import { Funnel } from "../domain/value-objects/Funnel.js";
 import { Spend } from "../domain/value-objects/Spend.js";
 import { StableId } from "../domain/value-objects/StableId.js";
@@ -112,6 +113,11 @@ export class AdBuilder {
 
   withDaysSinceCreation(daysSinceCreation: number): this {
     this.props = { ...this.props, daysSinceCreation };
+    return this;
+  }
+
+  withCreativeAsset(creativeAsset: CreativeAsset | undefined): this {
+    this.props = { ...this.props, creativeAsset };
     return this;
   }
 
