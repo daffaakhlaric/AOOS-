@@ -1,9 +1,10 @@
-import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
 
 import { CorrelationId } from "../../common/correlation.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
+import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
 import type { AssetRollupResponseDto } from "./dto/asset-rollup.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import {
@@ -68,6 +69,24 @@ export class MetaAdsController {
     @CorrelationId() correlationId: string,
   ): Promise<HeatmapResponseDto> {
     return this.metaAdsService.getHeatmap(query, correlationId);
+  }
+
+  /**
+   * `GET /api/v1/analytics/assets/:assetId` — AAOS Analytics Platform Phase 4, "Asset detail /
+   * Creative Drill-Down". Same `adAccountId?`/`datePreset?` query contract as
+   * `GET /api/v1/analytics/assets`/`GET /api/v1/analytics/heatmap` — see
+   * `MetaAdsService.getAssetDetail`'s own docstring for why this is a dedicated route rather than
+   * a `?assetId=` filter on the list endpoint. A real `NotFoundError` (→ HTTP 404 via
+   * `AaosExceptionFilter`) when no ad in the current pull carries this asset id — never a
+   * fabricated empty detail page.
+   */
+  @Get("analytics/assets/:assetId")
+  async getAssetDetail(
+    @Param("assetId") assetId: string,
+    @Query(new ZodValidationPipe(PullCampaignsQuerySchema)) query: PullCampaignsQueryDto,
+    @CorrelationId() correlationId: string,
+  ): Promise<AssetDetailResponseDto> {
+    return this.metaAdsService.getAssetDetail(assetId, query, correlationId);
   }
 
   @Post("verdicts")

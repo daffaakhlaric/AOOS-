@@ -1,5 +1,5 @@
 import { ok } from "@aos/common";
-import { ValidationError } from "@aos/errors";
+import { NotFoundError, ValidationError } from "@aos/errors";
 import { MetaAdsConnectorFactory, Verdict, type MetaAdsConnector } from "@aos/meta-ads-connector";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -60,9 +60,21 @@ function buildFakeActivityLogger() {
   };
 }
 
+/** Minimal `LlmService` test double (AAOS Analytics Platform Phase 4) — `assetInsight` always resolves a fixed, typed "unavailable" DTO so this file's existing `pullCampaigns`/`getAdAccounts`/`executeVerdict` tests (which never touch `getAssetDetail`) stay unaffected by real OpenAI wiring. */
+function buildFakeLlmService() {
+  return {
+    assetInsight: vi.fn(async () => ({
+      available: false as const,
+      reason: "NO_API_KEY" as const,
+      message: "test",
+    })),
+  };
+}
+
 function buildService(
   dev = false,
   activityLogger: ReturnType<typeof buildFakeActivityLogger> = buildFakeActivityLogger(),
+  llmService: ReturnType<typeof buildFakeLlmService> = buildFakeLlmService(),
 ): MetaAdsService {
   const config = buildTestConfig();
   const connectorConfig = toConnectorConfig(config);
@@ -79,6 +91,7 @@ function buildService(
     buildFakeAdTenantIndex() as never,
     buildFakeModeGuard(dev) as never,
     activityLogger as never,
+    llmService as never,
   );
 }
 
@@ -142,10 +155,27 @@ describe("MetaAdsService", () => {
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
         buildFakeActivityLogger() as never,
+        buildFakeLlmService() as never,
       );
       await expect(
         service.pullCampaigns({ datePreset: "last_30d" }, "corr-5"),
       ).rejects.toBeInstanceOf(ValidationError);
+    });
+  });
+
+  describe("getAssetDetail", () => {
+    it("throws a real NotFoundError when no ad in the pull carries the given asset id, without calling the LLM", async () => {
+      registerHappyPathMetaApiHandlers();
+      const llmService = buildFakeLlmService();
+      const service = buildService(false, buildFakeActivityLogger(), llmService);
+      await expect(
+        service.getAssetDetail(
+          "asset-that-does-not-exist",
+          { adAccountId: "act_752604553578354", datePreset: "last_30d" },
+          "corr-asset-1",
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(llmService.assetInsight).not.toHaveBeenCalled();
     });
   });
 
@@ -172,6 +202,7 @@ describe("MetaAdsService", () => {
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
         buildFakeActivityLogger() as never,
+        buildFakeLlmService() as never,
       );
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
@@ -199,6 +230,7 @@ describe("MetaAdsService", () => {
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
         buildFakeActivityLogger() as never,
+        buildFakeLlmService() as never,
       );
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([

@@ -17,6 +17,7 @@ import {
 
 import { ResponseCache } from "./cache/ResponseCache.js";
 import type { AnalyzeRequestDto } from "./dto/analyze.dto.js";
+import type { AssetInsightRequestDto } from "./dto/asset-insight.dto.js";
 import type { CampaignStrategyRequestDto } from "./dto/campaign-strategy.dto.js";
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
 import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
@@ -271,6 +272,80 @@ describe("LlmService", () => {
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
       const result = await service.creativeBrief(validCreativeBriefBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+  });
+
+  describe("assetInsight", () => {
+    const validAssetInsightBody: AssetInsightRequestDto = {
+      assetKind: "IMAGE",
+      assetId: "hash-A",
+      adCount: 2,
+      spend: 300_000,
+      totalLead: 3,
+      cpl: 100_000,
+      maxFrequency: 2.1,
+      audienceBreakdown: [
+        { audienceLabel: "BROAD", adCount: 1, spend: 100_000, totalLead: 2, cpl: 50_000 },
+        { audienceLabel: "INTEREST", adCount: 1, spend: 200_000, totalLead: 1, cpl: 200_000 },
+      ],
+      benchmarkCplIDR: 80_000,
+    };
+    const validAssetInsightLlmJson = JSON.stringify({
+      summary: "Audiens BROAD paling efisien untuk aset ini dengan CPL terendah.",
+    });
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.assetInsight(validAssetInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns a validated available:true payload on a well-formed OpenAI response, and caches it", async () => {
+      registerOpenAiChatHandler(validAssetInsightLlmJson);
+      const cache = new ResponseCache<unknown>();
+      const service = buildService({ cache });
+      const first = await service.assetInsight(validAssetInsightBody);
+      expect(first).toEqual({ available: true, ...JSON.parse(validAssetInsightLlmJson) });
+
+      mswServer.resetHandlers();
+      const second = await service.assetInsight(validAssetInsightBody);
+      expect(second).toEqual(first);
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.assetInsight(validAssetInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.assetInsight(validAssetInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.assetInsight(validAssetInsightBody);
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",

@@ -3,6 +3,7 @@ import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
+import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import type { ExecuteVerdictResponseDto } from "./dto/execute-verdict.dto.js";
 import { ApiKeyGuard } from "./guards/api-key.guard.js";
@@ -24,6 +25,7 @@ function buildFakeService(): MetaAdsService {
     getAdAccounts: vi.fn(
       async () => [{ id: "act_1", name: "DSS Motor" }] as readonly AdAccountOptionDto[],
     ),
+    getAssetDetail: vi.fn(async () => ({ assetId: "hash-A" }) as unknown as AssetDetailResponseDto),
   } as unknown as MetaAdsService;
 }
 
@@ -62,6 +64,22 @@ describe("MetaAdsController", () => {
     const result = await controller.getAdAccounts();
     expect(service.getAdAccounts).toHaveBeenCalledWith();
     expect(result).toEqual([{ id: "act_1", name: "DSS Motor" }]);
+  });
+
+  it("GET /api/v1/analytics/assets/:assetId delegates to MetaAdsService.getAssetDetail with the assetId + query + correlation id", async () => {
+    const service = buildFakeService();
+    const controller = new MetaAdsController(service);
+    const result = await controller.getAssetDetail(
+      "hash-A",
+      { adAccountId: "act_1", datePreset: "last_30d" },
+      "corr-3",
+    );
+    expect(service.getAssetDetail).toHaveBeenCalledWith(
+      "hash-A",
+      { adAccountId: "act_1", datePreset: "last_30d" },
+      "corr-3",
+    );
+    expect(result).toEqual({ assetId: "hash-A" });
   });
 
   it("guards the whole controller with ApiKeyGuard", () => {

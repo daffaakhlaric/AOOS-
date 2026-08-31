@@ -16,6 +16,11 @@ import {
   type AnalyzeResponseDto,
 } from "./dto/analyze.dto.js";
 import {
+  AssetInsightLlmPayloadSchema,
+  type AssetInsightRequestDto,
+  type AssetInsightResponseDto,
+} from "./dto/asset-insight.dto.js";
+import {
   CampaignStrategyLlmPayloadSchema,
   type CampaignStrategyRequestDto,
   type CampaignStrategyResponseDto,
@@ -194,6 +199,25 @@ Format response JSON:
   "ageMin": 27,
   "ageMax": 55,
   "reasoning": "alasan singkat dalam Bahasa Indonesia"
+}`;
+
+/**
+ * AAOS Analytics Platform Phase 4, "Creative Drill-Down" — the one real LLM-generated insight
+ * this phase adds (contrast Phase 3's deliberately deterministic `generateHeatmapInsight`, which
+ * stays a pure template per that phase's own explicit instruction). Same static persona +
+ * JSON-user-message shape every other real prompt in this file uses — the per-asset variable data
+ * (`AssetInsightRequestDto`, built server-side by `MetaAdsService.getAssetDetail` from its own
+ * already-computed real spend/CPL/audience-breakdown numbers) is sent as the user message.
+ */
+const ASSET_INSIGHT_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk dealer mobil bekas atau platform properti di Indonesia.
+
+Kamu diberi data performa SATU aset kreatif (gambar/video) yang dipakai di beberapa iklan, dipecah per label audiens (BROAD/INTEREST/LOOKALIKE_1/RETARGETING/CUSTOM_CRM) — semua angka nyata dari Meta Ads.
+
+Tugasmu: tulis SATU paragraf insight singkat dalam Bahasa Indonesia (2-3 kalimat) yang menyebutkan audiens mana yang paling efisien untuk aset ini (CPL terendah dengan lead nyata) dan apakah performanya di atas/di bawah rata-rata CPL portofolio, jika data itu tersedia. Jangan mengarang angka yang tidak ada di data.
+
+Format response JSON:
+{
+  "summary": "satu paragraf insight dalam Bahasa Indonesia"
 }`;
 
 /** Not a literal spec quote (the spec's `/llm/chat` section has no system-prompt block of its own) — derived from the same "Kamu adalah Samantha..." persona used by the other two prompts, for general free-text conversation. */
@@ -507,6 +531,48 @@ export class LlmService {
 
     const response: ResolveLocationResponseDto = { available: true, ...validated.data };
     this.cache.set("resolve-location", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS Analytics Platform Phase 4, "Creative Drill-Down" — the asset detail page's real
+   * Samantha insight. Called IN-PROCESS by `MetaAdsService.getAssetDetail`, the SAME
+   * `LlmModule`-imported-not-reprovided pattern `SimulationService` already establishes for
+   * `creativeBrief`/`analyze` (coordinator note precedent: "call the real thing, never
+   * reimplement it"). Same cache/gate/call/validate/cache shape as every other method on this
+   * service.
+   */
+  async assetInsight(body: AssetInsightRequestDto): Promise<AssetInsightResponseDto> {
+    const cached = this.cache.get("asset-insight", body) as AssetInsightResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: ASSET_INSIGHT_SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : AssetInsightLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: AssetInsightResponseDto = { available: true, ...validated.data };
+    this.cache.set("asset-insight", body, response);
     return response;
   }
 

@@ -124,6 +124,61 @@ export interface HeatmapResponseDto {
   readonly insightText: string;
 }
 
+/**
+ * `GET /api/v1/analytics/assets/:assetId` proxy response shapes (AAOS Analytics Platform Phase 4,
+ * "Asset detail / Creative Drill-Down" — `apps/aaos-api/src/modules/meta-ads/dto/asset-detail.dto.ts`).
+ * Named `AssetCopyVariantDto`/`AssetAudienceBreakdownDto` (not `CopyVariantDto`) to avoid colliding
+ * with this file's own pre-existing, unrelated `CopyVariantDto` (a `creative_packages` review
+ * concept, not a Meta-ads-performance one).
+ */
+export interface AssetCopyVariantDto {
+  readonly adId: string;
+  readonly stableId: string;
+  readonly name: string;
+  readonly branch: string;
+  readonly audienceLabel: AudienceLabelDto | undefined;
+  readonly spend: number;
+  readonly impressions: number;
+  readonly clicks: number;
+  readonly totalLead: number;
+  readonly frequency: number;
+  readonly cpl: number | null;
+}
+
+export interface AssetAudienceBreakdownDto {
+  readonly audienceLabel: AudienceLabelDto;
+  readonly adCount: number;
+  readonly spend: number;
+  readonly impressions: number;
+  readonly clicks: number;
+  readonly totalLead: number;
+  readonly maxFrequency: number;
+  readonly cpl: number | null;
+}
+
+/** Mirrors `aaos-api`'s `LlmUnavailableResponseDto` union shape — same "available: false" degrade contract every other real LLM-backed dashboard call (`LlmCreativeBriefResponseDto`, etc.) already uses. */
+export type AssetInsightDto =
+  | { readonly available: true; readonly summary: string }
+  | { readonly available: false; readonly reason: string; readonly message: string };
+
+export interface AssetDetailResponseDto {
+  readonly adAccountId: string;
+  readonly generatedAt: string;
+  readonly assetKind: "IMAGE" | "VIDEO";
+  readonly assetId: string;
+  readonly adCount: number;
+  readonly spend: number;
+  readonly impressions: number;
+  readonly clicks: number;
+  readonly totalLead: number;
+  readonly maxFrequency: number;
+  readonly rphLead: number | null;
+  readonly copyVariants: readonly AssetCopyVariantDto[];
+  readonly audienceBreakdown: readonly AssetAudienceBreakdownDto[];
+  readonly topAudienceLabel: AudienceLabelDto | undefined;
+  readonly insight: AssetInsightDto;
+}
+
 export interface ObjectiveDto {
   readonly id: string;
   readonly tenantId: string;

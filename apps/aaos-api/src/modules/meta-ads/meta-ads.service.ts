@@ -1,14 +1,17 @@
-import { ValidationError } from "@aos/errors";
+import { NotFoundError, ValidationError } from "@aos/errors";
 import { AdAccountId, Verdict, type AdAccount } from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { LlmService } from "../llm/llm.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
+import { getAssetDetail } from "./asset-detail.js";
 import { getAssetRollup } from "./asset-rollup.js";
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
+import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
 import type { AssetRollupResponseDto } from "./dto/asset-rollup.dto.js";
 import { toAdAccountResponseDto, type AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import type {
@@ -45,6 +48,7 @@ export class MetaAdsService {
     private readonly adTenantIndex: AdTenantIndexRepository,
     private readonly modeGuard: ModeGuardService,
     private readonly activityLogger: ActivityLogger,
+    private readonly llmService: LlmService,
   ) {}
 
   async pullCampaigns(
@@ -85,6 +89,66 @@ export class MetaAdsService {
   ): Promise<HeatmapResponseDto> {
     const adAccount = await this.pullAdAccount(query, correlationId);
     return getAudienceCreativeHeatmap(adAccount, new Date());
+  }
+
+  /**
+   * `GET /api/v1/analytics/assets/:assetId` — AAOS Analytics Platform Phase 4, "Asset detail /
+   * Creative Drill-Down". A DEDICATED single-asset endpoint (not `GET /api/v1/analytics/assets
+   * ?assetId=`) — a real, deliberate shape decision: the list endpoint's `AssetRollupResponseDto`
+   * is an ARRAY of rollup rows, one per asset; this endpoint's `AssetDetailResponseDto` is a
+   * SINGLE object with two nested per-asset breakdown tables (`copyVariants`/`audienceBreakdown`)
+   * plus a real LLM insight the list endpoint has no equivalent field for — different response
+   * shape, not just a narrower filter of the same one, so a distinct route is the honest fit (same
+   * "GET /api/v1/analytics/heatmap" vs "assets" precedent: a shared query contract,
+   * `adAccountId?`/`datePreset?`, but each its own route because each returns a genuinely
+   * different shape).
+   *
+   * Same real re-pull-fresh-from-Meta approach `getAssetRollup`/`getHeatmap` already use. The real
+   * LLM insight call (`LlmService.assetInsight`, in-process, same pattern
+   * `SimulationService`/`LocationResolverService` already establish for calling `LlmService`
+   * directly rather than a self-HTTP round trip) runs AFTER the pure `getAssetDetail` rollup so its
+   * prompt context can be built from that rollup's own already-computed real numbers.
+   */
+  async getAssetDetail(
+    assetId: string,
+    query: PullCampaignsQueryDto,
+    correlationId: string,
+  ): Promise<AssetDetailResponseDto> {
+    const adAccount = await this.pullAdAccount(query, correlationId);
+    const now = new Date();
+
+    // First pass with a synchronous "unavailable" placeholder insight just to confirm the asset is
+    // real (never spend an LLM call/rate-limit budget on an assetId that doesn't exist in this
+    // pull) — mirrors `checkGate`'s own "no API key" shape so the type lines up without a second,
+    // parallel unavailable-DTO builder.
+    const probe = getAssetDetail(adAccount, assetId, now, {
+      available: false,
+      reason: "PROVIDER_ERROR",
+      message: "",
+    });
+    if (probe === undefined) {
+      throw new NotFoundError(`No real ad in the current pull carries asset id "${assetId}"`);
+    }
+
+    const insight = await this.llmService.assetInsight({
+      assetKind: probe.assetKind,
+      assetId: probe.assetId,
+      adCount: probe.adCount,
+      spend: probe.spend,
+      totalLead: probe.totalLead,
+      cpl: probe.rphLead,
+      maxFrequency: probe.maxFrequency,
+      audienceBreakdown: probe.audienceBreakdown.map((row) => ({
+        audienceLabel: row.audienceLabel,
+        adCount: row.adCount,
+        spend: row.spend,
+        totalLead: row.totalLead,
+        cpl: row.cpl,
+      })),
+      benchmarkCplIDR: null,
+    });
+
+    return { ...probe, insight };
   }
 
   private async pullAdAccount(
