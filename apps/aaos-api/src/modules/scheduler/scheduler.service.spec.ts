@@ -1,5 +1,6 @@
 import "reflect-metadata";
 
+import { NotFoundError } from "@aos/errors";
 import type { LeadStore } from "@aos/lead-store";
 import {
   AdBuilder,
@@ -20,6 +21,7 @@ import type { LlmService } from "../llm/llm.service.js";
 import type { LookalikeService } from "../lookalike/lookalike.service.js";
 import type { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
+import type { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import type { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
@@ -98,6 +100,16 @@ function buildFakeAdTenantIndex(): AdTenantIndexRepository {
     upsertMany: vi.fn(async () => undefined),
     findTenantByAdMetaId: vi.fn(async () => undefined),
   } as unknown as AdTenantIndexRepository;
+}
+
+function buildFakeTenantRepository(
+  rows: readonly { readonly tenant_id: string; readonly status: string }[] = [
+    { tenant_id: "dss-motor", status: "ACTIVE" },
+  ],
+): TenantRepository {
+  return {
+    list: vi.fn(async () => rows),
+  } as unknown as TenantRepository;
 }
 
 function buildFakeScraper(ok = true): MobixScraperService {
@@ -247,6 +259,7 @@ function buildService(
     lookalikeService?: LookalikeService;
     intelligenceService?: IntelligenceService;
     adTenantIndex?: AdTenantIndexRepository;
+    tenants?: TenantRepository;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -276,6 +289,7 @@ function buildService(
     options.lookalikeService ?? buildFakeLookalikeService(),
     options.intelligenceService ?? buildFakeIntelligenceService(),
     options.adTenantIndex ?? buildFakeAdTenantIndex(),
+    options.tenants ?? buildFakeTenantRepository(),
   );
 }
 
@@ -696,41 +710,109 @@ describe("SchedulerService.checkAndRunDueEvents", () => {
     await service.checkAndRunDueEvents();
     expect(repository.markRunning).toHaveBeenCalledWith("due-1", expect.any(String));
   });
+
+  it("loops over every real, non-SUSPENDED tenant and never cross-mixes their own due events (cross-tenant isolation)", async () => {
+    const tenants = buildFakeTenantRepository([
+      { tenant_id: "dss-motor", status: "ACTIVE" },
+      { tenant_id: "tenant-b", status: "TRIAL" },
+    ]);
+    const listDuePending = vi.fn(async (tenantId: string) => [
+      buildEvent({ id: `evt-${tenantId}`, tenantId }),
+    ]);
+    const repository = buildFakeRepository({
+      listDuePending,
+    } as Partial<CalendarEventRepository>);
+    const service = buildService({ repository, tenants });
+    await service.checkAndRunDueEvents();
+
+    // Each tenant's OWN row is fetched, via its own real tenant id — never one static default.
+    expect(listDuePending).toHaveBeenCalledWith(
+      "dss-motor",
+      expect.any(String),
+      expect.any(String),
+    );
+    expect(listDuePending).toHaveBeenCalledWith("tenant-b", expect.any(String), expect.any(String));
+    // Each dispatched event carries its OWN tenantId, never the other tenant's.
+    expect(repository.markRunning).toHaveBeenCalledWith("evt-dss-motor", expect.any(String));
+    expect(repository.markRunning).toHaveBeenCalledWith("evt-tenant-b", expect.any(String));
+  });
+
+  it("skips a SUSPENDED tenant entirely — its due events never run", async () => {
+    const tenants = buildFakeTenantRepository([
+      { tenant_id: "dss-motor", status: "ACTIVE" },
+      { tenant_id: "suspended-co", status: "SUSPENDED" },
+    ]);
+    const listDuePending = vi.fn(async (tenantId: string) => [
+      buildEvent({ id: `evt-${tenantId}`, tenantId }),
+    ]);
+    const repository = buildFakeRepository({
+      listDuePending,
+    } as Partial<CalendarEventRepository>);
+    const service = buildService({ repository, tenants });
+    await service.checkAndRunDueEvents();
+
+    expect(listDuePending).toHaveBeenCalledWith(
+      "dss-motor",
+      expect.any(String),
+      expect.any(String),
+    );
+    expect(listDuePending).not.toHaveBeenCalledWith(
+      "suspended-co",
+      expect.any(String),
+      expect.any(String),
+    );
+    expect(repository.markRunning).not.toHaveBeenCalledWith("evt-suspended-co", expect.any(String));
+  });
 });
 
 describe("SchedulerService CRUD", () => {
-  it("createEvent persists with createdBy=manager", async () => {
+  it("createEvent persists with createdBy=manager and the caller's real tenantId", async () => {
     const repository = buildFakeRepository();
     const service = buildService({ repository });
-    await service.createEvent({
+    await service.createEvent("dss-motor", {
       eventType: "SCRAPER_RUN",
       title: "Scrape",
       scheduledAt: "2026-08-19T06:00:00+07:00",
       recurrence: "ONCE",
     });
     expect(repository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ createdBy: "manager", eventType: "SCRAPER_RUN" }),
+      expect.objectContaining({
+        createdBy: "manager",
+        eventType: "SCRAPER_RUN",
+        tenantId: "dss-motor",
+      }),
     );
   });
 
-  it("updateEvent patches an existing event", async () => {
+  it("listEvents passes the caller's real tenantId through to the repository", async () => {
     const repository = buildFakeRepository();
     const service = buildService({ repository });
-    await service.updateEvent("evt-1", { title: "Baru" });
+    await service.listEvents("dss-motor", { range: "this_week" });
+    expect(repository.listByRange).toHaveBeenCalledWith(
+      "dss-motor",
+      expect.any(String),
+      expect.any(String),
+    );
+  });
+
+  it("updateEvent patches an existing event owned by the caller's tenant", async () => {
+    const repository = buildFakeRepository();
+    const service = buildService({ repository });
+    await service.updateEvent("dss-motor", "evt-1", { title: "Baru" });
     expect(repository.update).toHaveBeenCalledWith("evt-1", { title: "Baru" });
   });
 
-  it("removeEvent deletes an existing event", async () => {
+  it("removeEvent deletes an existing event owned by the caller's tenant", async () => {
     const repository = buildFakeRepository();
     const service = buildService({ repository });
-    await service.removeEvent("evt-1");
+    await service.removeEvent("dss-motor", "evt-1");
     expect(repository.delete).toHaveBeenCalledWith("evt-1");
   });
 
   it("runNow executes the event immediately", async () => {
     const repository = buildFakeRepository();
     const service = buildService({ repository });
-    await service.runNow("evt-1");
+    await service.runNow("dss-motor", "evt-1");
     expect(repository.markRunning).toHaveBeenCalled();
   });
 
@@ -739,7 +821,7 @@ describe("SchedulerService CRUD", () => {
       findById: vi.fn(async () => buildEvent({ recurrence: "DAILY" })),
     } as Partial<CalendarEventRepository>);
     const service = buildService({ repository });
-    await service.skip("evt-1");
+    await service.skip("dss-motor", "evt-1");
     expect(repository.markSkipped).toHaveBeenCalledWith("evt-1");
     expect(repository.create).toHaveBeenCalled();
   });
@@ -749,8 +831,48 @@ describe("SchedulerService CRUD", () => {
       findById: vi.fn(async () => buildEvent({ recurrence: "ONCE" })),
     } as Partial<CalendarEventRepository>);
     const service = buildService({ repository });
-    await service.skip("evt-1");
+    await service.skip("dss-motor", "evt-1");
     expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  // Real ownership-check test (design doc "SIZING" section): tenant A's session calling
+  // runNow/skip on tenant B's real event id must get a NotFoundError, never tenant B's data.
+  it("runNow throws NotFoundError (not tenant B's data) when the event belongs to a different tenant", async () => {
+    const repository = buildFakeRepository({
+      findById: vi.fn(async () => buildEvent({ id: "evt-1", tenantId: "tenant-b" })),
+    } as Partial<CalendarEventRepository>);
+    const service = buildService({ repository });
+    await expect(service.runNow("dss-motor", "evt-1")).rejects.toThrow(NotFoundError);
+    expect(repository.markRunning).not.toHaveBeenCalled();
+  });
+
+  it("skip throws NotFoundError (not tenant B's data) when the event belongs to a different tenant", async () => {
+    const repository = buildFakeRepository({
+      findById: vi.fn(async () => buildEvent({ id: "evt-1", tenantId: "tenant-b" })),
+    } as Partial<CalendarEventRepository>);
+    const service = buildService({ repository });
+    await expect(service.skip("dss-motor", "evt-1")).rejects.toThrow(NotFoundError);
+    expect(repository.markSkipped).not.toHaveBeenCalled();
+  });
+
+  it("updateEvent throws NotFoundError when the event belongs to a different tenant", async () => {
+    const repository = buildFakeRepository({
+      findById: vi.fn(async () => buildEvent({ id: "evt-1", tenantId: "tenant-b" })),
+    } as Partial<CalendarEventRepository>);
+    const service = buildService({ repository });
+    await expect(service.updateEvent("dss-motor", "evt-1", { title: "Hijack" })).rejects.toThrow(
+      NotFoundError,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it("removeEvent throws NotFoundError when the event belongs to a different tenant", async () => {
+    const repository = buildFakeRepository({
+      findById: vi.fn(async () => buildEvent({ id: "evt-1", tenantId: "tenant-b" })),
+    } as Partial<CalendarEventRepository>);
+    const service = buildService({ repository });
+    await expect(service.removeEvent("dss-motor", "evt-1")).rejects.toThrow(NotFoundError);
+    expect(repository.delete).not.toHaveBeenCalled();
   });
 });
 

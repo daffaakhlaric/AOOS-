@@ -47,6 +47,7 @@ import {
 } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
+import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import { isSupportedCalendarEventType } from "./domain/calendar-event.js";
@@ -76,6 +77,15 @@ const DEFAULT_DATE_PRESET = "last_30d";
  * Every handler here is read-only with respect to real Meta campaigns/Kie AI credits: none of them
  * calls `ExecuteVerdict`, creates/activates/pauses a campaign, or generates real creative — that
  * remains entirely out of scope for this pass (coordinator note section 7).
+ *
+ * MULTI-TENANT (`docs/PROMPT-AAOS-SCHEDULER-MULTITENANT.md`): `checkAndRunDueEvents` loops over
+ * every real, non-`SUSPENDED` tenant (`TenantRepository.list()`) and every public CRUD/run-now/skip
+ * method takes a real `tenantId` — the same per-request/per-row resolution `SettingsService`
+ * already establishes. Honest, documented limitation (that doc's design point 6): creating a new
+ * tenant does NOT auto-seed any `calendar_events` rows for it — a brand-new tenant's calendar
+ * starts empty and nothing runs automatically until its own manager creates events via the Calendar
+ * UI. This is not a regression this phase introduces; `006_calendar_events.sql`'s seed `INSERT`s
+ * were always a one-time bootstrap for `dss-motor` only, never a per-new-tenant template.
  */
 @Injectable()
 export class SchedulerService {
@@ -96,24 +106,36 @@ export class SchedulerService {
     private readonly lookalikeService: LookalikeService,
     private readonly intelligenceService: IntelligenceService,
     private readonly adTenantIndex: AdTenantIndexRepository,
+    private readonly tenants: TenantRepository,
   ) {}
 
-  /** Checked every minute (spec: `@Cron('* * * * *')`) — every `PENDING` event due within the last minute is run, detached, so a slow handler never blocks the next tick. */
+  /**
+   * Checked every minute (spec: `@Cron('* * * * *')`) — every `PENDING` event due within the last
+   * minute is run, detached, so a slow handler never blocks the next tick. Loops over every real,
+   * non-`SUSPENDED` tenant (`TenantRepository.list()`) rather than one static default — see this
+   * module's class doc comment / `docs/PROMPT-AAOS-SCHEDULER-MULTITENANT.md`.
+   */
   @Cron("* * * * *")
   async checkAndRunDueEvents(): Promise<void> {
     const now = new Date();
     const windowStart = new Date(now.getTime() - DUE_WINDOW_MS);
-    const dueEvents = await this.repository.listDuePending(
-      this.config.AAOS_TENANT_ID,
-      windowStart.toISOString(),
-      now.toISOString(),
-    );
-    for (const event of dueEvents) {
-      this.executeEvent(event).catch((caught) => {
-        this.logger.error(
-          `SchedulerService.checkAndRunDueEvents: executeEvent(${event.id}) rejected: ${String(caught)}`,
-        );
-      });
+    const tenants = await this.tenants.list();
+    for (const tenant of tenants) {
+      if (tenant.status === "SUSPENDED") {
+        continue;
+      }
+      const dueEvents = await this.repository.listDuePending(
+        tenant.tenant_id,
+        windowStart.toISOString(),
+        now.toISOString(),
+      );
+      for (const event of dueEvents) {
+        this.executeEvent(event).catch((caught) => {
+          this.logger.error(
+            `SchedulerService.checkAndRunDueEvents: executeEvent(${event.id}) rejected: ${String(caught)}`,
+          );
+        });
+      }
     }
   }
 
@@ -140,17 +162,17 @@ export class SchedulerService {
           break;
         case "TAMARA_PULL_DATA":
         case "SAMANTHA_PULL_DATA":
-          result = await this.runSamanthaPullData(correlationId);
+          result = await this.runSamanthaPullData(event.tenantId, correlationId);
           break;
         case "TAMARA_ANALYZE":
         case "SAMANTHA_ANALYZE":
-          result = await this.runSamanthaAnalyze(correlationId);
+          result = await this.runSamanthaAnalyze(event.tenantId, correlationId);
           break;
         case "KAI_REFRESH_CHECK":
-          result = await this.runKaiRefreshCheck(correlationId);
+          result = await this.runKaiRefreshCheck(event.tenantId, correlationId);
           break;
         case "DAILY_DIGEST":
-          result = await this.runDailyDigest(correlationId);
+          result = await this.runDailyDigest(event.tenantId, correlationId);
           break;
         case "RECYCLING_RUN":
           result = await this.runRecyclingRun(correlationId);
@@ -186,25 +208,31 @@ export class SchedulerService {
   }
 
   /** `POST /api/v1/calendar/:id/run-now` — runs immediately regardless of `scheduledAt`. */
-  async runNow(id: string): Promise<StoredCalendarEvent> {
-    const event = await this.findOrThrow(id);
+  async runNow(tenantId: string, id: string): Promise<StoredCalendarEvent> {
+    const event = await this.findOrThrow(tenantId, id);
     await this.executeEvent(event);
-    return this.findOrThrow(id);
+    return this.findOrThrow(tenantId, id);
   }
 
   /** `POST /api/v1/calendar/:id/skip` — marks skipped and, for a recurring event, schedules the next occurrence. */
-  async skip(id: string): Promise<StoredCalendarEvent> {
-    const event = await this.findOrThrow(id);
+  async skip(tenantId: string, id: string): Promise<StoredCalendarEvent> {
+    const event = await this.findOrThrow(tenantId, id);
     await this.repository.markSkipped(id);
     if (event.recurrence !== "ONCE") {
       await this.scheduleNext(event);
     }
-    return this.findOrThrow(id);
+    return this.findOrThrow(tenantId, id);
   }
 
-  private async findOrThrow(id: string): Promise<StoredCalendarEvent> {
+  /**
+   * Real ownership check (`docs/PROMPT-AAOS-SCHEDULER-MULTITENANT.md` design point 2) — mirrors
+   * `SettingsService.requireWaba`'s exact pattern: a row that exists but belongs to a different
+   * tenant is reported the SAME as a row that does not exist at all, never leaking "this id exists
+   * but belongs to someone else".
+   */
+  private async findOrThrow(tenantId: string, id: string): Promise<StoredCalendarEvent> {
     const event = await this.repository.findById(id);
-    if (event === undefined) {
+    if (event === undefined || event.tenantId !== tenantId) {
       throw new NotFoundError(`No calendar event found with id "${id}"`);
     }
     return event;
@@ -215,16 +243,22 @@ export class SchedulerService {
   // ---------------------------------------------------------------------------------------------
 
   /** `GET /api/v1/calendar?range=this_week` or `?month=YYYY-MM`. */
-  async listEvents(query: GetCalendarQueryDto): Promise<readonly StoredCalendarEvent[]> {
+  async listEvents(
+    tenantId: string,
+    query: GetCalendarQueryDto,
+  ): Promise<readonly StoredCalendarEvent[]> {
     const { from, to } = resolveCalendarRange(query, new Date());
-    return this.repository.listByRange(this.config.AAOS_TENANT_ID, from, to);
+    return this.repository.listByRange(tenantId, from, to);
   }
 
   /** `POST /api/v1/calendar` — the "Tambah Jadwal" modal's payload, already narrowed by `CreateCalendarEventBodySchema` to one of the 5 supported event types. */
-  async createEvent(body: CreateCalendarEventBodyDto): Promise<StoredCalendarEvent> {
+  async createEvent(
+    tenantId: string,
+    body: CreateCalendarEventBodyDto,
+  ): Promise<StoredCalendarEvent> {
     return this.repository.create({
       id: randomUUID(),
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       eventType: body.eventType,
       title: body.title,
       ...(body.description !== undefined ? { description: body.description } : {}),
@@ -243,15 +277,19 @@ export class SchedulerService {
   }
 
   /** `PUT /api/v1/calendar/:id` — only the supplied fields are patched. */
-  async updateEvent(id: string, body: UpdateCalendarEventBodyDto): Promise<StoredCalendarEvent> {
-    await this.findOrThrow(id);
+  async updateEvent(
+    tenantId: string,
+    id: string,
+    body: UpdateCalendarEventBodyDto,
+  ): Promise<StoredCalendarEvent> {
+    await this.findOrThrow(tenantId, id);
     await this.repository.update(id, body);
-    return this.findOrThrow(id);
+    return this.findOrThrow(tenantId, id);
   }
 
   /** `DELETE /api/v1/calendar/:id`. */
-  async removeEvent(id: string): Promise<void> {
-    await this.findOrThrow(id);
+  async removeEvent(tenantId: string, id: string): Promise<void> {
+    await this.findOrThrow(tenantId, id);
     await this.repository.delete(id);
   }
 
@@ -282,8 +320,11 @@ export class SchedulerService {
   }
 
   /** `SAMANTHA_PULL_DATA` (also matches the legacy `TAMARA_PULL_DATA` event type — see `SUPPORTED_CALENDAR_EVENT_TYPES`' doc comment) — `PullCampaignData` orchestrated by `MetaAdsSyncService` across every configured ad account (coordinator note section 1). */
-  private async runSamanthaPullData(correlationId: string): Promise<CalendarEventResult> {
-    const adAccounts = await this.pullAdAccounts(correlationId);
+  private async runSamanthaPullData(
+    tenantId: string,
+    correlationId: string,
+  ): Promise<CalendarEventResult> {
+    const adAccounts = await this.pullAdAccounts(tenantId, correlationId);
     const campaigns = adAccounts.reduce((sum, account) => sum + account.campaigns.length, 0);
     const ads = adAccounts.reduce((sum, account) => sum + countAds(account), 0);
     return {
@@ -304,8 +345,11 @@ export class SchedulerService {
    * computed unconditionally (not only when the LLM is unavailable) so the digest-style summary is
    * always a real, deterministic count.
    */
-  private async runSamanthaAnalyze(correlationId: string): Promise<CalendarEventResult> {
-    const adAccounts = await this.pullAdAccounts(correlationId);
+  private async runSamanthaAnalyze(
+    tenantId: string,
+    correlationId: string,
+  ): Promise<CalendarEventResult> {
+    const adAccounts = await this.pullAdAccounts(tenantId, correlationId);
     const allAds = adAccounts.flatMap((account) => flattenAds(account));
     const campaigns = adAccounts.reduce((sum, account) => sum + account.campaigns.length, 0);
     const pause = allAds.filter((ad) => ad.verdict === Verdict.PAUSE).length;
@@ -335,13 +379,16 @@ export class SchedulerService {
    * ads decided `REFRESH`. Never calls `GenerateCreativeBrief`/Kie AI itself (that remains
    * `KAI_GENERATE`, excluded per coordinator note section 1 round 1).
    */
-  private async runKaiRefreshCheck(correlationId: string): Promise<CalendarEventResult> {
-    const adAccounts = await this.pullAdAccounts(correlationId);
+  private async runKaiRefreshCheck(
+    tenantId: string,
+    correlationId: string,
+  ): Promise<CalendarEventResult> {
+    const adAccounts = await this.pullAdAccounts(tenantId, correlationId);
     const pipeline = new OptimizationPipeline();
     const verdictEngine = new VerdictDecisionEngine();
     const agentConfig: MetaAdsAgentConfig = {
       ...DEFAULT_META_ADS_AGENT_CONFIG,
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
     };
     const confidenceResult = ConfidenceScore.create(70);
     if (!confidenceResult.ok) {
@@ -395,24 +442,27 @@ export class SchedulerService {
    * Does NOT touch `apps/aaos-dashboard`'s existing client-side `<SamanthaDigest />` — a separate,
    * unrelated component (coordinator note section 2).
    */
-  private async runDailyDigest(correlationId: string): Promise<CalendarEventResult> {
-    const objectives = this.objectiveEngine.registry.listByTenant(this.config.AAOS_TENANT_ID);
+  private async runDailyDigest(
+    tenantId: string,
+    correlationId: string,
+  ): Promise<CalendarEventResult> {
+    const objectives = this.objectiveEngine.registry.listByTenant(tenantId);
     const objective = [...objectives].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
     )[0];
     if (objective === undefined) {
       throw new Error(
-        `Belum ada Objective aktif untuk tenant "${this.config.AAOS_TENANT_ID}" — Daily Digest butuh Objective bulan berjalan.`,
+        `Belum ada Objective aktif untuk tenant "${tenantId}" — Daily Digest butuh Objective bulan berjalan.`,
       );
     }
 
-    const adAccounts = await this.pullAdAccounts(correlationId);
+    const adAccounts = await this.pullAdAccounts(tenantId, correlationId);
     const adAccount = adAccounts[0];
     if (adAccount === undefined) {
       throw new Error("Tidak ada AdAccount yang berhasil ditarik untuk Daily Digest.");
     }
 
-    const hotLeadsCount = await this.countHotLeads();
+    const hotLeadsCount = await this.countHotLeads(tenantId);
 
     const progressResult = await this.objectiveEngine.updateProgress.execute({
       objectiveId: objective.id,
@@ -428,7 +478,7 @@ export class SchedulerService {
     const analyzed = pipeline.analyze(adAccount);
     const adFindings: readonly PerAdFinding[] = analyzed.ok ? analyzed.value.adFindings : [];
 
-    const planResult = ExecutionPlanBuilder.build(this.config.AAOS_TENANT_ID, [], new Date());
+    const planResult = ExecutionPlanBuilder.build(tenantId, [], new Date());
     if (!planResult.ok) {
       throw new Error(planResult.error.message);
     }
@@ -436,7 +486,7 @@ export class SchedulerService {
     const digestService = new DigestService(new MetaAdsAgentEvents(this.publisher));
     const digestResult = await digestService.generate(
       {
-        tenantId: this.config.AAOS_TENANT_ID,
+        tenantId,
         date: new Date(),
         targetHotLeads: objective.targetHotLeads.toNumber(),
         budgetAllocationIDR: objective.budgetAllocation.toNumber(),
@@ -594,10 +644,10 @@ export class SchedulerService {
   }
 
   /** Sum of real `HOT`-status leads across every branch (`@aos/lead-store`'s `GetHotLeads`, per branch — there is no tenant-wide aggregate use case). A branch whose lookup fails contributes 0 and is logged, never aborts the whole digest. */
-  private async countHotLeads(): Promise<number> {
+  private async countHotLeads(tenantId: string): Promise<number> {
     let total = 0;
     for (const branchId of ALL_BRANCH_IDS) {
-      const result = await this.leadStore.getHotLeads.execute(branchId, this.config.AAOS_TENANT_ID);
+      const result = await this.leadStore.getHotLeads.execute(branchId, tenantId);
       if (result.ok) {
         total += result.value.length;
       } else {
@@ -617,8 +667,11 @@ export class SchedulerService {
    * MetaAdsSyncService(this.connector.pullCampaignData)` before this phase — moved here since
    * `MetaAdsConnectorRegistry.resolve` is async).
    */
-  private async pullAdAccounts(correlationId: string): Promise<readonly AdAccount[]> {
-    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+  private async pullAdAccounts(
+    tenantId: string,
+    correlationId: string,
+  ): Promise<readonly AdAccount[]> {
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
@@ -633,7 +686,7 @@ export class SchedulerService {
         adAccountId: idResult.value,
         datePreset: DEFAULT_DATE_PRESET,
         accessToken: connector.accessToken,
-        tenantId: this.config.AAOS_TENANT_ID,
+        tenantId,
         correlationId,
       } as const;
     });
@@ -656,7 +709,7 @@ export class SchedulerService {
     // AAOS-MULTI-TENANT-PHASE1C — best-effort, never-throwing index of every successfully-pulled
     // ad's real Meta id -> tenant, so a later Meta lead webhook can resolve this tenant honestly.
     for (const adAccount of adAccounts) {
-      await indexPulledAdAccount(this.adTenantIndex, this.config.AAOS_TENANT_ID, adAccount);
+      await indexPulledAdAccount(this.adTenantIndex, tenantId, adAccount);
     }
     return adAccounts;
   }

@@ -9,6 +9,7 @@ import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
+import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import { SchedulerController } from "./scheduler.controller.js";
@@ -47,6 +48,11 @@ import { SchedulerService } from "./scheduler.service.js";
  * `AppModule.forRoot` imports (the composition root every cron-using module ultimately sits
  * under) — not here, to avoid double-registering the scheduler registry if a future module also
  * needs `@Cron`.
+ *
+ * `TenantRepository` (`docs/PROMPT-AAOS-SCHEDULER-MULTITENANT.md`) is composed the SAME way
+ * `SettingsModule`/`SimulationModule`/`IntelligenceModule` already do — its own instance built
+ * from the shared `SUPABASE_CLIENT`, not a second connection — so `checkAndRunDueEvents` can list
+ * every real tenant instead of reading one static `AAOS_TENANT_ID` default.
  */
 @Module({
   imports: [LlmModule, RecyclingModule, AbTestingModule, LookalikeModule, IntelligenceModule],
@@ -64,6 +70,11 @@ import { SchedulerService } from "./scheduler.service.js";
       provide: AdTenantIndexRepository,
       useFactory: (client: SupabaseClientLike): AdTenantIndexRepository =>
         new AdTenantIndexRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: TenantRepository,
+      useFactory: (client: SupabaseClientLike): TenantRepository => new TenantRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],
