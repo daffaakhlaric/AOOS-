@@ -9,11 +9,38 @@ import { Budget } from "../domain/value-objects/Budget.js";
 import type { CampaignId } from "../domain/value-objects/CampaignId.js";
 import { Spend } from "../domain/value-objects/Spend.js";
 import { StableId } from "../domain/value-objects/StableId.js";
-import type { MetaAdSet } from "../types/MetaApiTypes.js";
+import type { MetaAdSet, MetaAdSetTargeting } from "../types/MetaApiTypes.js";
+import { classifyAudience, type AudienceTargetingSpec } from "../utils/AudienceClassifier.js";
 import { extractBranch } from "../utils/BranchExtractor.js";
 import { centsToRupiah } from "../utils/CurrencyUtils.js";
 
 const KNOWN_STATUSES: ReadonlySet<string> = new Set(Object.values(AdStatus));
+
+/**
+ * Maps the raw `targeting` object into `AudienceClassifier`'s standalone `AudienceTargetingSpec`
+ * input type (reused as-is, not a second parallel type — see that file's own docstring). Every
+ * `custom_audiences[]` entry is mapped with `subtype: undefined`: Meta's real targeting-read
+ * response never carries a `subtype` on this array (see `types/MetaApiTypes.ts`'s
+ * `MetaAdSetTargetingSchema` docstring for the verified, honestly-documented gap) — `undefined`
+ * safely falls through `classifyAudience`'s own already-designed "unrecognized subtype →
+ * CUSTOM_CRM" bucket-3 rule rather than fabricating a subtype value that isn't real.
+ */
+function mapTargeting(raw: MetaAdSetTargeting | undefined): AudienceTargetingSpec | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  return {
+    // `subtype` is a required field on `AudienceTargetingCustomAudience`, but Meta's real
+    // targeting-read response never supplies it (see docstring above) — "UNKNOWN" is a
+    // deliberately-non-real sentinel that never equals "LOOKALIKE" and is never a member of
+    // `classifyAudience`'s RETARGETING_SUBTYPES set, so every entry here correctly and safely
+    // falls through to bucket 3 (CUSTOM_CRM) without fabricating a subtype value that isn't real.
+    customAudiences: raw.custom_audiences?.map(() => ({ subtype: "UNKNOWN" })),
+    flexibleSpec: raw.flexible_spec?.map((entry) => ({
+      interests: entry.interests?.map((interest) => ({ id: interest.id, name: interest.name })),
+    })),
+  };
+}
 
 /**
  * Maps a single (already Zod-validated) raw Meta adset into the AAOS `AdSet` entity. `stableId`
@@ -65,5 +92,6 @@ export function mapAdSet(
     branch: extractBranch(raw.name),
     spend: spendResult.value,
     ads: [],
+    audienceLabel: classifyAudience(mapTargeting(raw.targeting)),
   });
 }

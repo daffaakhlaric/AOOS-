@@ -33,8 +33,15 @@ describe("MetaApiRequestBuilder", () => {
     const url = new URL(MetaApiRequestBuilder.adSetsUrl("120000001", "TOKEN"));
     expect(url.origin + url.pathname).toBe(`${BASE}/120000001/adsets`);
     const fields = url.searchParams.get("fields") ?? "";
-    expect(fields).toContain("id,name,status,daily_budget");
+    expect(fields).toContain("id,name,status,daily_budget,targeting");
     expect(fields).toContain("insights.date_preset(last_30d){spend}");
+  });
+
+  it("requests the adset's targeting spec as a bare field, not a nested-field-expansion (AAOS Analytics Platform Phase 3 — `targeting` is a plain JSON object field on the AdSet node, not an edge, unlike `creative` on Ad)", () => {
+    const url = new URL(MetaApiRequestBuilder.adSetsUrl("120000001", "TOKEN"));
+    const fields = url.searchParams.get("fields") ?? "";
+    expect(fields).toContain(",targeting,");
+    expect(fields).not.toContain("targeting{");
   });
 
   it("builds the ads URL scoped to an adset id, honoring the given datePreset for insights", () => {

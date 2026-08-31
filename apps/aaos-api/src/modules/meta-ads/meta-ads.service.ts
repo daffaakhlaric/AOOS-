@@ -15,7 +15,9 @@ import type {
   ExecuteVerdictBodyDto,
   ExecuteVerdictResponseDto,
 } from "./dto/execute-verdict.dto.js";
+import type { HeatmapResponseDto } from "./dto/heatmap.dto.js";
 import type { PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
+import { getAudienceCreativeHeatmap } from "./heatmap-rollup.js";
 import {
   AdTenantIndexRepository,
   indexPulledAdAccount,
@@ -69,6 +71,20 @@ export class MetaAdsService {
   ): Promise<AssetRollupResponseDto> {
     const adAccount = await this.pullAdAccount(query, correlationId);
     return getAssetRollup(adAccount, new Date());
+  }
+
+  /**
+   * `GET /api/v1/analytics/heatmap` — AAOS Analytics Platform Phase 3, "Audience × Creative
+   * Heatmap". Same real re-pull-fresh-from-Meta approach as `getAssetRollup` above (no independent
+   * "give me the last sync" contract on this endpoint either), just reshaped by
+   * `getAudienceCreativeHeatmap` instead of `getAssetRollup`.
+   */
+  async getHeatmap(
+    query: PullCampaignsQueryDto,
+    correlationId: string,
+  ): Promise<HeatmapResponseDto> {
+    const adAccount = await this.pullAdAccount(query, correlationId);
+    return getAudienceCreativeHeatmap(adAccount, new Date());
   }
 
   private async pullAdAccount(

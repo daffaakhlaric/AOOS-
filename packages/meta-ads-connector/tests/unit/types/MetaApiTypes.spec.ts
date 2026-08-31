@@ -6,6 +6,7 @@ import {
   MetaAdSchema,
   MetaAdSetListResponseSchema,
   MetaAdSetSchema,
+  MetaAdSetTargetingSchema,
   MetaCampaignListResponseSchema,
   MetaCampaignSchema,
   MetaErrorResponseSchema,
@@ -77,6 +78,56 @@ describe("MetaAdSetSchema / MetaAdSetListResponseSchema", () => {
 
   it("accepts an empty adset list (campaign with 0 adsets edge case)", () => {
     expect(MetaAdSetListResponseSchema.safeParse({ data: [] }).success).toBe(true);
+  });
+
+  it("accepts an adset with no targeting field at all (backward compatible)", () => {
+    expect(MetaAdSetSchema.safeParse({ id: "1", name: "n", status: "ACTIVE" }).success).toBe(true);
+  });
+
+  it("accepts an adset with a real custom_audiences[] targeting spec (id only — Meta's real targeting-read response never supplies subtype, AAOS Analytics Platform Phase 3)", () => {
+    const result = MetaAdSetSchema.safeParse({
+      id: "1",
+      name: "n",
+      status: "ACTIVE",
+      targeting: { custom_audiences: [{ id: "23847239847" }] },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an adset with a real flexible_spec[].interests[] targeting spec (id + name)", () => {
+    const result = MetaAdSetSchema.safeParse({
+      id: "1",
+      name: "n",
+      status: "ACTIVE",
+      targeting: {
+        flexible_spec: [{ interests: [{ id: "6003304550260", name: "Automotive industry" }] }],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("MetaAdSetTargetingSchema", () => {
+  it("accepts an empty object (Meta returns targeting with none of the sub-fields this package reads populated, e.g. geo-only targeting)", () => {
+    expect(MetaAdSetTargetingSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("silently ignores real Meta targeting fields this package has no use for (e.g. geo_locations, age_min) rather than requiring them all modeled", () => {
+    const result = MetaAdSetTargetingSchema.safeParse({
+      geo_locations: { countries: ["ID"] },
+      age_min: 18,
+      custom_audiences: [{ id: "1" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({ custom_audiences: [{ id: "1" }] });
+    }
+  });
+
+  it("rejects a custom_audiences[] entry missing the required id", () => {
+    expect(
+      MetaAdSetTargetingSchema.safeParse({ custom_audiences: [{ name: "no id" }] }).success,
+    ).toBe(false);
   });
 });
 

@@ -11,6 +11,7 @@ import {
   type ExecuteVerdictBodyDto,
   type ExecuteVerdictResponseDto,
 } from "./dto/execute-verdict.dto.js";
+import type { HeatmapResponseDto } from "./dto/heatmap.dto.js";
 import { PullCampaignsQuerySchema, type PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
 import { ApiKeyGuard } from "./guards/api-key.guard.js";
 import { MetaAdsService } from "./meta-ads.service.js";
@@ -53,6 +54,20 @@ export class MetaAdsController {
     @CorrelationId() correlationId: string,
   ): Promise<AssetRollupResponseDto> {
     return this.metaAdsService.getAssetRollup(query, correlationId);
+  }
+
+  /**
+   * `GET /api/v1/analytics/heatmap` — AAOS Analytics Platform Phase 3, "Audience × Creative
+   * Heatmap". Same query contract as `GET /api/v1/analytics/assets` (`adAccountId?`,
+   * `datePreset?`) — it pulls the identical underlying `AdAccount` tree, just rolled up by
+   * (creative asset × real `AdSet.audienceLabel`) instead of asset alone.
+   */
+  @Get("analytics/heatmap")
+  async getHeatmap(
+    @Query(new ZodValidationPipe(PullCampaignsQuerySchema)) query: PullCampaignsQueryDto,
+    @CorrelationId() correlationId: string,
+  ): Promise<HeatmapResponseDto> {
+    return this.metaAdsService.getHeatmap(query, correlationId);
   }
 
   @Post("verdicts")

@@ -89,6 +89,41 @@ export interface AdAccountOptionDto {
   readonly name: string;
 }
 
+/**
+ * `GET /api/v1/analytics/heatmap` proxy response shapes (AAOS Analytics Platform Phase 3,
+ * "Audience × Creative Heatmap" — `apps/aaos-api/src/modules/meta-ads/dto/heatmap.dto.ts`). Real
+ * `AudienceLabel` bucket values from `@aos/meta-ads-connector`'s `classifyAudience` (Phase 3's
+ * `AdSet.audienceLabel` wiring) — restated here as a plain string union since this "use client"
+ * bundle cannot import that backend-only package.
+ */
+export type AudienceLabelDto = "BROAD" | "INTEREST" | "LOOKALIKE_1" | "RETARGETING" | "CUSTOM_CRM";
+
+export interface HeatmapCellDto {
+  readonly assetKind: "IMAGE" | "VIDEO";
+  readonly assetId: string;
+  readonly audienceLabel: AudienceLabelDto;
+  readonly adCount: number;
+  readonly spend: number;
+  readonly impressions: number;
+  readonly clicks: number;
+  readonly totalLead: number;
+  readonly maxFrequency: number;
+  readonly ctr: number | null;
+  readonly cpm: number | null;
+  readonly cpl: number | null;
+}
+
+export interface HeatmapResponseDto {
+  readonly adAccountId: string;
+  readonly generatedAt: string;
+  readonly cells: readonly HeatmapCellDto[];
+  readonly creativeAssetIds: readonly string[];
+  readonly audienceLabels: readonly AudienceLabelDto[];
+  readonly untaggedAdCount: number;
+  readonly benchmarkCplIDR: number | null;
+  readonly insightText: string;
+}
+
 export interface ObjectiveDto {
   readonly id: string;
   readonly tenantId: string;

@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
+import type { AudienceLabel } from "../../utils/AudienceClassifier.js";
 import type { AdAccountId } from "../value-objects/AdAccountId.js";
 import type { AdSetId } from "../value-objects/AdSetId.js";
 import { AdStatus } from "../value-objects/AdStatus.js";
@@ -24,6 +25,14 @@ export interface AdSetProps {
   readonly branch: Branch;
   readonly spend: Spend;
   readonly ads: ReadonlyArray<Ad>;
+  /**
+   * AAOS Analytics Platform Phase 3 — `classifyAudience(targeting)` run against this ad set's
+   * real pulled `targeting` spec (see `mappers/AdSetMapper.ts`). Optional key (not just an
+   * optional-valued required key), mirroring `Ad.creativeAsset`'s exact Phase 2 convention: every
+   * pre-existing `AdSetProps` object literal across this package (builders, mappers, tests)
+   * predates this field and must keep compiling unchanged.
+   */
+  readonly audienceLabel?: AudienceLabel;
 }
 
 /** The `#B` entity — a Meta ad set, holding its ads. */
@@ -89,6 +98,10 @@ export class AdSet {
 
   get ads(): ReadonlyArray<Ad> {
     return this.props.ads;
+  }
+
+  get audienceLabel(): AudienceLabel | undefined {
+    return this.props.audienceLabel;
   }
 
   withAds(ads: ReadonlyArray<Ad>): AdSet {

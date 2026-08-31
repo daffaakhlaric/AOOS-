@@ -77,4 +77,88 @@ describe("mapAdSet", () => {
       ).message,
     ).toMatch(/Spend amount/);
   });
+
+  describe("audienceLabel (AAOS Analytics Platform Phase 3 — real classifyAudience wiring)", () => {
+    it("labels an adset with no targeting at all as BROAD", () => {
+      const adSet = unwrap(
+        mapAdSet(makeAdSet({ targeting: undefined }), campaignId, adAccountId, 1),
+      );
+      expect(adSet.audienceLabel).toBe("BROAD");
+    });
+
+    it("labels an adset with only flexible_spec interests as INTEREST", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({
+            targeting: {
+              flexible_spec: [{ interests: [{ id: "6003304550260", name: "Automotive" }] }],
+            },
+          }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.audienceLabel).toBe("INTEREST");
+    });
+
+    it("labels an adset with any real custom_audiences[] entry as CUSTOM_CRM (the honest, documented real gap: Meta's targeting-read response never supplies subtype, so LOOKALIKE/RETARGETING cannot be sub-distinguished today)", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({
+            targeting: { custom_audiences: [{ id: "23847239847" }] },
+          }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.audienceLabel).toBe("CUSTOM_CRM");
+    });
+
+    it("labels an adset with a named custom_audiences[] entry (Meta sometimes echoes `name` alongside `id`) the same way — name is accepted but ignored by the classifier", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({
+            targeting: {
+              custom_audiences: [{ id: "23847239847", name: "1% Lookalike - Purchasers" }],
+            },
+          }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.audienceLabel).toBe("CUSTOM_CRM");
+    });
+
+    it("prioritizes a custom_audiences[] entry over flexible_spec interests present on the same targeting spec, mirroring classifyAudience's own ordered rule list", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({
+            targeting: {
+              custom_audiences: [{ id: "1" }],
+              flexible_spec: [{ interests: [{ id: "2", name: "Cars" }] }],
+            },
+          }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.audienceLabel).toBe("CUSTOM_CRM");
+    });
+
+    it("labels an adset with empty targeting sub-arrays as BROAD", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({ targeting: { custom_audiences: [], flexible_spec: [] } }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.audienceLabel).toBe("BROAD");
+    });
+  });
 });

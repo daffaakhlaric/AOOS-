@@ -24,6 +24,12 @@ const ANALISA: NavItem = {
   icon: "🎯",
 };
 const STRATEGI: NavItem = { href: "/meta-ads/strategi", label: "Strategi & Approve", icon: "🧭" };
+/** AAOS Analytics Platform Phase 3 — "Audience × Creative Heatmap" (`docs/PROMPT-AAOS-ANALYTICS-PLATFORM.md`), placed right after Analisa & Rekomendasi as another Samantha analytics view. */
+const HEATMAP: NavItem = {
+  href: "/meta-ads/analytics/heatmap",
+  label: "Heatmap Audiens × Kreatif",
+  icon: "🗺️",
+};
 /** AAOS-ABTESTING-LOOKALIKE Part 1 — Samantha's auto A/B test creative page, per the spec's own menu mockup ("🔬 A/B Testing", placed right before Simulasi). */
 const ABTESTING: NavItem = { href: "/meta-ads/abtesting", label: "A/B Testing", icon: "🔬" };
 /** AAOS-ABTESTING-LOOKALIKE Part 2 — hot-leads-based Lookalike Audience page, per the spec's own menu mockup ("👥 Lookalike Audience", placed right after A/B Testing, before Simulasi). */
@@ -142,7 +148,7 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
     {
       key: "samantha",
       label: "SAMANTHA (META ADS)",
-      items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, STRATEGI, ABTESTING, LOOKALIKE, SIMULASI],
+      items: [DATA_IKLAN, AUDIT_BIAYA, ANALISA, HEATMAP, STRATEGI, ABTESTING, LOOKALIKE, SIMULASI],
     },
     {
       key: "clara",

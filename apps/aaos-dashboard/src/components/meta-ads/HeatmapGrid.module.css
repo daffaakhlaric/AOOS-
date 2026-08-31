@@ -1,0 +1,123 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 4px;
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  padding: 4px;
+  background: var(--gray-100);
+  width: fit-content;
+}
+
+.metricButton {
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+}
+
+.metricButtonActive {
+  background: var(--white);
+  color: var(--gray-900);
+  box-shadow: var(--shadow);
+}
+
+.scrollContainer {
+  overflow-x: auto;
+  border: var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.grid {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 480px;
+}
+
+.cornerHeader,
+.columnHeader,
+.rowHeader {
+  background: var(--gray-100);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+  text-align: left;
+  white-space: nowrap;
+  border: var(--border);
+}
+
+.rowHeader {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.cornerHeader {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.cell {
+  padding: 0;
+  border: var(--border);
+  text-align: center;
+  min-width: 100px;
+}
+
+.cellEmpty {
+  color: var(--gray-400, #9ca3af);
+  font-size: 13px;
+}
+
+.cellLink {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cellValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.cellSub {
+  font-size: 11px;
+  color: var(--gray-500, #6b7280);
+}
+
+.cellHigh .cellValue {
+  color: var(--red, #dc2626);
+}
+
+.cellNormal .cellValue {
+  color: var(--green, #16a34a);
+}
+
+.untagged {
+  font-size: 12px;
+  color: var(--gray-500, #6b7280);
+}
+
+.insight {
+  font-size: 13px;
+  color: var(--gray-700, #374151);
+  background: var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+}

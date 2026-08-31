@@ -11,6 +11,7 @@ import { Budget } from "../domain/value-objects/Budget.js";
 import { CampaignId } from "../domain/value-objects/CampaignId.js";
 import { Spend } from "../domain/value-objects/Spend.js";
 import { StableId } from "../domain/value-objects/StableId.js";
+import type { AudienceLabel } from "../utils/AudienceClassifier.js";
 
 /** Builder Pattern class for constructing `AdSet` entities with sensible defaults — see `CampaignBuilder`'s docstring for the rationale. */
 export class AdSetBuilder {
@@ -80,6 +81,11 @@ export class AdSetBuilder {
 
   withAds(ads: ReadonlyArray<Ad>): this {
     this.props = { ...this.props, ads };
+    return this;
+  }
+
+  withAudienceLabel(audienceLabel: AudienceLabel | undefined): this {
+    this.props = { ...this.props, audienceLabel };
     return this;
   }
 

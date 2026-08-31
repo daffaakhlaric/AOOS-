@@ -6,7 +6,14 @@ const BASE_URL = "https://graph.facebook.com";
 /** `created_time` is requested beyond the spec's literal field list — see `mappers/CampaignMapper.ts`'s docstring for why. */
 const CAMPAIGN_FIELDS = ["id", "name", "objective", "status", "created_time"].join(",");
 
-const ADSET_FIELDS = ["id", "name", "status", "daily_budget"].join(",");
+/**
+ * `targeting` added for AAOS Analytics Platform Phase 3's real AdSet-targeting scope extension.
+ * Requested BARE (no `field{subfields}` expansion) — unlike `creative` below, `targeting` is a
+ * plain JSON object field on the AdSet node, not an edge, so Meta already returns it in full; see
+ * `types/MetaApiTypes.ts`'s `MetaAdSetTargetingSchema` docstring for the verified real shape and
+ * its one honest, documented gap (`custom_audiences[]` carries no `subtype`).
+ */
+const ADSET_FIELDS = ["id", "name", "status", "daily_budget", "targeting"].join(",");
 
 /**
  * `creative{image_hash,video_id}` — Meta's real nested-field-expansion syntax for pulling a

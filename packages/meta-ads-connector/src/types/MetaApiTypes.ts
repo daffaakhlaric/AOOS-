@@ -64,12 +64,69 @@ export const MetaCampaignListResponseSchema = z.object({
 });
 export type MetaCampaignListResponse = z.infer<typeof MetaCampaignListResponseSchema>;
 
+/**
+ * `targeting` (AAOS Analytics Platform Phase 3, "AdSet targeting gap" scope extension). Verified
+ * (2026-08-31, Meta Marketing API "Targeting Specs" / "Flexible Targeting" references, no live
+ * call available in this environment): unlike `creative` (Phase 2), `targeting` is NOT an edge —
+ * it is a plain JSON object field already returned in full whenever requested bare as `targeting`
+ * in the `fields` param, so `MetaApiRequestBuilder` requests it WITHOUT the `field{subfields}`
+ * expansion syntax `creative{image_hash,video_id}` needed.
+ *
+ * Real, honest, documented shape gap found during verification: Meta's targeting-spec
+ * `custom_audiences[]` entries (both on write, per the "Targeting Specs" reference's own
+ * `[{'id': 123}]` example, and on read, which echoes the same stored spec back) carry only `id`
+ * (and sometimes `name`) — NEVER `subtype`. `subtype` (`CUSTOM`/`LOOKALIKE`/`WEBSITE`/...) is a
+ * property of the separate Custom Audience node itself (`GET /{custom-audience-id}?fields=subtype`),
+ * not embedded in an ad set's targeting reference. Resolving true LOOKALIKE-vs-RETARGETING-vs-
+ * CUSTOM_CRM distinction would require a further per-referenced-ID lookup call — a genuine,
+ * separate scope (an N+1/fan-out concern this package's own rate-limiter discipline argues against
+ * adding casually to this additive field-only extension) — left as a further, honestly-flagged
+ * follow-up exactly like `AudienceClassifier.ts`'s own pre-existing top-of-file gap note. Every
+ * `custom_audiences[]` entry pulled here is therefore mapped with `subtype: undefined`, which
+ * `classifyAudience`'s own already-designed "any subtype this classifier doesn't otherwise
+ * recognize → CUSTOM_CRM" fallback rule (bucket 3) handles correctly today — BROAD/INTEREST/
+ * CUSTOM_CRM are now fully and correctly wired to real data; only the LOOKALIKE_1/RETARGETING
+ * sub-distinction among custom-audience-targeted ad sets remains gapped pending that follow-up.
+ *
+ * `flexible_spec[].interests[]` real shape (`{id, name}`) is confirmed via Meta's own "Flexible
+ * Targeting" reference and matches `AudienceClassifier.ts`'s pre-existing `AudienceTargetingInterest`
+ * shape exactly — reused as-is, no new interest type invented.
+ */
+export const MetaAdSetTargetingCustomAudienceSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+});
+export type MetaAdSetTargetingCustomAudience = z.infer<
+  typeof MetaAdSetTargetingCustomAudienceSchema
+>;
+
+export const MetaAdSetTargetingInterestSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+export type MetaAdSetTargetingInterest = z.infer<typeof MetaAdSetTargetingInterestSchema>;
+
+export const MetaAdSetTargetingFlexibleSpecEntrySchema = z.object({
+  interests: z.array(MetaAdSetTargetingInterestSchema).optional(),
+});
+export type MetaAdSetTargetingFlexibleSpecEntry = z.infer<
+  typeof MetaAdSetTargetingFlexibleSpecEntrySchema
+>;
+
+/** The subset of Meta's real `targeting` spec object this package reads — see this file's own gap note above. Meta's real object carries many more fields (`geo_locations`, `age_min`, `genders`, ...) this package has no use for; `z.object` silently ignores unrecognized keys rather than requiring them all modeled here. */
+export const MetaAdSetTargetingSchema = z.object({
+  custom_audiences: z.array(MetaAdSetTargetingCustomAudienceSchema).optional(),
+  flexible_spec: z.array(MetaAdSetTargetingFlexibleSpecEntrySchema).optional(),
+});
+export type MetaAdSetTargeting = z.infer<typeof MetaAdSetTargetingSchema>;
+
 export const MetaAdSetSchema = z.object({
   id: z.string(),
   name: z.string(),
   status: z.string(),
   /** Meta budget fields are IDR *cents* — see `utils/CurrencyUtils.ts` for the conversion to whole Rupiah. */
   daily_budget: z.string().optional(),
+  targeting: MetaAdSetTargetingSchema.optional(),
   insights: MetaInsightsEdgeSchema.optional(),
 });
 export type MetaAdSet = z.infer<typeof MetaAdSetSchema>;

@@ -49,4 +49,14 @@ describe("AdSetBuilder", () => {
   it("propagates a validation failure through build()", () => {
     expect(new AdSetBuilder().withMetaId("").build().ok).toBe(false);
   });
+
+  it("leaves audienceLabel undefined by default (AAOS Analytics Platform Phase 3)", () => {
+    const adSet = unwrap(new AdSetBuilder().build());
+    expect(adSet.audienceLabel).toBeUndefined();
+  });
+
+  it("withAudienceLabel sets the audienceLabel field", () => {
+    const adSet = unwrap(new AdSetBuilder().withAudienceLabel("LOOKALIKE_1").build());
+    expect(adSet.audienceLabel).toBe("LOOKALIKE_1");
+  });
 });
