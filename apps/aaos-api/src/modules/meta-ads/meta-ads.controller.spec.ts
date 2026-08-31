@@ -1,10 +1,10 @@
 import "reflect-metadata";
 
-import type { ExecutionResult } from "@aos/meta-ads-connector";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
+import type { ExecuteVerdictResponseDto } from "./dto/execute-verdict.dto.js";
 import { ApiKeyGuard } from "./guards/api-key.guard.js";
 import { MetaAdsController } from "./meta-ads.controller.js";
 import type { MetaAdsService } from "./meta-ads.service.js";
@@ -13,7 +13,13 @@ function buildFakeService(): MetaAdsService {
   return {
     pullCampaigns: vi.fn(async () => ({ id: "act_1" }) as AdAccountResponseDto),
     executeVerdict: vi.fn(
-      async () => ({ action: "PAUSED", targetId: "id", targetType: "ad" }) as ExecutionResult,
+      async () =>
+        ({
+          action: "PAUSED",
+          targetId: "id",
+          targetType: "ad",
+          simulated: false,
+        }) as ExecuteVerdictResponseDto,
     ),
     getAdAccounts: vi.fn(
       async () => [{ id: "act_1", name: "DSS Motor" }] as readonly AdAccountOptionDto[],
@@ -42,7 +48,12 @@ describe("MetaAdsController", () => {
     const body = { verdict: "PAUSE" as const, targetId: "id", targetType: "ad" as const };
     const result = await controller.postVerdict(body, "corr-2");
     expect(service.executeVerdict).toHaveBeenCalledWith(body, "corr-2");
-    expect(result).toEqual({ action: "PAUSED", targetId: "id", targetType: "ad" });
+    expect(result).toEqual({
+      action: "PAUSED",
+      targetId: "id",
+      targetType: "ad",
+      simulated: false,
+    });
   });
 
   it("GET /api/v1/meta-ads/accounts delegates to MetaAdsService.getAdAccounts", async () => {

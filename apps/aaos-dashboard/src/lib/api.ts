@@ -30,7 +30,7 @@ function requireEnv(name: string): string {
 }
 
 export interface AaosApiRequestOptions {
-  readonly method?: "GET" | "POST" | "PUT" | "DELETE";
+  readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   readonly body?: unknown;
   readonly searchParams?: Record<string, string | undefined>;
   /**

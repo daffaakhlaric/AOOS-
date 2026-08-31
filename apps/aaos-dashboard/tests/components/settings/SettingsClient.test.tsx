@@ -12,7 +12,13 @@ vi.mock("@/lib/supabase", () => ({
 import { SettingsClient } from "@/components/settings/SettingsClient";
 
 const SETTINGS_RESPONSE = {
-  tenant: { tenantId: "dss-motor", name: "DSS Motor", vertical: "AUTOMOTIVE", status: "ACTIVE" },
+  tenant: {
+    tenantId: "dss-motor",
+    name: "DSS Motor",
+    vertical: "AUTOMOTIVE",
+    status: "ACTIVE",
+    mode: "LIVE",
+  },
   meta: { apiVersion: "v21.0", hasToken: true, usingEnvDefault: true, adAccountId: "act_1" },
 };
 
@@ -30,7 +36,7 @@ describe("SettingsClient", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads settings + waba configs + competitor pages and renders all 5 cards", async () => {
+  it("loads settings + waba configs + competitor pages and renders all 6 cards", async () => {
     mockFetchSequence([
       new Response(JSON.stringify(SETTINGS_RESPONSE), { status: 200 }),
       new Response(JSON.stringify({ wabaConfigs: [] }), { status: 200 }),
@@ -40,6 +46,7 @@ describe("SettingsClient", () => {
     await waitFor(() => expect(screen.getByText("Meta Ads Configuration")).toBeInTheDocument());
     expect(screen.getByText("WhatsApp Business (WABA)")).toBeInTheDocument();
     expect(screen.getByText("Competitor Pages (Samantha Intelligence)")).toBeInTheDocument();
+    expect(screen.getByText("Mode Operasi")).toBeInTheDocument();
     expect(screen.getByText("Tenant Info")).toBeInTheDocument();
     expect(screen.getByText("Account")).toBeInTheDocument();
     expect(screen.getByText("Belum ada WABA yang dikonfigurasi.")).toBeInTheDocument();
@@ -48,6 +55,83 @@ describe("SettingsClient", () => {
         screen.getByText("Belum ada halaman kompetitor yang ditambahkan."),
       ).toBeInTheDocument(),
     );
+  });
+
+  it("Mode Operasi card: shows the real current mode and confirms before PATCHing a flip to DEV", async () => {
+    // Real state: the component reloads via GET /api/settings after a successful PATCH (same
+    // "re-fetch rather than trust the write response" pattern `handleSaveMeta` already uses) — so
+    // this mock's GET branch must actually reflect the PATCH, not always return the original mode.
+    let currentMode: "LIVE" | "DEV" = "LIVE";
+    global.fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/settings/waba")) {
+        return new Response(JSON.stringify({ wabaConfigs: [] }), { status: 200 });
+      }
+      if (url.includes("/api/competitors")) {
+        return new Response(JSON.stringify({ competitors: [] }), { status: 200 });
+      }
+      if (url.endsWith("/api/settings/mode") && init?.method === "PATCH") {
+        const parsed = JSON.parse(init.body as string) as { mode: "LIVE" | "DEV" };
+        expect(parsed.mode).toBe("DEV");
+        currentMode = parsed.mode;
+        return new Response(
+          JSON.stringify({
+            ...SETTINGS_RESPONSE,
+            tenant: { ...SETTINGS_RESPONSE.tenant, mode: currentMode },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/api/settings")) {
+        return new Response(
+          JSON.stringify({
+            ...SETTINGS_RESPONSE,
+            tenant: { ...SETTINGS_RESPONSE.tenant, mode: currentMode },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<SettingsClient />);
+    await waitFor(() => expect(screen.getByText("Mode Operasi")).toBeInTheDocument());
+    expect(screen.getByText("LIVE")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Alihkan ke DEV" }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText("DEV")).toBeInTheDocument());
+  });
+
+  it("Mode Operasi card: does NOT call PATCH when the user cancels the confirm dialog", async () => {
+    const patchSpy = vi.fn();
+    global.fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/settings/waba")) {
+        return new Response(JSON.stringify({ wabaConfigs: [] }), { status: 200 });
+      }
+      if (url.includes("/api/competitors")) {
+        return new Response(JSON.stringify({ competitors: [] }), { status: 200 });
+      }
+      if (url.endsWith("/api/settings/mode") && init?.method === "PATCH") {
+        patchSpy();
+        return new Response(JSON.stringify(SETTINGS_RESPONSE), { status: 200 });
+      }
+      if (url.endsWith("/api/settings")) {
+        return new Response(JSON.stringify(SETTINGS_RESPONSE), { status: 200 });
+      }
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<SettingsClient />);
+    await waitFor(() => expect(screen.getByText("Mode Operasi")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Alihkan ke DEV" }));
+
+    expect(patchSpy).not.toHaveBeenCalled();
   });
 
   it("renders a WABA row and shows the real Test Koneksi result", async () => {

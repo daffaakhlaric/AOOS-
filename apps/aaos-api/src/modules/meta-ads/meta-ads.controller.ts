@@ -1,4 +1,3 @@
-import type { ExecutionResult } from "@aos/meta-ads-connector";
 import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from "@nestjs/common";
 
 import { CorrelationId } from "../../common/correlation.js";
@@ -6,7 +5,11 @@ import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
-import { ExecuteVerdictBodySchema, type ExecuteVerdictBodyDto } from "./dto/execute-verdict.dto.js";
+import {
+  ExecuteVerdictBodySchema,
+  type ExecuteVerdictBodyDto,
+  type ExecuteVerdictResponseDto,
+} from "./dto/execute-verdict.dto.js";
 import { PullCampaignsQuerySchema, type PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
 import { ApiKeyGuard } from "./guards/api-key.guard.js";
 import { MetaAdsService } from "./meta-ads.service.js";
@@ -42,7 +45,7 @@ export class MetaAdsController {
   async postVerdict(
     @Body(new ZodValidationPipe(ExecuteVerdictBodySchema)) body: ExecuteVerdictBodyDto,
     @CorrelationId() correlationId: string,
-  ): Promise<ExecutionResult> {
+  ): Promise<ExecuteVerdictResponseDto> {
     return this.metaAdsService.executeVerdict(body, correlationId);
   }
 }

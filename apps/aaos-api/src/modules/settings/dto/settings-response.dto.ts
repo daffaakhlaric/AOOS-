@@ -1,10 +1,14 @@
-/** `GET /api/v1/settings` — backs `/settings`'s "Tenant Info" + "Meta Ads Configuration" cards. */
+/** `GET /api/v1/settings` — backs `/settings`'s "Tenant Info" + "Meta Ads Configuration" + "Mode Operasi" cards. */
 export interface TenantInfoDto {
   readonly tenantId: string;
   readonly name: string;
   readonly vertical: "AUTOMOTIVE" | "PROPERTY";
   readonly status: "TRIAL" | "ACTIVE" | "SUSPENDED";
   readonly trialEndsAt?: string;
+  /** `'DEV' | 'LIVE'` (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A) — the value `ModeGuardService.resolveMode` reads for this tenant on every gated call. */
+  readonly mode: "DEV" | "LIVE";
+  readonly modeChangedAt?: string;
+  readonly modeChangedBy?: string;
 }
 
 /**

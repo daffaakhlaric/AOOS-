@@ -136,6 +136,11 @@ export class SuperadminService {
         meta_access_token: dto.metaAccessToken ?? null,
         meta_ad_account_id: dto.metaAdAccountId ?? null,
         meta_api_version: dto.metaApiVersion ?? "v21.0",
+        // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A: a brand-new tenant starts in DEV — a real,
+        // separate, safe application-level default (the column's own DB default stays LIVE, for
+        // every tenant that already existed before this migration — see `020_tenant_mode.sql`'s
+        // header doc for why the two defaults deliberately differ).
+        mode: "DEV",
       });
     } catch (caught) {
       await this.authAdmin.auth.admin.updateUserById(authUser.id, {

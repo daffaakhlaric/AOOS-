@@ -61,6 +61,12 @@ async function seedTenant(tenants: TenantRepository, overrides: Record<string, u
     meta_access_token: null,
     meta_ad_account_id: null,
     meta_api_version: "v21.0",
+    // `createFakeSupabaseClient`'s `.insert()` never applies a real DB column default (unlike the
+    // real `tenants.mode DEFAULT 'LIVE'` — see `020_tenant_mode.sql`), so this test fixture sets
+    // it explicitly to mirror that default.
+    mode: "LIVE",
+    mode_changed_at: null,
+    mode_changed_by: null,
     ...overrides,
   });
 }
@@ -100,6 +106,51 @@ describe("SettingsService", () => {
     });
     expect(result.meta.accessToken).toBe("new-token");
     expect(result.meta.adAccountId).toBe("act_999");
+  });
+
+  it("getSettings() reports mode='LIVE' for a freshly seeded tenant (real DB column default)", async () => {
+    const { service, tenants } = buildService();
+    await seedTenant(tenants);
+    const result = await service.getSettings("dss-motor");
+    expect(result.tenant.mode).toBe("LIVE");
+    expect(result.tenant.modeChangedAt).toBeUndefined();
+    expect(result.tenant.modeChangedBy).toBeUndefined();
+  });
+
+  it("updateMode() persists the new mode and writes a real audit trail (mode_changed_at/mode_changed_by)", async () => {
+    const { service, tenants } = buildService();
+    await seedTenant(tenants);
+    const before = await tenants.findByTenantId("dss-motor");
+    expect(before?.mode).toBe("LIVE");
+
+    const result = await service.updateMode("dss-motor", {
+      mode: "DEV",
+      changedBy: "owner@dss-motor.test",
+    });
+
+    expect(result.tenant.mode).toBe("DEV");
+    expect(result.tenant.modeChangedBy).toBe("owner@dss-motor.test");
+    expect(result.tenant.modeChangedAt).toBeDefined();
+
+    const after = await tenants.findByTenantId("dss-motor");
+    expect(after?.mode).toBe("DEV");
+    expect(after?.mode_changed_by).toBe("owner@dss-motor.test");
+    expect(after?.mode_changed_at).toBeDefined();
+  });
+
+  it("updateMode() persists mode_changed_by=null when changedBy is omitted (never a fabricated actor)", async () => {
+    const { service, tenants } = buildService();
+    await seedTenant(tenants);
+    const result = await service.updateMode("dss-motor", { mode: "DEV" });
+    expect(result.tenant.mode).toBe("DEV");
+    expect(result.tenant.modeChangedBy).toBeUndefined();
+    const after = await tenants.findByTenantId("dss-motor");
+    expect(after?.mode_changed_by).toBeNull();
+  });
+
+  it("updateMode() throws NotFoundError for an unknown tenant", async () => {
+    const { service } = buildService();
+    await expect(service.updateMode("missing", { mode: "DEV" })).rejects.toThrow(NotFoundError);
   });
 
   it("testMetaConnection() refuses to run when the tenant has no saved token (never falls back to the env default)", async () => {

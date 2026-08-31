@@ -2,6 +2,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
 import { ApiKeyGuard } from "./guards/api-key.guard.js";
 import { AdTenantIndexRepository } from "./infrastructure/ad-tenant-index.repository.js";
@@ -16,6 +17,7 @@ import { MetaAdsService } from "./meta-ads.service.js";
  * their own repositories.
  */
 @Module({
+  imports: [ModeGuardModule],
   controllers: [MetaAdsController],
   providers: [
     MetaAdsService,

@@ -10,7 +10,13 @@ import { SettingsController } from "./settings.controller.js";
 import type { SettingsService } from "./settings.service.js";
 
 const SETTINGS_SAMPLE: SettingsResponseDto = {
-  tenant: { tenantId: "dss-motor", name: "DSS Motor", vertical: "AUTOMOTIVE", status: "ACTIVE" },
+  tenant: {
+    tenantId: "dss-motor",
+    name: "DSS Motor",
+    vertical: "AUTOMOTIVE",
+    status: "ACTIVE",
+    mode: "LIVE",
+  },
   meta: { apiVersion: "v21.0", hasToken: true, usingEnvDefault: true },
 };
 
@@ -30,6 +36,10 @@ function buildFakeService(): SettingsService {
   return {
     getSettings: vi.fn(async () => SETTINGS_SAMPLE),
     updateMeta: vi.fn(async () => SETTINGS_SAMPLE),
+    updateMode: vi.fn(async () => ({
+      ...SETTINGS_SAMPLE,
+      tenant: { ...SETTINGS_SAMPLE.tenant, mode: "DEV" as const },
+    })),
     testMetaConnection: vi.fn(async () => ({ success: true, message: "Terhubung" })),
     listWaba: vi.fn(async () => [WABA_SAMPLE]),
     createWaba: vi.fn(async () => WABA_SAMPLE),
@@ -55,6 +65,15 @@ describe("SettingsController", () => {
     const body = { accessToken: "new-token" };
     await controller.updateMeta("dss-motor", body);
     expect(service.updateMeta).toHaveBeenCalledWith("dss-motor", body);
+  });
+
+  it("PATCH /api/v1/settings/mode delegates to service.updateMode", async () => {
+    const service = buildFakeService();
+    const controller = new SettingsController(service);
+    const body = { mode: "DEV" as const, changedBy: "owner@dss-motor.test" };
+    const result = await controller.updateMode("dss-motor", body);
+    expect(service.updateMode).toHaveBeenCalledWith("dss-motor", body);
+    expect(result.tenant.mode).toBe("DEV");
   });
 
   it("POST /api/v1/settings/meta/test delegates to service.testMetaConnection", async () => {

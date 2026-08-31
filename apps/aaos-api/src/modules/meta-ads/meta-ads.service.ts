@@ -1,14 +1,17 @@
 import { ValidationError } from "@aos/errors";
-import type { ExecutionResult } from "@aos/meta-ads-connector";
 import { AdAccountId, Verdict } from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import { toAdAccountResponseDto, type AdAccountResponseDto } from "./dto/campaign-response.dto.js";
-import type { ExecuteVerdictBodyDto } from "./dto/execute-verdict.dto.js";
+import type {
+  ExecuteVerdictBodyDto,
+  ExecuteVerdictResponseDto,
+} from "./dto/execute-verdict.dto.js";
 import type { PullCampaignsQueryDto } from "./dto/pull-campaigns.dto.js";
 import {
   AdTenantIndexRepository,
@@ -35,6 +38,7 @@ export class MetaAdsService {
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly adTenantIndex: AdTenantIndexRepository,
+    private readonly modeGuard: ModeGuardService,
   ) {}
 
   async pullCampaigns(
@@ -108,28 +112,47 @@ export class MetaAdsService {
     return results;
   }
 
+  /**
+   * The real Meta-mutating call site `ModeGuardService` gates (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG
+   * Phase A point 3 — confirmed via direct read that `scheduler.service.ts`'s handlers are ALL
+   * read-only, so this is where the gate genuinely belongs): `connector.executeVerdict.execute`
+   * really does pause/scale/fix a live Meta campaign. In DEV mode, `simulateFn` returns an honest
+   * `{ action: "SIMULATED", simulated: true, ... }` describing what WOULD have run, never a
+   * fabricated real-looking result and never a real Meta API call.
+   */
   async executeVerdict(
     body: ExecuteVerdictBodyDto,
     correlationId: string,
-  ): Promise<ExecutionResult> {
+  ): Promise<ExecuteVerdictResponseDto> {
     const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
     const connector = connectorResult.value;
 
-    const result = await connector.executeVerdict.execute({
-      verdict: Verdict[body.verdict],
-      targetId: body.targetId,
-      targetType: body.targetType,
-      accessToken: connector.accessToken,
-      tenantId: this.config.AAOS_TENANT_ID,
-      correlationId,
-    });
-    if (!result.ok) {
-      throw result.error;
-    }
-
-    return result.value;
+    return this.modeGuard.executeOrSimulate<ExecuteVerdictResponseDto>(
+      this.config.AAOS_TENANT_ID,
+      async () => {
+        const result = await connector.executeVerdict.execute({
+          verdict: Verdict[body.verdict],
+          targetId: body.targetId,
+          targetType: body.targetType,
+          accessToken: connector.accessToken,
+          tenantId: this.config.AAOS_TENANT_ID,
+          correlationId,
+        });
+        if (!result.ok) {
+          throw result.error;
+        }
+        return { ...result.value, simulated: false };
+      },
+      () =>
+        Promise.resolve({
+          action: "SIMULATED",
+          targetId: body.targetId,
+          targetType: body.targetType,
+          simulated: true,
+        }),
+    );
   }
 }

@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -20,6 +21,7 @@ import {
   type TestMetaConnectionResponseDto,
   type UpdateMetaSettingsBodyDto,
 } from "./dto/update-meta-settings.dto.js";
+import { UpdateModeBodySchema, type UpdateModeBodyDto } from "./dto/update-mode.dto.js";
 import {
   CreateWabaConfigBodySchema,
   TestDraftWabaConnectionBodySchema,
@@ -62,6 +64,15 @@ export class SettingsController {
   @HttpCode(200)
   async testMeta(@TenantId() tenantId: string): Promise<TestMetaConnectionResponseDto> {
     return this.service.testMetaConnection(tenantId);
+  }
+
+  /** `PATCH /api/v1/settings/mode` — the new "Mode Operasi" card's confirm-dialog action (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A point 4). */
+  @Patch("mode")
+  async updateMode(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(UpdateModeBodySchema)) body: UpdateModeBodyDto,
+  ): Promise<SettingsResponseDto> {
+    return this.service.updateMode(tenantId, body);
   }
 
   @Get("waba")

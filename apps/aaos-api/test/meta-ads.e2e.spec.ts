@@ -122,7 +122,7 @@ describe("campaigns e2e — POST /api/v1/campaigns/create (AAOS-W1D-S3)", () => 
   // Same sandbox-DNS-latency rationale as meta-ads e2e's GET /api/v1/campaigns test above — this
   // describe block bootstraps its OWN app instance, so it independently pays the one-time,
   // then-cached MetaAdsConnectorRegistry resolution cost for `dss-motor`.
-  it("POST /api/v1/campaigns/create -> 200 with { campaignId, adSetId }", async () => {
+  it("POST /api/v1/campaigns/create -> 200 with { campaignId, adSetId, simulated: false }", async () => {
     registerCreateCampaignMswHandlers({
       newCampaignId: "120000000000099",
       newAdSetId: "120000000000100",
@@ -138,9 +138,13 @@ describe("campaigns e2e — POST /api/v1/campaigns/create (AAOS-W1D-S3)", () => 
       });
 
     expect(response.status).toBe(200);
+    // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A: no `tenants` row exists for `dss-motor` in this
+    // e2e app's real (unseeded) DB, so `ModeGuardService.resolveMode` fails open to LIVE — the
+    // real `executeFn` path runs, hence `simulated: false` and real ids from the mocked Meta API.
     expect(response.body).toEqual({
       campaignId: "120000000000099",
       adSetId: "120000000000100",
+      simulated: false,
     });
   }, 15000);
 

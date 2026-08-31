@@ -14,7 +14,19 @@ import {
 
 import { CampaignsService } from "./campaigns.service.js";
 
-function buildService(): CampaignsService {
+/** Minimal `ModeGuardService` test double — always resolves LIVE (calls `executeFn`) unless `dev: true`. */
+function buildFakeModeGuard(dev = false) {
+  return {
+    resolveMode: async () => (dev ? "DEV" : "LIVE"),
+    executeOrSimulate: async <T>(
+      _tenantId: string,
+      executeFn: () => Promise<T>,
+      simulateFn: () => Promise<T>,
+    ): Promise<T> => (dev ? simulateFn() : executeFn()),
+  };
+}
+
+function buildService(dev = false): CampaignsService {
   const config = buildTestConfig();
   const connectorConfig = toConnectorConfig(config);
   if (!connectorConfig.ok) {
@@ -32,7 +44,7 @@ function buildService(): CampaignsService {
         adAccountIds: config.META_AD_ACCOUNT_IDS,
       }),
   };
-  return new CampaignsService(config, registry as never);
+  return new CampaignsService(config, registry as never, buildFakeModeGuard(dev) as never);
 }
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: "error" }));
@@ -57,6 +69,23 @@ describe("CampaignsService.createCampaign (AAOS-W1D-S3)", () => {
     );
     expect(dto.campaignId).toBe("120000000000099");
     expect(dto.adSetId).toBe("120000000000100");
+    expect(dto.simulated).toBe(false);
+  });
+
+  it("does NOT call the real Meta API and returns simulated:true with no ids when the tenant is in DEV mode (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A)", async () => {
+    // No MSW handler registered at all — any real HTTP call would fail the test
+    // (`onUnhandledRequest: "error"`), proving `executeFn` (the real Meta call) never runs.
+    const service = buildService(true);
+    const dto = await service.createCampaign(
+      {
+        adAccountId: "act_752604553578354",
+        name: "Meta-CTWA-Leads-Mobix-Cinere",
+        branch: Branch.CINERE,
+        funnel: Funnel.CTWA,
+      },
+      "corr-dev-1",
+    );
+    expect(dto).toEqual({ simulated: true });
   });
 
   it("passes through an explicit dailyBudgetIDR override", async () => {

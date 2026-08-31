@@ -20,6 +20,7 @@ import type {
   TestMetaConnectionResponseDto,
   UpdateMetaSettingsBodyDto,
 } from "./dto/update-meta-settings.dto.js";
+import type { UpdateModeBodyDto } from "./dto/update-mode.dto.js";
 import type {
   CreateWabaConfigBodyDto,
   TestWabaConnectionResponseDto,
@@ -105,6 +106,9 @@ export class SettingsService {
         vertical: tenant.vertical as "AUTOMOTIVE" | "PROPERTY",
         status: tenant.status as "TRIAL" | "ACTIVE" | "SUSPENDED",
         ...(tenant.trial_ends_at !== null ? { trialEndsAt: tenant.trial_ends_at } : {}),
+        mode: tenant.mode === "DEV" ? "DEV" : "LIVE",
+        ...(tenant.mode_changed_at !== null ? { modeChangedAt: tenant.mode_changed_at } : {}),
+        ...(tenant.mode_changed_by !== null ? { modeChangedBy: tenant.mode_changed_by } : {}),
       },
       meta: {
         ...(tenant.meta_ad_account_id !== null
@@ -133,6 +137,26 @@ export class SettingsService {
     // means the tenant's next-resolved `MetaAdsConnector` must reflect it, never a stale cached
     // instance built from the row's PREVIOUS values.
     this.metaAdsConnectorRegistry.invalidate(tenantId);
+    return this.getSettings(tenantId);
+  }
+
+  /**
+   * `PATCH /api/v1/settings/mode` (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A point 4) — the "Mode
+   * Operasi" card's confirm-dialog action. Writes a real audit trail on every call
+   * (`mode_changed_at`/`mode_changed_by`), never only the `mode` value itself — `ModeGuardService`
+   * reads `mode` fresh (no cache) on its very next `executeOrSimulate` call, so no cache
+   * invalidation is needed here (contrast with `updateMeta`'s `metaAdsConnectorRegistry.invalidate`
+   * above, which exists specifically because THAT registry DOES long-lived-cache its resolved
+   * connector).
+   */
+  async updateMode(tenantId: string, dto: UpdateModeBodyDto): Promise<SettingsResponseDto> {
+    await this.requireTenant(tenantId);
+    await this.tenants.updateByTenantId(tenantId, {
+      mode: dto.mode,
+      mode_changed_at: new Date().toISOString(),
+      mode_changed_by: dto.changedBy ?? null,
+      updated_at: new Date().toISOString(),
+    });
     return this.getSettings(tenantId);
   }
 

@@ -63,6 +63,9 @@ export function SettingsClient(): React.ReactElement {
     {},
   );
 
+  const [modeSaving, setModeSaving] = useState(false);
+  const [modeError, setModeError] = useState<string | undefined>(undefined);
+
   const [competitors, setCompetitors] = useState<readonly CompetitorPageDto[] | undefined>(
     undefined,
   );
@@ -193,6 +196,45 @@ export function SettingsClient(): React.ReactElement {
       loadWaba();
     } finally {
       setWabaBusyId(undefined);
+    }
+  }
+
+  /**
+   * "Mode Operasi" card's confirm-dialog action (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A point
+   * 4). A real `window.confirm` — flipping this tenant's mode changes whether Samantha/Kai's real
+   * Meta-mutating actions (`ExecuteVerdict`, campaign creation) actually run or are simulated, so
+   * it deliberately isn't a single click with no confirmation step.
+   */
+  async function handleToggleMode(): Promise<void> {
+    if (settings === undefined) {
+      return;
+    }
+    const nextMode = settings.tenant.mode === "LIVE" ? "DEV" : "LIVE";
+    const confirmed = window.confirm(
+      nextMode === "DEV"
+        ? "Yakin ingin mengalihkan ke mode DEV? Samantha/Kai TIDAK akan menjalankan aksi nyata ke Meta Ads (pause/scale/fix/buat campaign) selama mode DEV aktif — hanya simulasi."
+        : "Yakin ingin mengalihkan ke mode LIVE? Samantha/Kai akan mulai menjalankan aksi NYATA ke Meta Ads (pause/scale/fix/buat campaign).",
+    );
+    if (!confirmed) {
+      return;
+    }
+    setModeSaving(true);
+    setModeError(undefined);
+    try {
+      const response = await fetch("/api/settings/mode", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: nextMode }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? "Gagal mengubah mode.");
+      }
+      loadSettings();
+    } catch (caught) {
+      setModeError(caught instanceof Error ? caught.message : "Gagal mengubah mode.");
+    } finally {
+      setModeSaving(false);
     }
   }
 
@@ -528,6 +570,46 @@ export function SettingsClient(): React.ReactElement {
               {competitorSaving ? "Menambah..." : "+ Tambah Kompetitor"}
             </button>
           </div>
+        </section>
+
+        <section className={styles.card} data-testid="mode-operasi-card">
+          <span className={styles.cardTitle}>Mode Operasi</span>
+          <p className={styles.hint}>
+            DEV: Samantha/Kai hanya mensimulasikan aksi (pause/scale/fix/buat campaign) — tidak ada
+            panggilan nyata ke Meta Ads. LIVE: aksi dijalankan nyata ke Meta Ads.
+          </p>
+          <div className={styles.accountRow}>
+            <span
+              className={`${styles.statusPill} ${
+                settings.tenant.mode === "LIVE"
+                  ? styles.statusPillActive
+                  : styles.statusPillInactive
+              }`}
+            >
+              {settings.tenant.mode}
+            </span>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => void handleToggleMode()}
+              disabled={modeSaving}
+            >
+              {modeSaving
+                ? "Menyimpan..."
+                : settings.tenant.mode === "LIVE"
+                  ? "Alihkan ke DEV"
+                  : "Alihkan ke LIVE"}
+            </button>
+          </div>
+          {settings.tenant.modeChangedAt !== undefined ? (
+            <p className={styles.hint}>
+              Terakhir diubah: {settings.tenant.modeChangedAt}
+              {settings.tenant.modeChangedBy !== undefined
+                ? ` oleh ${settings.tenant.modeChangedBy}`
+                : ""}
+            </p>
+          ) : null}
+          {modeError !== undefined ? <p className={styles.error}>{modeError}</p> : null}
         </section>
 
         <section className={styles.card}>

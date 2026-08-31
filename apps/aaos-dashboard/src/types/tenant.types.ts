@@ -64,12 +64,23 @@ export interface ImpersonateResponseDto {
   readonly actionLink: string;
 }
 
+export type TenantMode = "DEV" | "LIVE";
+
 export interface TenantInfoDto {
   readonly tenantId: string;
   readonly name: string;
   readonly vertical: Vertical;
   readonly status: TenantStatus;
   readonly trialEndsAt?: string;
+  /** AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A — real, per-tenant, DB-driven DEV/LIVE mode gate. */
+  readonly mode: TenantMode;
+  readonly modeChangedAt?: string;
+  readonly modeChangedBy?: string;
+}
+
+export interface UpdateModeInput {
+  readonly mode: TenantMode;
+  readonly changedBy?: string;
 }
 
 export interface MetaSettingsDto {

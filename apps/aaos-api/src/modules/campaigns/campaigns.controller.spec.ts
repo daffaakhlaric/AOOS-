@@ -11,7 +11,8 @@ import type { CreateCampaignResponseDto } from "./dto/create-campaign.dto.js";
 function buildFakeService(): CampaignsService {
   return {
     createCampaign: vi.fn(
-      async () => ({ campaignId: "c-1", adSetId: "as-1" }) as CreateCampaignResponseDto,
+      async () =>
+        ({ campaignId: "c-1", adSetId: "as-1", simulated: false }) as CreateCampaignResponseDto,
     ),
   } as unknown as CampaignsService;
 }
@@ -28,7 +29,7 @@ describe("CampaignsController (AAOS-W1D-S3)", () => {
     };
     const result = await controller.createCampaign(body, "corr-1");
     expect(service.createCampaign).toHaveBeenCalledWith(body, "corr-1");
-    expect(result).toEqual({ campaignId: "c-1", adSetId: "as-1" });
+    expect(result).toEqual({ campaignId: "c-1", adSetId: "as-1", simulated: false });
   });
 
   it("guards the whole controller with ApiKeyGuard", () => {
@@ -48,6 +49,6 @@ describe("CampaignsController (AAOS-W1D-S3)", () => {
       { adAccountId: "act_1", name: "X", branch: "CINERE" as const, funnel: "CTWA" as const },
       "corr-2",
     );
-    expect(Object.keys(result).sort()).toEqual(["adSetId", "campaignId"]);
+    expect(Object.keys(result).sort()).toEqual(["adSetId", "campaignId", "simulated"]);
   });
 });

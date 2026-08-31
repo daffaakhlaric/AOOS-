@@ -13,11 +13,34 @@ export interface TenantRow {
   readonly meta_access_token: string | null;
   readonly meta_ad_account_id: string | null;
   readonly meta_api_version: string | null;
+  /**
+   * `'DEV' | 'LIVE'` (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A) — free `TEXT` with a DB `CHECK`
+   * constraint (`020_tenant_mode.sql`), same "Zod validates at the API boundary, DB just enforces
+   * the invariant" convention `status`/`vertical` already use. `DEFAULT 'LIVE'` at the column
+   * level — see that migration's header doc for why.
+   */
+  readonly mode: string;
+  readonly mode_changed_at: string | null;
+  readonly mode_changed_by: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
 
-export type TenantInsert = Omit<TenantRow, "id" | "created_at" | "updated_at">;
+/**
+ * `mode`/`mode_changed_at`/`mode_changed_by` are deliberately OPTIONAL on insert (unlike every
+ * other column): the DB column default (`DEFAULT 'LIVE'`) already gives every new row the correct
+ * safe-for-existing-tenants value, and `mode_changed_at`/`mode_changed_by` have nothing honest to
+ * record until a real mode CHANGE happens (`SettingsService.updateMode`) — inventing an initial
+ * "changed by" value at creation time would misrepresent an insert as a change. `SuperadminService.create`
+ * passes `mode: 'DEV'` explicitly for brand-new tenants (a separate, safe, application-level
+ * default — see `020_tenant_mode.sql`'s header doc); every other existing insert call site is
+ * unaffected and keeps relying on the column default.
+ */
+export type TenantInsert = Omit<
+  TenantRow,
+  "id" | "created_at" | "updated_at" | "mode" | "mode_changed_at" | "mode_changed_by"
+> &
+  Partial<Pick<TenantRow, "mode" | "mode_changed_at" | "mode_changed_by">>;
 /** Callers explicitly set `updated_at` on every real patch (no DB trigger backs it — see `SuperadminService.update`/`SettingsService.updateMeta`), so it stays a settable field here, unlike `id`/`tenant_id`/`created_at`. */
 export type TenantUpdate = Partial<Omit<TenantRow, "id" | "tenant_id" | "created_at">>;
 

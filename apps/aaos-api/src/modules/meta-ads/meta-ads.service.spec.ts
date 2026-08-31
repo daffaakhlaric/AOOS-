@@ -37,7 +37,19 @@ function buildFakeAdTenantIndex() {
   };
 }
 
-function buildService(): MetaAdsService {
+/** Minimal `ModeGuardService` test double — always resolves LIVE (calls `executeFn`) unless `dev: true`. */
+function buildFakeModeGuard(dev = false) {
+  return {
+    resolveMode: async () => (dev ? "DEV" : "LIVE"),
+    executeOrSimulate: async <T>(
+      _tenantId: string,
+      executeFn: () => Promise<T>,
+      simulateFn: () => Promise<T>,
+    ): Promise<T> => (dev ? simulateFn() : executeFn()),
+  };
+}
+
+function buildService(dev = false): MetaAdsService {
   const config = buildTestConfig();
   const connectorConfig = toConnectorConfig(config);
   if (!connectorConfig.ok) {
@@ -51,6 +63,7 @@ function buildService(): MetaAdsService {
     config,
     toRegistry(config, connector) as never,
     buildFakeAdTenantIndex() as never,
+    buildFakeModeGuard(dev) as never,
   );
 }
 
@@ -112,6 +125,7 @@ describe("MetaAdsService", () => {
         config,
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
+        buildFakeModeGuard() as never,
       );
       await expect(
         service.pullCampaigns({ datePreset: "last_30d" }, "corr-5"),
@@ -140,6 +154,7 @@ describe("MetaAdsService", () => {
         config,
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
+        buildFakeModeGuard() as never,
       );
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
@@ -165,6 +180,7 @@ describe("MetaAdsService", () => {
         config,
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
+        buildFakeModeGuard() as never,
       );
       const accounts = await service.getAdAccounts();
       expect(accounts).toEqual([
@@ -184,6 +200,23 @@ describe("MetaAdsService", () => {
       );
       expect(result.action).toBe("PAUSED");
       expect(result.targetId).toBe("120000000000003");
+      expect(result.simulated).toBe(false);
+    });
+
+    it("does NOT call the real Meta API and returns a SIMULATED result when the tenant is in DEV mode (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A)", async () => {
+      // No MSW handler registered at all — any real HTTP call would fail the test
+      // (`onUnhandledRequest: "error"`), proving `executeFn` (the real Meta call) never runs.
+      const service = buildService(true);
+      const result = await service.executeVerdict(
+        { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
+        "corr-dev-1",
+      );
+      expect(result).toEqual({
+        action: "SIMULATED",
+        targetId: "120000000000003",
+        targetType: "ad",
+        simulated: true,
+      });
     });
 
     it("executes a SCALE verdict against the (mocked) Meta API", async () => {
