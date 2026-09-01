@@ -29,6 +29,39 @@ export interface CreateCampaignParams {
   readonly status: string;
 }
 
+/**
+ * Meta's real `targeting.geo_locations.cities[]` entry — verified 2026-09-01 against Meta's
+ * Marketing API "Basic Targeting" reference (developers.facebook.com/docs/marketing-api/audiences/
+ * reference/basic-targeting/): `key` is the city identifier returned by the real
+ * `GET /search?type=adgeolocation` endpoint (Meta's "Targeting Search" reference — see
+ * `SearchAdInterests.ts`'s sibling geo-search use case, S2, for the analogous read path), `radius`
+ * is 10-50 (mile) or 17-80 (kilometer), and up to 250 cities are accepted per targeting spec.
+ */
+export interface MetaTargetingCity {
+  readonly key: string;
+  readonly radius?: number;
+  readonly distanceUnit?: "mile" | "kilometer";
+}
+
+/**
+ * Input for `IMetaAdsClient.createAdSet`'s optional `targeting` field (AAOS EPIC S, Phase S1) —
+ * mirrors Meta's real Ad Set `targeting` object shape, verified 2026-09-01 against Meta's
+ * Marketing API "Basic Targeting" reference: `age_min`/`age_max` are ints (13-65, default 18/
+ * no-max), `genders` is an array of ints (`1` = male, `2` = female; omit for Meta's "all genders"
+ * default), `geo_locations.cities[].key` is a Meta-issued city id (see `MetaTargetingCity`).
+ * Optional/additive on `CreateAdSetParams` — see that field's own doc for the zero-regression
+ * guarantee.
+ */
+export interface CreateAdSetTargeting {
+  readonly geoLocations?: {
+    readonly cities: ReadonlyArray<MetaTargetingCity>;
+  };
+  readonly ageMin?: number;
+  readonly ageMax?: number;
+  /** `1` = male, `2` = female. Omit (or leave empty) for Meta's "all genders" default. */
+  readonly genders?: ReadonlyArray<1 | 2>;
+}
+
 /** Input for `IMetaAdsClient.createAdSet` (AAOS-W1D-S3) — mirrors Meta's `POST /{ad-account}/adsets` body shape. */
 export interface CreateAdSetParams {
   readonly campaignId: string;
@@ -40,6 +73,27 @@ export interface CreateAdSetParams {
   readonly dailyBudgetCents: number;
   /** Always `"PAUSED"` — DSS approves before activating. */
   readonly status: string;
+  /**
+   * AAOS EPIC S, Phase S1 — optional/additive real Meta `targeting` object. **Omitted here means
+   * `createAdSet` sends no `targeting` field to Meta at all** — every existing AUTOMOTIVE call
+   * site (Meta's own default/broad targeting) keeps behaving byte-for-byte as before this field
+   * was added.
+   */
+  readonly targeting?: CreateAdSetTargeting;
+  /**
+   * AAOS EPIC S, Phase S1 — denormalized copy of the parent campaign's real
+   * `special_ad_categories` (Meta's AdSet endpoint itself does not accept this field — it is
+   * inherited from the campaign — but the wire client needs to know it here). Verified 2026-09-01
+   * against Meta's Marketing API "Special Ad Category" guide
+   * (developers.facebook.com/docs/marketing-api/special-ad-category): when `HOUSING`,
+   * `EMPLOYMENT`, or `FINANCIAL_PRODUCTS_SERVICES` is present, Meta's real API enforces a HARD
+   * ERROR (code `2909035`, "Custom Age/Gender Selection Is Not Available") on any non-default
+   * `age_min`/`age_max`/`genders` — so the wire client omits those three `targeting` sub-fields
+   * entirely rather than risk the rejection (`geo_locations` is unaffected and still sent).
+   * Optional; omitted (or `[]`) means `age_min`/`age_max`/`genders` are sent exactly as supplied,
+   * unchanged from today.
+   */
+  readonly specialAdCategories?: ReadonlyArray<string>;
 }
 
 /** Result of `createCampaign`/`createAdSet`/`createAd` — Meta's `POST /{ad-account}/campaigns|adsets|ads` response always includes the new object's `id`. */

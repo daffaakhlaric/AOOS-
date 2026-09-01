@@ -108,6 +108,96 @@ describe("CreateCampaign (MSW-mocked Meta API)", () => {
     });
   });
 
+  it("AAOS EPIC S Phase S1 zero-regression (MSW-mocked real Meta API): omitting specialAdCategories/targeting produces byte-for-byte the SAME real request bodies as before this change — no `targeting` key at all in the adset body", async () => {
+    let campaignBody: unknown;
+    let adSetBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_752604553578354/campaigns`, async ({ request }) => {
+        campaignBody = await request.json();
+        return HttpResponse.json({ id: "120000000000099" });
+      }),
+      http.post(`${BASE}/act_752604553578354/adsets`, async ({ request }) => {
+        adSetBody = await request.json();
+        return HttpResponse.json({ id: "120000000000100" });
+      }),
+    );
+    const { useCase } = makeUseCase();
+
+    await useCase.execute({
+      adAccountId,
+      name: "Meta-CTWA-Leads-Mobix-Cinere",
+      branch: Branch.CINERE,
+      funnel: Funnel.CTWA,
+      accessToken: "TOKEN",
+      tenantId: "t1",
+      correlationId: "c1",
+    });
+
+    expect(campaignBody).toEqual({
+      name: "Meta-CTWA-Leads-Mobix-Cinere",
+      objective: "OUTCOME_LEADS",
+      special_ad_categories: [],
+      status: "PAUSED",
+      access_token: "TOKEN",
+    });
+    expect(adSetBody).toEqual({
+      campaign_id: "120000000000099",
+      name: "Meta-CTWA-Leads-Mobix-Cinere-adset",
+      destination_type: "WHATSAPP",
+      optimization_goal: "LEAD_GENERATION",
+      billing_event: "IMPRESSIONS",
+      daily_budget: DEFAULT_DAILY_BUDGET_IDR * 100,
+      status: "PAUSED",
+      access_token: "TOKEN",
+    });
+    expect(adSetBody).not.toHaveProperty("targeting");
+  });
+
+  it("AAOS EPIC S Phase S1 (MSW-mocked real Meta API): a real HOUSING campaign's adset body carries geo_locations but omits age_min/age_max/genders, per Meta's real verified hard-error policy", async () => {
+    let adSetBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_752604553578354/campaigns`, () =>
+        HttpResponse.json({ id: "120000000000099" }),
+      ),
+      http.post(`${BASE}/act_752604553578354/adsets`, async ({ request }) => {
+        adSetBody = await request.json();
+        return HttpResponse.json({ id: "120000000000100" });
+      }),
+    );
+    const { useCase } = makeUseCase();
+
+    await useCase.execute({
+      adAccountId,
+      name: "PROPERTY-Cinere-HOUSING",
+      branch: Branch.CINERE,
+      funnel: Funnel.CTWA,
+      accessToken: "TOKEN",
+      tenantId: "t1",
+      correlationId: "c1",
+      specialAdCategories: ["HOUSING"],
+      targeting: {
+        geoLocations: { cities: [{ key: "2447439", radius: 15, distanceUnit: "mile" }] },
+        ageMin: 25,
+        ageMax: 45,
+        genders: [1, 2],
+      },
+    });
+
+    expect(adSetBody).toEqual({
+      campaign_id: "120000000000099",
+      name: "PROPERTY-Cinere-HOUSING-adset",
+      destination_type: "WHATSAPP",
+      optimization_goal: "LEAD_GENERATION",
+      billing_event: "IMPRESSIONS",
+      daily_budget: DEFAULT_DAILY_BUDGET_IDR * 100,
+      status: "PAUSED",
+      targeting: {
+        geo_locations: { cities: [{ key: "2447439", radius: 15, distance_unit: "mile" }] },
+      },
+      access_token: "TOKEN",
+    });
+  });
+
   it("does not emit an event and propagates the error when Meta rejects the campaign creation", async () => {
     mswServer.use(
       http.post(`${BASE}/act_752604553578354/campaigns`, () =>

@@ -224,6 +224,79 @@ describe("CreateCampaign (AAOS-W1D-S3)", () => {
     );
   });
 
+  it("AAOS EPIC S Phase S1 zero-regression: omitting specialAdCategories/targeting produces byte-for-byte the SAME createCampaign/createAdSet params as before this change (no new keys added)", async () => {
+    const client = fakeClient();
+    const { useCase } = makeUseCase(client);
+    await useCase.execute({
+      adAccountId,
+      name: "Meta-CTWA-Leads-Mobix-Cinere",
+      branch: Branch.CINERE,
+      funnel: Funnel.CTWA,
+      accessToken: "TOKEN",
+      tenantId: "t1",
+      correlationId: "c1",
+    });
+    expect(client.createCampaign).toHaveBeenCalledWith(
+      "act_752604553578354",
+      {
+        name: "Meta-CTWA-Leads-Mobix-Cinere",
+        objective: "OUTCOME_LEADS",
+        specialAdCategories: [],
+        status: "PAUSED",
+      },
+      "TOKEN",
+    );
+    expect(client.createAdSet).toHaveBeenCalledWith(
+      "act_752604553578354",
+      {
+        campaignId: "new-campaign-1",
+        name: "Meta-CTWA-Leads-Mobix-Cinere-adset",
+        destinationType: "WHATSAPP",
+        optimizationGoal: "LEAD_GENERATION",
+        billingEvent: "IMPRESSIONS",
+        dailyBudgetCents: DEFAULT_DAILY_BUDGET_IDR * 100,
+        status: "PAUSED",
+      },
+      "TOKEN",
+    );
+    const adSetCallArgs = (client.createAdSet as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as
+      Record<string, unknown> | undefined;
+    expect(adSetCallArgs).not.toHaveProperty("targeting");
+    expect(adSetCallArgs).not.toHaveProperty("specialAdCategories");
+  });
+
+  it("AAOS EPIC S Phase S1: threads caller-supplied specialAdCategories/targeting through to both createCampaign and createAdSet", async () => {
+    const client = fakeClient();
+    const { useCase } = makeUseCase(client);
+    const targeting = {
+      geoLocations: { cities: [{ key: "2447439", radius: 15, distanceUnit: "mile" as const }] },
+      ageMin: 25,
+      ageMax: 45,
+      genders: [1, 2] as const,
+    };
+    await useCase.execute({
+      adAccountId,
+      name: "PROPERTY-Cinere",
+      branch: Branch.CINERE,
+      funnel: Funnel.CTWA,
+      accessToken: "TOKEN",
+      tenantId: "t1",
+      correlationId: "c1",
+      specialAdCategories: ["HOUSING"],
+      targeting,
+    });
+    expect(client.createCampaign).toHaveBeenCalledWith(
+      "act_752604553578354",
+      expect.objectContaining({ specialAdCategories: ["HOUSING"] }),
+      "TOKEN",
+    );
+    expect(client.createAdSet).toHaveBeenCalledWith(
+      "act_752604553578354",
+      expect.objectContaining({ targeting, specialAdCategories: ["HOUSING"] }),
+      "TOKEN",
+    );
+  });
+
   it("returns the error and does NOT emit an event when adset creation fails after campaign creation succeeded", async () => {
     const client = fakeClient({
       createAdSet: vi.fn().mockResolvedValue(err(new ApiServerError("boom", { httpStatus: 500 }))),

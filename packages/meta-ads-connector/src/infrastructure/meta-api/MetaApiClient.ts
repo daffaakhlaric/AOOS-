@@ -5,6 +5,7 @@ import type {
   AddUsersToCustomAudienceParams,
   CreateAdParams,
   CreateAdSetParams,
+  CreateAdSetTargeting,
   CreateCampaignParams,
   CreateCustomAudienceParams,
   CreateLookalikeAudienceParams,
@@ -50,6 +51,57 @@ const META_INVALID_TOKEN_CODE = 190;
 const META_MISSING_PERMISSION_CODE = 200;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
+
+/**
+ * AAOS EPIC S, Phase S1 — Meta's real `special_ad_category` values that enforce a HARD ERROR
+ * (code `2909035`) on non-default age/gender targeting. Verified 2026-09-01 against Meta's
+ * Marketing API "Special Ad Category" guide (developers.facebook.com/docs/marketing-api/
+ * special-ad-category). `HOUSING` is the only one this codebase's `PropertyBranchAudienceDefaults`
+ * currently produces, but all three are real Meta categories with the identical restriction.
+ */
+const AGE_GENDER_RESTRICTED_SPECIAL_AD_CATEGORIES = new Set([
+  "HOUSING",
+  "EMPLOYMENT",
+  "FINANCIAL_PRODUCTS_SERVICES",
+]);
+
+/**
+ * AAOS EPIC S, Phase S1 — translates `CreateAdSetTargeting`'s camelCase shape into Meta's real
+ * wire `targeting` object. `age_min`/`age_max`/`genders` are omitted entirely (never sent) when
+ * `specialAdCategories` includes one of `AGE_GENDER_RESTRICTED_SPECIAL_AD_CATEGORIES` — see
+ * `CreateAdSetParams.specialAdCategories`'s own doc for why. `geo_locations` is unaffected by that
+ * restriction and is always included when supplied.
+ */
+function serializeTargeting(
+  targeting: CreateAdSetTargeting,
+  specialAdCategories: ReadonlyArray<string> | undefined,
+): Record<string, unknown> {
+  const restrictsAgeGender = (specialAdCategories ?? []).some((category) =>
+    AGE_GENDER_RESTRICTED_SPECIAL_AD_CATEGORIES.has(category),
+  );
+  const wire: Record<string, unknown> = {};
+  if (targeting.geoLocations !== undefined) {
+    wire.geo_locations = {
+      cities: targeting.geoLocations.cities.map((city) => ({
+        key: city.key,
+        ...(city.radius !== undefined ? { radius: city.radius } : {}),
+        ...(city.distanceUnit !== undefined ? { distance_unit: city.distanceUnit } : {}),
+      })),
+    };
+  }
+  if (!restrictsAgeGender) {
+    if (targeting.ageMin !== undefined) {
+      wire.age_min = targeting.ageMin;
+    }
+    if (targeting.ageMax !== undefined) {
+      wire.age_max = targeting.ageMax;
+    }
+    if (targeting.genders !== undefined) {
+      wire.genders = targeting.genders;
+    }
+  }
+  return wire;
+}
 
 export interface MetaApiClientOptions {
   readonly timeoutMs?: number;
@@ -156,7 +208,13 @@ export class MetaApiClient implements IMetaAdsClient {
     });
   }
 
-  /** AAOS-W1D-S3: `POST /{ad-account}/adsets` — always `destination_type: "WHATSAPP"`, `status: "PAUSED"` for AAOS-created ad sets (`CreateCampaign` use case is the only caller and always passes those). */
+  /**
+   * AAOS-W1D-S3: `POST /{ad-account}/adsets` — always `destination_type: "WHATSAPP"`,
+   * `status: "PAUSED"` for AAOS-created ad sets (`CreateCampaign` use case is the only caller and
+   * always passes those). AAOS EPIC S, Phase S1: `targeting` is included ONLY when
+   * `params.targeting` is supplied — omitted entirely otherwise, so every existing AUTOMOTIVE call
+   * site (which never supplies it) sends byte-for-byte the same body as before this field existed.
+   */
   async createAdSet(
     adAccountId: string,
     params: CreateAdSetParams,
@@ -170,6 +228,9 @@ export class MetaApiClient implements IMetaAdsClient {
       billing_event: params.billingEvent,
       daily_budget: params.dailyBudgetCents,
       status: params.status,
+      ...(params.targeting !== undefined
+        ? { targeting: serializeTargeting(params.targeting, params.specialAdCategories) }
+        : {}),
       access_token: accessToken,
     });
   }
@@ -433,7 +494,9 @@ export class MetaApiClient implements IMetaAdsClient {
    */
   private async postJsonBody(
     url: string,
-    body: Readonly<Record<string, string | number | ReadonlyArray<string>>>,
+    body: Readonly<
+      Record<string, string | number | ReadonlyArray<string> | Record<string, unknown>>
+    >,
   ): Promise<Result<ClientMetaCreateResponse, MetaApiError>> {
     const responseResult = await this.doFetch(url, {
       method: "POST",

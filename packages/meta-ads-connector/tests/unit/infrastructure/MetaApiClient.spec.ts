@@ -132,6 +132,34 @@ describe("MetaApiClient", () => {
     });
   });
 
+  it("createCampaign() passes through a real specialAdCategories: ['HOUSING'] unchanged (AAOS EPIC S Phase S1 — the field already existed as REQUIRED on CreateCampaignParams pre-S1, this pins its real HOUSING value flows through untouched)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/campaigns`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "new-campaign-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    await client.createCampaign(
+      "act_123",
+      {
+        name: "PROPERTY-Cinere",
+        objective: "OUTCOME_LEADS",
+        specialAdCategories: ["HOUSING"],
+        status: "PAUSED",
+      },
+      "TOKEN",
+    );
+    expect(capturedBody).toEqual({
+      name: "PROPERTY-Cinere",
+      objective: "OUTCOME_LEADS",
+      special_ad_categories: ["HOUSING"],
+      status: "PAUSED",
+      access_token: "TOKEN",
+    });
+  });
+
   it("createAdSet() POSTs destination_type=WHATSAPP, optimization_goal=LEAD_GENERATION, status=PAUSED and parses the new id (AAOS-W1D-S3)", async () => {
     let capturedBody: unknown;
     mswServer.use(
@@ -163,6 +191,132 @@ describe("MetaApiClient", () => {
       billing_event: "IMPRESSIONS",
       daily_budget: 10_000_000,
       status: "PAUSED",
+      access_token: "TOKEN",
+    });
+  });
+
+  it("createAdSet() sends NO targeting field at all when params.targeting is omitted — AAOS EPIC S Phase S1 zero-regression guarantee, byte-for-byte identical to pre-S1 AUTOMOTIVE behavior", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/adsets`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "new-adset-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    await client.createAdSet(
+      "act_123",
+      {
+        campaignId: "new-campaign-1",
+        name: "Meta-CTWA-Leads-Mobix-Cinere-adset",
+        destinationType: "WHATSAPP",
+        optimizationGoal: "LEAD_GENERATION",
+        billingEvent: "IMPRESSIONS",
+        dailyBudgetCents: 10_000_000,
+        status: "PAUSED",
+      },
+      "TOKEN",
+    );
+    expect(capturedBody).toEqual({
+      campaign_id: "new-campaign-1",
+      name: "Meta-CTWA-Leads-Mobix-Cinere-adset",
+      destination_type: "WHATSAPP",
+      optimization_goal: "LEAD_GENERATION",
+      billing_event: "IMPRESSIONS",
+      daily_budget: 10_000_000,
+      status: "PAUSED",
+      access_token: "TOKEN",
+    });
+    expect(capturedBody).not.toHaveProperty("targeting");
+  });
+
+  it("createAdSet() serializes a real targeting payload (geo_locations.cities + age_min/age_max/genders) into Meta's real wire shape when specialAdCategories does NOT restrict age/gender (AAOS EPIC S Phase S1)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/adsets`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "new-adset-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    await client.createAdSet(
+      "act_123",
+      {
+        campaignId: "new-campaign-1",
+        name: "PROPERTY-Cinere-adset",
+        destinationType: "WHATSAPP",
+        optimizationGoal: "LEAD_GENERATION",
+        billingEvent: "IMPRESSIONS",
+        dailyBudgetCents: 10_000_000,
+        status: "PAUSED",
+        targeting: {
+          geoLocations: { cities: [{ key: "2447439", radius: 12, distanceUnit: "mile" }] },
+          ageMin: 25,
+          ageMax: 45,
+          genders: [1, 2],
+        },
+        specialAdCategories: [],
+      },
+      "TOKEN",
+    );
+    expect(capturedBody).toEqual({
+      campaign_id: "new-campaign-1",
+      name: "PROPERTY-Cinere-adset",
+      destination_type: "WHATSAPP",
+      optimization_goal: "LEAD_GENERATION",
+      billing_event: "IMPRESSIONS",
+      daily_budget: 10_000_000,
+      status: "PAUSED",
+      targeting: {
+        geo_locations: { cities: [{ key: "2447439", radius: 12, distance_unit: "mile" }] },
+        age_min: 25,
+        age_max: 45,
+        genders: [1, 2],
+      },
+      access_token: "TOKEN",
+    });
+  });
+
+  it("createAdSet() OMITS age_min/age_max/genders (but keeps geo_locations) when specialAdCategories includes HOUSING — Meta's real hard-error policy (code 2909035) verified against developers.facebook.com/docs/marketing-api/special-ad-category (AAOS EPIC S Phase S1)", async () => {
+    let capturedBody: unknown;
+    mswServer.use(
+      http.post(`${BASE}/act_123/adsets`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ id: "new-adset-1" });
+      }),
+    );
+    const client = new MetaApiClient();
+    await client.createAdSet(
+      "act_123",
+      {
+        campaignId: "new-campaign-1",
+        name: "PROPERTY-Cinere-HOUSING-adset",
+        destinationType: "WHATSAPP",
+        optimizationGoal: "LEAD_GENERATION",
+        billingEvent: "IMPRESSIONS",
+        dailyBudgetCents: 10_000_000,
+        status: "PAUSED",
+        targeting: {
+          geoLocations: { cities: [{ key: "2447439", radius: 15, distanceUnit: "mile" }] },
+          ageMin: 25,
+          ageMax: 45,
+          genders: [1],
+        },
+        specialAdCategories: ["HOUSING"],
+      },
+      "TOKEN",
+    );
+    expect(capturedBody).toEqual({
+      campaign_id: "new-campaign-1",
+      name: "PROPERTY-Cinere-HOUSING-adset",
+      destination_type: "WHATSAPP",
+      optimization_goal: "LEAD_GENERATION",
+      billing_event: "IMPRESSIONS",
+      daily_budget: 10_000_000,
+      status: "PAUSED",
+      targeting: {
+        geo_locations: { cities: [{ key: "2447439", radius: 15, distance_unit: "mile" }] },
+      },
       access_token: "TOKEN",
     });
   });

@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "@aos/common";
 import type { Logger } from "@aos/logger";
 
-import type { IMetaAdsClient } from "../../contracts/IMetaAdsClient.js";
+import type { CreateAdSetTargeting, IMetaAdsClient } from "../../contracts/IMetaAdsClient.js";
 import type { IRateLimiter } from "../../contracts/IRateLimiter.js";
 import type { MetaApiError } from "../../domain/errors/index.js";
 import type { MetaAdsConnectorEvents } from "../../domain/events/MetaAdsConnectorEvents.js";
@@ -38,6 +38,18 @@ export interface CreateCampaignInput {
   readonly correlationId: string;
   /** Whole-IDR daily budget for the new ad set — defaults to `DEFAULT_DAILY_BUDGET_IDR`. */
   readonly dailyBudgetIDR?: number;
+  /**
+   * AAOS EPIC S, Phase S1 — additive/optional real Meta `special_ad_categories` (e.g. `['HOUSING']`
+   * for a real PROPERTY campaign; S3/S4, later phases, are the first real callers). Defaults to
+   * `[]` when omitted — today's AUTOMOTIVE behavior, unchanged.
+   */
+  readonly specialAdCategories?: ReadonlyArray<string>;
+  /**
+   * AAOS EPIC S, Phase S1 — additive/optional real Meta ad-set `targeting` (S3/S4, later phases,
+   * are the first real callers). Omitted entirely (no `targeting` sent to Meta) when not supplied
+   * — today's AUTOMOTIVE behavior, unchanged.
+   */
+  readonly targeting?: CreateAdSetTargeting;
 }
 
 export interface CreateCampaignOutput {
@@ -74,13 +86,14 @@ export class CreateCampaign {
       "meta-ads-connector.create-campaign",
       async (span: { end: () => void }) => {
         try {
+          const specialAdCategories = input.specialAdCategories ?? [];
           const campaignResult = await callMetaApi(this.rateLimiter, this.retry, () =>
             this.client.createCampaign(
               input.adAccountId.toString(),
               {
                 name: input.name,
                 objective: CampaignObjective.OUTCOME_LEADS,
-                specialAdCategories: [],
+                specialAdCategories,
                 status: AdStatus.PAUSED,
               },
               input.accessToken,
@@ -106,6 +119,9 @@ export class CreateCampaign {
                 billingEvent: BILLING_EVENT_IMPRESSIONS,
                 dailyBudgetCents: rupiahToCents(dailyBudgetIDR),
                 status: AdStatus.PAUSED,
+                ...(input.targeting !== undefined
+                  ? { targeting: input.targeting, specialAdCategories }
+                  : {}),
               },
               input.accessToken,
             ),
