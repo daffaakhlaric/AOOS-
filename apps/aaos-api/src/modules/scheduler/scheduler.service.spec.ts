@@ -17,14 +17,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import type { CampaignsService } from "../campaigns/campaigns.service.js";
+import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
 import type { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { ListingListResponseDto } from "../listings/dto/listing.dto.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type { LlmService } from "../llm/llm.service.js";
-import type {
-  LocationResolverService,
-  ResolvedLocation,
-} from "../location-resolver/location-resolver.service.js";
 import type { LookalikeService } from "../lookalike/lookalike.service.js";
 import type { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
@@ -133,20 +131,30 @@ function buildFakeListingsService(
   } as unknown as ListingsService;
 }
 
-function buildFakeLocationResolverService(
-  result?: Partial<ResolvedLocation>,
-): LocationResolverService {
+/**
+ * AAOS EPIC S, Phase S5 — `SchedulerService` no longer resolves the target location itself
+ * (`CampaignsService.createPropertyCampaign` does that internally now); this fake stands in for
+ * the real `createPropertyCampaign`, which the scheduler now calls directly for every real
+ * `shouldCreateNewCampaign` trigger.
+ */
+function buildFakeCampaignsService(
+  impl?: (
+    tenantId: string,
+    body: { listingId: string },
+    correlationId: string,
+  ) => Promise<CreatePropertyCampaignResponseDto>,
+): CampaignsService {
   return {
-    resolve: vi.fn(async () => ({
-      cities: ["Jakarta"],
-      radiusKm: 25,
-      ageMin: 25,
-      ageMax: 55,
-      source: "FALLBACK",
-      reasoning: "fallback",
-      ...result,
-    })),
-  } as unknown as LocationResolverService;
+    createPropertyCampaign: vi.fn(
+      impl ??
+        (async () => ({
+          simulated: false,
+          resolvedCities: ["Jakarta"],
+          campaignId: "campaign-1",
+          adSetId: "adset-1",
+        })),
+    ),
+  } as unknown as CampaignsService;
 }
 
 function buildFakeModeGuardService(mode: "DEV" | "LIVE" = "LIVE"): ModeGuardService {
@@ -318,9 +326,9 @@ function buildService(
     adTenantIndex?: AdTenantIndexRepository;
     tenants?: TenantRepository;
     listingsService?: ListingsService;
-    locationResolver?: LocationResolverService;
     modeGuard?: ModeGuardService;
     activityLogger?: ActivityLogger;
+    campaignsService?: CampaignsService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -352,9 +360,9 @@ function buildService(
     options.adTenantIndex ?? buildFakeAdTenantIndex(),
     options.tenants ?? buildFakeTenantRepository(),
     options.listingsService ?? buildFakeListingsService(),
-    options.locationResolver ?? buildFakeLocationResolverService(),
     options.modeGuard ?? buildFakeModeGuardService(),
     options.activityLogger ?? buildFakeActivityLogger(),
+    options.campaignsService ?? buildFakeCampaignsService(),
   );
 }
 
@@ -540,23 +548,52 @@ describe("SchedulerService.executeEvent", () => {
       );
     });
 
-    it("DEV mode never creates a real campaign — records a SIMULATED activity via ActivityLogger", async () => {
+    it("a real trigger calls CampaignsService.createPropertyCampaign with the real expected listingId, no dailyBudgetIDR override", async () => {
       const repository = buildFakeRepository();
       const listingsService = buildFakeListingsService([buildListing()]);
-      const modeGuard = buildFakeModeGuardService("DEV");
       const activityLogger = buildFakeActivityLogger();
+      const campaignsService = buildFakeCampaignsService();
       const service = buildService({
         repository,
         listingsService,
-        modeGuard,
         activityLogger,
+        campaignsService,
         tenants: buildFakeTenantRepository(propertyTenants),
       });
 
       await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
 
+      expect(campaignsService.createPropertyCampaign).toHaveBeenCalledWith(
+        "dss-motor",
+        { listingId: "listing-1" },
+        expect.any(String),
+      );
+    });
+
+    it("DEV mode (createPropertyCampaign's own real gate, not a second one here) records a SIMULATED activity via ActivityLogger", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const modeGuard = buildFakeModeGuardService("DEV");
+      const activityLogger = buildFakeActivityLogger();
+      const campaignsService = buildFakeCampaignsService(async () => ({
+        simulated: true,
+        resolvedCities: ["Jakarta"],
+        note: "DEV mode — real Meta geo-search and campaign creation were not performed.",
+      }));
+      const service = buildService({
+        repository,
+        listingsService,
+        modeGuard,
+        activityLogger,
+        campaignsService,
+        tenants: buildFakeTenantRepository(propertyTenants),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      // `resolveMode` here only TAGS this method's own `agent_activities` row — the real DEV/LIVE
+      // branch is decided exactly once, inside `createPropertyCampaign` (not re-gated here).
       expect(modeGuard.resolveMode).toHaveBeenCalledWith("dss-motor");
-      expect(modeGuard.executeOrSimulate).toHaveBeenCalled();
       expect(activityLogger.start).toHaveBeenCalledWith(
         expect.objectContaining({
           tenantId: "dss-motor",
@@ -583,21 +620,33 @@ describe("SchedulerService.executeEvent", () => {
       );
     });
 
-    it("LIVE mode records a SUCCESS activity (real recommendation, still never calls CampaignsService)", async () => {
+    it("LIVE mode really calls CampaignsService.createPropertyCampaign and records a SUCCESS activity with its real output", async () => {
       const repository = buildFakeRepository();
       const listingsService = buildFakeListingsService([buildListing()]);
       const modeGuard = buildFakeModeGuardService("LIVE");
       const activityLogger = buildFakeActivityLogger();
+      const campaignsService = buildFakeCampaignsService(async () => ({
+        simulated: false,
+        resolvedCities: ["Jakarta"],
+        campaignId: "campaign-1",
+        adSetId: "adset-1",
+      }));
       const service = buildService({
         repository,
         listingsService,
         modeGuard,
         activityLogger,
+        campaignsService,
         tenants: buildFakeTenantRepository(propertyTenants),
       });
 
       await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
 
+      expect(campaignsService.createPropertyCampaign).toHaveBeenCalledWith(
+        "dss-motor",
+        { listingId: "listing-1" },
+        expect.any(String),
+      );
       expect(activityLogger.start).toHaveBeenCalledWith(
         expect.objectContaining({ mode: "LIVE", actionType: "CAMPAIGN_TRIGGER_RECOMMENDATION" }),
       );
@@ -605,9 +654,69 @@ describe("SchedulerService.executeEvent", () => {
         "activity-1",
         expect.objectContaining({
           status: "SUCCESS",
-          output: expect.objectContaining({ simulated: false }),
+          output: expect.objectContaining({ simulated: false, campaignId: "campaign-1" }),
         }),
       );
+    });
+
+    it("a createPropertyCampaign failure for one listing is logged and does not abort the rest of the check (multi-listing)", async () => {
+      const repository = buildFakeRepository();
+      const failingListing = buildListing();
+      const okListing = {
+        ...buildListing(),
+        id: "listing-2",
+        title: "Rumah Kedua Tanpa Campaign",
+      };
+      const listingsService = buildFakeListingsService([failingListing, okListing]);
+      const activityLogger = buildFakeActivityLogger();
+      const createPropertyCampaign = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Meta API error: every city failed to resolve"))
+        .mockResolvedValueOnce({
+          simulated: false,
+          resolvedCities: ["Jakarta"],
+          campaignId: "campaign-2",
+          adSetId: "adset-2",
+        });
+      const campaignsService = { createPropertyCampaign } as unknown as CampaignsService;
+      const service = buildService({
+        repository,
+        listingsService,
+        activityLogger,
+        campaignsService,
+        tenants: buildFakeTenantRepository(propertyTenants),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      // Both listings were attempted despite the first one's real failure.
+      expect(createPropertyCampaign).toHaveBeenCalledTimes(2);
+      expect(createPropertyCampaign).toHaveBeenNthCalledWith(
+        1,
+        "dss-motor",
+        { listingId: "listing-1" },
+        expect.any(String),
+      );
+      expect(createPropertyCampaign).toHaveBeenNthCalledWith(
+        2,
+        "dss-motor",
+        { listingId: "listing-2" },
+        expect.any(String),
+      );
+      // The failed listing's own activity row is marked failed (real error surfaced, not swallowed).
+      expect(activityLogger.fail).toHaveBeenCalledTimes(1);
+      // The whole handler still completes successfully (does not abort/mark the event FAILED) —
+      // only the ONE listing that actually failed is excluded from `triggered`.
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({
+          propertyCampaignTriggersChecked: 2,
+          propertyCampaignTriggersFired: 1,
+        }),
+      );
+      expect(repository.markFailed).not.toHaveBeenCalled();
     });
 
     it("no trigger fires (and nothing is logged) when the listing already has a matching real ACTIVE campaign with healthy signals", async () => {

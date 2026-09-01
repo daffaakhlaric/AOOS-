@@ -4,10 +4,10 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
+import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { LlmModule } from "../llm/llm.module.js";
-import { LocationResolverModule } from "../location-resolver/location-resolver.module.js";
 import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
@@ -57,6 +57,15 @@ import { SchedulerService } from "./scheduler.service.js";
  * `SettingsModule`/`SimulationModule`/`IntelligenceModule` already do — its own instance built
  * from the shared `SUPABASE_CLIENT`, not a second connection — so `checkAndRunDueEvents` can list
  * every real tenant instead of reading one static `AAOS_TENANT_ID` default.
+ *
+ * `CampaignsModule` is imported (not re-provided) the same way, so `SchedulerService` can inject
+ * the SAME real `CampaignsService.createPropertyCampaign` `CampaignsController` already uses for
+ * the manual `POST /api/v1/campaigns/property` endpoint (AAOS EPIC S, Phase S5) — a real PROPERTY
+ * campaign-trigger fires this exact same, single, `ModeGuardService.executeOrSimulate`-gated real
+ * creation path, never a second one. `LocationResolverModule` is no longer imported directly here:
+ * `createPropertyCampaign` already resolves the target location itself, so this module has no
+ * remaining direct `LocationResolverService` consumer of its own (`CampaignsModule` still imports
+ * it for its own use).
  */
 @Module({
   imports: [
@@ -66,9 +75,9 @@ import { SchedulerService } from "./scheduler.service.js";
     LookalikeModule,
     IntelligenceModule,
     ListingsModule,
-    LocationResolverModule,
     ModeGuardModule,
     ActivityLogModule,
+    CampaignsModule,
   ],
   controllers: [SchedulerController],
   providers: [

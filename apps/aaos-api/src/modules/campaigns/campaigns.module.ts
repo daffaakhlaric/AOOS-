@@ -20,5 +20,10 @@ import { CampaignsService } from "./campaigns.service.js";
   imports: [ModeGuardModule, ActivityLogModule, ListingsModule, LocationResolverModule],
   controllers: [CampaignsController],
   providers: [CampaignsService, ApiKeyGuard],
+  // AAOS EPIC S, Phase S5 — SchedulerModule imports this module to inject the SAME real
+  // CampaignsService.createPropertyCampaign CampaignsController already uses for the manual
+  // POST /api/v1/campaigns/property endpoint, rather than composing a second, independent way to
+  // create a real Meta PROPERTY campaign.
+  exports: [CampaignsService],
 })
 export class CampaignsModule {}

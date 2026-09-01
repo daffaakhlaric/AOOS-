@@ -40,15 +40,12 @@ import {
 } from "../../di-tokens.js";
 import { AbTestingService } from "../abtesting/abtesting.service.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { CampaignsService } from "../campaigns/campaigns.service.js";
 import { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
-import {
-  LocationResolverService,
-  type ResolvedLocation,
-} from "../location-resolver/location-resolver.service.js";
 import { LookalikeService } from "../lookalike/lookalike.service.js";
 import {
   AdTenantIndexRepository,
@@ -64,7 +61,6 @@ import { isSupportedCalendarEventType } from "./domain/calendar-event.js";
 import {
   shouldCreateNewCampaign,
   type CampaignTriggerDecision,
-  type CampaignTriggerReason,
 } from "./domain/campaign-trigger.js";
 import type {
   CreateCalendarEventBodyDto,
@@ -123,9 +119,9 @@ export class SchedulerService {
     private readonly adTenantIndex: AdTenantIndexRepository,
     private readonly tenants: TenantRepository,
     private readonly listingsService: ListingsService,
-    private readonly locationResolver: LocationResolverService,
     private readonly modeGuard: ModeGuardService,
     private readonly activityLogger: ActivityLogger,
+    private readonly campaignsService: CampaignsService,
   ) {}
 
   /**
@@ -719,9 +715,11 @@ export class SchedulerService {
    * decision recorded via `recordCampaignTriggerDecision` — never left as a decision with no trace.
    *
    * Best-effort per listing (same "never let a side-check take down the whole handler" discipline
-   * `countHotLeads`/`indexPulledAdAccount` already establish in this file): one listing's recording
-   * failure is logged and skipped, never aborts the rest of this check or the calling
-   * `runSamanthaAnalyze`/`runKaiRefreshCheck`.
+   * `countHotLeads`/`indexPulledAdAccount` already establish in this file): one listing's
+   * `recordCampaignTriggerDecision` failure — including a real `CampaignsService
+   * .createPropertyCampaign` failure (AAOS EPIC S, Phase S5: `resolvePropertyTargeting`'s real
+   * `ValidationError`, a real Meta API error, etc.) — is logged and skipped, never aborts the rest
+   * of this check or the calling `runSamanthaAnalyze`/`runKaiRefreshCheck`.
    */
   private async runPropertyCampaignTriggerCheck(
     tenantId: string,
@@ -787,24 +785,48 @@ export class SchedulerService {
   }
 
   /**
-   * Records one real `shouldCreateNewCampaign` trigger as an `agent_activities` row, gated by
-   * `ModeGuardService.executeOrSimulate` per the design doc's own instruction ("a campaign-creation
-   * decision reached here should route through the same DEV/LIVE gate `CampaignsService
-   * .createCampaign` already uses") and logged by `ActivityLogger` (Phase B), same real
-   * `mode`-from-`ModeGuardService`/`status`-from-outcome discipline `CampaignsService.createCampaign`
-   * already establishes.
+   * AAOS EPIC S, Phase S5 — the real wiring point Phase C's `buildCampaignTriggerOutput` docstring
+   * used to say did NOT exist: a real `shouldCreateNewCampaign` trigger now really calls
+   * `CampaignsService.createPropertyCampaign` (S3/S4, already committed), which builds the real
+   * HOUSING-aware Meta payload (`resolvePropertyTargeting` + `CreateCampaign.execute` with
+   * `specialAdCategories: [HOUSING_SPECIAL_AD_CATEGORY]`) that simply did not exist during Phase C.
    *
-   * Deliberately does NOT call `CampaignsService.createCampaign` itself: that method's
-   * `CreateCampaignBodyDto.branch` only accepts the AUTOMOTIVE `Branch` enum — real HOUSING-aware
-   * campaign payload construction for PROPERTY does not exist anywhere in this codebase yet
-   * (`PropertyBranchAudienceDefaults.ts`'s own doc comment: "Real HOUSING-aware campaign payload
-   * construction is Phase 3 (Go Live) scope"). Creating a fake `Branch` value to force-fit that API
-   * would be a fabrication this codebase's own discipline forbids, and building a second,
-   * PROPERTY-shaped campaign-creation path here would be exactly the "second, ungated way to create
-   * a campaign" the design doc explicitly rules out. So both the LIVE and DEV branches below
-   * resolve the real target location (`LocationResolverService`) and record an honest
-   * recommendation — LIVE (`SUCCESS`) meaning "ready for real campaign creation once Phase 3 wires
-   * it up", DEV (`SIMULATED`) meaning this tenant would not even reach that state today.
+   * `dailyBudgetIDR` is deliberately OMITTED from the call below (not a scheduler-chosen default):
+   * `CreatePropertyCampaignBodySchema.dailyBudgetIDR` is already optional and, when omitted,
+   * `CreateCampaign.execute` itself falls back to `@aos/meta-ads-connector`'s own real
+   * `DEFAULT_DAILY_BUDGET_IDR` (100_000) — the SAME default the manual
+   * `POST /api/v1/campaigns/property` endpoint gets when a manager submits no budget. Inventing a
+   * second, scheduler-only default here would just be a second place this number could drift from
+   * the connector's own real constant, for no real benefit.
+   *
+   * SINGLE GATE, deliberately: `createPropertyCampaign` already runs its own real
+   * `ModeGuardService.executeOrSimulate` (DEV never touches real Meta; LIVE really creates a
+   * campaign+adset) — this method does NOT wrap the call in a second `executeOrSimulate`, which
+   * would be a redundant/confusing double-gate of the exact same real decision.
+   *
+   * DOUBLE-LOGGING DECISION (documented per the S5 task's own instruction): `createPropertyCampaign`
+   * already writes its own real `agent_activities` row (`actionType: "CREATE_PROPERTY_CAMPAIGN"`,
+   * real `mode`/`status`/output). This method KEEPS a separate, real
+   * `actionType: "CAMPAIGN_TRIGGER_RECOMMENDATION"` row rather than consolidating to just the one —
+   * NOT true duplication, because the two rows record two different real facts:
+   *   1. THIS row: `shouldCreateNewCampaign` (domain/campaign-trigger.ts) decided a trigger should
+   *      fire, and WHY (`decision.reasons`) — data `createPropertyCampaign` has no way to know,
+   *      since it is also called directly by the manual endpoint with no decision/reasons at all.
+   *   2. `createPropertyCampaign`'s own row: what the real campaign-creation attempt itself did
+   *      (mode, real ids or DEV preview, matched/unresolved cities).
+   * Losing #1 by consolidating would erase the only real audit trail of "the scheduler decided to
+   * do this and why" from `agent_activities` — an operator reviewing the activity feed could no
+   * longer tell an automated trigger apart from a manager's own manual click. `mode` here is
+   * resolved via `ModeGuardService.resolveMode` for TAGGING this row only (same
+   * tag-vs-gate split `CampaignsService.createCampaign` itself already uses in one method), never
+   * for branching — the actual DEV/LIVE branch is decided exactly once, inside
+   * `createPropertyCampaign`.
+   *
+   * Real error handling: `createPropertyCampaign` can genuinely throw (`resolvePropertyTargeting`'s
+   * real `ValidationError` when every city fails to resolve, a real Meta API error, etc.) — this
+   * method lets that error fail its OWN activity row (`activityLogger.fail`) and then re-throws, so
+   * the caller (`runPropertyCampaignTriggerCheck`) can catch it and skip just this one listing,
+   * never aborting the rest of the check (see that method's own doc).
    */
   private async recordCampaignTriggerDecision(
     tenantId: string,
@@ -823,10 +845,10 @@ export class SchedulerService {
     });
 
     try {
-      const result = await this.modeGuard.executeOrSimulate(
+      const result = await this.campaignsService.createPropertyCampaign(
         tenantId,
-        () => this.buildCampaignTriggerOutput(tenantId, listing, decision, false),
-        () => this.buildCampaignTriggerOutput(tenantId, listing, decision, true),
+        { listingId: listing.id },
+        correlationId,
       );
       await this.activityLogger.complete(activityId, {
         status: result.simulated ? "SIMULATED" : "SUCCESS",
@@ -836,37 +858,6 @@ export class SchedulerService {
       await this.activityLogger.fail(activityId, error);
       throw error;
     }
-  }
-
-  private async buildCampaignTriggerOutput(
-    tenantId: string,
-    listing: ListingResponseDto,
-    decision: CampaignTriggerDecision,
-    simulated: boolean,
-  ): Promise<{
-    readonly simulated: boolean;
-    readonly reasons: readonly CampaignTriggerReason[];
-    readonly resolvedLocation: ResolvedLocation;
-    readonly note: string;
-  }> {
-    const resolvedLocation = await this.locationResolver.resolve(tenantId, {
-      listingTitle: listing.title,
-      propertyType: listing.propertyType,
-      price: listing.price,
-      ...(listing.city !== undefined ? { city: listing.city } : {}),
-      ...(listing.province !== undefined ? { province: listing.province } : {}),
-      ...(listing.address !== undefined ? { address: listing.address } : {}),
-      ...(listing.branchId !== undefined ? { branchId: listing.branchId } : {}),
-    });
-    return {
-      simulated,
-      reasons: decision.reasons,
-      resolvedLocation,
-      note:
-        "Rekomendasi campaign baru — real HOUSING-aware campaign payload construction belum " +
-        "diimplementasikan (CampaignsService.createCampaign saat ini hanya menerima Branch " +
-        "AUTOMOTIVE). Pembuatan campaign nyata di Meta menunggu Phase 3 (Go Live).",
-    };
   }
 
   /**
