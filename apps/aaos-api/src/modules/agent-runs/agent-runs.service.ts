@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 
-import { AgentRunRepository } from "./infrastructure/agent-run.repository.js";
+import { AgentRunRepository, type AgentRunRow } from "./infrastructure/agent-run.repository.js";
 
 /** `SAMANTHA | KAI | CLARA`, per `CLAUDE.md`'s real agent roster — plain `string`, never a union type, matching `agent_runs.agent`'s free-`TEXT` column (`028_agent_runs.sql`'s own documented "never a CHECK enum" convention every prior `agent` column in this migration folder follows). */
 export type AgentRunAgent = string;
@@ -31,22 +31,40 @@ export class AgentRunsService {
    * `creative_packages.id` for KAI, a `leads.id` for CLARA). `context` must be a small,
    * judge-prompt-sized summary — never a full duplicate of the source row; each real call site
    * documents why its own shape is honest and minimal.
+   *
+   * Returns the new row's real `id` (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2) so a best-effort
+   * caller can hand it straight to `AiJudgeService.judgeRun` without a second lookup — or
+   * `undefined` when the insert itself failed (the same real failure this method already swallows
+   * and warns on; a caller checks for `undefined` rather than this method throwing).
    */
   async record(
     tenantId: string,
     agent: AgentRunAgent,
     runRef: string,
     context: Record<string, unknown>,
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     try {
-      await this.repository.insert({
+      const row = await this.repository.insert({
         tenant_id: tenantId,
         agent,
         run_ref: runRef,
         context,
       });
+      return row.id;
     } catch (caught) {
       this.logger.warn(`AgentRunsService.record(${agent}, ${runRef}) failed: ${String(caught)}`);
+      return undefined;
     }
+  }
+
+  /**
+   * A single `agent_runs` row by id, or `undefined` when none exists (AAOS-AI-JUDGE-SELF-IMPROVING,
+   * Phase J2) — `AiJudgeService.judgeRun`'s real read of the run it's about to score. Deliberately
+   * NOT best-effort/swallowing like `record()`: a read failure here has nothing left to protect (no
+   * real agent action is in flight at this point), so it propagates — `AiJudgeService.judgeRun`'s
+   * own outer try/catch is what keeps this from ever escaping to a real caller.
+   */
+  async findById(id: string): Promise<AgentRunRow | undefined> {
+    return this.repository.findById(id);
   }
 }

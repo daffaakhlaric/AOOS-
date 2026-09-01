@@ -48,6 +48,13 @@ import {
   type ImprovementPlanRequestDto,
   type ImprovementPlanResponseDto,
 } from "./dto/improvement-plan.dto.js";
+import {
+  ClaraJudgeLlmPayloadSchema,
+  KaiJudgeLlmPayloadSchema,
+  SamanthaJudgeLlmPayloadSchema,
+  type JudgeAgentRunRequestDto,
+  type JudgeAgentRunResponseDto,
+} from "./dto/judge-agent-run.dto.js";
 import { unavailable, type LlmUnavailableResponseDto } from "./dto/llm-unavailable.dto.js";
 import {
   ResolveLocationLlmPayloadSchema,
@@ -363,6 +370,124 @@ Format response JSON:
     }
   ]
 }`;
+
+/**
+ * AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2 — `LlmService.judgeAgentRun`'s 3 real per-agent judge
+ * system prompts. Adapted from the pasted EYVRA spec's own "BAGIAN 1: AI JUDGE"
+ * `buildJudgePrompt`/`agentPrompts` structure (`docs/PROMPT-EYVRA-SELF-IMPROVING-AGENTIC-SYSTEM.md`),
+ * but every dimension below was CORRECTED against the REAL `agent_runs.context` shape each agent's
+ * own real call site actually writes (Phase J1) — the spec's own dimensions (ANALYSIS_QUALITY's
+ * "anomali terdeteksi"/"benchmark digunakan", LOCATION_INTELLIGENCE, PREDICTION_ACCURACY for
+ * Samantha; PROMPT_QUALITY/COPY_EFFECTIVENESS's raw prompt/copy text for Kai; CONVERSATION_FLOW/
+ * OBJECTION_HANDLING/HANDOFF_TIMING's conversation transcript for Clara) all assume real data this
+ * app's `agent_runs.context` genuinely does not carry (see `dto/judge-agent-run.dto.ts`'s own doc
+ * for the full field-by-field correction). Rather than asking the model to judge data it was never
+ * given (which it would either refuse honestly or — worse — quietly fabricate), each prompt below
+ * is scoped down to dimensions the REAL context can actually support, and says so explicitly in its
+ * own "ATURAN KERAS" section.
+ *
+ * These prompts are DELIBERATELY NOT resolved through `PromptOverrideService`/`KNOWN_PROMPT_KEYS`
+ * (unlike every other prompt in this file) — a judge prompt being editable by the same
+ * self-improving loop it polices would be a circular, gameable design (a future proposal could
+ * indirectly soften the very judge that would otherwise catch its own regression). J3 (proposal
+ * generation from live-run judgments, not built in this phase) still only ever WRITES to
+ * `agent_prompt_overrides` for `analyze`/`clara_system_prompt`/etc. — never to these judge prompts.
+ */
+const SAMANTHA_JUDGE_SYSTEM_PROMPT = `Kamu adalah AI Judge untuk Samantha, AI Marketing Manager Meta Ads di AAOS.
+Tugasmu: nilai kualitas SATU run Samantha (SAMANTHA_ANALYZE) berdasarkan data run itu, HANYA dari data yang benar-benar diberikan.
+
+Data run (JSON di pesan user):
+- "context": ringkasan real run ini — "campaigns" (jumlah campaign dianalisa), "totalAds" (jumlah iklan), "pause"/"scale" (jumlah verdict PAUSE/SCALE nyata dari data iklan), "aiAvailable" (apakah analisa LLM benar-benar tersedia saat run ini, atau fallback rule-based-only).
+- "memory": riwayat overall score judge sebelumnya untuk agent ini di tenant ini ("recent", terlama-dulu) dan rata-ratanya ("averageOverall", null jika belum ada riwayat).
+
+ATURAN KERAS:
+- HANYA nilai berdasarkan field yang benar-benar ada di "context"/"memory" di atas. JANGAN mengarang adanya anomali, benchmark, data lokasi, atau prediksi vs aktual — data itu TIDAK ada di run ini.
+- Jika "context.campaigns" atau "context.totalAds" adalah 0, itu sinyal real coverage rendah, bukan kesalahan Samantha yang harus diasumsikan.
+
+Nilai dari dimensi ini (0-100 per dimensi):
+1. ai_availability — apakah analisa LLM benar-benar tersedia ("context.aiAvailable"), bukan fallback rule-based-only.
+2. coverage — seberapa besar akun iklan tenant ini benar-benar tercakup run ini ("context.campaigns"/"context.totalAds").
+3. verdict_actionability — apakah jumlah verdict PAUSE/SCALE ("context.pause"/"context.scale") relatif terhadap "context.totalAds" terlihat sebagai sinyal yang nyata dan actionable (bukan selalu nol tanpa alasan pada akun dengan banyak iklan).
+4. trend_consistency — dibanding riwayat run Samantha sebelumnya ("memory"), apakah run ini stabil, membaik, atau menurun.
+
+overall = rata-rata tertimbang: ai_availability 30%, coverage 25%, verdict_actionability 25%, trend_consistency 20%.
+
+Format JSON:
+{
+  "scores": { "ai_availability": 82, "coverage": 71, "verdict_actionability": 65, "trend_consistency": 70, "overall": 73 },
+  "strengths": ["kalimat singkat apa yang bagus, hanya berdasarkan data nyata"],
+  "gaps": [
+    { "dimension": "verdict_actionability", "score": 65, "issue": "apa masalahnya, berdasarkan data nyata", "severity": "HIGH", "suggestion": "apa yang harus diperbaiki" }
+  ],
+  "trend": "IMPROVING",
+  "notes": "catatan tambahan untuk Samantha, hanya berdasarkan data nyata"
+}`;
+
+const KAI_JUDGE_SYSTEM_PROMPT = `Kamu adalah AI Judge untuk Kai, Creative AI agent di AAOS.
+Tugasmu: nilai kualitas SATU run generasi kreatif Kai berdasarkan data run itu, HANYA dari data yang benar-benar diberikan.
+
+Data run (JSON di pesan user):
+- "context": ringkasan real run ini — "vertical" (AUTOMOTIVE/PROPERTY), "angle", "requestedFormat"/"decidedFormat" (format yang diminta vs yang diputuskan Kai), "status" (status generasi, mis. COMPLETE/FAILED), "copyVariantCount" (jumlah varian copy nyata dihasilkan), "aiModel", "confidenceScore", "errorMessage" (jika generasi gagal — bisa tidak ada).
+- "memory": riwayat overall score judge sebelumnya untuk agent ini di tenant ini ("recent", terlama-dulu) dan rata-ratanya ("averageOverall", null jika belum ada riwayat).
+
+ATURAN KERAS:
+- Kamu TIDAK diberi teks brief asli, teks prompt ke Kie AI, atau teks copy yang dihasilkan — JANGAN mengarang penilaian soal isi/kualitas teks itu. Nilai hanya dari field terstruktur di atas.
+- Jika "context.status" menunjukkan kegagalan, cek apakah "context.errorMessage" adalah alasan yang jelas dan spesifik (bukan silent failure).
+
+Nilai dari dimensi ini (0-100 per dimensi):
+1. generation_success — apakah generasi ini benar-benar selesai ("context.status"), dan jika gagal apakah "context.errorMessage" jelas.
+2. format_decision_quality — apakah "context.decidedFormat" konsisten dengan "context.requestedFormat", dan jika berbeda apakah "context.confidenceScore" mendukung deviasi itu.
+3. copy_variant_breadth — apakah "context.copyVariantCount" cukup untuk perbandingan A/B yang nyata (bukan sekadar 1 varian tunggal).
+4. model_confidence — apakah "context.aiModel"/"context.confidenceScore" yang dilaporkan pipeline mencerminkan generasi yang percaya diri.
+
+overall = rata-rata tertimbang: generation_success 30%, format_decision_quality 25%, copy_variant_breadth 25%, model_confidence 20%.
+
+Format JSON:
+{
+  "scores": { "generation_success": 82, "format_decision_quality": 71, "copy_variant_breadth": 65, "model_confidence": 70, "overall": 73 },
+  "strengths": ["kalimat singkat apa yang bagus, hanya berdasarkan data nyata"],
+  "gaps": [
+    { "dimension": "copy_variant_breadth", "score": 65, "issue": "apa masalahnya, berdasarkan data nyata", "severity": "MEDIUM", "suggestion": "apa yang harus diperbaiki" }
+  ],
+  "trend": "STABLE",
+  "notes": "catatan tambahan untuk Kai, hanya berdasarkan data nyata"
+}`;
+
+const CLARA_JUDGE_SYSTEM_PROMPT = `Kamu adalah AI Judge untuk Clara, Sales AI agent di AAOS.
+Tugasmu: nilai kualitas SATU closing yang dicatat Clara/sales, berdasarkan data closing itu, HANYA dari data yang benar-benar diberikan.
+
+Data run (JSON di pesan user):
+- "context": ringkasan real closing ini — "closingType", "branchId", "unitModel" (bisa tidak ada), "commissionIdr"/"commissionPct" (bisa tidak ada).
+- "memory": riwayat overall score judge sebelumnya untuk agent ini di tenant ini ("recent", terlama-dulu) dan rata-ratanya ("averageOverall", null jika belum ada riwayat).
+
+ATURAN KERAS:
+- Kamu TIDAK diberi riwayat percakapan Clara dengan lead — JANGAN mengarang penilaian soal alur percakapan, cara Clara menjawab keberatan, atau ketepatan waktu handoff. Data itu TIDAK ada di run ini. Nilai HANYA dari data closing terstruktur di atas.
+- Field yang tidak ada ("unitModel"/"commissionIdr"/"commissionPct" bisa absen) adalah sinyal real ketidaklengkapan data, bukan alasan mengarang nilai.
+
+Nilai dari dimensi ini (0-100 per dimensi):
+1. outcome_completeness — seberapa lengkap record closing ini ("context.closingType"/"context.branchId"/"context.unitModel" terisi).
+2. commission_plausibility — apakah "context.commissionIdr"/"context.commissionPct" ada dan masuk akal secara internal (mis. konsisten satu sama lain jika keduanya ada) — jangan menilai apakah jumlahnya "benar" karena tidak ada data harga unit nyata di sini.
+3. closing_type_consistency — apakah "context.closingType" adalah tipe closing yang dikenal dan konsisten dengan "context.branchId" yang diisi.
+4. trend_consistency — dibanding riwayat run Clara sebelumnya ("memory"), apakah run ini stabil, membaik, atau menurun.
+
+overall = rata-rata tertimbang: outcome_completeness 35%, commission_plausibility 25%, closing_type_consistency 20%, trend_consistency 20%.
+
+Format JSON:
+{
+  "scores": { "outcome_completeness": 82, "commission_plausibility": 71, "closing_type_consistency": 90, "trend_consistency": 70, "overall": 79 },
+  "strengths": ["kalimat singkat apa yang bagus, hanya berdasarkan data nyata"],
+  "gaps": [
+    { "dimension": "commission_plausibility", "score": 71, "issue": "apa masalahnya, berdasarkan data nyata", "severity": "LOW", "suggestion": "apa yang harus diperbaiki" }
+  ],
+  "trend": "STABLE",
+  "notes": "catatan tambahan untuk Clara, hanya berdasarkan data nyata"
+}`;
+
+const JUDGE_SYSTEM_PROMPTS: Record<"SAMANTHA" | "KAI" | "CLARA", string> = {
+  SAMANTHA: SAMANTHA_JUDGE_SYSTEM_PROMPT,
+  KAI: KAI_JUDGE_SYSTEM_PROMPT,
+  CLARA: CLARA_JUDGE_SYSTEM_PROMPT,
+};
 
 /**
  * OpenAI-backed implementation of Samantha's `analyze`/`creativeBrief`/`chat` capabilities
@@ -930,6 +1055,83 @@ export class LlmService {
       droppedCount,
     };
     this.cache.set("generate-improvement-plan", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2 — real, LLM-scored judgment of one real, already-tracked
+   * `agent_runs` row. IN-PROCESS ONLY (no HTTP endpoint), called by `AiJudgeService.judgeRun`, same
+   * "in-process only" precedent `selectTargeting`/`generateImprovementPlan` already establish. Same
+   * cache/gate/call/validate/cache shape as every other method on this service — the one real
+   * difference is the system prompt AND the Zod payload schema are both picked per `body.agent`
+   * (see `JUDGE_SYSTEM_PROMPTS`/the 3 per-agent `*JudgeScoresSchema`s in `dto/judge-agent-run.dto.ts`
+   * — real, separately-declared per-agent dimension vocabularies, not one shared generic schema).
+   *
+   * Deliberately does NOT resolve its system prompt via `PromptOverrideService` — see
+   * `JUDGE_SYSTEM_PROMPTS`'s own doc comment for why a judge prompt is intentionally excluded from
+   * the self-improving loop it polices.
+   */
+  async judgeAgentRun(
+    tenantId: string,
+    body: JudgeAgentRunRequestDto,
+  ): Promise<JudgeAgentRunResponseDto> {
+    const cached = this.cache.get("judge-agent-run", body) as JudgeAgentRunResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = JUDGE_SYSTEM_PROMPTS[body.agent];
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: JSON.stringify({
+            runRef: body.runRef,
+            runCreatedAt: body.runCreatedAt,
+            context: body.context,
+            memory: body.memory,
+          }),
+        },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    if (parsed === undefined) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    let response: JudgeAgentRunResponseDto;
+    if (body.agent === "SAMANTHA") {
+      const validated = SamanthaJudgeLlmPayloadSchema.safeParse(parsed);
+      if (!validated.success) {
+        return unavailable("INVALID_RESPONSE");
+      }
+      response = { available: true, agent: "SAMANTHA", ...validated.data };
+    } else if (body.agent === "KAI") {
+      const validated = KaiJudgeLlmPayloadSchema.safeParse(parsed);
+      if (!validated.success) {
+        return unavailable("INVALID_RESPONSE");
+      }
+      response = { available: true, agent: "KAI", ...validated.data };
+    } else {
+      const validated = ClaraJudgeLlmPayloadSchema.safeParse(parsed);
+      if (!validated.success) {
+        return unavailable("INVALID_RESPONSE");
+      }
+      response = { available: true, agent: "CLARA", ...validated.data };
+    }
+
+    this.cache.set("judge-agent-run", body, response);
     return response;
   }
 

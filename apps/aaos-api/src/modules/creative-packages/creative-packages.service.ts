@@ -32,6 +32,7 @@ import {
 } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
+import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
@@ -152,6 +153,12 @@ export class CreativePackagesService {
      * reuse for both their success paths AND `recordFailure`'s shared failure path.
      */
     private readonly agentRunsService: AgentRunsService,
+    /**
+     * AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — real, LLM-scored judgment of the `agent_runs` row
+     * `recordAgentRun` below writes, best-effort (see `AiJudgeService.judgeRun`'s own doc).
+     * Injected the same way `agentRunsService` above already is.
+     */
+    private readonly aiJudgeService: AiJudgeService,
   ) {}
 
   private get tenantId(): string {
@@ -832,11 +839,21 @@ export class CreativePackagesService {
    * `findOrThrowScoped` is a real read that can itself throw (e.g. a race with a delete), so this
    * wrapper's own try/catch is what actually guarantees "never aborts the real Kai generation" end
    * to end.
+   *
+   * AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — right after the real `agent_runs` row is recorded,
+   * this ALSO awaits `AiJudgeService.judgeRun` directly (synchronous within this method), unlike
+   * `SchedulerService`/`ClosingsService`'s own J2 wiring, which both detach it. The real, honest
+   * reason: `runGeneration`/`runGenerationProperty` are ALREADY started detached from the real HTTP
+   * caller (`void this.runGeneration(...)`/`void this.runGenerationProperty(...)`, both above) —
+   * nothing is ever waiting synchronously on this method's own completion, so awaiting `judgeRun`
+   * here adds real LLM latency only to an already-backgrounded job, never to a real request/response
+   * cycle. Awaiting keeps this one helper's control flow simple (one `try` covers both writes) with
+   * no loss of the "never blocks a real caller" property J2's coordinator note asks for.
    */
   private async recordAgentRun(id: string, tenantId: string): Promise<void> {
     try {
       const pkg = await this.findOrThrowScoped(tenantId, id);
-      await this.agentRunsService.record(tenantId, "KAI", pkg.id, {
+      const agentRunId = await this.agentRunsService.record(tenantId, "KAI", pkg.id, {
         vertical: pkg.vertical,
         angle: pkg.angle,
         requestedFormat: pkg.requestedFormat,
@@ -847,6 +864,9 @@ export class CreativePackagesService {
         confidenceScore: pkg.confidenceScore ?? null,
         ...(pkg.errorMessage !== undefined ? { errorMessage: pkg.errorMessage } : {}),
       });
+      if (agentRunId !== undefined) {
+        await this.aiJudgeService.judgeRun(tenantId, agentRunId);
+      }
     } catch (caught) {
       this.logger.warn(`CreativePackagesService.recordAgentRun(${id}) failed: ${String(caught)}`);
     }

@@ -23,6 +23,7 @@ import type { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
+import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
 import type { IntelligenceService } from "../intelligence/intelligence.service.js";
@@ -259,6 +260,13 @@ function buildFakeLlmService(): LlmService {
   } as unknown as LlmService;
 }
 
+/** A fake `AiJudgeService` — `judgeRun`'s own real behavior is exercised on its own in `modules/ai-judge/ai-judge.service.spec.ts`; here we only need to verify `SchedulerService`'s real WIRING. */
+function buildFakeAiJudgeService(
+  judgeRun: (tenantId: string, agentRunId: string) => Promise<void> = async () => undefined,
+): AiJudgeService {
+  return { judgeRun: vi.fn(judgeRun) } as unknown as AiJudgeService;
+}
+
 function buildFakeRecyclingService(result?: RecyclingRunResult): RecyclingService {
   return {
     runRecyclingRun: vi.fn(
@@ -349,6 +357,7 @@ function buildService(
     activityLogger?: ActivityLogger;
     campaignsService?: CampaignsService;
     agentRunsService?: AgentRunsService;
+    aiJudgeService?: AiJudgeService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -384,6 +393,7 @@ function buildService(
     options.activityLogger ?? buildFakeActivityLogger(),
     options.campaignsService ?? buildFakeCampaignsService(),
     options.agentRunsService ?? buildRealAgentRunsService().agentRunsService,
+    options.aiJudgeService ?? buildFakeAiJudgeService(),
   );
 }
 
@@ -1116,6 +1126,52 @@ describe("SchedulerService.runSamanthaAnalyze — AAOS-AI-JUDGE-SELF-IMPROVING P
       expect.any(Number),
       expect.objectContaining({ aiAvailable: true }),
     );
+  });
+});
+
+describe("SchedulerService.runSamanthaAnalyze — AAOS-AI-JUDGE-SELF-IMPROVING Phase J2 (real judging wiring, detached)", () => {
+  it("calls AiJudgeService.judgeRun with the real tenantId and the real new agent_runs id, detached (executeEvent's own markDone already ran before judgeRun's promise settles)", async () => {
+    const repository = buildFakeRepository();
+    const { client, agentRunsService } = buildRealAgentRunsService();
+    const llmService = buildFakeLlmService();
+    let resolveJudge: (() => void) | undefined;
+    const judgeStarted = new Promise<void>((resolve) => {
+      resolveJudge = resolve;
+    });
+    let judgeRunSettled = false;
+    const aiJudgeService = buildFakeAiJudgeService(async () => {
+      resolveJudge?.();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      judgeRunSettled = true;
+    });
+    const service = buildService({ repository, agentRunsService, llmService, aiJudgeService });
+
+    await service.executeEvent(buildEvent({ id: "evt-analyze-4", eventType: "SAMANTHA_ANALYZE" }));
+
+    // executeEvent already resolved (markDone was already called) — real, honest proof this call
+    // is detached, not awaited.
+    expect(repository.markDone).toHaveBeenCalled();
+    expect(judgeRunSettled).toBe(false);
+
+    await judgeStarted;
+    const runId = client.rows("agent_runs")[0]?.["id"];
+    expect(aiJudgeService.judgeRun).toHaveBeenCalledWith("dss-motor", runId);
+  });
+
+  it("a judgeRun rejection never aborts the real SAMANTHA_ANALYZE run — it still completes and marks the event DONE (best-effort, same discipline as AgentRunsService.record)", async () => {
+    const repository = buildFakeRepository();
+    const { agentRunsService } = buildRealAgentRunsService();
+    const aiJudgeService = buildFakeAiJudgeService(async () => {
+      throw new Error("simulated judge failure");
+    });
+    const service = buildService({ repository, agentRunsService, aiJudgeService });
+
+    await service.executeEvent(buildEvent({ id: "evt-analyze-5", eventType: "SAMANTHA_ANALYZE" }));
+
+    expect(repository.markFailed).not.toHaveBeenCalled();
+    expect(repository.markDone).toHaveBeenCalled();
+    // Let the detached rejection's .catch() run — an unhandled rejection here would fail the test run.
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 });
 

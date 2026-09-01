@@ -5,6 +5,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
+import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
@@ -80,6 +81,7 @@ import { SchedulerService } from "./scheduler.service.js";
     ActivityLogModule,
     CampaignsModule,
     AgentRunsModule,
+    AiJudgeModule,
   ],
   controllers: [SchedulerController],
   providers: [

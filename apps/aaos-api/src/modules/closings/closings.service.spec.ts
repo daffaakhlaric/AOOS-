@@ -1,6 +1,6 @@
 import { BranchId } from "@aos/branch-manager";
 import { ClosingRepository, ClosingType, LeadStoreFactory } from "@aos/lead-store";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { toLeadStoreConfig } from "../../config/to-lead-store-config.js";
 import { createFakePublisher } from "../../test-support/fake-publisher.js";
@@ -12,8 +12,16 @@ import {
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
+import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 
 import { ClosingsService } from "./closings.service.js";
+
+/** A fake `AiJudgeService` — `judgeRun`'s own real behavior (real per-agent judge prompts, real degrade, real judge_results persistence) is exercised on its own in `modules/ai-judge/ai-judge.service.spec.ts`; here we only need to verify `ClosingsService`'s real WIRING (called with the right args, a rejection never aborts `createClosing`). */
+function buildFakeAiJudgeService(
+  judgeRun: (tenantId: string, agentRunId: string) => Promise<void> = async () => undefined,
+): AiJudgeService {
+  return { judgeRun: vi.fn(judgeRun) } as unknown as AiJudgeService;
+}
 
 function seedLeadRow(overrides: Row = {}): Row {
   const now = new Date("2026-01-15T09:00:00.000Z").toISOString();
@@ -49,7 +57,10 @@ function seedLeadRow(overrides: Row = {}): Row {
   };
 }
 
-function buildService(client: FakeSupabaseClient = createFakeSupabaseClient()) {
+function buildService(
+  client: FakeSupabaseClient = createFakeSupabaseClient(),
+  aiJudgeService: AiJudgeService = buildFakeAiJudgeService(),
+) {
   const config = buildTestConfig();
   const leadStoreConfig = toLeadStoreConfig(config);
   if (!leadStoreConfig.ok) {
@@ -63,9 +74,16 @@ function buildService(client: FakeSupabaseClient = createFakeSupabaseClient()) {
   const closingRepository = new ClosingRepository(client);
   const agentRunsService = new AgentRunsService(new AgentRunRepository(client));
   return {
-    service: new ClosingsService(config, leadStore, closingRepository, agentRunsService),
+    service: new ClosingsService(
+      config,
+      leadStore,
+      closingRepository,
+      agentRunsService,
+      aiJudgeService,
+    ),
     client,
     agentRunsService,
+    aiJudgeService,
   };
 }
 
@@ -154,6 +172,62 @@ describe("ClosingsService.createClosing", () => {
       expect(dto.closingType).toBe("SPK");
       expect(client.rows("agent_runs")).toHaveLength(0);
       expect(client.rows("closings")).toHaveLength(1);
+    });
+  });
+
+  describe("AAOS-AI-JUDGE-SELF-IMPROVING Phase J2 — real judging wiring (detached, best-effort)", () => {
+    it("calls AiJudgeService.judgeRun with the real tenantId and the real new agent_runs id, detached (createClosing resolves before judgeRun's own promise settles)", async () => {
+      let resolveJudge: (() => void) | undefined;
+      const judgeStarted = new Promise<void>((resolve) => {
+        resolveJudge = resolve;
+      });
+      let judgeRunSettled = false;
+      const aiJudgeService = buildFakeAiJudgeService(async () => {
+        resolveJudge?.();
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        judgeRunSettled = true;
+      });
+      const { service, client } = buildService(createFakeSupabaseClient(), aiJudgeService);
+      client.seed("leads", seedLeadRow());
+
+      const dto = await service.createClosing(
+        {
+          leadId: "11111111-1111-4111-8111-111111111111",
+          salesHumanId: "sales-rina",
+          closingType: ClosingType.SPK,
+        },
+        "corr-closing-5",
+      );
+
+      // createClosing already resolved — real, honest proof this call is detached, not awaited.
+      expect(dto.closingType).toBe("SPK");
+      expect(judgeRunSettled).toBe(false);
+
+      await judgeStarted;
+      const runId = client.rows("agent_runs")[0]?.["id"];
+      expect(aiJudgeService.judgeRun).toHaveBeenCalledWith("dss-motor", runId);
+    });
+
+    it("a judgeRun rejection never aborts or is thrown out of createClosing — best-effort, same discipline as AgentRunsService.record", async () => {
+      const aiJudgeService = buildFakeAiJudgeService(async () => {
+        throw new Error("simulated judge failure");
+      });
+      const { service, client } = buildService(createFakeSupabaseClient(), aiJudgeService);
+      client.seed("leads", seedLeadRow());
+
+      const dto = await service.createClosing(
+        {
+          leadId: "11111111-1111-4111-8111-111111111111",
+          salesHumanId: "sales-rina",
+          closingType: ClosingType.SPK,
+        },
+        "corr-closing-6",
+      );
+
+      expect(dto.closingType).toBe("SPK");
+      expect(client.rows("closings")).toHaveLength(1);
+      // Let the detached rejection's .catch() run — an unhandled rejection here would fail the test run.
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
   });
 });

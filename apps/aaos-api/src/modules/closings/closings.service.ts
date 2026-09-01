@@ -1,9 +1,10 @@
 import type { IClosingRepository, LeadStore } from "@aos/lead-store";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, LEAD_STORE, LEAD_STORE_CLOSING_REPOSITORY } from "../../di-tokens.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
+import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 
 import { toClosingResponseDto, type ClosingResponseDto } from "./dto/closing-response.dto.js";
 import type { CreateClosingBodyDto } from "./dto/create-closing.dto.js";
@@ -23,6 +24,8 @@ function startOfCurrentMonthUtc(now: Date): Date {
  */
 @Injectable()
 export class ClosingsService {
+  private readonly logger = new Logger(ClosingsService.name);
+
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(LEAD_STORE) private readonly leadStore: LeadStore,
@@ -40,6 +43,13 @@ export class ClosingsService {
      * cross-package access style invented.
      */
     private readonly agentRunsService: AgentRunsService,
+    /**
+     * AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — real, LLM-scored judgment of the `agent_runs` row
+     * recorded below, best-effort (see `AiJudgeService.judgeRun`'s own doc). Injected the same way
+     * `agentRunsService` above already is — a plain constructor injection resolved via
+     * `ClosingsModule`'s `AiJudgeModule` import.
+     */
+    private readonly aiJudgeService: AiJudgeService,
   ) {}
 
   async createClosing(
@@ -73,13 +83,34 @@ export class ClosingsService {
     // no commission math beyond the two real fields already meaningful to a judge). Best-effort:
     // `AgentRunsService.record` itself never throws, so this can never turn a real, already-recorded
     // closing into a failed request.
-    await this.agentRunsService.record(this.config.AAOS_TENANT_ID, "CLARA", body.leadId, {
-      closingType: closing.closingType,
-      branchId: closing.branchId,
-      ...(closing.unitModel !== undefined ? { unitModel: closing.unitModel } : {}),
-      ...(closing.commissionIdr !== undefined ? { commissionIdr: closing.commissionIdr } : {}),
-      ...(closing.commissionPct !== undefined ? { commissionPct: closing.commissionPct } : {}),
-    });
+    const agentRunId = await this.agentRunsService.record(
+      this.config.AAOS_TENANT_ID,
+      "CLARA",
+      body.leadId,
+      {
+        closingType: closing.closingType,
+        branchId: closing.branchId,
+        ...(closing.unitModel !== undefined ? { unitModel: closing.unitModel } : {}),
+        ...(closing.commissionIdr !== undefined ? { commissionIdr: closing.commissionIdr } : {}),
+        ...(closing.commissionPct !== undefined ? { commissionPct: closing.commissionPct } : {}),
+      },
+    );
+    // AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — detached, fire-and-forget, same
+    // `.catch()`-without-await pattern `SchedulerService.checkAndRunDueEvents` already establishes
+    // for non-blocking side work. `POST /api/v1/closings` is a real, synchronous, user-facing
+    // request from the CRM app (a sales human clicking "record closing") — awaiting a real LLM
+    // judge call here would add real, perceptible LLM latency to that response for zero benefit to
+    // the caller. `AiJudgeService.judgeRun` is already best-effort/never-throwing on its own, so
+    // this `.catch()` is defensive-in-depth, not load-bearing.
+    if (agentRunId !== undefined) {
+      this.aiJudgeService
+        .judgeRun(this.config.AAOS_TENANT_ID, agentRunId)
+        .catch((caught: unknown) => {
+          this.logger.warn(
+            `ClosingsService.createClosing: judgeRun(${agentRunId}) rejected: ${String(caught)}`,
+          );
+        });
+    }
     return toClosingResponseDto(closing);
   }
 

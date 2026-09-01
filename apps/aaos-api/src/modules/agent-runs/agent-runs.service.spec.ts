@@ -12,10 +12,10 @@ function buildService() {
 }
 
 describe("AgentRunsService.record", () => {
-  it("inserts a real agent_runs row with the given tenant/agent/runRef/context", async () => {
+  it("inserts a real agent_runs row with the given tenant/agent/runRef/context, and returns its real id", async () => {
     const { client, service } = buildService();
 
-    await service.record("dss-motor", "SAMANTHA", "evt-1", {
+    const runId = await service.record("dss-motor", "SAMANTHA", "evt-1", {
       campaigns: 3,
       pause: 1,
       scale: 0,
@@ -32,6 +32,7 @@ describe("AgentRunsService.record", () => {
     });
     expect(typeof rows[0]?.["id"]).toBe("string");
     expect(typeof rows[0]?.["created_at"]).toBe("string");
+    expect(runId).toBe(rows[0]?.["id"]);
   });
 
   it("records a real KAI run keyed by a creative_packages id", async () => {
@@ -62,7 +63,7 @@ describe("AgentRunsService.record", () => {
   });
 
   describe("best-effort discipline (a recording failure must never fail the real agent action)", () => {
-    it("never throws — swallows and warns when the insert itself fails", async () => {
+    it("never throws — swallows and warns when the insert itself fails, returning undefined", async () => {
       const { client, service } = buildService();
       client.forceErrorOnce("agent_runs", "simulated DB outage");
 
@@ -71,5 +72,32 @@ describe("AgentRunsService.record", () => {
       ).resolves.toBeUndefined();
       expect(client.rows("agent_runs")).toHaveLength(0);
     });
+  });
+});
+
+describe("AgentRunsService.findById (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2)", () => {
+  it("returns the real row for a real recorded run's id", async () => {
+    const { service } = buildService();
+    const runId = await service.record("dss-motor", "KAI", "pkg-1", {
+      vertical: "AUTOMOTIVE",
+      angle: "DP_RINGAN",
+      status: "PENDING",
+      copyVariantCount: 2,
+    });
+
+    const row = await service.findById(runId as string);
+
+    expect(row).toMatchObject({
+      id: runId,
+      tenant_id: "dss-motor",
+      agent: "KAI",
+      run_ref: "pkg-1",
+    });
+  });
+
+  it("returns undefined for an id that doesn't exist", async () => {
+    const { service } = buildService();
+    const row = await service.findById("11111111-1111-4111-8111-111111111111");
+    expect(row).toBeUndefined();
   });
 });

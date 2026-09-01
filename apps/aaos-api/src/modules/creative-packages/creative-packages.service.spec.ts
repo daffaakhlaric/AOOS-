@@ -14,6 +14,7 @@ import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
+import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
@@ -87,6 +88,14 @@ interface Harness {
   readonly getAvailableSales: ReturnType<typeof vi.fn>;
   readonly activityLogger: ReturnType<typeof buildFakeActivityLogger>;
   readonly agentRunsService: AgentRunsService;
+  readonly aiJudgeService: AiJudgeService;
+}
+
+/** A fake `AiJudgeService` — `judgeRun`'s own real behavior is exercised on its own in `modules/ai-judge/ai-judge.service.spec.ts`; here we only need to verify `CreativePackagesService`'s real WIRING. */
+function buildFakeAiJudgeService(
+  judgeRun: (tenantId: string, agentRunId: string) => Promise<void> = async () => undefined,
+): AiJudgeService {
+  return { judgeRun: vi.fn(judgeRun) } as unknown as AiJudgeService;
 }
 
 /** Minimal `ModeGuardService` test double — mirrors `campaigns.service.spec.ts`'s own fake. Always resolves LIVE. */
@@ -133,6 +142,8 @@ function buildHarness(
     readonly salesResolutionThrows?: boolean;
     /** AAOS-AI-JUDGE-SELF-IMPROVING (Phase J1) — forces the real `agent_runs` insert to fail once, exercising the best-effort discipline end to end. */
     readonly agentRunInsertFails?: boolean;
+    /** AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — a real (fake, `vi.fn`-backed) `AiJudgeService`; override to assert wiring or simulate a `judgeRun` rejection. */
+    readonly aiJudgeService?: AiJudgeService;
   } = {},
 ): Harness {
   const client = createFakeSupabaseClient();
@@ -231,6 +242,7 @@ function buildHarness(
   } as unknown as BranchManager;
   const activityLogger = buildFakeActivityLogger();
   const agentRunsService = new AgentRunsService(new AgentRunRepository(client));
+  const aiJudgeService = options.aiJudgeService ?? buildFakeAiJudgeService();
 
   const service = new CreativePackagesService(
     buildTestConfig(),
@@ -243,6 +255,7 @@ function buildHarness(
     buildFakeModeGuard() as unknown as ModeGuardService,
     activityLogger as unknown as ActivityLogger,
     agentRunsService,
+    aiJudgeService,
   );
   return {
     service,
@@ -255,6 +268,7 @@ function buildHarness(
     getAvailableSales,
     activityLogger,
     agentRunsService,
+    aiJudgeService,
   };
 }
 
@@ -531,6 +545,48 @@ describe("CreativePackagesService — AAOS-AI-JUDGE-SELF-IMPROVING Phase J1 (AUT
     expect(harness.client.rows("agent_runs")).toHaveLength(0);
     const after = await harness.service.byId(created.id);
     expect(after.package.status).toBe("PENDING");
+  });
+});
+
+describe("CreativePackagesService — AAOS-AI-JUDGE-SELF-IMPROVING Phase J2 (real judging wiring)", () => {
+  it("awaits AiJudgeService.judgeRun with the real tenantId and the real new agent_runs id, inside the already-detached generation job", async () => {
+    const aiJudgeService = buildFakeAiJudgeService();
+    const harness = buildHarness({ photoUrls: ["https://gcs/foto-1.jpg"], aiJudgeService });
+    const created = await harness.service.create(BODY);
+    await harness.service.generate(created.id);
+    await settle();
+
+    const runId = harness.client.rows("agent_runs")[0]?.["id"];
+    expect(aiJudgeService.judgeRun).toHaveBeenCalledWith("dss-motor", runId);
+  });
+
+  it("a judgeRun rejection never aborts the real Kai generation — the package still completes PENDING (best-effort, same discipline as AgentRunsService.record)", async () => {
+    const aiJudgeService = buildFakeAiJudgeService(async () => {
+      throw new Error("simulated judge failure");
+    });
+    const harness = buildHarness({ photoUrls: ["https://gcs/foto-1.jpg"], aiJudgeService });
+    const created = await harness.service.create(BODY);
+    await harness.service.generate(created.id);
+    await settle();
+
+    expect(aiJudgeService.judgeRun).toHaveBeenCalled();
+    const after = await harness.service.byId(created.id);
+    expect(after.package.status).toBe("PENDING");
+    expect(harness.client.rows("agent_runs")).toHaveLength(1);
+  });
+
+  it("never calls judgeRun when the agent_runs insert itself failed (no real run id to judge)", async () => {
+    const aiJudgeService = buildFakeAiJudgeService();
+    const harness = buildHarness({
+      photoUrls: ["https://gcs/foto-1.jpg"],
+      agentRunInsertFails: true,
+      aiJudgeService,
+    });
+    const created = await harness.service.create(BODY);
+    await harness.service.generate(created.id);
+    await settle();
+
+    expect(aiJudgeService.judgeRun).not.toHaveBeenCalled();
   });
 });
 

@@ -47,4 +47,22 @@ export class AgentRunRepository {
     }
     return data;
   }
+
+  /**
+   * A single `agent_runs` row by id, or `undefined` when none exists — `AiJudgeService.judgeRun`'s
+   * real lookup (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2), mirroring
+   * `LearningProposalRepository.findById`'s exact same "`.maybeSingle()`, `undefined` on no row"
+   * shape rather than throwing on a not-found id.
+   */
+  async findById(id: string): Promise<AgentRunRow | undefined> {
+    const { data, error } = await this.client
+      .from<AgentRunRow>(TABLE)
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error !== null) {
+      throw new AgentRunRepositoryError(`AgentRunRepository.findById failed: ${error.message}`);
+    }
+    return data ?? undefined;
+  }
 }

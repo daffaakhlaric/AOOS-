@@ -41,6 +41,7 @@ import {
 import { AbTestingService } from "../abtesting/abtesting.service.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
+import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
@@ -130,6 +131,12 @@ export class SchedulerService {
      * `SAMANTHA_ANALYZE` run, best-effort (see `AgentRunsService.record`'s own doc).
      */
     private readonly agentRunsService: AgentRunsService,
+    /**
+     * AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — real, LLM-scored judgment of the `agent_runs` row
+     * `runSamanthaAnalyze` records, best-effort (see `AiJudgeService.judgeRun`'s own doc). Injected
+     * the same way `agentRunsService` above already is.
+     */
+    private readonly aiJudgeService: AiJudgeService,
   ) {}
 
   /**
@@ -394,13 +401,26 @@ export class SchedulerService {
     // judge-prompt-sized summary — campaign/pause/scale counts and whether the LLM was actually
     // available — never the full raw `analysis` response. Best-effort: `AgentRunsService.record`
     // itself never throws, so this can never abort the real Samantha analyze run it describes.
-    await this.agentRunsService.record(tenantId, "SAMANTHA", eventId, {
+    const agentRunId = await this.agentRunsService.record(tenantId, "SAMANTHA", eventId, {
       campaigns,
       totalAds: allAds.length,
       pause,
       scale,
       aiAvailable: analysis?.available ?? false,
     });
+    // AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — detached, fire-and-forget, the SAME real
+    // `.catch()`-without-await pattern `checkAndRunDueEvents` already uses for `executeEvent` below
+    // in this very class. `runSamanthaAnalyze` is on the real, cron-triggered `SAMANTHA_ANALYZE`
+    // path — awaiting a real LLM judge call here would delay `markDone`/`markFailed` on the
+    // underlying `calendar_events` row (and every downstream step this method still runs, e.g. the
+    // PROPERTY campaign-trigger check below) for zero benefit to any real caller.
+    if (agentRunId !== undefined) {
+      this.aiJudgeService.judgeRun(tenantId, agentRunId).catch((caught: unknown) => {
+        this.logger.error(
+          `SchedulerService.runSamanthaAnalyze: judgeRun(${agentRunId}) rejected: ${String(caught)}`,
+        );
+      });
+    }
 
     // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4 — PROPERTY-only campaign-creation trigger
     // check, gated by ModeGuardService and logged by ActivityLogger. No-ops (checked: 0) for
