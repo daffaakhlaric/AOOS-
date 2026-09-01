@@ -15,6 +15,8 @@ function buildFakeLlmService(overrides: Partial<LlmService> = {}): LlmService {
   } as unknown as LlmService;
 }
 
+const TENANT_ID = "dss-motor";
+
 const BASE_INPUT: LocationResolverInput = {
   listingTitle: "Rumah Minimalis 2 Lantai Bintaro",
   propertyType: "RUMAH",
@@ -36,9 +38,9 @@ describe("LocationResolverService.resolve", () => {
     });
     const service = new LocationResolverService(llmService);
 
-    const result = await service.resolve(BASE_INPUT);
+    const result = await service.resolve(TENANT_ID, BASE_INPUT);
 
-    expect(llmService.resolveLocation).toHaveBeenCalledWith({
+    expect(llmService.resolveLocation).toHaveBeenCalledWith(TENANT_ID, {
       listingTitle: BASE_INPUT.listingTitle,
       propertyType: BASE_INPUT.propertyType,
       price: BASE_INPUT.price,
@@ -64,7 +66,7 @@ describe("LocationResolverService.resolve", () => {
     });
     const service = new LocationResolverService(llmService);
 
-    const result = await service.resolve(BASE_INPUT);
+    const result = await service.resolve(TENANT_ID, BASE_INPUT);
 
     const expected = PROPERTY_BRANCH_AUDIENCE_DEFAULTS["BINTARO"]!;
     expect(result.source).toBe("FALLBACK");
@@ -86,7 +88,10 @@ describe("LocationResolverService.resolve", () => {
     });
     const service = new LocationResolverService(llmService);
 
-    const result = await service.resolve({ ...BASE_INPUT, branchId: "SOMEWHERE_UNKNOWN" });
+    const result = await service.resolve(TENANT_ID, {
+      ...BASE_INPUT,
+      branchId: "SOMEWHERE_UNKNOWN",
+    });
 
     const expected = PROPERTY_BRANCH_AUDIENCE_DEFAULTS["UMUM"]!;
     expect(result.source).toBe("FALLBACK");
@@ -107,7 +112,7 @@ describe("LocationResolverService.resolve", () => {
     const service = new LocationResolverService(llmService);
 
     const { branchId: _branchId, ...withoutBranch } = BASE_INPUT;
-    const result = await service.resolve(withoutBranch);
+    const result = await service.resolve(TENANT_ID, withoutBranch);
 
     const expected = PROPERTY_BRANCH_AUDIENCE_DEFAULTS["UMUM"]!;
     expect(result.cities).toEqual(expected.cities);

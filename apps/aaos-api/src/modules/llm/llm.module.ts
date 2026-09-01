@@ -9,6 +9,7 @@ import {
   LLM_RESPONSE_CACHE,
 } from "../../di-tokens.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { PromptOverrideModule } from "../prompt-override/prompt-override.module.js";
 
 import { ResponseCache } from "./cache/ResponseCache.js";
 import { OpenAiClient } from "./infrastructure/OpenAiClient.js";
@@ -32,6 +33,7 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
  * interpretation").
  */
 @Module({
+  imports: [PromptOverrideModule],
   controllers: [LlmController],
   providers: [
     LlmService,

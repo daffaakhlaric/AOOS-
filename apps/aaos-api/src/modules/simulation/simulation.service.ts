@@ -170,7 +170,7 @@ export class SimulationService {
       await this.repository.updateStep(id, "SAMANTHA");
       await this.log(id, "SAMANTHA", "INFO", "Samantha sedang menganalisa data iklan…");
       const samanthaStart = Date.now();
-      const analyzeResult = await this.llmService.analyze({
+      const analyzeResult = await this.llmService.analyze(tenantId, {
         campaigns: body.campaigns,
         totals: body.totals,
       });
@@ -206,7 +206,7 @@ export class SimulationService {
       await this.repository.updateStep(id, "KAI");
       await this.log(id, "KAI", "INFO", "Samantha brief Kai untuk creative refresh…");
       const kaiStart = Date.now();
-      const briefResult = await this.llmService.creativeBrief({
+      const briefResult = await this.llmService.creativeBrief(tenantId, {
         ad: body.kaiAd,
         angle: body.kaiAngle,
         branch: body.kaiBranch,
@@ -358,7 +358,7 @@ export class SimulationService {
         ...(candidate.topic !== undefined ? { topic: candidate.topic } : {}),
       }));
 
-      const selection = await this.llmService.selectTargeting({
+      const selection = await this.llmService.selectTargeting(tenantId, {
         unit: body.kaiAd.name,
         ...(body.kaiAngle !== undefined ? { angle: body.kaiAngle } : {}),
         branch,

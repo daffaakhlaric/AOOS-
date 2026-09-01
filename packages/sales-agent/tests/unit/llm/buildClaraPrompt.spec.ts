@@ -100,6 +100,43 @@ describe("buildSystemPrompt", () => {
       expect(prompt).not.toContain("{available_units}");
     }
   });
+
+  describe("promptOverride (AAOS Self-Learning AI Phase A)", () => {
+    it("uses the spec's default SYSTEM_PROMPT_TEMPLATE when promptOverride is not passed", () => {
+      const prompt = buildSystemPrompt(baseContext());
+      expect(prompt).toContain("Kamu adalah Clara, sales AI untuk Mobix by DSS Motor");
+    });
+
+    it("uses promptOverride as the template content instead of the default when provided", () => {
+      const context = baseContext({
+        stage: ConversationStage.DISCOVERY,
+        conversation: LeadConversation.start("+6281200000001", BranchId.CINERE, NOW).withScore(
+          LeadScore.zero().apply(42),
+        ),
+      });
+      const prompt = buildSystemPrompt(
+        context,
+        "Kamu adalah Clara versi eksperimen. Branch: {branch}. Stage: {stage}. Tugas: {stage_instruction}",
+      );
+      expect(prompt).not.toContain("Kamu adalah Clara, sales AI untuk Mobix by DSS Motor");
+      expect(prompt).toContain("Kamu adalah Clara versi eksperimen");
+      expect(prompt).toContain("Branch: Mobix Cinere");
+      expect(prompt).toContain("Stage: DISCOVERY");
+    });
+
+    it("still substitutes {slot}s inside the override — never used as fully-resolved literal content", () => {
+      const prompt = buildSystemPrompt(
+        baseContext({ matchedUnits: [unit()] }),
+        "Override tanpa banyak slot, tapi tetap: {available_units}",
+      );
+      expect(prompt).toContain(unit().displayName);
+    });
+
+    it("leaves an override's un-mentioned slots alone (no forced re-inclusion of every placeholder)", () => {
+      const prompt = buildSystemPrompt(baseContext(), "Override singkat tanpa slot apa pun.");
+      expect(prompt).toBe("Override singkat tanpa slot apa pun.");
+    });
+  });
 });
 
 describe("buildConversationMessages", () => {
@@ -156,5 +193,10 @@ describe("buildConversationMessages", () => {
     expect(messages).toHaveLength(11); // 1 system + 10 most recent
     expect(messages[1]?.content).toBe("pesan 5");
     expect(messages[10]?.content).toBe("pesan 14");
+  });
+
+  it("threads promptOverride into the system message (AAOS Self-Learning AI Phase A)", () => {
+    const messages = buildConversationMessages(baseContext(), "Override system prompt.");
+    expect(messages[0]).toEqual({ role: "system", content: "Override system prompt." });
   });
 });

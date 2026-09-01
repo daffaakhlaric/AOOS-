@@ -45,7 +45,7 @@ export interface ResolvedLocation {
 export class LocationResolverService {
   constructor(private readonly llmService: LlmService) {}
 
-  async resolve(input: LocationResolverInput): Promise<ResolvedLocation> {
+  async resolve(tenantId: string, input: LocationResolverInput): Promise<ResolvedLocation> {
     const request: ResolveLocationRequestDto = {
       listingTitle: input.listingTitle,
       propertyType: input.propertyType,
@@ -56,7 +56,7 @@ export class LocationResolverService {
       ...(input.branchId !== undefined ? { branchId: input.branchId } : {}),
     };
 
-    const response = await this.llmService.resolveLocation(request);
+    const response = await this.llmService.resolveLocation(tenantId, request);
     if (response.available) {
       return {
         cities: response.cities,

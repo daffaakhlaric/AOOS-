@@ -8,12 +8,15 @@ import {
 import { HttpResponse, http } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import {
   mswServer,
   registerOpenAiChatHandler,
   registerOpenAiErrorHandler,
 } from "../../test-support/openai-msw.js";
+import { PromptOverrideRepository } from "../prompt-override/infrastructure/prompt-override.repository.js";
+import { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
 
 import { ResponseCache } from "./cache/ResponseCache.js";
 import type { AnalyzeRequestDto } from "./dto/analyze.dto.js";
@@ -64,13 +67,21 @@ function buildService(
     readonly apiKey?: string;
     readonly rateLimiter?: IRateLimiter;
     readonly cache?: ResponseCache<unknown>;
+    readonly promptOverride?: PromptOverrideService;
   } = {},
 ): LlmService {
   const config = buildTestConfig({ OPENAI_API_KEY: overrides.apiKey ?? "test-openai-key" });
   const client = new OpenAiClient({ apiKey: config.OPENAI_API_KEY });
   const rateLimiter = overrides.rateLimiter ?? new AlwaysAllowedLimiter();
   const cache = overrides.cache ?? new ResponseCache<unknown>();
-  return new LlmService(config, client, rateLimiter, cache);
+  // Real `PromptOverrideService` over a fake, unseeded Supabase client — every call falls through
+  // to the real hardcoded prompt constant unchanged, exercising the exact same real resolution path
+  // production uses without a real network call. `PromptOverrideService.resolve` itself is
+  // exercised on its own in `prompt-override.service.spec.ts`.
+  const promptOverride =
+    overrides.promptOverride ??
+    new PromptOverrideService(new PromptOverrideRepository(createFakeSupabaseClient()));
+  return new LlmService(config, client, rateLimiter, cache, promptOverride);
 }
 
 const validAnalyzeBody: AnalyzeRequestDto = {
@@ -120,13 +131,16 @@ const validCreativeBriefLlmJson = JSON.stringify({
   urgency: "HIGH",
 });
 
+/** Real tenant id every test in this file threads through — no behavioral significance beyond being a non-empty string, since no `agent_prompt_overrides` row exists in these unit tests (`PromptOverrideService` is exercised on its own in `prompt-override.service.spec.ts`). */
+const TENANT_ID = "dss-motor";
+
 describe("LlmService", () => {
   describe("analyze", () => {
     it("returns NO_API_KEY when OPENAI_API_KEY is empty, without consuming rate-limit budget", async () => {
       const rateLimiter = new AlwaysAllowedLimiter();
       const consumeSpy = vi.spyOn(rateLimiter, "tryConsume");
       const service = buildService({ apiKey: "", rateLimiter });
-      const result = await service.analyze(validAnalyzeBody);
+      const result = await service.analyze(TENANT_ID, validAnalyzeBody);
       expect(result).toEqual({
         available: false,
         reason: "NO_API_KEY",
@@ -137,7 +151,7 @@ describe("LlmService", () => {
 
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
-      const result = await service.analyze(validAnalyzeBody);
+      const result = await service.analyze(TENANT_ID, validAnalyzeBody);
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",
@@ -150,20 +164,20 @@ describe("LlmService", () => {
       const cache = new ResponseCache<unknown>();
       const service = buildService({ cache });
 
-      const first = await service.analyze(validAnalyzeBody);
+      const first = await service.analyze(TENANT_ID, validAnalyzeBody);
       expect(first).toEqual({ available: true, ...JSON.parse(validAnalyzeLlmJson) });
 
       // Second identical call must be served from cache — deregister every handler so a real
       // second network call would fail under onUnhandledRequest: "error" if the cache didn't work.
       mswServer.resetHandlers();
-      const second = await service.analyze(validAnalyzeBody);
+      const second = await service.analyze(TENANT_ID, validAnalyzeBody);
       expect(second).toEqual(first);
     });
 
     it("returns PROVIDER_ERROR when the OpenAI call fails (non-2xx)", async () => {
       registerOpenAiErrorHandler(500);
       const service = buildService();
-      const result = await service.analyze(validAnalyzeBody);
+      const result = await service.analyze(TENANT_ID, validAnalyzeBody);
       expect(result).toEqual({
         available: false,
         reason: "PROVIDER_ERROR",
@@ -174,7 +188,7 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
       registerOpenAiChatHandler("this is not json at all {{{");
       const service = buildService();
-      const result = await service.analyze(validAnalyzeBody);
+      const result = await service.analyze(TENANT_ID, validAnalyzeBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -185,7 +199,7 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE when OpenAI returns valid JSON that fails schema validation", async () => {
       registerOpenAiChatHandler(JSON.stringify({ temuan: [], rekomendasi: [], ringkasan: "" }));
       const service = buildService();
-      const result = await service.analyze(validAnalyzeBody);
+      const result = await service.analyze(TENANT_ID, validAnalyzeBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -193,11 +207,45 @@ describe("LlmService", () => {
       });
     });
 
+    it("uses a tenant's active agent_prompt_overrides row as the system prompt instead of the hardcoded default (AAOS Self-Learning AI Phase A)", async () => {
+      const client = createFakeSupabaseClient();
+      client.seed("agent_prompt_overrides", {
+        id: "row-1",
+        tenant_id: TENANT_ID,
+        agent: "SAMANTHA",
+        prompt_key: "analyze",
+        content: "OVERRIDDEN ANALYZE PROMPT — from a real active agent_prompt_overrides row.",
+        version: 2,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00.000Z",
+        activated_at: "2026-01-01T00:00:00.000Z",
+        deactivated_at: null,
+      });
+      const promptOverride = new PromptOverrideService(new PromptOverrideRepository(client));
+
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({ choices: [{ message: { content: validAnalyzeLlmJson } }] });
+        }),
+      );
+
+      const service = buildService({ promptOverride });
+      await service.analyze(TENANT_ID, validAnalyzeBody);
+
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      expect(messages[0]?.content).toBe(
+        "OVERRIDDEN ANALYZE PROMPT — from a real active agent_prompt_overrides row.",
+      );
+    });
+
     it("does not cache an INVALID_RESPONSE result", async () => {
       const cache = new ResponseCache<unknown>();
       registerOpenAiChatHandler("not json");
       const service = buildService({ cache });
-      await service.analyze(validAnalyzeBody);
+      await service.analyze(TENANT_ID, validAnalyzeBody);
       expect(cache.get("analyze", validAnalyzeBody)).toBeUndefined();
     });
   });
@@ -205,7 +253,7 @@ describe("LlmService", () => {
   describe("creativeBrief", () => {
     it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
       const service = buildService({ apiKey: "" });
-      const result = await service.creativeBrief(validCreativeBriefBody);
+      const result = await service.creativeBrief(TENANT_ID, validCreativeBriefBody);
       expect(result).toEqual({
         available: false,
         reason: "NO_API_KEY",
@@ -217,11 +265,11 @@ describe("LlmService", () => {
       registerOpenAiChatHandler(validCreativeBriefLlmJson);
       const cache = new ResponseCache<unknown>();
       const service = buildService({ cache });
-      const first = await service.creativeBrief(validCreativeBriefBody);
+      const first = await service.creativeBrief(TENANT_ID, validCreativeBriefBody);
       expect(first).toEqual({ available: true, ...JSON.parse(validCreativeBriefLlmJson) });
 
       mswServer.resetHandlers();
-      const second = await service.creativeBrief(validCreativeBriefBody);
+      const second = await service.creativeBrief(TENANT_ID, validCreativeBriefBody);
       expect(second).toEqual(first);
     });
 
@@ -239,7 +287,7 @@ describe("LlmService", () => {
         }),
       );
       const service = buildService();
-      const result = await service.creativeBrief(validCreativeBriefBody);
+      const result = await service.creativeBrief(TENANT_ID, validCreativeBriefBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -250,7 +298,7 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
       registerOpenAiChatHandler("not json at all {{{");
       const service = buildService();
-      const result = await service.creativeBrief(validCreativeBriefBody);
+      const result = await service.creativeBrief(TENANT_ID, validCreativeBriefBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -261,7 +309,7 @@ describe("LlmService", () => {
     it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
       registerOpenAiErrorHandler(503);
       const service = buildService();
-      const result = await service.creativeBrief(validCreativeBriefBody);
+      const result = await service.creativeBrief(TENANT_ID, validCreativeBriefBody);
       expect(result).toEqual({
         available: false,
         reason: "PROVIDER_ERROR",
@@ -271,7 +319,7 @@ describe("LlmService", () => {
 
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
-      const result = await service.creativeBrief(validCreativeBriefBody);
+      const result = await service.creativeBrief(TENANT_ID, validCreativeBriefBody);
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",
@@ -301,7 +349,7 @@ describe("LlmService", () => {
 
     it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
       const service = buildService({ apiKey: "" });
-      const result = await service.assetInsight(validAssetInsightBody);
+      const result = await service.assetInsight(TENANT_ID, validAssetInsightBody);
       expect(result).toEqual({
         available: false,
         reason: "NO_API_KEY",
@@ -313,18 +361,18 @@ describe("LlmService", () => {
       registerOpenAiChatHandler(validAssetInsightLlmJson);
       const cache = new ResponseCache<unknown>();
       const service = buildService({ cache });
-      const first = await service.assetInsight(validAssetInsightBody);
+      const first = await service.assetInsight(TENANT_ID, validAssetInsightBody);
       expect(first).toEqual({ available: true, ...JSON.parse(validAssetInsightLlmJson) });
 
       mswServer.resetHandlers();
-      const second = await service.assetInsight(validAssetInsightBody);
+      const second = await service.assetInsight(TENANT_ID, validAssetInsightBody);
       expect(second).toEqual(first);
     });
 
     it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
       registerOpenAiChatHandler("not json at all {{{");
       const service = buildService();
-      const result = await service.assetInsight(validAssetInsightBody);
+      const result = await service.assetInsight(TENANT_ID, validAssetInsightBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -335,7 +383,7 @@ describe("LlmService", () => {
     it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
       registerOpenAiErrorHandler(503);
       const service = buildService();
-      const result = await service.assetInsight(validAssetInsightBody);
+      const result = await service.assetInsight(TENANT_ID, validAssetInsightBody);
       expect(result).toEqual({
         available: false,
         reason: "PROVIDER_ERROR",
@@ -345,7 +393,7 @@ describe("LlmService", () => {
 
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
-      const result = await service.assetInsight(validAssetInsightBody);
+      const result = await service.assetInsight(TENANT_ID, validAssetInsightBody);
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",
@@ -357,7 +405,9 @@ describe("LlmService", () => {
   describe("chat", () => {
     it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
       const service = buildService({ apiKey: "" });
-      const result = await service.chat({ messages: [{ role: "user", content: "Halo" }] });
+      const result = await service.chat(TENANT_ID, {
+        messages: [{ role: "user", content: "Halo" }],
+      });
       expect(result).toEqual({
         available: false,
         reason: "NO_API_KEY",
@@ -370,11 +420,11 @@ describe("LlmService", () => {
       const cache = new ResponseCache<unknown>();
       const service = buildService({ cache });
       const body = { messages: [{ role: "user" as const, content: "Bagaimana performa?" }] };
-      const first = await service.chat(body);
+      const first = await service.chat(TENANT_ID, body);
       expect(first).toEqual({ available: true, reply: "Performa iklan minggu ini stabil." });
 
       mswServer.resetHandlers();
-      const second = await service.chat(body);
+      const second = await service.chat(TENANT_ID, body);
       expect(second).toEqual(first);
     });
 
@@ -387,7 +437,7 @@ describe("LlmService", () => {
         }),
       );
       const service = buildService();
-      await service.chat({
+      await service.chat(TENANT_ID, {
         messages: [{ role: "user", content: "Halo" }],
         context: "dashboard: Simulasi",
       });
@@ -399,7 +449,9 @@ describe("LlmService", () => {
     it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
       registerOpenAiErrorHandler(429);
       const service = buildService();
-      const result = await service.chat({ messages: [{ role: "user", content: "Halo" }] });
+      const result = await service.chat(TENANT_ID, {
+        messages: [{ role: "user", content: "Halo" }],
+      });
       expect(result).toEqual({
         available: false,
         reason: "PROVIDER_ERROR",
@@ -409,7 +461,9 @@ describe("LlmService", () => {
 
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
-      const result = await service.chat({ messages: [{ role: "user", content: "Halo" }] });
+      const result = await service.chat(TENANT_ID, {
+        messages: [{ role: "user", content: "Halo" }],
+      });
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",
@@ -444,7 +498,7 @@ describe("LlmService", () => {
 
     it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
       const service = buildService({ apiKey: "" });
-      const result = await service.selectTargeting(validSelectTargetingBody);
+      const result = await service.selectTargeting(TENANT_ID, validSelectTargetingBody);
       expect(result).toEqual({
         available: false,
         reason: "NO_API_KEY",
@@ -454,7 +508,7 @@ describe("LlmService", () => {
 
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
-      const result = await service.selectTargeting(validSelectTargetingBody);
+      const result = await service.selectTargeting(TENANT_ID, validSelectTargetingBody);
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",
@@ -472,7 +526,7 @@ describe("LlmService", () => {
       const cache = new ResponseCache<unknown>();
       const service = buildService({ cache });
 
-      const first = await service.selectTargeting(validSelectTargetingBody);
+      const first = await service.selectTargeting(TENANT_ID, validSelectTargetingBody);
       expect(first).toEqual({
         available: true,
         interestIds: ["6003257869482", "6003739713691"],
@@ -481,7 +535,7 @@ describe("LlmService", () => {
       });
 
       mswServer.resetHandlers();
-      const second = await service.selectTargeting(validSelectTargetingBody);
+      const second = await service.selectTargeting(TENANT_ID, validSelectTargetingBody);
       expect(second).toEqual(first);
     });
 
@@ -494,7 +548,7 @@ describe("LlmService", () => {
         }),
       );
       const service = buildService();
-      const result = await service.selectTargeting(validSelectTargetingBody);
+      const result = await service.selectTargeting(TENANT_ID, validSelectTargetingBody);
       expect(result).toEqual({
         available: true,
         interestIds: ["6003257869482"],
@@ -508,7 +562,7 @@ describe("LlmService", () => {
         JSON.stringify({ interestIds: ["1111111111111"], reasoning: "alasan" }),
       );
       const service = buildService();
-      const result = await service.selectTargeting(validSelectTargetingBody);
+      const result = await service.selectTargeting(TENANT_ID, validSelectTargetingBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -519,24 +573,28 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE for an empty selection or a missing reasoning field", async () => {
       registerOpenAiChatHandler(JSON.stringify({ interestIds: [], reasoning: "alasan" }));
       const service = buildService();
-      expect((await service.selectTargeting(validSelectTargetingBody)).available).toBe(false);
-
-      registerOpenAiChatHandler(JSON.stringify({ interestIds: ["6003257869482"] }));
-      expect((await buildService().selectTargeting(validSelectTargetingBody)).available).toBe(
+      expect((await service.selectTargeting(TENANT_ID, validSelectTargetingBody)).available).toBe(
         false,
       );
+
+      registerOpenAiChatHandler(JSON.stringify({ interestIds: ["6003257869482"] }));
+      expect(
+        (await buildService().selectTargeting(TENANT_ID, validSelectTargetingBody)).available,
+      ).toBe(false);
     });
 
     it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
       registerOpenAiChatHandler("not json {{{");
       const service = buildService();
-      expect((await service.selectTargeting(validSelectTargetingBody)).available).toBe(false);
+      expect((await service.selectTargeting(TENANT_ID, validSelectTargetingBody)).available).toBe(
+        false,
+      );
     });
 
     it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
       registerOpenAiErrorHandler(500);
       const service = buildService();
-      const result = await service.selectTargeting(validSelectTargetingBody);
+      const result = await service.selectTargeting(TENANT_ID, validSelectTargetingBody);
       expect(result).toEqual({
         available: false,
         reason: "PROVIDER_ERROR",
@@ -563,7 +621,7 @@ describe("LlmService", () => {
           });
         }),
       );
-      await buildService().selectTargeting(validSelectTargetingBody);
+      await buildService().selectTargeting(TENANT_ID, validSelectTargetingBody);
       const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
         .messages;
       expect(messages[0]?.content).toContain("HANYA boleh memilih");
@@ -576,7 +634,7 @@ describe("LlmService", () => {
         JSON.stringify({ interestIds: ["1111111111111"], reasoning: "alasan" }),
       );
       const service = buildService({ cache });
-      await service.selectTargeting(validSelectTargetingBody);
+      await service.selectTargeting(TENANT_ID, validSelectTargetingBody);
       expect(cache.get("select-targeting", validSelectTargetingBody)).toBeUndefined();
     });
   });
@@ -596,7 +654,7 @@ describe("LlmService", () => {
 
     it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
       const service = buildService({ apiKey: "" });
-      const result = await service.generateCaption(validCaptionBody);
+      const result = await service.generateCaption(TENANT_ID, validCaptionBody);
       expect(result).toEqual({
         available: false,
         reason: "NO_API_KEY",
@@ -606,7 +664,7 @@ describe("LlmService", () => {
 
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
-      const result = await service.generateCaption(validCaptionBody);
+      const result = await service.generateCaption(TENANT_ID, validCaptionBody);
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",
@@ -619,18 +677,18 @@ describe("LlmService", () => {
       const cache = new ResponseCache<unknown>();
       const service = buildService({ cache });
 
-      const first = await service.generateCaption(validCaptionBody);
+      const first = await service.generateCaption(TENANT_ID, validCaptionBody);
       expect(first).toEqual({ available: true, ...JSON.parse(validCaptionLlmJson) });
 
       mswServer.resetHandlers();
-      const second = await service.generateCaption(validCaptionBody);
+      const second = await service.generateCaption(TENANT_ID, validCaptionBody);
       expect(second).toEqual(first);
     });
 
     it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
       registerOpenAiErrorHandler(500);
       const service = buildService();
-      const result = await service.generateCaption(validCaptionBody);
+      const result = await service.generateCaption(TENANT_ID, validCaptionBody);
       expect(result).toEqual({
         available: false,
         reason: "PROVIDER_ERROR",
@@ -641,7 +699,7 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
       registerOpenAiChatHandler("not json at all {{{");
       const service = buildService();
-      const result = await service.generateCaption(validCaptionBody);
+      const result = await service.generateCaption(TENANT_ID, validCaptionBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -652,7 +710,7 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE when OpenAI returns valid JSON missing facebookCaption", async () => {
       registerOpenAiChatHandler(JSON.stringify({ instagramCaption: "only IG" }));
       const service = buildService();
-      const result = await service.generateCaption(validCaptionBody);
+      const result = await service.generateCaption(TENANT_ID, validCaptionBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -670,7 +728,7 @@ describe("LlmService", () => {
           });
         }),
       );
-      await buildService().generateCaption(validCaptionBody);
+      await buildService().generateCaption(TENANT_ID, validCaptionBody);
       const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
         .messages;
       expect(messages[0]?.content).toContain("Samantha");
@@ -700,7 +758,7 @@ describe("LlmService", () => {
 
     it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
       const service = buildService({ apiKey: "" });
-      const result = await service.generateHashtags(validHashtagsBody);
+      const result = await service.generateHashtags(TENANT_ID, validHashtagsBody);
       expect(result).toEqual({
         available: false,
         reason: "NO_API_KEY",
@@ -710,7 +768,7 @@ describe("LlmService", () => {
 
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
-      const result = await service.generateHashtags(validHashtagsBody);
+      const result = await service.generateHashtags(TENANT_ID, validHashtagsBody);
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",
@@ -723,18 +781,18 @@ describe("LlmService", () => {
       const cache = new ResponseCache<unknown>();
       const service = buildService({ cache });
 
-      const first = await service.generateHashtags(validHashtagsBody);
+      const first = await service.generateHashtags(TENANT_ID, validHashtagsBody);
       expect(first).toEqual({ available: true, ...JSON.parse(validHashtagsLlmJson) });
 
       mswServer.resetHandlers();
-      const second = await service.generateHashtags(validHashtagsBody);
+      const second = await service.generateHashtags(TENANT_ID, validHashtagsBody);
       expect(second).toEqual(first);
     });
 
     it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
       registerOpenAiErrorHandler(503);
       const service = buildService();
-      const result = await service.generateHashtags(validHashtagsBody);
+      const result = await service.generateHashtags(TENANT_ID, validHashtagsBody);
       expect(result).toEqual({
         available: false,
         reason: "PROVIDER_ERROR",
@@ -745,7 +803,7 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE (fails closed) when OpenAI returns fewer than 8 hashtags", async () => {
       registerOpenAiChatHandler(JSON.stringify({ hashtags: ["#OnlyOne", "#OnlyTwo"] }));
       const service = buildService();
-      const result = await service.generateHashtags(validHashtagsBody);
+      const result = await service.generateHashtags(TENANT_ID, validHashtagsBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -760,7 +818,7 @@ describe("LlmService", () => {
         }),
       );
       const service = buildService();
-      const result = await service.generateHashtags(validHashtagsBody);
+      const result = await service.generateHashtags(TENANT_ID, validHashtagsBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -771,7 +829,7 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
       registerOpenAiChatHandler("not json {{{");
       const service = buildService();
-      const result = await service.generateHashtags(validHashtagsBody);
+      const result = await service.generateHashtags(TENANT_ID, validHashtagsBody);
       expect(result.available).toBe(false);
     });
 
@@ -785,7 +843,7 @@ describe("LlmService", () => {
           });
         }),
       );
-      await buildService().generateHashtags(validHashtagsBody);
+      await buildService().generateHashtags(TENANT_ID, validHashtagsBody);
       const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
         .messages;
       expect(messages[0]?.content).toContain("Samantha");
@@ -853,7 +911,7 @@ describe("LlmService", () => {
 
     it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
       const service = buildService({ apiKey: "" });
-      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      const result = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(result).toEqual({
         available: false,
         reason: "NO_API_KEY",
@@ -865,11 +923,11 @@ describe("LlmService", () => {
       registerOpenAiChatHandler(validCampaignStrategyLlmJson);
       const cache = new ResponseCache<unknown>();
       const service = buildService({ cache });
-      const first = await service.campaignStrategy(validCampaignStrategyBody);
+      const first = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(first).toEqual({ available: true, ...JSON.parse(validCampaignStrategyLlmJson) });
 
       mswServer.resetHandlers();
-      const second = await service.campaignStrategy(validCampaignStrategyBody);
+      const second = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(second).toEqual(first);
     });
 
@@ -884,7 +942,7 @@ describe("LlmService", () => {
         }),
       );
       const service = buildService();
-      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      const result = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -903,7 +961,7 @@ describe("LlmService", () => {
         }),
       );
       const service = buildService();
-      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      const result = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -916,7 +974,7 @@ describe("LlmService", () => {
       delete payload.brandCampaign;
       registerOpenAiChatHandler(JSON.stringify(payload));
       const service = buildService();
-      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      const result = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -927,7 +985,7 @@ describe("LlmService", () => {
     it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
       registerOpenAiChatHandler("not json at all {{{");
       const service = buildService();
-      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      const result = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(result).toEqual({
         available: false,
         reason: "INVALID_RESPONSE",
@@ -938,7 +996,7 @@ describe("LlmService", () => {
     it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
       registerOpenAiErrorHandler(503);
       const service = buildService();
-      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      const result = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(result).toEqual({
         available: false,
         reason: "PROVIDER_ERROR",
@@ -948,7 +1006,7 @@ describe("LlmService", () => {
 
     it("returns RATE_LIMITED when the local budget is exhausted", async () => {
       const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
-      const result = await service.campaignStrategy(validCampaignStrategyBody);
+      const result = await service.campaignStrategy(TENANT_ID, validCampaignStrategyBody);
       expect(result).toEqual({
         available: false,
         reason: "RATE_LIMITED",
@@ -964,7 +1022,7 @@ describe("LlmService", () => {
       cache.set("creative-brief", sharedBody, { available: true, fake: "creative-brief-cached" });
       registerOpenAiChatHandler(validAnalyzeLlmJson);
       const service = buildService({ cache });
-      const result = await service.analyze(sharedBody);
+      const result = await service.analyze(TENANT_ID, sharedBody);
       expect(result).not.toEqual({ available: true, fake: "creative-brief-cached" });
       expect(result).toEqual({ available: true, ...JSON.parse(validAnalyzeLlmJson) });
     });

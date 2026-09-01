@@ -61,8 +61,10 @@ function buildFakePostsService(): SosmedPostsService {
   } as unknown as SosmedPostsService;
 }
 
+const TENANT_ID = "dss-motor";
+
 describe("SosmedController", () => {
-  it("POST /api/v1/sosmed/generate-caption delegates to LlmService.generateCaption with the body", async () => {
+  it("POST /api/v1/sosmed/generate-caption delegates to LlmService.generateCaption with the tenantId and body", async () => {
     const llmService = buildFakeLlmService();
     const controller = new SosmedController(llmService, buildFakePostsService());
     const body: GenerateCaptionRequestDto = {
@@ -72,8 +74,8 @@ describe("SosmedController", () => {
       tone: "FRIENDLY",
       vertical: "AUTOMOTIVE",
     };
-    const result = await controller.generateCaption(body);
-    expect(llmService.generateCaption).toHaveBeenCalledWith(body);
+    const result = await controller.generateCaption(TENANT_ID, body);
+    expect(llmService.generateCaption).toHaveBeenCalledWith(TENANT_ID, body);
     expect(result).toEqual({
       available: true,
       instagramCaption: "IG caption",
@@ -81,7 +83,7 @@ describe("SosmedController", () => {
     });
   });
 
-  it("POST /api/v1/sosmed/generate-hashtags delegates to LlmService.generateHashtags with the body", async () => {
+  it("POST /api/v1/sosmed/generate-hashtags delegates to LlmService.generateHashtags with the tenantId and body", async () => {
     const llmService = buildFakeLlmService();
     const controller = new SosmedController(llmService, buildFakePostsService());
     const body: GenerateHashtagsRequestDto = {
@@ -90,8 +92,8 @@ describe("SosmedController", () => {
       location: "Cinere",
       vertical: "AUTOMOTIVE",
     };
-    const result = await controller.generateHashtags(body);
-    expect(llmService.generateHashtags).toHaveBeenCalledWith(body);
+    const result = await controller.generateHashtags(TENANT_ID, body);
+    expect(llmService.generateHashtags).toHaveBeenCalledWith(TENANT_ID, body);
     expect(result).toEqual({ available: true, hashtags: ["#A", "#B"] });
   });
 

@@ -223,8 +223,15 @@ export class IntelligenceService {
       leadProfile: leadProfileContext,
       closing: closingContext,
     };
-    const campaignStrategy: CampaignStrategyResponseDto =
-      await this.llmService.campaignStrategy(strategyRequest);
+    // AAOS Self-Learning AI Phase A: `IntelligenceService` has no real per-request tenant context
+    // yet (same documented limitation `MetaAdsService`'s class doc states) — every read/write in
+    // this service already scopes by `this.config.AAOS_TENANT_ID` (see `getLatest`/the `insert`
+    // call below), so the SAME real tenant id is threaded here for prompt-override resolution,
+    // consistent with how this exact service already treats tenancy everywhere else.
+    const campaignStrategy: CampaignStrategyResponseDto = await this.llmService.campaignStrategy(
+      this.config.AAOS_TENANT_ID,
+      strategyRequest,
+    );
 
     const digestText = buildDigestText(
       tenant.name,

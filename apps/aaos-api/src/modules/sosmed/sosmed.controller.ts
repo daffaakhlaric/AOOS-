@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 
+import { TenantId } from "../../common/tenant-context.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 import {
   GenerateCaptionRequestSchema,
@@ -58,17 +59,19 @@ export class SosmedController {
   @Post("generate-caption")
   @HttpCode(200)
   async generateCaption(
+    @TenantId() tenantId: string,
     @Body(new ZodValidationPipe(GenerateCaptionRequestSchema)) body: GenerateCaptionRequestDto,
   ): Promise<GenerateCaptionResponseDto> {
-    return this.llmService.generateCaption(body);
+    return this.llmService.generateCaption(tenantId, body);
   }
 
   @Post("generate-hashtags")
   @HttpCode(200)
   async generateHashtags(
+    @TenantId() tenantId: string,
     @Body(new ZodValidationPipe(GenerateHashtagsRequestSchema)) body: GenerateHashtagsRequestDto,
   ): Promise<GenerateHashtagsResponseDto> {
-    return this.llmService.generateHashtags(body);
+    return this.llmService.generateHashtags(tenantId, body);
   }
 
   @Get("posts")

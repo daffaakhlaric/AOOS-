@@ -194,7 +194,8 @@ describe("IntelligenceService", () => {
       expect(result.digestText).toContain("DSS Motor");
       expect(result.inventory).toMatchObject({ available: false });
       expect(vi.mocked(llmService.campaignStrategy)).toHaveBeenCalledTimes(1);
-      const requestArg = vi.mocked(llmService.campaignStrategy).mock.calls[0]?.[0];
+      // Args are (tenantId, request) — see `PromptOverrideService`/AAOS Self-Learning AI Phase A.
+      const requestArg = vi.mocked(llmService.campaignStrategy).mock.calls[0]?.[1];
       expect(requestArg?.vertical).toBe("AUTOMOTIVE");
       expect(requestArg?.brandAngleIds).toContain("BRAND_TRUST");
       expect(requestArg?.productAngleValues).toContain("DP_RINGAN");

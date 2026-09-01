@@ -11,6 +11,7 @@ import {
 } from "../../di-tokens.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { PromptOverrideModule } from "../prompt-override/prompt-override.module.js";
 
 import type { ResponseCache } from "./cache/ResponseCache.js";
 import { OpenAiClient } from "./infrastructure/OpenAiClient.js";
@@ -25,6 +26,11 @@ type FactoryProvider = {
 };
 
 describe("LlmModule", () => {
+  it("imports PromptOverrideModule (AAOS Self-Learning AI Phase A)", () => {
+    const metadata = Reflect.getMetadata("imports", LlmModule) as unknown[];
+    expect(metadata).toContain(PromptOverrideModule);
+  });
+
   it("registers LlmController as its controller", () => {
     const metadata = Reflect.getMetadata("controllers", LlmModule) as unknown[];
     expect(metadata).toEqual([LlmController]);

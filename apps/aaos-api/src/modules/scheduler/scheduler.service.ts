@@ -377,7 +377,7 @@ export class SchedulerService {
     const analyzePayload: AnalyzeRequestDto = { campaigns: toAnalyzeCampaigns(adAccounts) };
     const analysis =
       analyzePayload.campaigns.length > 0
-        ? await this.llmService.analyze(analyzePayload)
+        ? await this.llmService.analyze(tenantId, analyzePayload)
         : undefined;
 
     // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4 — PROPERTY-only campaign-creation trigger
@@ -825,8 +825,8 @@ export class SchedulerService {
     try {
       const result = await this.modeGuard.executeOrSimulate(
         tenantId,
-        () => this.buildCampaignTriggerOutput(listing, decision, false),
-        () => this.buildCampaignTriggerOutput(listing, decision, true),
+        () => this.buildCampaignTriggerOutput(tenantId, listing, decision, false),
+        () => this.buildCampaignTriggerOutput(tenantId, listing, decision, true),
       );
       await this.activityLogger.complete(activityId, {
         status: result.simulated ? "SIMULATED" : "SUCCESS",
@@ -839,6 +839,7 @@ export class SchedulerService {
   }
 
   private async buildCampaignTriggerOutput(
+    tenantId: string,
     listing: ListingResponseDto,
     decision: CampaignTriggerDecision,
     simulated: boolean,
@@ -848,7 +849,7 @@ export class SchedulerService {
     readonly resolvedLocation: ResolvedLocation;
     readonly note: string;
   }> {
-    const resolvedLocation = await this.locationResolver.resolve({
+    const resolvedLocation = await this.locationResolver.resolve(tenantId, {
       listingTitle: listing.title,
       propertyType: listing.propertyType,
       price: listing.price,

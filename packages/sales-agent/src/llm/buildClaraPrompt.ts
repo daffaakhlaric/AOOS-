@@ -71,9 +71,38 @@ function formatAvailableUnits(context: ResponseContext): string {
   return context.matchedUnits.map((unit) => unit.displayName).join(", ");
 }
 
-/** Fills every `{slot}` in the spec's verbatim Clara system prompt template from `context`. */
-export function buildSystemPrompt(context: ResponseContext): string {
-  return SYSTEM_PROMPT_TEMPLATE.replace("{branch}", context.branchName)
+/**
+ * Fills every `{slot}` in Clara's system prompt template from `context`.
+ *
+ * `promptOverride` (AAOS Self-Learning AI Phase A — DB-backed prompt/config override layer):
+ * optional, defaults to `undefined` (no override — the spec's verbatim `SYSTEM_PROMPT_TEMPLATE` is
+ * used, unchanged from before this parameter existed). When provided, it REPLACES
+ * `SYSTEM_PROMPT_TEMPLATE` as the template content, but still goes through the EXACT SAME
+ * `{slot}` substitution pass below — never used as fully-resolved literal content. Reasoning: every
+ * `{slot}` here carries real, per-conversation data (`{branch}`/`{score}`/`{stage}`/
+ * `{lead_profile}`/`{available_units}`/`{stage_instruction}`) that Clara's replies genuinely depend
+ * on — a "learned improvement" from Self-Learning AI is expected to tune PERSONA/STYLE/TONE wording
+ * (the spec's own worked example), not to discard the conversation's real context. `.replace(...)`
+ * is a safe no-op for any slot an override happens not to mention, so an override is never required
+ * to repeat every placeholder — only the ones it wants to keep dynamic.
+ *
+ * This package stays a plain, DI-free composition (constructor-injected interfaces / plain
+ * functions, matching how `ClaraAgentFactory.createResponseGenerator` already composes
+ * `LlmResponseGenerator`/`OpenAiChatClient` — no NestJS dependency here). The real DB lookup
+ * (an aaos-api `PromptOverrideService`-equivalent call) is deliberately NOT wired in from this
+ * package: `ClaraAgentFactory` (this package's real composition root) is invoked ONLY from
+ * `apps/aaos-simulator` (via `packages/conversation-simulator`'s `ClaraSimulationComposer`) in this
+ * codebase today — confirmed by direct search, `apps/aaos-api` never composes `ClaraAgentFactory`
+ * (see `apps/aaos-api/src/modules/intelligence/intelligence.service.ts`'s own class doc, which
+ * documents this exact finding for the AUTOMOTIVE-inventory gap). There is no real aaos-api call
+ * site to thread a live override lookup into yet, so this parameter exists as real, additive
+ * capability with a passing default of `undefined` (no lookup) — ready for Phase C (a later,
+ * separate effort) to call into once a real caller exists, without fabricating one now.
+ */
+export function buildSystemPrompt(context: ResponseContext, promptOverride?: string): string {
+  const template = promptOverride ?? SYSTEM_PROMPT_TEMPLATE;
+  return template
+    .replace("{branch}", context.branchName)
     .replace("{score}", String(context.conversation.score.toNumber()))
     .replace("{stage}", context.stage)
     .replace("{lead_profile}", formatLeadProfile(context))
@@ -89,8 +118,16 @@ const MAX_HISTORY_MESSAGES = 10;
  * conversation history (`context.conversation.messages` already includes the current inbound
  * message as its last entry — `ConversationPipeline` appends it before calling
  * `IConversationEngine.decide` — so it is not duplicated here).
+ *
+ * `promptOverride` — see `buildSystemPrompt`'s own doc (AAOS Self-Learning AI Phase A); threaded
+ * straight through, same `undefined`-by-default, no-real-caller-yet reasoning. The real
+ * `agent_prompt_overrides.prompt_key` this would resolve against (once a real caller exists) is
+ * `'clara_system_prompt'`, matching `022_agent_prompt_overrides.sql`'s worked example.
  */
-export function buildConversationMessages(context: ResponseContext): OpenAiChatMessage[] {
+export function buildConversationMessages(
+  context: ResponseContext,
+  promptOverride?: string,
+): OpenAiChatMessage[] {
   const history: OpenAiChatMessage[] = context.conversation.messages
     .slice(-MAX_HISTORY_MESSAGES)
     .map((message) => ({
@@ -98,5 +135,5 @@ export function buildConversationMessages(context: ResponseContext): OpenAiChatM
       content: message.text,
     }));
 
-  return [{ role: "system", content: buildSystemPrompt(context) }, ...history];
+  return [{ role: "system", content: buildSystemPrompt(context, promptOverride) }, ...history];
 }

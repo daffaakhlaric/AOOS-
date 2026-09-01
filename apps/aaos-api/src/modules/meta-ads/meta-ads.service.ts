@@ -130,7 +130,13 @@ export class MetaAdsService {
       throw new NotFoundError(`No real ad in the current pull carries asset id "${assetId}"`);
     }
 
-    const insight = await this.llmService.assetInsight({
+    // AAOS Self-Learning AI Phase A: this module has no real per-request tenant context yet (see
+    // this class's own doc, "no per-request tenant context on this endpoint yet") — every real
+    // call this service already makes (`connectorRegistry.resolve`, `pullCampaignData.execute`,
+    // `indexPulledAdAccount`) scopes by `this.config.AAOS_TENANT_ID`, so the SAME real tenant id is
+    // threaded here for prompt-override resolution, consistent with how this exact service already
+    // treats tenancy everywhere else — not a guessed/hardcoded value.
+    const insight = await this.llmService.assetInsight(this.config.AAOS_TENANT_ID, {
       assetKind: probe.assetKind,
       assetId: probe.assetId,
       adCount: probe.adCount,

@@ -26,31 +26,33 @@ function buildFakeService(): LlmService {
   } as unknown as LlmService;
 }
 
+const TENANT_ID = "dss-motor";
+
 describe("LlmController", () => {
-  it("POST /api/v1/llm/analyze delegates to LlmService.analyze with the body", async () => {
+  it("POST /api/v1/llm/analyze delegates to LlmService.analyze with the tenantId and body", async () => {
     const service = buildFakeService();
     const controller = new LlmController(service);
     const body: AnalyzeRequestDto = { campaigns: [] };
-    const result = await controller.analyze(body);
-    expect(service.analyze).toHaveBeenCalledWith(body);
+    const result = await controller.analyze(TENANT_ID, body);
+    expect(service.analyze).toHaveBeenCalledWith(TENANT_ID, body);
     expect(result).toEqual({ available: false, reason: "NO_API_KEY", message: "x" });
   });
 
-  it("POST /api/v1/llm/creative-brief delegates to LlmService.creativeBrief with the body", async () => {
+  it("POST /api/v1/llm/creative-brief delegates to LlmService.creativeBrief with the tenantId and body", async () => {
     const service = buildFakeService();
     const controller = new LlmController(service);
     const body: CreativeBriefRequestDto = { ad: { name: "Xpander" }, branch: "BINTARO" };
-    const result = await controller.creativeBrief(body);
-    expect(service.creativeBrief).toHaveBeenCalledWith(body);
+    const result = await controller.creativeBrief(TENANT_ID, body);
+    expect(service.creativeBrief).toHaveBeenCalledWith(TENANT_ID, body);
     expect(result).toEqual({ available: false, reason: "NO_API_KEY", message: "x" });
   });
 
-  it("POST /api/v1/llm/chat delegates to LlmService.chat with the body", async () => {
+  it("POST /api/v1/llm/chat delegates to LlmService.chat with the tenantId and body", async () => {
     const service = buildFakeService();
     const controller = new LlmController(service);
     const body: ChatRequestDto = { messages: [{ role: "user", content: "Halo" }] };
-    const result = await controller.chat(body);
-    expect(service.chat).toHaveBeenCalledWith(body);
+    const result = await controller.chat(TENANT_ID, body);
+    expect(service.chat).toHaveBeenCalledWith(TENANT_ID, body);
     expect(result).toEqual({ available: true, reply: "hi" });
   });
 

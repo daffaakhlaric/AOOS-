@@ -8,6 +8,7 @@ import {
   LLM_RATE_LIMITER,
   LLM_RESPONSE_CACHE,
 } from "../../di-tokens.js";
+import { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
 
 import type { ResponseCache } from "./cache/ResponseCache.js";
 import {
@@ -53,6 +54,11 @@ import {
   type SelectTargetingResponseDto,
 } from "./dto/select-targeting.dto.js";
 import type { OpenAiChatMessage, OpenAiClient } from "./infrastructure/OpenAiClient.js";
+
+/** Every `LlmService` method resolves its system prompt against this agent — SAMANTHA is the only
+ * real LLM-chat-prompt agent this service backs (Clara's equivalent resolution lives in
+ * `packages/sales-agent`'s `buildSystemPrompt`, a different, non-Nest package — see that file). */
+const SAMANTHA_AGENT = "SAMANTHA";
 
 /** Verbatim system prompt from the spec's `POST /api/v1/llm/analyze` section. */
 const ANALYZE_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk DSS Motor (Mobix)
@@ -295,9 +301,22 @@ Format response JSON:
  * 1. Serve from `ResponseCache` if an identical request body was already answered within the last
  *    30 minutes (spec Section 6 — cache hits never touch the rate limiter or OpenAI).
  * 2. Gate on `OPENAI_API_KEY` configured + local rate-limit budget (spec Sections 6 + 7).
- * 3. Call OpenAI via `OpenAiClient`; on any failure (network, non-2xx, malformed/invalid JSON),
+ * 3. Resolve the real system prompt via `PromptOverrideService.resolve(tenantId, "SAMANTHA",
+ *    <promptKey>, <hardcoded constant>)` (AAOS Self-Learning AI Phase A) — returns the tenant's
+ *    active `agent_prompt_overrides` row content if one exists, else the hardcoded constant
+ *    UNCHANGED. Every method below now takes a real `tenantId` as its first parameter, threaded
+ *    from its real call site (HTTP controllers via `@TenantId()`; in-process callers via whatever
+ *    real tenantId they already have in scope — see each call site for how).
+ * 4. Call OpenAI via `OpenAiClient`; on any failure (network, non-2xx, malformed/invalid JSON),
  *    return a typed `available: false` fallback DTO — NEVER throw, so the dashboard always gets a
  *    200 response it can branch on to fall back to rule-based analysis (spec Section 7).
+ *
+ * REAL FINDING (Self-Learning AI Phase A): `ResponseCache` keys are `(endpoint, body)` only, with
+ * no `tenantId`/override-version component — so two tenants sending an identical body could share
+ * a cached response even after one of them gets an active prompt override. Harmless TODAY (nothing
+ * in this codebase creates an `agent_prompt_overrides` row yet — that is Phase C, a separate, later
+ * effort), but worth revisiting once Phase C ships a real writer; out of scope for Phase A itself
+ * (no caching-layer work was requested or needed for this phase).
  */
 @Injectable()
 export class LlmService {
@@ -306,9 +325,10 @@ export class LlmService {
     @Inject(LLM_OPENAI_CLIENT) private readonly client: OpenAiClient,
     @Inject(LLM_RATE_LIMITER) private readonly rateLimiter: IRateLimiter,
     @Inject(LLM_RESPONSE_CACHE) private readonly cache: ResponseCache<unknown>,
+    private readonly promptOverride: PromptOverrideService,
   ) {}
 
-  async analyze(body: AnalyzeRequestDto): Promise<AnalyzeResponseDto> {
+  async analyze(tenantId: string, body: AnalyzeRequestDto): Promise<AnalyzeResponseDto> {
     const cached = this.cache.get("analyze", body) as AnalyzeResponseDto | undefined;
     if (cached !== undefined) {
       return cached;
@@ -319,9 +339,15 @@ export class LlmService {
       return gate;
     }
 
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "analyze",
+      ANALYZE_SYSTEM_PROMPT,
+    );
     const completion = await this.client.createChatCompletion({
       messages: [
-        { role: "system", content: ANALYZE_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(body) },
       ],
       jsonMode: true,
@@ -341,7 +367,10 @@ export class LlmService {
     return response;
   }
 
-  async creativeBrief(body: CreativeBriefRequestDto): Promise<CreativeBriefResponseDto> {
+  async creativeBrief(
+    tenantId: string,
+    body: CreativeBriefRequestDto,
+  ): Promise<CreativeBriefResponseDto> {
     const cached = this.cache.get("creative-brief", body) as CreativeBriefResponseDto | undefined;
     if (cached !== undefined) {
       return cached;
@@ -352,9 +381,15 @@ export class LlmService {
       return gate;
     }
 
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "creative_brief",
+      CREATIVE_BRIEF_SYSTEM_PROMPT,
+    );
     const completion = await this.client.createChatCompletion({
       messages: [
-        { role: "system", content: CREATIVE_BRIEF_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(body) },
       ],
       jsonMode: true,
@@ -386,7 +421,10 @@ export class LlmService {
    * for, no matter what the prompt says. Any angle outside those real sets fails the whole response
    * as `INVALID_RESPONSE`, same as a schema-validation failure.
    */
-  async campaignStrategy(body: CampaignStrategyRequestDto): Promise<CampaignStrategyResponseDto> {
+  async campaignStrategy(
+    tenantId: string,
+    body: CampaignStrategyRequestDto,
+  ): Promise<CampaignStrategyResponseDto> {
     const cached = this.cache.get("campaign-strategy", body) as
       CampaignStrategyResponseDto | undefined;
     if (cached !== undefined) {
@@ -398,9 +436,15 @@ export class LlmService {
       return gate;
     }
 
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "campaign_strategy",
+      CAMPAIGN_STRATEGY_SYSTEM_PROMPT,
+    );
     const completion = await this.client.createChatCompletion({
       messages: [
-        { role: "system", content: CAMPAIGN_STRATEGY_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(body) },
       ],
       jsonMode: true,
@@ -444,7 +488,10 @@ export class LlmService {
    * NOTHING survives the intersection, the whole response is treated as `INVALID_RESPONSE` rather
    * than returning an empty, meaningless "selection".
    */
-  async selectTargeting(body: SelectTargetingRequestDto): Promise<SelectTargetingResponseDto> {
+  async selectTargeting(
+    tenantId: string,
+    body: SelectTargetingRequestDto,
+  ): Promise<SelectTargetingResponseDto> {
     const cached = this.cache.get("select-targeting", body) as
       SelectTargetingResponseDto | undefined;
     if (cached !== undefined) {
@@ -456,9 +503,15 @@ export class LlmService {
       return gate;
     }
 
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "select_targeting",
+      SELECT_TARGETING_SYSTEM_PROMPT,
+    );
     const completion = await this.client.createChatCompletion({
       messages: [
-        { role: "system", content: SELECT_TARGETING_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(body) },
       ],
       jsonMode: true,
@@ -499,7 +552,10 @@ export class LlmService {
    * `LocationResolverService`, not here — this method only ever returns the LLM outcome (available
    * or a typed `LlmUnavailableResponseDto`), same as `analyze`/`creativeBrief`/`selectTargeting`.
    */
-  async resolveLocation(body: ResolveLocationRequestDto): Promise<ResolveLocationResponseDto> {
+  async resolveLocation(
+    tenantId: string,
+    body: ResolveLocationRequestDto,
+  ): Promise<ResolveLocationResponseDto> {
     const cached = this.cache.get("resolve-location", body) as
       ResolveLocationResponseDto | undefined;
     if (cached !== undefined) {
@@ -511,9 +567,15 @@ export class LlmService {
       return gate;
     }
 
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "resolve_location",
+      RESOLVE_LOCATION_SYSTEM_PROMPT,
+    );
     const completion = await this.client.createChatCompletion({
       messages: [
-        { role: "system", content: RESOLVE_LOCATION_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(body) },
       ],
       jsonMode: true,
@@ -542,7 +604,10 @@ export class LlmService {
    * reimplement it"). Same cache/gate/call/validate/cache shape as every other method on this
    * service.
    */
-  async assetInsight(body: AssetInsightRequestDto): Promise<AssetInsightResponseDto> {
+  async assetInsight(
+    tenantId: string,
+    body: AssetInsightRequestDto,
+  ): Promise<AssetInsightResponseDto> {
     const cached = this.cache.get("asset-insight", body) as AssetInsightResponseDto | undefined;
     if (cached !== undefined) {
       return cached;
@@ -553,9 +618,15 @@ export class LlmService {
       return gate;
     }
 
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "asset_insight",
+      ASSET_INSIGHT_SYSTEM_PROMPT,
+    );
     const completion = await this.client.createChatCompletion({
       messages: [
-        { role: "system", content: ASSET_INSIGHT_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(body) },
       ],
       jsonMode: true,
@@ -576,7 +647,7 @@ export class LlmService {
     return response;
   }
 
-  async chat(body: ChatRequestDto): Promise<ChatResponseDto> {
+  async chat(tenantId: string, body: ChatRequestDto): Promise<ChatResponseDto> {
     const cached = this.cache.get("chat", body) as ChatResponseDto | undefined;
     if (cached !== undefined) {
       return cached;
@@ -587,9 +658,15 @@ export class LlmService {
       return gate;
     }
 
+    const chatSystemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "chat",
+      CHAT_SYSTEM_PROMPT,
+    );
     const systemContent = body.context
-      ? `${CHAT_SYSTEM_PROMPT}\n\nKonteks: ${body.context}`
-      : CHAT_SYSTEM_PROMPT;
+      ? `${chatSystemPrompt}\n\nKonteks: ${body.context}`
+      : chatSystemPrompt;
     const messages: OpenAiChatMessage[] = [
       { role: "system", content: systemContent },
       ...body.messages,
@@ -609,7 +686,10 @@ export class LlmService {
    * AAOS-SOSMED-AUTOMATION Phase 1 — `POST /api/v1/sosmed/generate-caption`. Same cache/gate/
    * call/validate/cache shape as `analyze`/`creativeBrief`/`selectTargeting` above.
    */
-  async generateCaption(body: GenerateCaptionRequestDto): Promise<GenerateCaptionResponseDto> {
+  async generateCaption(
+    tenantId: string,
+    body: GenerateCaptionRequestDto,
+  ): Promise<GenerateCaptionResponseDto> {
     const cached = this.cache.get("generate-caption", body) as
       GenerateCaptionResponseDto | undefined;
     if (cached !== undefined) {
@@ -621,9 +701,15 @@ export class LlmService {
       return gate;
     }
 
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "generate_caption",
+      GENERATE_CAPTION_SYSTEM_PROMPT,
+    );
     const completion = await this.client.createChatCompletion({
       messages: [
-        { role: "system", content: GENERATE_CAPTION_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(body) },
       ],
       jsonMode: true,
@@ -648,7 +734,10 @@ export class LlmService {
    * AAOS-SOSMED-AUTOMATION Phase 1 — `POST /api/v1/sosmed/generate-hashtags`. Same cache/gate/
    * call/validate/cache shape as every other method on this service.
    */
-  async generateHashtags(body: GenerateHashtagsRequestDto): Promise<GenerateHashtagsResponseDto> {
+  async generateHashtags(
+    tenantId: string,
+    body: GenerateHashtagsRequestDto,
+  ): Promise<GenerateHashtagsResponseDto> {
     const cached = this.cache.get("generate-hashtags", body) as
       GenerateHashtagsResponseDto | undefined;
     if (cached !== undefined) {
@@ -660,9 +749,15 @@ export class LlmService {
       return gate;
     }
 
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "generate_hashtags",
+      GENERATE_HASHTAGS_SYSTEM_PROMPT,
+    );
     const completion = await this.client.createChatCompletion({
       messages: [
-        { role: "system", content: GENERATE_HASHTAGS_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(body) },
       ],
       jsonMode: true,
