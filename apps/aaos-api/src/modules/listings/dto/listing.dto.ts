@@ -65,6 +65,22 @@ export interface PhotoResponseDto {
   readonly isMain: boolean;
 }
 
+/** `POST /api/v1/listings/:id/documents` response entry — a PDF/Excel/promo file attached to a
+ * listing (Phase 2, docs/PROMPT-AAOS-PROPERTY-TENANT-ISOLATION-DOCS.md). Deliberately NOT reusing
+ * `PhotoResponseDto` (`order`/`isMain` are photo-gallery-only concepts) — a document is a
+ * different real shape: filename/mimeType/sizeBytes for a file-manager-style list row, `label` for
+ * an optional human description ("Brosur unit A", "Rincian harga cicilan"). No `order`/`isMain` —
+ * documents are an unordered list, not a gallery. */
+export interface DocumentResponseDto {
+  readonly id: string;
+  readonly filename: string;
+  readonly url: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly label?: string;
+  readonly uploadedAt: string;
+}
+
 export interface ListingResponseDto {
   readonly id: string;
   readonly title: string;
@@ -95,6 +111,7 @@ export interface ListingResponseDto {
 
   readonly photos: readonly PhotoResponseDto[];
   readonly mainPhotoUrl?: string;
+  readonly documents: readonly DocumentResponseDto[];
   readonly inKnowledgeBase: boolean;
 
   readonly createdAt: string;

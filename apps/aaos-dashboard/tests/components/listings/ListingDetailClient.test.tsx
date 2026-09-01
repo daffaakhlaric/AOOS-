@@ -25,6 +25,7 @@ const LISTING: ListingDto = {
   highlights: ["Dekat sekolah"],
   photos: [{ id: "p1", url: "https://gcs/1.jpg", order: 0, isMain: true }],
   mainPhotoUrl: "https://gcs/1.jpg",
+  documents: [],
   inKnowledgeBase: false,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",

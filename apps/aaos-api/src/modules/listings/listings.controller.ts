@@ -37,6 +37,7 @@ import { ListingsService } from "./listings.service.js";
 /**
  * `GET/POST /api/v1/listings`, `GET/PUT/DELETE /api/v1/listings/:id`,
  * `POST /:id/photos`, `DELETE /:id/photos/:photoId`, `PUT /:id/photos/reorder`,
+ * `POST /:id/documents`, `DELETE /:id/documents/:documentId` (Phase 2 — PDF/Excel/promo docs),
  * `POST /:id/publish-knowledge` — `x-api-key` auth (same perimeter as every other `aaos-api`
  * module), tenant-scoped via `@TenantId()` (`common/tenant-context.ts`).
  *
@@ -104,6 +105,44 @@ export class ListingsController {
     @Param("photoId") photoId: string,
   ): Promise<ListingResponseDto> {
     return this.service.deletePhoto(tenantId, id, photoId);
+  }
+
+  /**
+   * `multipart/form-data`: one `file` part (the document bytes — PDF/Excel) plus an optional
+   * `label` field, exact same real Fastify multipart shape as `uploadPhoto` above.
+   */
+  @Post(":id/documents")
+  async uploadDocument(
+    @TenantId() tenantId: string,
+    @Param("id") id: string,
+    @Req() request: FastifyRequest,
+  ): Promise<ListingResponseDto> {
+    const part = await request.file();
+    if (part === undefined) {
+      throw new ValidationError("POST /:id/documents requires a multipart 'file' part");
+    }
+    const buffer = await part.toBuffer();
+    const labelField = part.fields["label"];
+    const label =
+      labelField !== undefined && !Array.isArray(labelField) && labelField.type === "field"
+        ? String(labelField.value)
+        : undefined;
+    return this.service.addDocument(tenantId, id, {
+      buffer,
+      fileName: part.filename,
+      mimeType: part.mimetype,
+      ...(label !== undefined && label.length > 0 ? { label } : {}),
+    });
+  }
+
+  @Delete(":id/documents/:documentId")
+  @HttpCode(200)
+  async deleteDocument(
+    @TenantId() tenantId: string,
+    @Param("id") id: string,
+    @Param("documentId") documentId: string,
+  ): Promise<ListingResponseDto> {
+    return this.service.deleteDocument(tenantId, id, documentId);
   }
 
   @Put(":id/photos/reorder")

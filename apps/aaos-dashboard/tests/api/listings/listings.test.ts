@@ -12,6 +12,8 @@ import { DELETE, GET as getOne, PUT } from "@/app/api/listings/[id]/route";
 import { POST as uploadPhoto } from "@/app/api/listings/[id]/photos/route";
 import { DELETE as deletePhoto } from "@/app/api/listings/[id]/photos/[photoId]/route";
 import { PUT as reorderPhotos } from "@/app/api/listings/[id]/photos/reorder/route";
+import { POST as uploadDocument } from "@/app/api/listings/[id]/documents/route";
+import { DELETE as deleteDocument } from "@/app/api/listings/[id]/documents/[documentId]/route";
 import { POST as publishKnowledge } from "@/app/api/listings/[id]/publish-knowledge/route";
 
 function jsonRequest(body: unknown = {}): NextRequest {
@@ -205,6 +207,76 @@ describe("PUT /api/listings/:id/photos/reorder", () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect((url as URL).pathname).toBe("/api/v1/listings/listing-1/photos/reorder");
     expect(init?.method).toBe("PUT");
+  });
+});
+
+describe("POST /api/listings/:id/documents", () => {
+  beforeEach(() => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns 401 with no session", async () => {
+    resolveRouteSession.mockResolvedValue(null);
+    const response = await uploadDocument(formDataRequest(new FormData()), {
+      params: { id: "listing-1" },
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it("forwards the multipart FormData body verbatim and the real tenant's x-tenant-id to aaos-api", async () => {
+    resolveRouteSession.mockResolvedValue(SESSION);
+    const fetchMock = vi.fn(
+      async (_url: URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ id: "listing-1", documents: [] }), { status: 200 }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const formData = new FormData();
+    formData.set("file", new Blob(["%PDF-1.4"], { type: "application/pdf" }), "brosur.pdf");
+    formData.set("label", "Brosur promo");
+    const response = await uploadDocument(formDataRequest(formData), {
+      params: { id: "listing-1" },
+    });
+    expect(response.status).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect((url as URL).pathname).toBe("/api/v1/listings/listing-1/documents");
+    expect(init?.body).toBe(formData);
+    expect(init?.method).toBe("POST");
+    expect((init?.headers as Record<string, string>)["x-tenant-id"]).toBe("propertyklik-demo");
+  });
+});
+
+describe("DELETE /api/listings/:id/documents/:documentId", () => {
+  beforeEach(() => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns 401 with no session", async () => {
+    resolveRouteSession.mockResolvedValue(null);
+    const response = await deleteDocument(jsonRequest(), {
+      params: { id: "listing-1", documentId: "doc-1" },
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it("proxies to aaos-api's DELETE /api/v1/listings/:id/documents/:documentId with the real tenant's x-tenant-id", async () => {
+    resolveRouteSession.mockResolvedValue(SESSION);
+    const fetchMock = vi.fn(
+      async (_url: URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ id: "listing-1", documents: [] }), { status: 200 }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const response = await deleteDocument(jsonRequest(), {
+      params: { id: "listing-1", documentId: "doc-1" },
+    });
+    expect(response.status).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect((url as URL).pathname).toBe("/api/v1/listings/listing-1/documents/doc-1");
+    expect(init?.method).toBe("DELETE");
+    expect((init?.headers as Record<string, string>)["x-tenant-id"]).toBe("propertyklik-demo");
   });
 });
 

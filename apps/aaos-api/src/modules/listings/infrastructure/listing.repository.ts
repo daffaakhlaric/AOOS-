@@ -11,6 +11,23 @@ export interface ListingPhotoRow {
   readonly isMain: boolean;
 }
 
+/** A single stored document entry inside `listings.documents` (JSONB array, `025_listing_documents.sql`)
+ * — COLUMN-FOR-COLUMN with `DocumentResponseDto` PLUS one internal-only field: `storagePath` (the
+ * real GCS object path returned by `IAssetStorage.upload`'s `UploadedFile.path`, distinct from
+ * `url`/`publicUrl`). Kept out of `DocumentResponseDto` (never sent over the wire) — it exists
+ * solely so `ListingsService.deleteDocument` can issue a real GCS object deletion without
+ * re-deriving the storage path from the public URL string. */
+export interface ListingDocumentRow {
+  readonly id: string;
+  readonly filename: string;
+  readonly url: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly label?: string;
+  readonly uploadedAt: string;
+  readonly storagePath: string;
+}
+
 /** Raw `listings` row shape (snake_case) — COLUMN-FOR-COLUMN with `supabase/migrations/008_listings.sql`. */
 export interface ListingRow {
   readonly id: string;
@@ -39,6 +56,7 @@ export interface ListingRow {
   readonly highlights: readonly string[];
   readonly photos: readonly ListingPhotoRow[];
   readonly main_photo_url: string | null;
+  readonly documents: readonly ListingDocumentRow[];
   readonly in_knowledge_base: boolean;
   readonly created_at: string;
   readonly updated_at: string;

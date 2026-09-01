@@ -10,6 +10,7 @@ import { ASSET_LIBRARY } from "../../di-tokens.js";
 import { buildPropertyKnowledge, type PropertyKnowledge } from "./domain/property-knowledge.js";
 import type {
   CreateListingBodyDto,
+  DocumentResponseDto,
   GetListingsQueryDto,
   ListingListResponseDto,
   ListingResponseDto,
@@ -18,6 +19,7 @@ import type {
   UpdateListingBodyDto,
 } from "./dto/listing.dto.js";
 import type {
+  ListingDocumentRow,
   ListingInsert,
   ListingPhotoRow,
   ListingRow,
@@ -29,11 +31,54 @@ import { ListingRepository } from "./infrastructure/listing.repository.js";
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 const MAX_PHOTOS_PER_LISTING = 20;
 
+/**
+ * Phase 2 (docs/PROMPT-AAOS-PROPERTY-TENANT-ISOLATION-DOCS.md) — listing supporting documents
+ * (PDF/Excel/promo). No spec-given size/count limit exists for this genuinely new feature, so
+ * these mirror `MAX_PHOTO_BYTES`/`MAX_PHOTOS_PER_LISTING`'s own precedent, sized up from 10MB to
+ * 20MB since a real promo PDF/brochure or a multi-sheet Excel price list commonly runs larger than
+ * a single compressed photo.
+ */
+const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+const MAX_DOCUMENTS_PER_LISTING = 20;
+
+/**
+ * Own, honest MIME allowlist for this endpoint — deliberately NOT `@aos/asset-library`'s
+ * `MimeType.create()` (that value object only allows `ALLOWED_IMAGE_MIME_TYPES`/
+ * `ALLOWED_VIDEO_MIME_TYPES`, no document types) and NOT reusing `ALLOWED_IMAGE_MIME_TYPES` the
+ * way `addPhoto` does. PDF + the two real Excel MIME types Office actually emits (.xlsx via the
+ * modern OOXML type, .xls via the legacy `application/vnd.ms-excel` type) — no fabricated types.
+ */
+const ALLOWED_DOCUMENT_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+] as const;
+
 export interface AddPhotoInput {
   readonly buffer: Buffer;
   readonly fileName: string;
   readonly mimeType: string;
   readonly label?: string;
+}
+
+export interface AddDocumentInput {
+  readonly buffer: Buffer;
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly label?: string;
+}
+
+/**
+ * Local, narrower view of the real `delete(path)` capability `GcsStorageClient` implements
+ * (`packages/asset-library/src/infrastructure/gcs/GcsStorageClient.ts`, verified directly) but
+ * `IAssetStorage`'s public contract does NOT declare (only `upload`/`getSignedUrl` are part of
+ * that interface). Same local-cast discipline `ListingRepository`'s own `DeletableSupabaseClient`
+ * already establishes in this module family for an analogous "concrete class exposes more than
+ * the shared interface" gap — never widening the shared `@aos/asset-library` package's contract
+ * for one caller.
+ */
+interface DeletableAssetStorage {
+  delete(path: string): Promise<{ readonly ok: boolean }>;
 }
 
 function toPhotoDto(row: ListingPhotoRow): PhotoResponseDto {
@@ -43,6 +88,18 @@ function toPhotoDto(row: ListingPhotoRow): PhotoResponseDto {
     ...(row.label !== undefined ? { label: row.label } : {}),
     order: row.order,
     isMain: row.isMain,
+  };
+}
+
+function toDocumentDto(row: ListingDocumentRow): DocumentResponseDto {
+  return {
+    id: row.id,
+    filename: row.filename,
+    url: row.url,
+    mimeType: row.mimeType,
+    sizeBytes: row.sizeBytes,
+    ...(row.label !== undefined ? { label: row.label } : {}),
+    uploadedAt: row.uploadedAt,
   };
 }
 
@@ -73,6 +130,7 @@ function toListingDto(row: ListingRow): ListingResponseDto {
     highlights: row.highlights,
     photos: row.photos.map(toPhotoDto),
     ...(row.main_photo_url !== null ? { mainPhotoUrl: row.main_photo_url } : {}),
+    documents: row.documents.map(toDocumentDto),
     inKnowledgeBase: row.in_knowledge_base,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -162,6 +220,7 @@ export class ListingsService {
       highlights: dto.highlights ?? [],
       photos: [],
       main_photo_url: null,
+      documents: [],
       in_knowledge_base: false,
     };
     const row = await this.repository.insert(insert);
@@ -288,6 +347,100 @@ export class ListingsService {
     return toListingDto(updated);
   }
 
+  /**
+   * `POST /api/v1/listings/:id/documents` — Phase 2's PDF/Excel/promo document attach. Exact same
+   * "bypass `@aos/asset-library`'s `UploadAsset`/`assets` table, upload via the shared
+   * `IAssetStorage` adapter directly, store a plain JSONB entry" pattern `addPhoto` establishes —
+   * a listing document is not an `Asset` domain entity either.
+   */
+  async addDocument(
+    tenantId: string,
+    id: string,
+    input: AddDocumentInput,
+  ): Promise<ListingResponseDto> {
+    const row = await this.requireRow(tenantId, id);
+    if (row.documents.length >= MAX_DOCUMENTS_PER_LISTING) {
+      throw new ValidationError(
+        `Listing "${id}" already has the maximum of ${String(MAX_DOCUMENTS_PER_LISTING)} documents`,
+      );
+    }
+    if (input.buffer.length > MAX_DOCUMENT_BYTES) {
+      throw new ValidationError(
+        `Document exceeds the ${String(MAX_DOCUMENT_BYTES / (1024 * 1024))}MB limit`,
+      );
+    }
+    if (!(ALLOWED_DOCUMENT_MIME_TYPES as readonly string[]).includes(input.mimeType)) {
+      throw new ValidationError(
+        `Document mime type must be one of ${ALLOWED_DOCUMENT_MIME_TYPES.join(", ")}, received: ${input.mimeType}`,
+      );
+    }
+
+    const library = this.requireAssetLibrary();
+    const extension = extensionFromDocumentMime(input.mimeType);
+    const path = `listings/${tenantId}/${id}/doc-${String(Date.now())}.${extension}`;
+    const uploaded = await library.assetStorage.upload({
+      path,
+      fileBody: input.buffer,
+      contentType: input.mimeType,
+    });
+    if (!uploaded.ok) {
+      throw uploaded.error;
+    }
+
+    const newDocument: ListingDocumentRow = {
+      id: randomUUID(),
+      filename: input.fileName,
+      url: uploaded.value.publicUrl,
+      mimeType: input.mimeType,
+      sizeBytes: input.buffer.length,
+      ...(input.label !== undefined ? { label: input.label } : {}),
+      uploadedAt: new Date().toISOString(),
+      storagePath: uploaded.value.path,
+    };
+    const documents = [...row.documents, newDocument];
+    const updated = await this.repository.updateById(id, {
+      documents,
+      updated_at: new Date().toISOString(),
+    });
+    return toListingDto(updated);
+  }
+
+  /**
+   * `DELETE /api/v1/listings/:id/documents/:documentId`. Removes the JSONB entry, PLUS a real,
+   * best-effort GCS object deletion — unlike `deletePhoto` (which documents that `IAssetStorage`
+   * has no delete method and only ever removes the JSONB entry), `GcsStorageClient` DOES implement
+   * a real `delete(path)` (see `DeletableAssetStorage`'s docstring above for why it isn't reached
+   * through the plain `IAssetStorage` type). The GCS deletion is deliberately best-effort/
+   * swallowed-on-failure: the JSONB array is this feature's source of truth for what a listing's
+   * document list shows, and a rare orphaned GCS object is a cheap, non-urgent cleanup problem, not
+   * worth failing a user-facing delete over.
+   */
+  async deleteDocument(
+    tenantId: string,
+    id: string,
+    documentId: string,
+  ): Promise<ListingResponseDto> {
+    const row = await this.requireRow(tenantId, id);
+    const target = row.documents.find((d) => d.id === documentId);
+    if (target === undefined) {
+      throw new NotFoundError(`No document "${documentId}" found on listing "${id}"`);
+    }
+    const remaining = row.documents.filter((d) => d.id !== documentId);
+
+    if (this.assetLibrary !== undefined) {
+      const storage = this.assetLibrary.assetStorage as unknown as Partial<DeletableAssetStorage>;
+      if (typeof storage.delete === "function") {
+        await storage.delete(target.storagePath).catch(() => undefined);
+      }
+    }
+
+    const updated = await this.repository.updateById(id, {
+      documents: remaining,
+      updated_at: new Date().toISOString(),
+    });
+    return toListingDto(updated);
+  }
+
   /** `PUT /api/v1/listings/:id/photos/reorder` — drag-to-reorder + "set foto utama" (⭐), one write. */
   async reorderPhotos(
     tenantId: string,
@@ -344,6 +497,15 @@ function extensionFromMime(mimeType: string): string {
     "image/jpeg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
+  };
+  return map[mimeType] ?? "bin";
+}
+
+function extensionFromDocumentMime(mimeType: string): string {
+  const map: Readonly<Record<string, string>> = {
+    "application/pdf": "pdf",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-excel": "xls",
   };
   return map[mimeType] ?? "bin";
 }

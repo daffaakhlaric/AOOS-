@@ -16,6 +16,7 @@ const LISTING_SAMPLE: ListingResponseDto = {
   price: 1_800_000_000,
   highlights: [],
   photos: [],
+  documents: [],
   inKnowledgeBase: false,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -30,6 +31,8 @@ function buildFakeService(): ListingsService {
     delete: vi.fn(async () => undefined),
     addPhoto: vi.fn(async () => LISTING_SAMPLE),
     deletePhoto: vi.fn(async () => LISTING_SAMPLE),
+    addDocument: vi.fn(async () => LISTING_SAMPLE),
+    deleteDocument: vi.fn(async () => LISTING_SAMPLE),
     reorderPhotos: vi.fn(async () => LISTING_SAMPLE),
     publishKnowledge: vi.fn(async () => ({ ...LISTING_SAMPLE, inKnowledgeBase: true })),
   } as unknown as ListingsService;
@@ -145,6 +148,59 @@ describe("ListingsController", () => {
     const controller = new ListingsController(service);
     await controller.deletePhoto("dss-motor", "listing-1", "photo-1");
     expect(service.deletePhoto).toHaveBeenCalledWith("dss-motor", "listing-1", "photo-1");
+  });
+
+  it("POST /api/v1/listings/:id/documents reads the multipart file + label field and delegates to service.addDocument", async () => {
+    const service = buildFakeService();
+    const controller = new ListingsController(service);
+    const buffer = Buffer.from("fake-pdf-bytes");
+    const request = fakeMultipartRequest({
+      filename: "brosur.pdf",
+      mimetype: "application/pdf",
+      buffer,
+      label: "Brosur promo",
+    }) as unknown as Parameters<ListingsController["uploadDocument"]>[2];
+    await controller.uploadDocument("dss-motor", "listing-1", request);
+    expect(service.addDocument).toHaveBeenCalledWith("dss-motor", "listing-1", {
+      buffer,
+      fileName: "brosur.pdf",
+      mimeType: "application/pdf",
+      label: "Brosur promo",
+    });
+  });
+
+  it("POST /api/v1/listings/:id/documents omits label when the multipart request carries no label field", async () => {
+    const service = buildFakeService();
+    const controller = new ListingsController(service);
+    const buffer = Buffer.from("fake-pdf-bytes");
+    const request = fakeMultipartRequest({
+      filename: "brosur.pdf",
+      mimetype: "application/pdf",
+      buffer,
+    }) as unknown as Parameters<ListingsController["uploadDocument"]>[2];
+    await controller.uploadDocument("dss-motor", "listing-1", request);
+    expect(service.addDocument).toHaveBeenCalledWith("dss-motor", "listing-1", {
+      buffer,
+      fileName: "brosur.pdf",
+      mimeType: "application/pdf",
+    });
+  });
+
+  it("POST /api/v1/listings/:id/documents throws when the request carries no file part", async () => {
+    const service = buildFakeService();
+    const controller = new ListingsController(service);
+    const request = fakeMultipartRequest(undefined) as unknown as Parameters<
+      ListingsController["uploadDocument"]
+    >[2];
+    await expect(controller.uploadDocument("dss-motor", "listing-1", request)).rejects.toThrow();
+    expect(service.addDocument).not.toHaveBeenCalled();
+  });
+
+  it("DELETE /api/v1/listings/:id/documents/:documentId delegates to service.deleteDocument", async () => {
+    const service = buildFakeService();
+    const controller = new ListingsController(service);
+    await controller.deleteDocument("dss-motor", "listing-1", "doc-1");
+    expect(service.deleteDocument).toHaveBeenCalledWith("dss-motor", "listing-1", "doc-1");
   });
 
   it("PUT /api/v1/listings/:id/photos/reorder delegates to service.reorderPhotos", async () => {

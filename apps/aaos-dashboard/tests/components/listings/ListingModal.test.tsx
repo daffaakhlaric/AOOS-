@@ -17,6 +17,7 @@ const LISTING: ListingDto = {
   price: 1_800_000_000,
   highlights: ["Dekat sekolah"],
   photos: [],
+  documents: [],
   inKnowledgeBase: false,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -78,6 +79,56 @@ describe("ListingModal", () => {
     render(<ListingModal editing={withPhotos} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText("⭐ Utama")).toBeInTheDocument();
     expect(screen.getByText("☆ Set Utama")).toBeInTheDocument();
+  });
+
+  it("Edit mode with existing documents: renders the document list with filename and size", () => {
+    const withDocuments: ListingDto = {
+      ...LISTING,
+      documents: [
+        {
+          id: "d1",
+          filename: "brosur.pdf",
+          url: "https://gcs/brosur.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 1_202_000,
+          uploadedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    };
+    render(<ListingModal editing={withDocuments} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.getByText("📄 brosur.pdf")).toBeInTheDocument();
+    expect(screen.getByText("1.1 MB")).toBeInTheDocument();
+  });
+
+  it("Edit mode with no documents: shows the empty-state hint", () => {
+    render(<ListingModal editing={LISTING} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.getByText("Belum ada dokumen.")).toBeInTheDocument();
+  });
+
+  it("deleting a document DELETEs the document endpoint and updates the listing", async () => {
+    const withDocuments: ListingDto = {
+      ...LISTING,
+      documents: [
+        {
+          id: "d1",
+          filename: "brosur.pdf",
+          url: "https://gcs/brosur.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 1000,
+          uploadedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ listing: LISTING }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    render(<ListingModal editing={withDocuments} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await userEvent.click(screen.getByLabelText("Hapus dokumen"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/listings/listing-1/documents/d1");
+    expect((init as RequestInit).method).toBe("DELETE");
   });
 
   it("calls onClose when Batal is clicked", async () => {

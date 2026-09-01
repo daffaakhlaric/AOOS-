@@ -17,6 +17,7 @@ function makeListing(overrides: Partial<ListingResponseDto> = {}): ListingRespon
     price: 1_800_000_000,
     highlights: [],
     photos: [],
+    documents: [],
     inKnowledgeBase: true,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",

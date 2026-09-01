@@ -6,6 +6,7 @@ import {
   LISTING_STATUSES,
   PROPERTY_TYPES,
   type CreateListingInput,
+  type DocumentDto,
   type ListingDto,
   type ListingStatus,
   type PhotoDto,
@@ -77,6 +78,8 @@ export function ListingModal({ editing, onClose, onSaved }: ListingModalProps): 
   const [error, setError] = useState<string | undefined>(undefined);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoBusyId, setPhotoBusyId] = useState<string | undefined>(undefined);
+  const [documentUploading, setDocumentUploading] = useState(false);
+  const [documentBusyId, setDocumentBusyId] = useState<string | undefined>(undefined);
 
   function buildPayload(): CreateListingInput | UpdateListingInput {
     const numOrUndefined = (raw: string): number | undefined =>
@@ -194,6 +197,52 @@ export function ListingModal({ editing, onClose, onSaved }: ListingModalProps): 
     }
   }
 
+  async function handleUploadDocuments(files: FileList): Promise<void> {
+    if (saved === undefined) {
+      return;
+    }
+    setDocumentUploading(true);
+    setError(undefined);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.set("file", file);
+        const response = await fetch(`/api/listings/${encodeURIComponent(saved.id)}/documents`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) {
+          throw new Error(await parseError(response, "Gagal mengunggah dokumen."));
+        }
+        const body = (await response.json()) as { listing: ListingDto };
+        setSaved(body.listing);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Gagal mengunggah dokumen.");
+    } finally {
+      setDocumentUploading(false);
+    }
+  }
+
+  async function handleDeleteDocument(documentId: string): Promise<void> {
+    if (saved === undefined) {
+      return;
+    }
+    setDocumentBusyId(documentId);
+    try {
+      const response = await fetch(
+        `/api/listings/${encodeURIComponent(saved.id)}/documents/${encodeURIComponent(documentId)}`,
+        { method: "DELETE" },
+      );
+      if (response.ok) {
+        const body = (await response.json()) as { listing: ListingDto };
+        setSaved(body.listing);
+      }
+    } finally {
+      setDocumentBusyId(undefined);
+    }
+  }
+
   async function handleReorder(photos: readonly PhotoDto[], mainPhotoId?: string): Promise<void> {
     if (saved === undefined) {
       return;
@@ -235,6 +284,7 @@ export function ListingModal({ editing, onClose, onSaved }: ListingModalProps): 
   }
 
   const sortedPhotos = [...(saved?.photos ?? [])].sort((a, b) => a.order - b.order);
+  const documents = saved?.documents ?? [];
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Listing">
@@ -535,6 +585,55 @@ export function ListingModal({ editing, onClose, onSaved }: ListingModalProps): 
             </div>
           )}
 
+          <p className={styles.sectionLabel}>DOKUMEN PENDUKUNG (PDF/Excel/Promo)</p>
+          {saved === undefined ? (
+            <p className={styles.hint}>💾 Simpan Draft dulu untuk mulai menambah dokumen.</p>
+          ) : (
+            <div className={styles.photoSection}>
+              <input
+                type="file"
+                accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx,application/vnd.ms-excel,.xls"
+                multiple
+                disabled={documentUploading}
+                onChange={(e) => {
+                  if (e.target.files !== null && e.target.files.length > 0) {
+                    void handleUploadDocuments(e.target.files);
+                    e.target.value = "";
+                  }
+                }}
+              />
+              {documentUploading ? <p className={styles.hint}>Mengunggah...</p> : null}
+              {documents.length > 0 ? (
+                <ul className={styles.documentList}>
+                  {documents.map((doc: DocumentDto) => (
+                    <li key={doc.id} className={styles.documentRow}>
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={styles.documentLink}
+                      >
+                        📄 {doc.filename}
+                      </a>
+                      <span className={styles.documentMeta}>{formatFileSize(doc.sizeBytes)}</span>
+                      <button
+                        type="button"
+                        disabled={documentBusyId === doc.id}
+                        onClick={() => void handleDeleteDocument(doc.id)}
+                        aria-label="Hapus dokumen"
+                        className={styles.documentDeleteButton}
+                      >
+                        🗑
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={styles.hint}>Belum ada dokumen.</p>
+              )}
+            </div>
+          )}
+
           <p className={styles.sectionLabel}>NOMOR WA AGEN</p>
           <div className={styles.formGroup}>
             <label htmlFor="listing-wa" className={styles.formLabel}>
@@ -576,6 +675,17 @@ export function ListingModal({ editing, onClose, onSaved }: ListingModalProps): 
       </div>
     </div>
   );
+}
+
+/** "1.2 MB" / "340 KB" style formatting for the DOKUMEN PENDUKUNG list. */
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1_048_576) {
+    return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  }
+  return `${String(bytes)} B`;
 }
 
 function NumberField({

@@ -18,6 +18,17 @@ export interface PhotoDto {
   readonly isMain: boolean;
 }
 
+/** Mirrors `apps/aaos-api`'s `DocumentResponseDto` (Phase 2 — listing supporting documents: PDF/Excel/promo). */
+export interface DocumentDto {
+  readonly id: string;
+  readonly filename: string;
+  readonly url: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly label?: string;
+  readonly uploadedAt: string;
+}
+
 export interface ListingDto {
   readonly id: string;
   readonly title: string;
@@ -48,6 +59,7 @@ export interface ListingDto {
 
   readonly photos: readonly PhotoDto[];
   readonly mainPhotoUrl?: string;
+  readonly documents: readonly DocumentDto[];
   readonly inKnowledgeBase: boolean;
 
   readonly createdAt: string;

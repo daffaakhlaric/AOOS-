@@ -69,6 +69,7 @@ describe("ListingRepository", () => {
       highlights: [],
       photos: [],
       main_photo_url: null,
+      documents: [],
       in_knowledge_base: false,
     });
     expect(row.title).toBe("Apartemen Cinere");

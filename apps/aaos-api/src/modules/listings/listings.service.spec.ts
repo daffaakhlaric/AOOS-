@@ -36,6 +36,7 @@ function makeRow(overrides: Partial<ListingRow> = {}): ListingRow {
     highlights: [],
     photos: [],
     main_photo_url: null,
+    documents: [],
     in_knowledge_base: false,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
@@ -225,6 +226,144 @@ describe("ListingsService", () => {
         mimeType: "image/jpeg",
       }),
     ).rejects.toThrow("gcs down");
+  });
+
+  it("addDocument rejects a disallowed mime type", async () => {
+    repository.findById = vi.fn(async () => makeRow());
+    const service = new ListingsService(repository, makeAssetLibrary());
+    await expect(
+      service.addDocument(TENANT, "listing-1", {
+        buffer: Buffer.from("x"),
+        fileName: "a.png",
+        mimeType: "image/png",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("addDocument rejects a document over the 20MB limit", async () => {
+    repository.findById = vi.fn(async () => makeRow());
+    const service = new ListingsService(repository, makeAssetLibrary());
+    await expect(
+      service.addDocument(TENANT, "listing-1", {
+        buffer: Buffer.alloc(21 * 1024 * 1024),
+        fileName: "brosur.pdf",
+        mimeType: "application/pdf",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("addDocument rejects a 21st document (mirrors addPhoto's own MAX_PHOTOS_PER_LISTING precedent)", async () => {
+    const twentyDocuments = Array.from({ length: 20 }, (_, i) => ({
+      id: `d${String(i)}`,
+      filename: `f${String(i)}.pdf`,
+      url: `u${String(i)}`,
+      mimeType: "application/pdf",
+      sizeBytes: 100,
+      uploadedAt: "2026-01-01T00:00:00.000Z",
+      storagePath: `p${String(i)}`,
+    }));
+    repository.findById = vi.fn(async () => makeRow({ documents: twentyDocuments }));
+    const service = new ListingsService(repository, makeAssetLibrary());
+    await expect(
+      service.addDocument(TENANT, "listing-1", {
+        buffer: Buffer.from("x"),
+        fileName: "extra.pdf",
+        mimeType: "application/pdf",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("addDocument throws UnavailableError when no asset library is configured", async () => {
+    repository.findById = vi.fn(async () => makeRow());
+    const service = new ListingsService(repository, undefined);
+    await expect(
+      service.addDocument(TENANT, "listing-1", {
+        buffer: Buffer.from("x"),
+        fileName: "brosur.pdf",
+        mimeType: "application/pdf",
+      }),
+    ).rejects.toThrow(UnavailableError);
+  });
+
+  it("addDocument uploads via the real IAssetStorage adapter and stores the JSONB entry", async () => {
+    repository.findById = vi.fn(async () => makeRow());
+    repository.updateById = vi.fn(async (_id, patch) => makeRow(patch as Partial<ListingRow>));
+    const library = makeAssetLibrary();
+    const service = new ListingsService(repository, library);
+    const result = await service.addDocument(TENANT, "listing-1", {
+      buffer: Buffer.from("%PDF-1.4"),
+      fileName: "brosur.pdf",
+      mimeType: "application/pdf",
+      label: "Brosur promo",
+    });
+    expect(library.assetStorage.upload).toHaveBeenCalledWith(
+      expect.objectContaining({ contentType: "application/pdf" }),
+    );
+    expect(result.documents).toHaveLength(1);
+    expect(result.documents[0]?.filename).toBe("brosur.pdf");
+    expect(result.documents[0]?.label).toBe("Brosur promo");
+    expect(result.documents[0]?.url).toBe("https://gcs/x.jpg");
+  });
+
+  it("deleteDocument removes the JSONB entry and best-effort deletes the real GCS object when the storage exposes delete", async () => {
+    const deleteFn = vi.fn(async () => ({ ok: true }));
+    repository.findById = vi.fn(async () =>
+      makeRow({
+        documents: [
+          {
+            id: "d1",
+            filename: "brosur.pdf",
+            url: "https://gcs/brosur.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 100,
+            uploadedAt: "2026-01-01T00:00:00.000Z",
+            storagePath: "listings/t/l/doc-1.pdf",
+          },
+        ],
+      }),
+    );
+    repository.updateById = vi.fn(async (_id, patch) => makeRow(patch as Partial<ListingRow>));
+    const library = {
+      assetStorage: {
+        upload: vi.fn(),
+        getSignedUrl: vi.fn(),
+        delete: deleteFn,
+      },
+    } as unknown as AssetLibrary;
+    const service = new ListingsService(repository, library);
+    const result = await service.deleteDocument(TENANT, "listing-1", "d1");
+    expect(deleteFn).toHaveBeenCalledWith("listings/t/l/doc-1.pdf");
+    expect(result.documents).toHaveLength(0);
+  });
+
+  it("deleteDocument still removes the JSONB entry when the storage has no real delete method", async () => {
+    repository.findById = vi.fn(async () =>
+      makeRow({
+        documents: [
+          {
+            id: "d1",
+            filename: "brosur.pdf",
+            url: "https://gcs/brosur.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 100,
+            uploadedAt: "2026-01-01T00:00:00.000Z",
+            storagePath: "listings/t/l/doc-1.pdf",
+          },
+        ],
+      }),
+    );
+    repository.updateById = vi.fn(async (_id, patch) => makeRow(patch as Partial<ListingRow>));
+    const service = new ListingsService(repository, makeAssetLibrary());
+    const result = await service.deleteDocument(TENANT, "listing-1", "d1");
+    expect(result.documents).toHaveLength(0);
+  });
+
+  it("deleteDocument throws NotFoundError for an unknown document id", async () => {
+    repository.findById = vi.fn(async () => makeRow({ documents: [] }));
+    const service = new ListingsService(repository, undefined);
+    await expect(service.deleteDocument(TENANT, "listing-1", "missing")).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it("reorderPhotos without mainPhotoId keeps each photo's existing isMain flag", async () => {
