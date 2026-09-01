@@ -143,7 +143,13 @@ export interface NavGroup {
  * below) — AUTOMOTIVE's real, already-shipped nav is shown until the real vertical is known, never
  * a flash of the PROPERTY nav for the common (AUTOMOTIVE) case.
  */
-function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
+/**
+ * Exported (additive — was module-local) purely so `Sidebar.test.tsx`/future tests can assert the
+ * real per-vertical nav shape directly, the same "test the pure function, not just the rendered
+ * DOM" precedent this file's own `isActive` below already sets a lower bar for (that one stays
+ * unexported since it has no per-vertical branching worth isolating).
+ */
+export function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
   const isProperty = vertical === "PROPERTY";
   return [
     { key: "top", items: [OVERVIEW] },
@@ -157,18 +163,28 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
       label: "CLARA (SALES AI)",
       items: [CLARA_ANALYTICS, CLARA_INBOX, CLARA_CONTACTS, KNOWLEDGE, SIMULATOR, RECYCLING],
     },
-    {
-      key: "sosmed",
-      label: "SOSIAL MEDIA",
-      items: [
-        SOSMED_DASHBOARD,
-        SOSMED_CALENDAR,
-        SOSMED_STUDIO,
-        SOSMED_POSTS,
-        SOSMED_ANALYTICS,
-        SOSMED_ACCOUNTS,
-      ],
-    },
+    // AAOS-KAI-MANUAL-SHOOT-MENU-CLEANUP Part B — this was the ONE group NOT already wrapped in
+    // the `isProperty` ternary `kai`/`operasional` below already establish (a real, confirmed
+    // oversight, not a deliberate choice — see the design doc's own recon finding #4). Omitted
+    // entirely for PROPERTY (never rendered with an empty `items: []`, which would leave a dangling
+    // section header + empty collapse box — the `kai`/`operasional` groups never hit this case
+    // because their PROPERTY branch always has real items of its own).
+    ...(isProperty
+      ? []
+      : [
+          {
+            key: "sosmed",
+            label: "SOSIAL MEDIA",
+            items: [
+              SOSMED_DASHBOARD,
+              SOSMED_CALENDAR,
+              SOSMED_STUDIO,
+              SOSMED_POSTS,
+              SOSMED_ANALYTICS,
+              SOSMED_ACCOUNTS,
+            ],
+          },
+        ]),
     {
       key: "kai",
       label: isProperty ? "KAI (CREATIVE) — PROPERTI" : "KAI (CREATIVE)",

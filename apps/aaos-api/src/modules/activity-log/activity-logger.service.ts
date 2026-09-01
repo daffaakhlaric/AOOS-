@@ -8,7 +8,7 @@ import {
   type ActivityToolCallEntry,
 } from "./infrastructure/activity.repository.js";
 
-export type ActivityStatus = "RUNNING" | "SUCCESS" | "SIMULATED" | "ERROR";
+export type ActivityStatus = "RUNNING" | "SUCCESS" | "SIMULATED" | "ERROR" | "NEEDS_HUMAN";
 
 export interface StartActivityInput {
   readonly tenantId: string;
@@ -25,6 +25,10 @@ export interface CompleteActivityInput {
   readonly status: "SUCCESS" | "SIMULATED";
   readonly output?: unknown;
   readonly devPreview?: unknown;
+}
+
+export interface EscalateActivityInput {
+  readonly output?: unknown;
 }
 
 /**
@@ -122,6 +126,26 @@ export class ActivityLogger {
       status: input.status,
       output: input.output ?? null,
       dev_preview: input.devPreview ?? null,
+    });
+  }
+
+  /**
+   * Terminal write for a genuinely different real outcome from `complete()`'s two — `NEEDS_HUMAN`
+   * is neither a real LIVE success nor an honestly-simulated DEV run (the two cases
+   * `CompleteActivityInput.status`'s type deliberately restricts itself to), and it isn't a thrown
+   * error either. Rather than widen `complete()`'s status union — which would blur the "SUCCESS is
+   * real-LIVE, SIMULATED is honestly-simulated-DEV" contract every existing caller relies on — this
+   * is a small, additive third terminal method, same "one honest method per real outcome shape"
+   * discipline `complete()`/`fail()` already establish between themselves. Best-effort, same
+   * discipline as both.
+   */
+  async escalate(
+    activityId: string | undefined,
+    input: EscalateActivityInput = {},
+  ): Promise<ActivityRow | undefined> {
+    return this.finish(activityId, {
+      status: "NEEDS_HUMAN",
+      output: input.output ?? null,
     });
   }
 

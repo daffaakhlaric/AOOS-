@@ -5,7 +5,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
 }));
 
-import { Sidebar } from "@/components/layout/Sidebar";
+import { buildNavGroups, Sidebar } from "@/components/layout/Sidebar";
 
 function mockSettingsFetch(vertical: "AUTOMOTIVE" | "PROPERTY" | undefined): void {
   global.fetch = vi.fn(async () =>
@@ -125,6 +125,31 @@ describe("Sidebar", () => {
       "href",
       "/sosmed/accounts",
     );
+  });
+
+  it("does NOT render the SOSIAL MEDIA section for PROPERTY (AAOS-KAI-MANUAL-SHOOT-MENU-CLEANUP Part B)", async () => {
+    mockSettingsFetch("PROPERTY");
+    render(<Sidebar />);
+    await waitFor(() => expect(screen.getByText("Listing Manager")).toBeInTheDocument());
+    expect(screen.queryByText("SOSIAL MEDIA")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dashboard Sosmed")).not.toBeInTheDocument();
+  });
+
+  it("keeps the SOSIAL MEDIA section (all 6 items) for AUTOMOTIVE", async () => {
+    mockSettingsFetch("AUTOMOTIVE");
+    render(<Sidebar />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/settings"));
+    expect(screen.getByText("SOSIAL MEDIA")).toBeInTheDocument();
+    expect(screen.getByText("Dashboard Sosmed")).toBeInTheDocument();
+  });
+
+  it("buildNavGroups: omits the sosmed group entirely for PROPERTY, keeps all 6 items for AUTOMOTIVE", () => {
+    const propertyGroups = buildNavGroups("PROPERTY");
+    expect(propertyGroups.find((group) => group.key === "sosmed")).toBeUndefined();
+
+    const automotiveGroups = buildNavGroups("AUTOMOTIVE");
+    const sosmed = automotiveGroups.find((group) => group.key === "sosmed");
+    expect(sosmed?.items).toHaveLength(6);
   });
 
   it("never breaks rendering when the settings fetch fails", async () => {

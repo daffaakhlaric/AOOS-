@@ -12,7 +12,7 @@ import type { SettingsDto } from "@/types/tenant.types";
 import styles from "./ActivityLogClient.module.css";
 import { ActivityDetailDrawer } from "./ActivityDetailDrawer";
 
-const STATUS_OPTIONS = ["RUNNING", "SUCCESS", "SIMULATED", "ERROR"] as const;
+const STATUS_OPTIONS = ["RUNNING", "SUCCESS", "SIMULATED", "ERROR", "NEEDS_HUMAN"] as const;
 const MODE_OPTIONS = ["DEV", "LIVE"] as const;
 
 function statusBadgeClass(status: string): string {
@@ -25,7 +25,40 @@ function statusBadgeClass(status: string): string {
   if (status === "ERROR") {
     return styles.badgeError ?? "";
   }
+  if (status === "NEEDS_HUMAN") {
+    return styles.badgeNeedsHuman ?? "";
+  }
   return styles.badgeRunning ?? "";
+}
+
+/** `NEEDS_HUMAN`'s real, distinct label (Kai manual-shoot escalation) — every other status renders its plain `activity.status` string, this one alone gets an honest, human-readable Indonesian label + emoji so a manager scanning the list can spot it immediately without opening the drawer. */
+function statusLabel(status: string): string {
+  return status === "NEEDS_HUMAN" ? "🟠 Butuh Tindakan Manusia" : status;
+}
+
+/** Real resolved sales-human names/branch, read directly off the row's real `input` payload (`CreativePackagesService.recordManualShootEscalation`'s `resolvedSalesHumans`) — `undefined` when `input` isn't shaped that way (any other actionType, or a resolution that came back empty), never a fabricated name. */
+function resolvedSalesHumansSummary(activity: ActivityDto): string | undefined {
+  if (
+    activity.status !== "NEEDS_HUMAN" ||
+    typeof activity.input !== "object" ||
+    activity.input === null
+  ) {
+    return undefined;
+  }
+  const resolved = (activity.input as { resolvedSalesHumans?: unknown }).resolvedSalesHumans;
+  if (!Array.isArray(resolved) || resolved.length === 0) {
+    return "Belum ada sales terdaftar untuk cabang ini.";
+  }
+  const names = resolved
+    .filter(
+      (candidate): candidate is { name: string; branchId: string } =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        typeof (candidate as { name?: unknown }).name === "string" &&
+        typeof (candidate as { branchId?: unknown }).branchId === "string",
+    )
+    .map((candidate) => `${candidate.name} (${candidate.branchId})`);
+  return names.length > 0 ? `Hubungi: ${names.join(", ")}` : undefined;
 }
 
 /**
@@ -177,24 +210,32 @@ export function ActivityLogClient(): React.ReactElement {
           <p className={styles.emptyState}>Belum ada aktivitas agent.</p>
         ) : (
           <div className={styles.list} data-testid="activity-list">
-            {data.activities.map((activity) => (
-              <button
-                key={activity.id}
-                type="button"
-                className={styles.row}
-                onClick={() => setSelected(activity)}
-              >
-                <span className={styles.rowAgent}>{activity.agent}</span>
-                <span className={styles.rowAction}>{activity.actionType}</span>
-                <span className={styles.rowMode}>{activity.mode}</span>
-                <span className={`${styles.badge} ${statusBadgeClass(activity.status)}`}>
-                  {activity.status}
-                </span>
-                <span className={styles.rowTime}>
-                  {new Date(activity.startedAt).toLocaleString("id-ID")}
-                </span>
-              </button>
-            ))}
+            {data.activities.map((activity) => {
+              const salesSummary = resolvedSalesHumansSummary(activity);
+              return (
+                <button
+                  key={activity.id}
+                  type="button"
+                  className={styles.row}
+                  onClick={() => setSelected(activity)}
+                >
+                  <span className={styles.rowAgent}>{activity.agent}</span>
+                  <span className={styles.rowAction}>
+                    {activity.actionType}
+                    {salesSummary !== undefined ? (
+                      <span className={styles.rowSalesSummary}>{salesSummary}</span>
+                    ) : null}
+                  </span>
+                  <span className={styles.rowMode}>{activity.mode}</span>
+                  <span className={`${styles.badge} ${statusBadgeClass(activity.status)}`}>
+                    {statusLabel(activity.status)}
+                  </span>
+                  <span className={styles.rowTime}>
+                    {new Date(activity.startedAt).toLocaleString("id-ID")}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

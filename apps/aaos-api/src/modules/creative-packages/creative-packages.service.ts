@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import type { AssetLibrary } from "@aos/asset-library";
+import type { BranchManager } from "@aos/branch-manager";
+import { BranchId } from "@aos/branch-manager";
 import {
   ConfidenceScore,
   CreativeFormat,
@@ -22,8 +24,16 @@ import { CreativeBrief, CreativeBriefId } from "@aos/meta-ads-agent";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, ASSET_LIBRARY, KAI_AGENT_RUNTIME } from "../../di-tokens.js";
+import {
+  AAOS_API_CONFIG,
+  ASSET_LIBRARY,
+  BRANCH_MANAGER,
+  KAI_AGENT_RUNTIME,
+} from "../../di-tokens.js";
+import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
+import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import { buildCreativeBrief } from "./domain/creative-brief.factory.js";
 import type { CreativeLogJson } from "./domain/creative-log.js";
@@ -104,6 +114,16 @@ export class CreativePackagesService {
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(KAI_AGENT_RUNTIME) private readonly kai: KaiAgentRuntime | undefined,
     @Inject(ASSET_LIBRARY) private readonly assetLibrary: AssetLibrary | undefined,
+    /**
+     * The SAME real, globally-provided `BranchManager` bundle (`app.module.ts`'s
+     * `BranchManagerFactory.create(...)`, registered `global: true`) `BranchesModule` already
+     * injects — reused here (Kai manual-shoot escalation, below) purely for its
+     * `getAvailableSales` use case, never a second `@aos/branch-manager` composition. Because the
+     * root module is registered `global: true`, this resolves with no explicit module import and
+     * no circular-import risk (verified directly — `BranchesModule`'s own doc comment confirms the
+     * same global-token precedent).
+     */
+    @Inject(BRANCH_MANAGER) private readonly branchManager: BranchManager,
     private readonly repository: CreativePackageRepository,
     private readonly logRepository: CreativeLogRepository,
     /**
@@ -112,6 +132,17 @@ export class CreativePackagesService {
      * second query path.
      */
     private readonly listings: ListingsService,
+    /**
+     * Kai manual-shoot escalation (below) — real `ModeGuardService`/`ActivityLogger`, the SAME
+     * small standalone modules `CampaignsModule` already imports for the same "stamp the tenant's
+     * real mode, write one real `agent_activities` row" purpose. Kai's own generation pipeline is
+     * NOT DEV/LIVE-gated (this class's own doc: "there is no code path by which a brief reaches Kie
+     * AI without a human having approved that specific brief first" — no simulate variant exists),
+     * so `modeGuard` is used here only to honestly STAMP the row's `mode` field, never to gate or
+     * simulate the escalation write itself.
+     */
+    private readonly modeGuard: ModeGuardService,
+    private readonly activityLogger: ActivityLogger,
   ) {}
 
   private get tenantId(): string {
@@ -351,6 +382,15 @@ export class CreativePackagesService {
         : undefined;
 
     const sourcePhotoAvailable = availablePhotos > 0;
+    if (!sourcePhotoAvailable) {
+      // Kai manual-shoot escalation (`docs/PROMPT-AAOS-KAI-MANUAL-SHOOT-MENU-CLEANUP.md`) — a
+      // real, separate, visible-only `agent_activities` row alongside the degraded text-only
+      // generation below (unchanged), never instead of it: a manager may still want SOME creative
+      // live now while a better one is shot later. Best-effort — `recordManualShootEscalation`
+      // never throws, so a resolution/logging failure here can never abort the real generation
+      // this method exists to run.
+      await this.recordManualShootEscalation(tenantId, listing);
+    }
     const videoPrompt =
       videoSpec !== undefined
         ? propertyPromptBuilder.buildVideoPrompt(brief, sourcePhotoAvailable)
@@ -426,6 +466,82 @@ export class CreativePackagesService {
     );
 
     return toCreativePackageResponseDto(accepted);
+  }
+
+  /**
+   * Kai manual-shoot escalation — resolves `listing.branchId`'s real available sales humans (via
+   * the globally-provided `BranchManager.getAvailableSales`) and writes ONE real, terminal
+   * `agent_activities` row (`agent: "KAI"`, `actionType: "CREATIVE_NEEDS_MANUAL_SHOOT"`,
+   * `status: "NEEDS_HUMAN"`) so a manager scanning the Activity Log can see this listing needs a
+   * manual photo/video shoot and who to ask.
+   *
+   * REAL, HONEST LIMITS, documented here rather than silently implied as more than this is:
+   * - No real WhatsApp message is sent to any resolved sales human — that needs a real, separately
+   *   approved WABA template first (a real external/Meta process, this phase deliberately does not
+   *   attempt it). This is a visible-only record.
+   * - `@aos/branch-manager`'s `SalesTeamRegistry` (reached here via `BranchManager`) is a
+   *   process-local, in-memory registry seeded EMPTY at boot and populated only by
+   *   `POST /api/v1/branches/.../sales` (`BranchesService.addSalesHuman`) — NOT by
+   *   `SalesHumansService.create`'s durable, Supabase-Auth-backed sales-account provisioning path
+   *   (confirmed directly: that service's own class doc calls this the same real, pre-existing gap
+   *   "DELIBERATELY OUT OF SCOPE"). So `resolvedSalesHumans` legitimately comes back empty on a
+   *   fresh/restarted process even for a branch with real, DB-provisioned sales accounts — an
+   *   honest reflection of this registry's real current state, never a fabricated non-empty result.
+   * - `listing.branchId` is a free-text optional string (`dto/listing.dto.ts`), not guaranteed to
+   *   be one of DSS Motor's 4 automotive `BranchId` members a PROPERTY tenant's own branches may
+   *   use different names — an unrecognized/missing value degrades to an empty
+   *   `resolvedSalesHumans`, never a fabricated match.
+   *
+   * Best-effort by construction — `ModeGuardService.resolveMode`/`ActivityLogger.start`/`.escalate`
+   * never throw, and `GetAvailableSales.execute` returns `Result<_, never>`, but this is still
+   * wrapped end-to-end so a future change to any of those can never turn this side-effect into a
+   * reason `generateProperty` itself fails (same discipline `SchedulerService.countHotLeads`/etc.
+   * already establish for a side-check that can't take down the main flow).
+   */
+  private async recordManualShootEscalation(
+    tenantId: string,
+    listing: ListingResponseDto,
+  ): Promise<void> {
+    let resolvedSalesHumans: ReadonlyArray<{ readonly name: string; readonly branchId: string }> =
+      [];
+    try {
+      const knownBranchId = toKnownBranchId(listing.branchId);
+      if (knownBranchId !== undefined) {
+        const result = this.branchManager.getAvailableSales.execute({
+          branchId: knownBranchId,
+        });
+        if (result.ok) {
+          resolvedSalesHumans = result.value.map((salesHuman) => ({
+            name: salesHuman.name,
+            branchId: salesHuman.branchId,
+          }));
+        }
+      }
+    } catch (caught) {
+      this.logger.warn(
+        `CreativePackagesService.recordManualShootEscalation(${listing.id}): sales resolution failed, degrading to an empty list: ${caught instanceof Error ? caught.message : String(caught)}`,
+      );
+    }
+
+    try {
+      const mode = await this.modeGuard.resolveMode(tenantId);
+      const activityId = await this.activityLogger.start({
+        tenantId,
+        agent: "KAI",
+        actionType: "CREATIVE_NEEDS_MANUAL_SHOOT",
+        mode,
+        input: {
+          listingId: listing.id,
+          listingTitle: listing.title,
+          resolvedSalesHumans,
+        },
+      });
+      await this.activityLogger.escalate(activityId);
+    } catch (caught) {
+      this.logger.warn(
+        `CreativePackagesService.recordManualShootEscalation(${listing.id}): writing the NEEDS_HUMAN activity row failed: ${caught instanceof Error ? caught.message : String(caught)}`,
+      );
+    }
   }
 
   /** The detached PROPERTY pipeline body — real Kie AI calls via the shared `CreativeOrchestratorService`, real GCS persistence of the generated media via the SAME `IAssetStorage` adapter `ListingsService.addPhoto`/`addDocument` already establish bypassing `@aos/asset-library`'s `assets` table (Finding 7 — a generated PROPERTY creative has no `unit_id`/`Branch`-shaped home there either). */
@@ -762,6 +878,23 @@ export class CreativePackagesService {
       this.logger.warn(`CreativePackagesService.appendLog failed: ${String(caught)}`);
     }
   }
+}
+
+/**
+ * `listing.branchId` is a free-text optional string (`dto/listing.dto.ts`'s `z.string().min(1)`),
+ * NOT guaranteed to be one of DSS Motor's 4 automotive `BranchId` enum members — a PROPERTY
+ * tenant's own branches may use entirely different names. Case-insensitive match against the real
+ * `BranchId` enum values; `undefined` for anything unrecognized or missing, never a fabricated
+ * guess.
+ */
+function toKnownBranchId(branchId: string | undefined): BranchId | undefined {
+  if (branchId === undefined) {
+    return undefined;
+  }
+  const candidate = branchId.toUpperCase();
+  return (Object.values(BranchId) as readonly string[]).includes(candidate)
+    ? (candidate as BranchId)
+    : undefined;
 }
 
 function defaultReason(origin: "MANUAL" | "SAMANTHA"): string {

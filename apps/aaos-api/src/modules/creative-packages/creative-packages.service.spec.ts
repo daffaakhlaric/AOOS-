@@ -1,4 +1,5 @@
 import type { AssetLibrary } from "@aos/asset-library";
+import type { BranchManager } from "@aos/branch-manager";
 import { err, ok } from "@aos/common";
 import type { CreativePackage, KaiAgentRuntime } from "@aos/creative-agent";
 import { GenerationError, PropertyAdAngle } from "@aos/creative-agent";
@@ -10,7 +11,9 @@ import {
   type FakeSupabaseClient,
 } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import type { ListingsService } from "../listings/listings.service.js";
+import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import { CreativePackagesService } from "./creative-packages.service.js";
 import type { CreatePackageBodyDto } from "./dto/create-package.dto.js";
@@ -79,6 +82,32 @@ interface Harness {
   readonly getListingById: ReturnType<typeof vi.fn>;
   readonly orchestrate: ReturnType<typeof vi.fn>;
   readonly assetStorageUpload: ReturnType<typeof vi.fn>;
+  readonly getAvailableSales: ReturnType<typeof vi.fn>;
+  readonly activityLogger: ReturnType<typeof buildFakeActivityLogger>;
+}
+
+/** Minimal `ModeGuardService` test double — mirrors `campaigns.service.spec.ts`'s own fake. Always resolves LIVE. */
+function buildFakeModeGuard() {
+  return {
+    resolveMode: async () => "LIVE",
+    executeOrSimulate: async <T>(
+      _tenantId: string,
+      executeFn: () => Promise<T>,
+      _simulateFn: () => Promise<T>,
+    ): Promise<T> => executeFn(),
+  };
+}
+
+/** Minimal `ActivityLogger` test double — mirrors `campaigns.service.spec.ts`'s own fake, plus the new `escalate()` (Kai manual-shoot escalation). */
+function buildFakeActivityLogger() {
+  return {
+    start: vi.fn(async () => "activity-1"),
+    complete: vi.fn(async () => undefined),
+    escalate: vi.fn(async () => undefined),
+    fail: vi.fn(async () => undefined),
+    logToolCall: vi.fn(async () => undefined),
+    logReasoning: vi.fn(async () => undefined),
+  };
 }
 
 function buildHarness(
@@ -95,6 +124,10 @@ function buildHarness(
     readonly orchestrateResult?: unknown;
     readonly orchestrateNeverSettles?: boolean;
     readonly uploadFails?: boolean;
+    /** Kai manual-shoot escalation — the real sales humans `BranchManager.getAvailableSales` resolves for the listing's `branchId`. */
+    readonly salesHumans?: ReadonlyArray<{ readonly name: string; readonly branchId: string }>;
+    /** Simulates `GetAvailableSales`/branch resolution failing outright — the escalation must still degrade honestly (empty array), never crash `generateProperty`. */
+    readonly salesResolutionThrows?: boolean;
   } = {},
 ): Harness {
   const client = createFakeSupabaseClient();
@@ -179,13 +212,27 @@ function buildHarness(
           assetStorage: { upload: assetStorageUpload },
         } as unknown as AssetLibrary);
 
+  const getAvailableSales = vi.fn(() => {
+    if (options.salesResolutionThrows === true) {
+      throw new Error("sales team registry unavailable");
+    }
+    return { ok: true, value: options.salesHumans ?? [] };
+  });
+  const branchManager = {
+    getAvailableSales: { execute: getAvailableSales },
+  } as unknown as BranchManager;
+  const activityLogger = buildFakeActivityLogger();
+
   const service = new CreativePackagesService(
     buildTestConfig(),
     kai,
     assetLibrary,
+    branchManager,
     new CreativePackageRepository(client),
     new CreativeLogRepository(client),
     listingsService,
+    buildFakeModeGuard() as unknown as ModeGuardService,
+    activityLogger as unknown as ActivityLogger,
   );
   return {
     service,
@@ -195,6 +242,8 @@ function buildHarness(
     getListingById,
     orchestrate,
     assetStorageUpload,
+    getAvailableSales,
+    activityLogger,
   };
 }
 
@@ -647,6 +696,94 @@ describe("CreativePackagesService.generateProperty (K2)", () => {
     await settle();
     const call = harness.orchestrate.mock.calls[0]?.[0] as { sourcePhotoUrls: readonly string[] };
     expect(call.sourcePhotoUrls).toEqual([]);
+  });
+
+  it("a listing with zero photos writes a real NEEDS_HUMAN escalation row with resolved sales humans (Kai manual-shoot escalation)", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        branchId: "BINTARO",
+      },
+      salesHumans: [{ name: "Budi Santoso", branchId: "BINTARO" }],
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    await harness.service.generateProperty(TENANT_A, created.id);
+
+    expect(harness.getAvailableSales).toHaveBeenCalledWith({ branchId: "BINTARO" });
+    expect(harness.activityLogger.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_A,
+        agent: "KAI",
+        actionType: "CREATIVE_NEEDS_MANUAL_SHOOT",
+        input: expect.objectContaining({
+          listingId: "listing-1",
+          listingTitle: "Rumah Minimalis BSD",
+          resolvedSalesHumans: [{ name: "Budi Santoso", branchId: "BINTARO" }],
+        }) as unknown,
+      }),
+    );
+    expect(harness.activityLogger.escalate).toHaveBeenCalledWith("activity-1");
+  });
+
+  it("a listing with real photos does NOT write the NEEDS_HUMAN escalation row — only the existing normal generation path runs", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        branchId: "BINTARO",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    await harness.service.generateProperty(TENANT_A, created.id);
+
+    expect(harness.getAvailableSales).not.toHaveBeenCalled();
+    expect(harness.activityLogger.start).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: "CREATIVE_NEEDS_MANUAL_SHOOT" }),
+    );
+  });
+
+  it("degrades honestly (empty resolvedSalesHumans, generation still completes) when GetAvailableSales/branch resolution throws", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        branchId: "BINTARO",
+      },
+      salesResolutionThrows: true,
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    const generating = await harness.service.generateProperty(TENANT_A, created.id);
+
+    expect(generating.status).toBe("GENERATING");
+    expect(harness.getAvailableSales).toHaveBeenCalledWith({ branchId: "BINTARO" });
+    expect(harness.activityLogger.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ resolvedSalesHumans: [] }) as unknown,
+      }),
+    );
+    await settle();
+    expect(harness.orchestrate).toHaveBeenCalledTimes(1);
+  });
+
+  it("degrades honestly (empty resolvedSalesHumans, no crash) when the listing has no branchId at all", async () => {
+    const harness = buildHarness({
+      listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    const generating = await harness.service.generateProperty(TENANT_A, created.id);
+
+    expect(generating.status).toBe("GENERATING");
+    expect(harness.getAvailableSales).not.toHaveBeenCalled();
+    expect(harness.activityLogger.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ resolvedSalesHumans: [] }) as unknown,
+      }),
+    );
   });
 
   it("persists generated media via the shared IAssetStorage adapter and completes as PENDING", async () => {

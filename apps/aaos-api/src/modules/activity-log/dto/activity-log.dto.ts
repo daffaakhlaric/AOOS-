@@ -5,7 +5,9 @@ import type { ActivityRow, ActivityToolCallEntry } from "../infrastructure/activ
 /** `GET /api/v1/activity-log` query — the dashboard Activity Log page's filter bar (design doc Phase B point 4). */
 export const GetActivitiesQuerySchema = z.object({
   agent: z.string().min(1).optional(),
-  status: z.enum(["RUNNING", "SUCCESS", "SIMULATED", "ERROR"]).optional(),
+  // NEEDS_HUMAN added additively (AAOS-KAI-MANUAL-SHOOT-MENU-CLEANUP Part A) — the dashboard's
+  // `ActivityLogClient.tsx` filter bar now lists it alongside the original 4 real statuses.
+  status: z.enum(["RUNNING", "SUCCESS", "SIMULATED", "ERROR", "NEEDS_HUMAN"]).optional(),
   mode: z.enum(["DEV", "LIVE"]).optional(),
   limit: z.coerce.number().int().positive().max(500).optional(),
 });

@@ -2,8 +2,10 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
 import { CreativePackagesController } from "./creative-packages.controller.js";
 import { CreativePackagesService } from "./creative-packages.service.js";
@@ -28,6 +30,15 @@ import { CreativePackageRepository } from "./infrastructure/creative-package.rep
     // tenant-scoped `ListingsService.getById` `SimulationModule` already imports this module for
     // (its PROPERTY Kai-prompt preview), not a second listing lookup path.
     ListingsModule,
+    // Kai manual-shoot escalation (`docs/PROMPT-AAOS-KAI-MANUAL-SHOOT-MENU-CLEANUP.md`) — the SAME
+    // two small, standalone modules `CampaignsModule` already imports for the identical
+    // "stamp real mode + write one real `agent_activities` row" purpose. No circular-import risk:
+    // both are leaf modules (their own `SUPABASE_CLIENT`-only composition, see each module's own
+    // doc) that neither imports `CreativePackagesModule` nor anything that transitively does.
+    // `BRANCH_MANAGER` needs no import at all here — it's provided `global: true` by
+    // `AppModule.forRoot` (see `CreativePackagesService`'s constructor doc).
+    ModeGuardModule,
+    ActivityLogModule,
   ],
   controllers: [CreativePackagesController],
   providers: [

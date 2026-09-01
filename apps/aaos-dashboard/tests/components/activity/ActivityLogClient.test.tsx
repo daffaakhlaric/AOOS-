@@ -93,6 +93,37 @@ describe("ActivityLogClient", () => {
     expect(screen.getByText("Raw JSON")).toBeInTheDocument();
   });
 
+  it("renders a distinct NEEDS_HUMAN badge with resolved sales-human names/branch from the row's real input payload (Kai manual-shoot escalation)", async () => {
+    const NEEDS_HUMAN_ACTIVITY = {
+      ...ACTIVITY,
+      id: "activity-2",
+      agent: "KAI",
+      actionType: "CREATIVE_NEEDS_MANUAL_SHOOT",
+      status: "NEEDS_HUMAN",
+      output: undefined,
+      input: {
+        listingId: "listing-1",
+        listingTitle: "Rumah Minimalis BSD",
+        resolvedSalesHumans: [{ name: "Budi Santoso", branchId: "BINTARO" }],
+      },
+    };
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/activity-log")) {
+        return jsonResponse({ activities: [NEEDS_HUMAN_ACTIVITY], total: 1 });
+      }
+      if (url.includes("/api/settings")) {
+        return jsonResponse(SETTINGS);
+      }
+      return jsonResponse({}, 404);
+    }) as unknown as typeof fetch;
+
+    render(<ActivityLogClient />);
+    await waitFor(() => expect(screen.getByText("KAI")).toBeInTheDocument());
+    expect(screen.getByText("🟠 Butuh Tindakan Manusia")).toBeInTheDocument();
+    expect(screen.getByText("Hubungi: Budi Santoso (BINTARO)")).toBeInTheDocument();
+  });
+
   it("shows an empty state when there are no activities", async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();

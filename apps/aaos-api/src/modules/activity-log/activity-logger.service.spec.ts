@@ -97,6 +97,33 @@ describe("ActivityLogger", () => {
     });
   });
 
+  describe("escalate", () => {
+    it("writes a real NEEDS_HUMAN row with the given output, stamping completed_at/duration_ms", async () => {
+      const { logger } = buildLogger();
+      const id = await logger.start({
+        tenantId: "dss-motor",
+        agent: "KAI",
+        actionType: "CREATIVE_NEEDS_MANUAL_SHOOT",
+        mode: "LIVE",
+        input: { listingId: "listing-1" },
+      });
+
+      const updated = assertDefined(
+        await logger.escalate(id, { output: { resolvedSalesHumans: [] } }),
+      );
+
+      expect(updated.status).toBe("NEEDS_HUMAN");
+      expect(updated.output).toEqual({ resolvedSalesHumans: [] });
+      expect(updated.completed_at).not.toBeNull();
+      expect(updated.duration_ms).toBeGreaterThanOrEqual(0);
+    });
+
+    it("no-ops silently for an undefined activityId", async () => {
+      const { logger } = buildLogger();
+      await expect(logger.escalate(undefined)).resolves.toBeUndefined();
+    });
+  });
+
   describe("fail", () => {
     it("writes a real ERROR row with the actual thrown error's message/stack", async () => {
       const { logger } = buildLogger();

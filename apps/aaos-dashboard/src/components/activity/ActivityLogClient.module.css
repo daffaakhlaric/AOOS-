@@ -92,6 +92,18 @@
   color: #854d0e;
 }
 
+.badgeNeedsHuman {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.rowSalesSummary {
+  display: block;
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
 .emptyState {
   font-size: 13px;
   color: var(--gray-500);
