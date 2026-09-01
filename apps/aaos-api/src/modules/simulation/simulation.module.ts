@@ -2,6 +2,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { LearningModule } from "../learning/learning.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
@@ -31,9 +32,15 @@ import { SimulationService } from "./simulation.service.js";
  * same reasoning as `LlmModule`/`MetaInterestsModule`) so `SimulationService` can inject the real
  * `ListingsService` for Step 3's PROPERTY Kai-prompt preview — the tenant-scoped lookup + its
  * `NotFoundError` authorization stay in one place.
+ *
+ * `LearningModule` (AAOS Self-Learning AI, Phase B) is imported (not re-provided, same reasoning)
+ * so `SimulationService` can inject the real `LearningService` and call
+ * `onSimulationComplete(id)` BEST-EFFORT once a run reaches its real terminal state
+ * (`repository.complete`) — see `runPipeline`'s own call site for why this can never fail or roll
+ * back the simulation itself.
  */
 @Module({
-  imports: [LlmModule, MetaInterestsModule, ListingsModule],
+  imports: [LlmModule, MetaInterestsModule, ListingsModule, LearningModule],
   controllers: [SimulationController],
   providers: [
     SimulationService,

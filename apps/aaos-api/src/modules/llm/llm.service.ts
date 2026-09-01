@@ -42,6 +42,12 @@ import {
   type GenerateHashtagsRequestDto,
   type GenerateHashtagsResponseDto,
 } from "./dto/generate-hashtags.dto.js";
+import {
+  ImprovementPlanLlmPayloadSchema,
+  type ImprovementItem,
+  type ImprovementPlanRequestDto,
+  type ImprovementPlanResponseDto,
+} from "./dto/improvement-plan.dto.js";
 import { unavailable, type LlmUnavailableResponseDto } from "./dto/llm-unavailable.dto.js";
 import {
   ResolveLocationLlmPayloadSchema,
@@ -60,8 +66,39 @@ import type { OpenAiChatMessage, OpenAiClient } from "./infrastructure/OpenAiCli
  * `packages/sales-agent`'s `buildSystemPrompt`, a different, non-Nest package — see that file). */
 const SAMANTHA_AGENT = "SAMANTHA";
 
-/** Verbatim system prompt from the spec's `POST /api/v1/llm/analyze` section. */
-const ANALYZE_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk DSS Motor (Mobix)
+/**
+ * AAOS Self-Learning AI, Phase A's real `agent_prompt_overrides.prompt_key` vocabulary
+ * (`022_agent_prompt_overrides.sql`'s own doc comment — verified directly against that migration
+ * file, not trusted from memory) plus `"generate_improvement_plan"`, this phase's own new prompt
+ * key (added the same free-TEXT, no-migration-needed way `022`'s header doc says a future prompt
+ * key can be). `LlmService.generateImprovementPlan`'s Zod-validated output is checked against this
+ * SAME list server-side (belt-and-braces, same discipline `selectTargeting`'s candidate-id
+ * intersection / `campaignStrategy`'s angle-membership check already establish for "don't trust the
+ * LLM to only use the vocabulary it was given") — also exported for `LearningService` to reuse
+ * rather than re-declaring a second, possibly-drifting copy of this list.
+ */
+export const KNOWN_PROMPT_KEYS: readonly string[] = [
+  "analyze",
+  "creative_brief",
+  "campaign_strategy",
+  "select_targeting",
+  "resolve_location",
+  "asset_insight",
+  "chat",
+  "generate_caption",
+  "generate_hashtags",
+  "clara_system_prompt",
+  "generate_improvement_plan",
+];
+
+/**
+ * Verbatim system prompt from the spec's `POST /api/v1/llm/analyze` section. Exported (AAOS
+ * Self-Learning AI, Phase B) so `LearningService` can pass the SAME real fallback constant into
+ * `PromptOverrideService.resolve(tenantId, "SAMANTHA", "analyze", ANALYZE_SYSTEM_PROMPT)` when
+ * building a SAMANTHA improvement proposal's "current active prompt" context — reusing the exact
+ * constant this file's own `analyze()` method falls back to, not a second, possibly-drifting copy.
+ */
+export const ANALYZE_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk DSS Motor (Mobix)
 — dealer mobil bekas di Indonesia.
 
 Tugasmu: analisa data iklan Meta Ads dan berikan rekomendasi
@@ -284,6 +321,47 @@ PANDUAN:
 Format response JSON:
 {
   "hashtags": ["#Contoh1", "#Contoh2", "..."]
+}`;
+
+/**
+ * AAOS Self-Learning AI, Phase B — `LlmService.generateImprovementPlan`'s system prompt. The real
+ * per-request variable data (gap scores/verdict/judge `feedbackItems`, the current active prompt
+ * content, and the tenant's last 3 real `learning_proposals`) is sent as the user message's
+ * `JSON.stringify(body)`, same static-persona-plus-JSON-user-message shape every other prompt in
+ * this file uses. No `expectedImpact` numeric field is requested — see
+ * `dto/improvement-plan.dto.ts`'s doc for why a fabricated precise-sounding number is deliberately
+ * avoided in favor of a qualitative `severity`.
+ */
+const IMPROVEMENT_PLAN_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk tenant AAOS. Kamu sedang mereview hasil simulasi yang skornya di bawah standar, dan bertugas mengusulkan perbaikan prompt AI.
+
+Kamu diberi (semua data JSON di pesan user):
+- "gap": skor simulasi nyata (samanthaCoverageScore, kaiScore, claraScore, overallScore, grade, verdict) dan catatan asli dari AI Judge (feedbackItems, tiap item punya "dimension" dan "message").
+- "currentPromptKey"/"currentPromptContent": prompt AKTIF tenant ini sekarang untuk agent yang relevan.
+- "recentProposals": maksimal 3 proposal improvement terakhir untuk tenant ini (agar kamu tidak mengusulkan hal yang sama persis lagi).
+
+TUGASMU: analisa KENAPA skor/verdict ini terjadi (rujuk feedbackItems nyata, jangan mengarang alasan), lalu usulkan 1-3 perbaikan konkret.
+
+ATURAN KERAS:
+- "improvements[].target" HANYA boleh salah satu prompt_key nyata berikut: analyze, creative_brief, campaign_strategy, select_targeting, resolve_location, asset_insight, chat, generate_caption, generate_hashtags, clara_system_prompt. Dilarang mengarang key baru.
+- "improvements[].before" HARUS kutipan nyata (atau ringkasan jujur) dari "currentPromptContent" yang diberikan — jangan mengarang isi prompt yang tidak ada.
+- "improvements[].after" adalah usulan teks prompt baru yang konkret, bukan saran abstrak.
+- JANGAN sertakan skor dampak numerik yang dikarang (misalnya "akan menaikkan skor 15 poin") — gunakan "severity" (LOW/MEDIUM/HIGH) saja sebagai sinyal kualitatif.
+- "reason" ditulis dalam Bahasa Indonesia, merujuk data gap yang nyata.
+
+Format response JSON:
+{
+  "analysis": "analisa singkat dalam Bahasa Indonesia kenapa gap ini terjadi, merujuk feedbackItems/skor nyata",
+  "improvements": [
+    {
+      "agent": "SAMANTHA" | "CLARA",
+      "type": "PROMPT_UPDATE" | "CONFIG_UPDATE",
+      "target": "salah satu prompt_key di atas",
+      "before": "kutipan/ringkasan jujur dari prompt aktif",
+      "after": "usulan teks prompt baru",
+      "reason": "alasan singkat dalam Bahasa Indonesia",
+      "severity": "LOW" | "MEDIUM" | "HIGH"
+    }
+  ]
 }`;
 
 /**
@@ -775,6 +853,83 @@ export class LlmService {
 
     const response: GenerateHashtagsResponseDto = { available: true, ...validated.data };
     this.cache.set("generate-hashtags", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS Self-Learning AI, Phase B — `LearningService.onSimulationComplete`'s only real call into
+   * `LlmService`, IN-PROCESS ONLY (no HTTP endpoint, same precedent `selectTargeting` already
+   * establishes for a method whose input must be assembled server-side, never accepted raw from a
+   * client). Same cache/gate/call/validate/cache shape as every other method on this service, plus
+   * one extra, load-bearing step mirroring `selectTargeting`'s candidate-id intersection /
+   * `campaignStrategy`'s angle-membership check:
+   *
+   * **Every `improvements[].target` is checked against `KNOWN_PROMPT_KEYS`, the real Phase A
+   * `prompt_key` vocabulary.** Any improvement whose `target` isn't in that list is DROPPED (not
+   * kept, not failing the whole response) — an LLM is not trusted to only propose a change to a
+   * prompt key that actually exists, no matter what the prompt says. `droppedCount` on the
+   * response tells the caller how many were dropped, so `LearningService` can document it on the
+   * stored proposal row rather than silently losing the information.
+   *
+   * REAL FINDING: `023_agent_config_overrides.sql`'s `config_key` column is INERT (no real Kai
+   * config key is wired to anything yet — see that migration's own header doc). There is therefore
+   * no real `config_key` vocabulary to validate a `CONFIG_UPDATE` improvement's `target` against
+   * today, so every `CONFIG_UPDATE` improvement is dropped by the same `KNOWN_PROMPT_KEYS` check
+   * above (it will never match a prompt_key) — honest given the current state of the codebase,
+   * never a fabricated config-key allowlist.
+   */
+  async generateImprovementPlan(
+    tenantId: string,
+    body: ImprovementPlanRequestDto,
+  ): Promise<ImprovementPlanResponseDto & { readonly droppedCount: number }> {
+    const cached = this.cache.get("generate-improvement-plan", body) as
+      (ImprovementPlanResponseDto & { readonly droppedCount: number }) | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return { ...gate, droppedCount: 0 };
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "generate_improvement_plan",
+      IMPROVEMENT_PLAN_SYSTEM_PROMPT,
+    );
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return { ...unavailable("PROVIDER_ERROR"), droppedCount: 0 };
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : ImprovementPlanLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return { ...unavailable("INVALID_RESPONSE"), droppedCount: 0 };
+    }
+
+    const knownKeys = new Set(KNOWN_PROMPT_KEYS);
+    const improvements: ImprovementItem[] = validated.data.improvements.filter((item) =>
+      knownKeys.has(item.target),
+    );
+    const droppedCount = validated.data.improvements.length - improvements.length;
+
+    const response: ImprovementPlanResponseDto & { readonly droppedCount: number } = {
+      available: true,
+      analysis: validated.data.analysis,
+      improvements,
+      droppedCount,
+    };
+    this.cache.set("generate-improvement-plan", body, response);
     return response;
   }
 

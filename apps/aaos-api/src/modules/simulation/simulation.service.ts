@@ -15,6 +15,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, ASSET_LIBRARY } from "../../di-tokens.js";
+import { LearningService } from "../learning/learning.service.js";
 import { ListingsService } from "../listings/listings.service.js";
 import type { TargetingCandidateDto } from "../llm/dto/select-targeting.dto.js";
 import { LlmService } from "../llm/llm.service.js";
@@ -86,6 +87,7 @@ export class SimulationService {
     private readonly metaInterestRepository: MetaInterestRepository,
     private readonly tenants: TenantRepository,
     private readonly listings: ListingsService,
+    private readonly learning: LearningService,
   ) {}
 
   /**
@@ -273,6 +275,21 @@ export class SimulationService {
 
       await this.repository.updateStep(id, "REVIEW");
       await this.repository.complete(id, result);
+
+      // AAOS Self-Learning AI, Phase B — the real terminal-state wiring point (coordinator note:
+      // "not a new poller"). BEST-EFFORT, same "side-check that can't take down the main flow"
+      // discipline `SchedulerService.countHotLeads`/`indexPulledAdAccount` already establish
+      // elsewhere in this codebase: `LearningService.onSimulationComplete` already catches its own
+      // errors internally and never throws, but this is awaited inside its own try/catch too so a
+      // change to that guarantee can never regress this call site into failing a simulation run
+      // that already completed successfully.
+      try {
+        await this.learning.onSimulationComplete(id);
+      } catch (caught) {
+        this.logger.warn(
+          `SimulationService.runPipeline(${id}): LearningService.onSimulationComplete failed: ${String(caught)}`,
+        );
+      }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       this.logger.error(`SimulationService.runPipeline(${id}) failed: ${message}`);

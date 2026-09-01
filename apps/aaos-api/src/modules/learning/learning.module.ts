@@ -1,0 +1,46 @@
+import type { SupabaseClientLike } from "@aos/lead-store";
+import { Module } from "@nestjs/common";
+
+import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { LlmModule } from "../llm/llm.module.js";
+import { PromptOverrideModule } from "../prompt-override/prompt-override.module.js";
+import { SimulationRepository } from "../simulation/infrastructure/simulation.repository.js";
+
+import { LearningProposalRepository } from "./infrastructure/learning-proposal.repository.js";
+import { LearningService } from "./learning.service.js";
+
+/**
+ * `modules/learning` (AAOS Self-Learning AI, Phase B). Builds its OWN `SimulationRepository`
+ * instance over the shared `SUPABASE_CLIENT` — same "each module composes its own instance of a
+ * shared repository class over one shared connection" pattern `GoLiveModule` already establishes
+ * for the exact same class (see that module's own doc: avoids a circular dependency between this
+ * module and `SimulationModule`, which is the real IMPORTER of this module — `SimulationModule`
+ * needs to inject `LearningService`, so `LearningModule` cannot import `SimulationModule` back).
+ *
+ * `LlmModule`/`PromptOverrideModule` are imported (not re-provided) so `LearningService` injects
+ * the SAME real `LlmService`/`PromptOverrideService` every other real consumer uses — one Samantha
+ * implementation and one prompt-override resolver, not a second copy of either (coordinator note
+ * precedent: "call the real thing, never reimplement it").
+ */
+@Module({
+  imports: [LlmModule, PromptOverrideModule],
+  providers: [
+    LearningService,
+    {
+      provide: SimulationRepository,
+      useFactory: (client: SupabaseClientLike): SimulationRepository =>
+        new SimulationRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: LearningProposalRepository,
+      useFactory: (client: SupabaseClientLike): LearningProposalRepository =>
+        new LearningProposalRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+  ],
+  // `SimulationModule` (Phase B's real caller) injects `LearningService` from
+  // `SimulationService.runPipeline`'s real terminal-state point — see that module's own doc.
+  exports: [LearningService],
+})
+export class LearningModule {}

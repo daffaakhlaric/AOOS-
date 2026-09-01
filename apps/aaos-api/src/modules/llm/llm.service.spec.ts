@@ -25,13 +25,14 @@ import type { CampaignStrategyRequestDto } from "./dto/campaign-strategy.dto.js"
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
 import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
 import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js";
+import type { ImprovementPlanRequestDto } from "./dto/improvement-plan.dto.js";
 import type { SelectTargetingRequestDto } from "./dto/select-targeting.dto.js";
 import {
   CHAT_COMPLETIONS_PATH,
   OPENAI_BASE_URL,
   OpenAiClient,
 } from "./infrastructure/OpenAiClient.js";
-import { LlmService } from "./llm.service.js";
+import { ANALYZE_SYSTEM_PROMPT, LlmService } from "./llm.service.js";
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: "error" }));
 afterEach(() => mswServer.resetHandlers());
@@ -1011,6 +1012,163 @@ describe("LlmService", () => {
         available: false,
         reason: "RATE_LIMITED",
         message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+  });
+
+  describe("generateImprovementPlan", () => {
+    const validGapBody: ImprovementPlanRequestDto = {
+      tenantId: TENANT_ID,
+      agent: "SAMANTHA",
+      gap: {
+        samanthaCoverageScore: 40,
+        kaiScore: 100,
+        claraScore: 60,
+        overallScore: 55,
+        grade: "D",
+        verdict: "NO-GO",
+        feedbackItems: [{ dimension: "clarity", message: "Balasan Clara kurang jelas soal DP." }],
+      },
+      currentPromptKey: "analyze",
+      currentPromptContent: ANALYZE_SYSTEM_PROMPT,
+      recentProposals: [],
+    };
+    const validImprovementPlanLlmJson = JSON.stringify({
+      analysis: "Skor Samantha rendah karena ringkasan kosong pada beberapa respons.",
+      improvements: [
+        {
+          agent: "SAMANTHA",
+          type: "PROMPT_UPDATE",
+          target: "analyze",
+          before: "Format response JSON: { ... }",
+          after: "Format response JSON dengan ringkasan WAJIB diisi minimal satu kalimat: { ... }",
+          reason: "ringkasan kosong menurunkan coverage score",
+          severity: "MEDIUM",
+        },
+      ],
+    });
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+        droppedCount: 0,
+      });
+    });
+
+    it("returns a validated available:true payload with every improvement's target intact when it's a real prompt_key, and caches it", async () => {
+      registerOpenAiChatHandler(validImprovementPlanLlmJson);
+      const cache = new ResponseCache<unknown>();
+      const service = buildService({ cache });
+      const first = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(first).toEqual({
+        available: true,
+        ...JSON.parse(validImprovementPlanLlmJson),
+        droppedCount: 0,
+      });
+
+      mswServer.resetHandlers();
+      const second = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(second).toEqual(first);
+    });
+
+    it("drops (never keeps) any improvement whose target isn't a real known prompt_key, and reports droppedCount", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          analysis: "analisa nyata",
+          improvements: [
+            {
+              agent: "SAMANTHA",
+              type: "PROMPT_UPDATE",
+              target: "analyze",
+              before: "b",
+              after: "a",
+              reason: "r",
+              severity: "LOW",
+            },
+            {
+              agent: "SAMANTHA",
+              type: "PROMPT_UPDATE",
+              target: "made_up_prompt_key",
+              before: "b",
+              after: "a",
+              reason: "r",
+              severity: "LOW",
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(result.available).toBe(true);
+      if (result.available) {
+        expect(result.improvements).toHaveLength(1);
+        expect(result.improvements[0]?.target).toBe("analyze");
+      }
+      expect(result.droppedCount).toBe(1);
+    });
+
+    it("drops a CONFIG_UPDATE improvement (no real config_key vocabulary exists to validate against — see this method's own doc)", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          analysis: "analisa nyata",
+          improvements: [
+            {
+              agent: "SAMANTHA",
+              type: "CONFIG_UPDATE",
+              target: "copy_length_cap",
+              before: "b",
+              after: "a",
+              reason: "r",
+              severity: "LOW",
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(result.available).toBe(true);
+      if (result.available) {
+        expect(result.improvements).toHaveLength(0);
+      }
+      expect(result.droppedCount).toBe(1);
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+        droppedCount: 0,
+      });
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+        droppedCount: 0,
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+        droppedCount: 0,
       });
     });
   });

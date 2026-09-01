@@ -3,6 +3,7 @@ import "reflect-metadata";
 import { describe, expect, it } from "vitest";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { LearningModule } from "../learning/learning.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { MetaInterestsModule } from "../meta-interests/meta-interests.module.js";
@@ -28,6 +29,11 @@ describe("SimulationModule", () => {
   it("imports MetaInterestsModule (so the SAMANTHA stage reads the SAME real MetaInterestRepository the sync endpoint writes through)", () => {
     const metadata = Reflect.getMetadata("imports", SimulationModule) as unknown[];
     expect(metadata).toContain(MetaInterestsModule);
+  });
+
+  it("imports LearningModule (AAOS Self-Learning AI Phase B — so SimulationService can inject the real LearningService)", () => {
+    const metadata = Reflect.getMetadata("imports", SimulationModule) as unknown[];
+    expect(metadata).toContain(LearningModule);
   });
 
   it("registers SimulationController as its controller", () => {

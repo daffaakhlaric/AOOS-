@@ -4,6 +4,7 @@ import { NotFoundError } from "@aos/errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import type { LearningService } from "../learning/learning.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type { LlmService } from "../llm/llm.service.js";
@@ -194,6 +195,19 @@ function buildFakeLlmService(overrides: Partial<LlmService> = {}): LlmService {
   } as unknown as LlmService;
 }
 
+/**
+ * AAOS Self-Learning AI, Phase B — the fake for `SimulationService`'s new `LearningService`
+ * dependency. `onSimulationComplete` is a no-op fake here (never asserted on by
+ * `SimulationService`'s own pre-existing tests — this file's job is the pipeline itself, not
+ * `LearningService`'s real gap-detection behavior, which is covered by
+ * `learning/learning.service.spec.ts`) — every pre-existing test keeps its exact prior behavior.
+ */
+function buildFakeLearningService(): LearningService {
+  return {
+    onSimulationComplete: vi.fn(async () => undefined),
+  } as unknown as LearningService;
+}
+
 const BODY: StartSimulationBodyDto = {
   objective: { targetHotLeads: 10 },
   campaignDataSource: "cache",
@@ -219,6 +233,7 @@ describe("SimulationService", () => {
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
       buildFakeListingsService(),
+      buildFakeLearningService(),
     );
 
     const result = await service.start(BODY, "dss-motor");
@@ -249,6 +264,7 @@ describe("SimulationService", () => {
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
       buildFakeListingsService(),
+      buildFakeLearningService(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -287,6 +303,7 @@ describe("SimulationService", () => {
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
       buildFakeListingsService(),
+      buildFakeLearningService(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -314,6 +331,7 @@ describe("SimulationService", () => {
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
       buildFakeListingsService(),
+      buildFakeLearningService(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -343,6 +361,7 @@ describe("SimulationService", () => {
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
       buildFakeListingsService(),
+      buildFakeLearningService(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -362,6 +381,7 @@ describe("SimulationService", () => {
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
       buildFakeListingsService(),
+      buildFakeLearningService(),
     );
     await expect(service.getStatus("missing")).rejects.toThrow(NotFoundError);
   });
@@ -377,6 +397,7 @@ describe("SimulationService", () => {
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
       buildFakeListingsService(),
+      buildFakeLearningService(),
     );
 
     await service.approve("sim-1", { decidedBy: "manager-1", notes: "looks good" });
@@ -412,6 +433,7 @@ describe("SimulationService", () => {
         interestRepository,
         buildFakeTenantRepository(),
         buildFakeListingsService(),
+        buildFakeLearningService(),
       );
       await service.start(BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -510,6 +532,7 @@ describe("SimulationService", () => {
         buildFakeInterestRepository([REAL_STORED_INTEREST]),
         buildFakeTenantRepository(),
         buildFakeListingsService(),
+        buildFakeLearningService(),
       );
       await service.start(BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -541,6 +564,7 @@ describe("SimulationService", () => {
       buildFakeInterestRepository(),
       buildFakeTenantRepository(),
       buildFakeListingsService(),
+      buildFakeLearningService(),
     );
     const history = await service.history();
     expect(history).toHaveLength(1);
@@ -567,6 +591,7 @@ describe("SimulationService", () => {
         buildFakeInterestRepository(),
         buildFakeTenantRepository("PROPERTY"),
         listingsService,
+        buildFakeLearningService(),
       );
       await service.start(body, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -632,6 +657,7 @@ describe("SimulationService", () => {
         buildFakeInterestRepository(),
         buildFakeTenantRepository("AUTOMOTIVE"),
         throwingListings,
+        buildFakeLearningService(),
       );
       await service.start(PROPERTY_BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -663,6 +689,7 @@ describe("SimulationService", () => {
         buildFakeInterestRepository(),
         buildFakeTenantRepository("PROPERTY"),
         buildFakeListingsService(buildFakeListing()),
+        buildFakeLearningService(),
       );
 
       await service.start({ ...BODY, listingId: "listing-1" }, "dss-motor");
@@ -697,6 +724,7 @@ describe("SimulationService", () => {
         buildFakeInterestRepository(),
         buildFakeTenantRepository("AUTOMOTIVE"),
         buildFakeListingsService(),
+        buildFakeLearningService(),
       );
 
       await service.start(BODY, "dss-motor");
