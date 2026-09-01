@@ -40,6 +40,7 @@ import {
 } from "../../di-tokens.js";
 import { AbTestingService } from "../abtesting/abtesting.service.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
@@ -122,6 +123,13 @@ export class SchedulerService {
     private readonly modeGuard: ModeGuardService,
     private readonly activityLogger: ActivityLogger,
     private readonly campaignsService: CampaignsService,
+    /**
+     * AAOS-AI-JUDGE-SELF-IMPROVING (Phase J1) — real per-run judging infrastructure. Injected the
+     * SAME way `activityLogger` above already is (a small, standalone `AgentRunsModule` this
+     * module imports) — `runSamanthaAnalyze` records one real `agent_runs` row per real
+     * `SAMANTHA_ANALYZE` run, best-effort (see `AgentRunsService.record`'s own doc).
+     */
+    private readonly agentRunsService: AgentRunsService,
   ) {}
 
   /**
@@ -181,7 +189,7 @@ export class SchedulerService {
           break;
         case "TAMARA_ANALYZE":
         case "SAMANTHA_ANALYZE":
-          result = await this.runSamanthaAnalyze(event.tenantId, correlationId);
+          result = await this.runSamanthaAnalyze(event.tenantId, event.id, correlationId);
           break;
         case "KAI_REFRESH_CHECK":
           result = await this.runKaiRefreshCheck(event.tenantId, correlationId);
@@ -362,6 +370,7 @@ export class SchedulerService {
    */
   private async runSamanthaAnalyze(
     tenantId: string,
+    eventId: string,
     correlationId: string,
   ): Promise<CalendarEventResult> {
     const adAccounts = await this.pullAdAccounts(tenantId, correlationId);
@@ -375,6 +384,23 @@ export class SchedulerService {
       analyzePayload.campaigns.length > 0
         ? await this.llmService.analyze(tenantId, analyzePayload)
         : undefined;
+
+    // AAOS-AI-JUDGE-SELF-IMPROVING (Phase J1) — real per-run judging pointer, recorded right after
+    // the real `analyze` call above completes (success OR `available: false` — both are real,
+    // judgeable outcomes, so this is unconditional, not gated on `analysis !== undefined`).
+    // `runRef` is this real `calendar_events.id` (Finding 3 of the design doc: Samantha's real
+    // output otherwise only lives inside `calendar_events.result`'s generic JSONB blob — this is
+    // the one real, structured pointer a later judge prompt can key off). `context` is a small,
+    // judge-prompt-sized summary — campaign/pause/scale counts and whether the LLM was actually
+    // available — never the full raw `analysis` response. Best-effort: `AgentRunsService.record`
+    // itself never throws, so this can never abort the real Samantha analyze run it describes.
+    await this.agentRunsService.record(tenantId, "SAMANTHA", eventId, {
+      campaigns,
+      totalAds: allAds.length,
+      pause,
+      scale,
+      aiAvailable: analysis?.available ?? false,
+    });
 
     // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4 — PROPERTY-only campaign-creation trigger
     // check, gated by ModeGuardService and logged by ActivityLogger. No-ops (checked: 0) for

@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
+import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
@@ -78,6 +79,7 @@ import { SchedulerService } from "./scheduler.service.js";
     ModeGuardModule,
     ActivityLogModule,
     CampaignsModule,
+    AgentRunsModule,
   ],
   controllers: [SchedulerController],
   providers: [

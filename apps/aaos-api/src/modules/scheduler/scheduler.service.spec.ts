@@ -14,9 +14,15 @@ import type { MobixScraperService } from "@aos/mobix-web-scraper";
 import type { ObjectiveEngine } from "@aos/objective-engine";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createFakeSupabaseClient,
+  type FakeSupabaseClient,
+} from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
+import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
 import type { IntelligenceService } from "../intelligence/intelligence.service.js";
@@ -165,6 +171,19 @@ function buildFakeModeGuardService(mode: "DEV" | "LIVE" = "LIVE"): ModeGuardServ
         mode === "DEV" ? simulateFn() : executeFn(),
     ),
   } as unknown as ModeGuardService;
+}
+
+/**
+ * AAOS-AI-JUDGE-SELF-IMPROVING (Phase J1) — a REAL `AgentRunsService` over a real
+ * `AgentRunRepository`/fake Supabase client (not a `vi.fn()` stub), so tests can assert the actual
+ * persisted `agent_runs` row shape and exercise the real best-effort discipline end-to-end (a
+ * `forceErrorOnce("agent_runs", ...)` failure must never abort the real caller).
+ */
+function buildRealAgentRunsService(client: FakeSupabaseClient = createFakeSupabaseClient()): {
+  readonly client: FakeSupabaseClient;
+  readonly agentRunsService: AgentRunsService;
+} {
+  return { client, agentRunsService: new AgentRunsService(new AgentRunRepository(client)) };
 }
 
 function buildFakeActivityLogger(): ActivityLogger {
@@ -329,6 +348,7 @@ function buildService(
     modeGuard?: ModeGuardService;
     activityLogger?: ActivityLogger;
     campaignsService?: CampaignsService;
+    agentRunsService?: AgentRunsService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -363,6 +383,7 @@ function buildService(
     options.modeGuard ?? buildFakeModeGuardService(),
     options.activityLogger ?? buildFakeActivityLogger(),
     options.campaignsService ?? buildFakeCampaignsService(),
+    options.agentRunsService ?? buildRealAgentRunsService().agentRunsService,
   );
 }
 
@@ -1032,6 +1053,69 @@ describe("SchedulerService.executeEvent", () => {
     const service = buildService({ repository });
     await service.executeEvent(buildEvent({ eventType: "SCRAPER_RUN", recurrence: "ONCE" }));
     expect(repository.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("SchedulerService.runSamanthaAnalyze — AAOS-AI-JUDGE-SELF-IMPROVING Phase J1", () => {
+  it("records a real agent_runs row keyed by the real calendar_events id, with a real minimal context, after a successful analyze", async () => {
+    const repository = buildFakeRepository();
+    const { client, agentRunsService } = buildRealAgentRunsService();
+    const llmService = buildFakeLlmService();
+    const service = buildService({ repository, agentRunsService, llmService });
+
+    await service.executeEvent(buildEvent({ id: "evt-analyze-1", eventType: "SAMANTHA_ANALYZE" }));
+
+    const rows = client.rows("agent_runs");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      tenant_id: "dss-motor",
+      agent: "SAMANTHA",
+      run_ref: "evt-analyze-1",
+      context: expect.objectContaining({
+        campaigns: expect.any(Number),
+        totalAds: expect.any(Number),
+        pause: expect.any(Number),
+        scale: expect.any(Number),
+        aiAvailable: true,
+      }),
+    });
+  });
+
+  it("still records a real agent_runs row (aiAvailable: false) when the LLM is honestly unavailable", async () => {
+    const repository = buildFakeRepository();
+    const { client, agentRunsService } = buildRealAgentRunsService();
+    const llmService = {
+      analyze: vi.fn(async () => ({ available: false })),
+    } as unknown as LlmService;
+    const service = buildService({ repository, agentRunsService, llmService });
+
+    await service.executeEvent(buildEvent({ id: "evt-analyze-2", eventType: "SAMANTHA_ANALYZE" }));
+
+    const rows = client.rows("agent_runs");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      run_ref: "evt-analyze-2",
+      context: expect.objectContaining({ aiAvailable: false }),
+    });
+  });
+
+  it("a real agent_runs recording failure does not abort the real SAMANTHA_ANALYZE run — it still completes and marks the event DONE", async () => {
+    const repository = buildFakeRepository();
+    const client = createFakeSupabaseClient();
+    client.forceErrorOnce("agent_runs", "simulated DB outage");
+    const { agentRunsService } = buildRealAgentRunsService(client);
+    const service = buildService({ repository, agentRunsService });
+
+    await service.executeEvent(buildEvent({ id: "evt-analyze-3", eventType: "SAMANTHA_ANALYZE" }));
+
+    expect(client.rows("agent_runs")).toHaveLength(0);
+    expect(repository.markFailed).not.toHaveBeenCalled();
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-analyze-3",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ aiAvailable: true }),
+    );
   });
 });
 

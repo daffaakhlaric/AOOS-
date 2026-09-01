@@ -31,6 +31,7 @@ import {
   KAI_AGENT_RUNTIME,
 } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
@@ -143,6 +144,14 @@ export class CreativePackagesService {
      */
     private readonly modeGuard: ModeGuardService,
     private readonly activityLogger: ActivityLogger,
+    /**
+     * AAOS-AI-JUDGE-SELF-IMPROVING (Phase J1) — real per-run judging infrastructure, injected the
+     * SAME way `activityLogger` above already is (a small, standalone `AgentRunsModule`). Records
+     * one real `agent_runs` row per real generation completion — see `recordAgentRun` below, the
+     * ONE real helper both `runGeneration` (AUTOMOTIVE) and `runGenerationProperty` (PROPERTY)
+     * reuse for both their success paths AND `recordFailure`'s shared failure path.
+     */
+    private readonly agentRunsService: AgentRunsService,
   ) {}
 
   private get tenantId(): string {
@@ -568,7 +577,7 @@ export class CreativePackagesService {
         correlationId: id,
       });
       if (!orchestrationResult.ok) {
-        await this.recordFailure(id, orchestrationResult.error.message);
+        await this.recordFailure(id, orchestrationResult.error.message, tenantId);
         return;
       }
       const generated = orchestrationResult.value;
@@ -578,6 +587,7 @@ export class CreativePackagesService {
         await this.recordFailure(
           id,
           "CreativePackagesService: Kie AI generated images but persisting them to storage failed",
+          tenantId,
         );
         return;
       }
@@ -623,8 +633,13 @@ export class CreativePackagesService {
           sourcePhotoSkippedReason: generated.sourcePhotoSkippedReason ?? null,
         },
       });
+      await this.recordAgentRun(id, tenantId);
     } catch (caught) {
-      await this.recordFailure(id, caught instanceof Error ? caught.message : String(caught));
+      await this.recordFailure(
+        id,
+        caught instanceof Error ? caught.message : String(caught),
+        tenantId,
+      );
     }
   }
 
@@ -747,7 +762,7 @@ export class CreativePackagesService {
     try {
       const result = await kai.processCreativeBrief.execute(brief);
       if (!result.ok) {
-        await this.recordFailure(id, result.error.message);
+        await this.recordFailure(id, result.error.message, this.tenantId);
         return;
       }
       const pkg = result.value;
@@ -791,12 +806,53 @@ export class CreativePackagesService {
           sourcePhotoSkippedReason: pkg.sourcePhotoSkippedReason ?? null,
         },
       });
+      await this.recordAgentRun(id, this.tenantId);
     } catch (caught) {
-      await this.recordFailure(id, caught instanceof Error ? caught.message : String(caught));
+      await this.recordFailure(
+        id,
+        caught instanceof Error ? caught.message : String(caught),
+        this.tenantId,
+      );
     }
   }
 
-  private async recordFailure(id: string, message: string): Promise<void> {
+  /**
+   * AAOS-AI-JUDGE-SELF-IMPROVING (Phase J1) — the ONE real helper both `runGeneration` (AUTOMOTIVE
+   * success) and `runGenerationProperty` (PROPERTY success) call directly, and `recordFailure`
+   * (below, shared by every failure path in both) calls too — so a real `agent_runs` row is
+   * recorded exactly once per real generation completion, success OR failure, from a single real
+   * shape (never 2 drifted copies). Re-reads the freshly-persisted row (`findOrThrowScoped`) rather
+   * than threading yet another parameter through both pipelines' already-long signatures — this
+   * runs AFTER `repository.complete`/`repository.fail` has already written the terminal state, so
+   * the read is always honestly fresh. `context` is a small, judge-prompt-sized summary — angle,
+   * requested vs. decided format, status, copy-variant count, model, confidence, and (only when
+   * genuinely present) the real error message — never a full duplicate of the row's image/video
+   * URLs or copy text. Best-effort: a failure here (including the read itself) is caught and
+   * warned, never rethrown — `AgentRunsService.record` is already best-effort on its own write, but
+   * `findOrThrowScoped` is a real read that can itself throw (e.g. a race with a delete), so this
+   * wrapper's own try/catch is what actually guarantees "never aborts the real Kai generation" end
+   * to end.
+   */
+  private async recordAgentRun(id: string, tenantId: string): Promise<void> {
+    try {
+      const pkg = await this.findOrThrowScoped(tenantId, id);
+      await this.agentRunsService.record(tenantId, "KAI", pkg.id, {
+        vertical: pkg.vertical,
+        angle: pkg.angle,
+        requestedFormat: pkg.requestedFormat,
+        decidedFormat: pkg.decidedFormat ?? null,
+        status: pkg.status,
+        copyVariantCount: pkg.copyVariants.length,
+        aiModel: pkg.aiModel ?? null,
+        confidenceScore: pkg.confidenceScore ?? null,
+        ...(pkg.errorMessage !== undefined ? { errorMessage: pkg.errorMessage } : {}),
+      });
+    } catch (caught) {
+      this.logger.warn(`CreativePackagesService.recordAgentRun(${id}) failed: ${String(caught)}`);
+    }
+  }
+
+  private async recordFailure(id: string, message: string, tenantId: string): Promise<void> {
     this.logger.error(`CreativePackagesService.runGeneration(${id}) failed: ${message}`);
     try {
       await this.repository.fail(id, message);
@@ -812,6 +868,7 @@ export class CreativePackagesService {
       message: `Generate gagal: ${message}`,
       error: message,
     });
+    await this.recordAgentRun(id, tenantId);
   }
 
   /**

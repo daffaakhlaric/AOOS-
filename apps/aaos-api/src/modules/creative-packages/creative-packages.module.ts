@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
+import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
@@ -39,6 +40,7 @@ import { CreativePackageRepository } from "./infrastructure/creative-package.rep
     // `AppModule.forRoot` (see `CreativePackagesService`'s constructor doc).
     ModeGuardModule,
     ActivityLogModule,
+    AgentRunsModule,
   ],
   controllers: [CreativePackagesController],
   providers: [

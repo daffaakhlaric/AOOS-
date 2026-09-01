@@ -269,6 +269,7 @@ describe("AAOS EPIC S Phase S6 — real end-to-end: cron tick -> SchedulerServic
       modeGuard,
       activityLogger,
       campaignsService,
+      { record: vi.fn(async () => undefined) } as never, // agentRunsService — AAOS-AI-JUDGE-SELF-IMPROVING Phase J1, unrelated to this real flow's own assertions
     );
 
     await service.executeEvent(buildEvent());

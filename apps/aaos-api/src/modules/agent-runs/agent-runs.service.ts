@@ -1,0 +1,52 @@
+import { Injectable, Logger } from "@nestjs/common";
+
+import { AgentRunRepository } from "./infrastructure/agent-run.repository.js";
+
+/** `SAMANTHA | KAI | CLARA`, per `CLAUDE.md`'s real agent roster — plain `string`, never a union type, matching `agent_runs.agent`'s free-`TEXT` column (`028_agent_runs.sql`'s own documented "never a CHECK enum" convention every prior `agent` column in this migration folder follows). */
+export type AgentRunAgent = string;
+
+/**
+ * `modules/agent-runs` (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J1) — a small, standalone module, same
+ * "small standalone module" precedent `modules/activity-log`/`modules/mode-guard` establish for
+ * themselves: `AgentRunsService`'s real consumers (`SchedulerModule`, `CreativePackagesModule`,
+ * `ClosingsModule`) need only import this one module to record a real run — no circular-import
+ * risk.
+ *
+ * `record()` is deliberately best-effort, mirroring `ActivityLogger.start()`'s own documented
+ * discipline ("logging a real agent action must never be the reason the real action itself
+ * fails"): a real Samantha analyze run, a real Kai creative-package generation, or a real Clara
+ * conversation reaching a terminal state must NEVER be aborted by a failure to record its
+ * `agent_runs` pointer row. Every failure is caught and warned here — no caller needs its own
+ * try/catch around this call.
+ */
+@Injectable()
+export class AgentRunsService {
+  private readonly logger = new Logger(AgentRunsService.name);
+
+  constructor(private readonly repository: AgentRunRepository) {}
+
+  /**
+   * Records one real, judgeable run. `runRef` is the real, polymorphic pointer described in
+   * `028_agent_runs.sql`'s header doc (a `calendar_events.id` for SAMANTHA, a
+   * `creative_packages.id` for KAI, a `leads.id` for CLARA). `context` must be a small,
+   * judge-prompt-sized summary — never a full duplicate of the source row; each real call site
+   * documents why its own shape is honest and minimal.
+   */
+  async record(
+    tenantId: string,
+    agent: AgentRunAgent,
+    runRef: string,
+    context: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.repository.insert({
+        tenant_id: tenantId,
+        agent,
+        run_ref: runRef,
+        context,
+      });
+    } catch (caught) {
+      this.logger.warn(`AgentRunsService.record(${agent}, ${runRef}) failed: ${String(caught)}`);
+    }
+  }
+}

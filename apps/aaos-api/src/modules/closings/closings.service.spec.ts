@@ -4,8 +4,14 @@ import { describe, expect, it } from "vitest";
 
 import { toLeadStoreConfig } from "../../config/to-lead-store-config.js";
 import { createFakePublisher } from "../../test-support/fake-publisher.js";
-import { createFakeSupabaseClient, type Row } from "../../test-support/fake-supabase-client.js";
+import {
+  createFakeSupabaseClient,
+  type FakeSupabaseClient,
+  type Row,
+} from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
+import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 
 import { ClosingsService } from "./closings.service.js";
 
@@ -43,7 +49,7 @@ function seedLeadRow(overrides: Row = {}): Row {
   };
 }
 
-function buildService(client = createFakeSupabaseClient()) {
+function buildService(client: FakeSupabaseClient = createFakeSupabaseClient()) {
   const config = buildTestConfig();
   const leadStoreConfig = toLeadStoreConfig(config);
   if (!leadStoreConfig.ok) {
@@ -55,7 +61,12 @@ function buildService(client = createFakeSupabaseClient()) {
     supabaseClient: client,
   });
   const closingRepository = new ClosingRepository(client);
-  return { service: new ClosingsService(config, leadStore, closingRepository), client };
+  const agentRunsService = new AgentRunsService(new AgentRunRepository(client));
+  return {
+    service: new ClosingsService(config, leadStore, closingRepository, agentRunsService),
+    client,
+    agentRunsService,
+  };
 }
 
 describe("ClosingsService.createClosing", () => {
@@ -91,6 +102,59 @@ describe("ClosingsService.createClosing", () => {
         "corr-closing-2",
       ),
     ).rejects.toThrow();
+  });
+
+  describe("AAOS-AI-JUDGE-SELF-IMPROVING Phase J1 — real per-run judging pointer", () => {
+    it("records a real agent_runs row keyed by the real leadId, with a real minimal closing context", async () => {
+      const { service, client } = buildService();
+      client.seed("leads", seedLeadRow());
+
+      await service.createClosing(
+        {
+          leadId: "11111111-1111-4111-8111-111111111111",
+          salesHumanId: "sales-rina",
+          closingType: ClosingType.SPK,
+          unitModel: "Xpander Cross AT 2020",
+          commissionPct: 3,
+          commissionIdr: 5_850_000,
+        },
+        "corr-closing-3",
+      );
+
+      const rows = client.rows("agent_runs");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        tenant_id: "dss-motor",
+        agent: "CLARA",
+        run_ref: "11111111-1111-4111-8111-111111111111",
+        context: expect.objectContaining({
+          closingType: "SPK",
+          unitModel: "Xpander Cross AT 2020",
+          commissionIdr: 5_850_000,
+          commissionPct: 3,
+        }),
+      });
+    });
+
+    it("a real agent_runs recording failure does not abort the real closing — createClosing still resolves and the closing is still persisted", async () => {
+      const client = createFakeSupabaseClient();
+      client.seed("leads", seedLeadRow());
+      client.forceErrorOnce("agent_runs", "simulated DB outage");
+      const { service } = buildService(client);
+
+      const dto = await service.createClosing(
+        {
+          leadId: "11111111-1111-4111-8111-111111111111",
+          salesHumanId: "sales-rina",
+          closingType: ClosingType.SPK,
+        },
+        "corr-closing-4",
+      );
+
+      expect(dto.closingType).toBe("SPK");
+      expect(client.rows("agent_runs")).toHaveLength(0);
+      expect(client.rows("closings")).toHaveLength(1);
+    });
   });
 });
 

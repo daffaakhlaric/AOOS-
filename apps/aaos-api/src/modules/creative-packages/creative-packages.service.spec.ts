@@ -12,6 +12,8 @@ import {
 } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
+import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
@@ -84,6 +86,7 @@ interface Harness {
   readonly assetStorageUpload: ReturnType<typeof vi.fn>;
   readonly getAvailableSales: ReturnType<typeof vi.fn>;
   readonly activityLogger: ReturnType<typeof buildFakeActivityLogger>;
+  readonly agentRunsService: AgentRunsService;
 }
 
 /** Minimal `ModeGuardService` test double — mirrors `campaigns.service.spec.ts`'s own fake. Always resolves LIVE. */
@@ -128,9 +131,14 @@ function buildHarness(
     readonly salesHumans?: ReadonlyArray<{ readonly name: string; readonly branchId: string }>;
     /** Simulates `GetAvailableSales`/branch resolution failing outright — the escalation must still degrade honestly (empty array), never crash `generateProperty`. */
     readonly salesResolutionThrows?: boolean;
+    /** AAOS-AI-JUDGE-SELF-IMPROVING (Phase J1) — forces the real `agent_runs` insert to fail once, exercising the best-effort discipline end to end. */
+    readonly agentRunInsertFails?: boolean;
   } = {},
 ): Harness {
   const client = createFakeSupabaseClient();
+  if (options.agentRunInsertFails === true) {
+    client.forceErrorOnce("agent_runs", "simulated DB outage");
+  }
   const processCreativeBrief = vi.fn(async () => {
     if (options.kaiNeverSettles === true) {
       return new Promise(() => undefined);
@@ -222,6 +230,7 @@ function buildHarness(
     getAvailableSales: { execute: getAvailableSales },
   } as unknown as BranchManager;
   const activityLogger = buildFakeActivityLogger();
+  const agentRunsService = new AgentRunsService(new AgentRunRepository(client));
 
   const service = new CreativePackagesService(
     buildTestConfig(),
@@ -233,6 +242,7 @@ function buildHarness(
     listingsService,
     buildFakeModeGuard() as unknown as ModeGuardService,
     activityLogger as unknown as ActivityLogger,
+    agentRunsService,
   );
   return {
     service,
@@ -244,6 +254,7 @@ function buildHarness(
     assetStorageUpload,
     getAvailableSales,
     activityLogger,
+    agentRunsService,
   };
 }
 
@@ -466,6 +477,60 @@ describe("CreativePackagesService.generate", () => {
     await expect(harness.service.generate(created.id)).resolves.toMatchObject({
       status: "GENERATING",
     });
+  });
+});
+
+describe("CreativePackagesService — AAOS-AI-JUDGE-SELF-IMPROVING Phase J1 (AUTOMOTIVE)", () => {
+  it("records a real agent_runs row keyed by the real creative_packages id after a successful generation", async () => {
+    const harness = buildHarness({ photoUrls: ["https://gcs/foto-1.jpg"] });
+    const created = await harness.service.create(BODY);
+    await harness.service.generate(created.id);
+    await settle();
+
+    const rows = harness.client.rows("agent_runs");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      agent: "KAI",
+      run_ref: created.id,
+      context: expect.objectContaining({
+        vertical: "AUTOMOTIVE",
+        angle: "DP_RINGAN",
+        status: "PENDING",
+        copyVariantCount: 2,
+        aiModel: "veo3_fast+nano-banana-pro",
+      }),
+    });
+  });
+
+  it("records a real agent_runs row (status FAILED) when the real pipeline returns an error — not only on success", async () => {
+    const harness = buildHarness({
+      kaiResult: err(new GenerationError("Kie AI timeout after 15 minutes")),
+    });
+    const created = await harness.service.create(BODY);
+    await harness.service.generate(created.id);
+    await settle();
+
+    const rows = harness.client.rows("agent_runs");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      agent: "KAI",
+      run_ref: created.id,
+      context: expect.objectContaining({ status: "FAILED" }),
+    });
+  });
+
+  it("a real agent_runs recording failure does not abort the real Kai generation — the package still completes PENDING", async () => {
+    const harness = buildHarness({
+      photoUrls: ["https://gcs/foto-1.jpg"],
+      agentRunInsertFails: true,
+    });
+    const created = await harness.service.create(BODY);
+    await harness.service.generate(created.id);
+    await settle();
+
+    expect(harness.client.rows("agent_runs")).toHaveLength(0);
+    const after = await harness.service.byId(created.id);
+    expect(after.package.status).toBe("PENDING");
   });
 });
 
@@ -827,5 +892,74 @@ describe("CreativePackagesService.generateProperty (K2)", () => {
     await expect(harness.service.generateProperty(TENANT_A, automotive.id)).rejects.toThrow(
       NotFoundError,
     );
+  });
+});
+
+describe("CreativePackagesService — AAOS-AI-JUDGE-SELF-IMPROVING Phase J1 (PROPERTY)", () => {
+  it("records a real agent_runs row keyed by the real creative_packages id after a successful PROPERTY generation — the SAME helper the AUTOMOTIVE path reuses", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    await harness.service.generateProperty(TENANT_A, created.id);
+    await settle();
+
+    const rows = harness.client.rows("agent_runs");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      tenant_id: TENANT_A,
+      agent: "KAI",
+      run_ref: created.id,
+      context: expect.objectContaining({ vertical: "PROPERTY", status: "PENDING" }),
+    });
+  });
+
+  it("records a real agent_runs row (status FAILED) when the real PROPERTY orchestration fails — not only on success", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+      orchestrateResult: err(new GenerationError("Kie AI timeout after 15 minutes")),
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    await harness.service.generateProperty(TENANT_A, created.id);
+    await settle();
+
+    const rows = harness.client.rows("agent_runs");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      agent: "KAI",
+      run_ref: created.id,
+      context: expect.objectContaining({ status: "FAILED" }),
+    });
+  });
+
+  it("a real agent_runs recording failure does not abort the real PROPERTY generation — the package still completes PENDING", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+      agentRunInsertFails: true,
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    await harness.service.generateProperty(TENANT_A, created.id);
+    await settle();
+
+    expect(harness.client.rows("agent_runs")).toHaveLength(0);
+    const [row] = harness.client
+      .rows("creative_packages")
+      .filter((r) => r["id"] === created.id) as Array<Record<string, unknown>>;
+    expect(row?.["status"]).toBe("PENDING");
   });
 });
