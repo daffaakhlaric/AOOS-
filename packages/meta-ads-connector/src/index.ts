@@ -160,6 +160,8 @@ export type {
   PageCursor,
   CreateCampaignParams,
   CreateAdSetParams,
+  CreateAdSetTargeting,
+  MetaTargetingCity,
   CreateAdParams,
   CreateAdCreativeSpec,
   CreateAdCreativeVideoSpec,

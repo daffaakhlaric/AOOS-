@@ -172,3 +172,34 @@ export function registerCreateCampaignErrorHandler(status: number, code?: number
     ),
   );
 }
+
+/**
+ * AAOS EPIC S, Phase S3/S4: registers `GET /search?type=adgeolocation&...` -> `{data: [...]}` for
+ * `CampaignsService.createPropertyCampaign`'s real geo-search step. `citiesByQuery` maps a free-text
+ * `q` value to the real Meta location rows it should resolve to — a query with no entry (or an
+ * empty array) resolves to Meta's real, honest `{"data": []}` zero-match response.
+ */
+export function registerSearchAdLocationsMswHandler(
+  citiesByQuery: Readonly<
+    Record<string, ReadonlyArray<{ readonly key: string; readonly name: string }>>
+  >,
+): void {
+  mswServer.use(
+    http.get(`${BASE}/search`, ({ request }) => {
+      const url = new URL(request.url);
+      if (url.searchParams.get("type") !== "adgeolocation") {
+        return HttpResponse.json({ data: [] });
+      }
+      const query = url.searchParams.get("q") ?? "";
+      const rows = citiesByQuery[query] ?? [];
+      return HttpResponse.json({
+        data: rows.map((row) => ({
+          key: row.key,
+          name: row.name,
+          type: "city",
+          country_code: "ID",
+        })),
+      });
+    }),
+  );
+}
