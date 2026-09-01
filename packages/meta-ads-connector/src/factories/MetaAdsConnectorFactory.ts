@@ -18,6 +18,7 @@ import { PauseCampaign } from "../application/use-cases/PauseCampaign.js";
 import { ProcessLeadWebhook } from "../application/use-cases/ProcessLeadWebhook.js";
 import { PullCampaignData, type Tracer } from "../application/use-cases/PullCampaignData.js";
 import { SearchAdInterests } from "../application/use-cases/SearchAdInterests.js";
+import { SearchAdLocations } from "../application/use-cases/SearchAdLocations.js";
 import { UploadCreativeAsset } from "../application/use-cases/UploadCreativeAsset.js";
 import type { MetaAdsConnectorConfig } from "../config/MetaAdsConnectorConfig.js";
 import type { IMetaAdsClient } from "../contracts/IMetaAdsClient.js";
@@ -64,6 +65,13 @@ export interface MetaAdsConnector {
    * `SearchAdInterests`'s scope-boundary docstring.
    */
   readonly searchAdInterests: SearchAdInterests;
+  /**
+   * AAOS EPIC S, Phase S2: read-only Meta location discovery
+   * (`GET /search?type=adgeolocation&location_types=["city"]`). Deliberately NOT connected to
+   * `LocationResolverService`/`createCampaign` yet — see `SearchAdLocations`'s scope-boundary
+   * docstring (that wiring is S3/S4, a later phase).
+   */
+  readonly searchAdLocations: SearchAdLocations;
   readonly processLeadWebhook: ProcessLeadWebhook;
   /** AAOS-ABTESTING-LOOKALIKE Part 2: creates a new, empty Custom Audience — see `CreateCustomAudience`'s docstring. */
   readonly createCustomAudience: CreateCustomAudience;
@@ -131,6 +139,7 @@ export class MetaAdsConnectorFactory {
     );
 
     const searchAdInterests = new SearchAdInterests(client, rateLimiter, retry, logger, tracer);
+    const searchAdLocations = new SearchAdLocations(client, rateLimiter, retry, logger, tracer);
 
     const createAd = new CreateAd(client, rateLimiter, retry, logger, tracer);
     const uploadCreativeAsset = new UploadCreativeAsset(client, rateLimiter, retry, logger, tracer);
@@ -195,6 +204,7 @@ export class MetaAdsConnectorFactory {
       activateCampaign,
       activateAd,
       searchAdInterests,
+      searchAdLocations,
       processLeadWebhook,
       createCustomAudience,
       addUsersToCustomAudience,

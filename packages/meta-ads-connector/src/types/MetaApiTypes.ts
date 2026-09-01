@@ -240,6 +240,61 @@ export const MetaAdInterestSearchResponseSchema = z.object({
 export type MetaAdInterestSearchResponse = z.infer<typeof MetaAdInterestSearchResponseSchema>;
 
 /**
+ * One row of `GET /search?type=adgeolocation&location_types=["city"]&q=<name>` (AAOS EPIC S,
+ * Phase S2). Verified 2026-09-01 against Meta's Marketing API "Targeting Search" reference
+ * (developers.facebook.com/docs/marketing-api/audiences/reference/targeting-search) — no live call
+ * available in this environment, so this schema is built against the documented example response
+ * shape rather than a captured payload (unlike `MetaAdInterestSchema`'s live-captured rows above;
+ * see `tests/helpers/ad-location-fixtures.ts` for the honest provenance note on the fixtures built
+ * from this schema):
+ *
+ * ```json
+ * {"key":"2447439","name":"Manhattan","type":"city","country_code":"US",
+ *  "country_name":"United States","region":"Kansas","region_id":3859,
+ *  "supports_region":true,"supports_city":true}
+ * ```
+ *
+ * Deliberate optionality choices:
+ * - `key`, `name`, `type`, `country_code` are the fields the docs' own example and every
+ *   cross-checked SDK model (e.g. the Go Marketing API SDK's `AdGeoLocation` struct) agree are
+ *   always present — required here.
+ * - `region`/`region_id`/`country_name` are documented as present for `city`-type rows but are not
+ *   guaranteed for every location type this schema might one day see reused for (e.g. `country`),
+ *   so kept optional rather than failing an otherwise-usable row closed.
+ * - `supports_region`/`supports_city` are booleans Meta documents but AAOS has no current use for;
+ *   accepted-but-optional for the same reason.
+ * - `region_id` really is a JSON *number* (not a numeric string) per the documented example, unlike
+ *   the metric fields elsewhere in this file.
+ */
+export const MetaAdLocationSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  type: z.string(),
+  country_code: z.string(),
+  country_name: z.string().optional(),
+  region: z.string().optional(),
+  region_id: z.number().optional(),
+  supports_region: z.boolean().optional(),
+  supports_city: z.boolean().optional(),
+});
+export type MetaAdLocation = z.infer<typeof MetaAdLocationSchema>;
+
+/**
+ * Response of `GET /search?type=adgeolocation&location_types=["city"]&q=<name>` — a plain
+ * `{ data: [...] }` edge, same envelope shape as `MetaAdInterestSearchResponseSchema`. Meta's real
+ * API returns `{"data": []}` (never an error) when a query has zero matches, and returns every
+ * matching row — undifferentiated except by `region`/`region_id`/`key` — for an ambiguous query
+ * that resolves to multiple distinct real places (e.g. multiple same-named cities in different
+ * regions); AAOS makes no attempt to auto-disambiguate here (AAOS EPIC S, Phase S2 scope
+ * boundary — see `SearchAdLocations`'s own docstring).
+ */
+export const MetaAdLocationSearchResponseSchema = z.object({
+  data: z.array(MetaAdLocationSchema),
+  paging: MetaPagingSchema.optional(),
+});
+export type MetaAdLocationSearchResponse = z.infer<typeof MetaAdLocationSearchResponseSchema>;
+
+/**
  * Response of `POST /{ad-account}/advideos` (AAOS-GO-LIVE) — Meta's real video-upload endpoint,
  * called with a `file_url` pointing at an already-hosted (GCS) video. Meta returns just the new
  * video node's `id`, later referenced as `video_data.video_id` in an ad creative.

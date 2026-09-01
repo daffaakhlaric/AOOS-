@@ -27,6 +27,8 @@ import {
   type MetaAdInterestSearchResponse,
   MetaAdListResponseSchema,
   type MetaAdListResponse,
+  MetaAdLocationSearchResponseSchema,
+  type MetaAdLocationSearchResponse,
   MetaAdSetListResponseSchema,
   type MetaAdSetListResponse,
   MetaCampaignListResponseSchema,
@@ -242,6 +244,16 @@ export class MetaApiClient implements IMetaAdsClient {
   ): Promise<Result<MetaAdInterestSearchResponse, MetaApiError>> {
     const url = MetaApiRequestBuilder.adInterestSearchUrl(term, accessToken);
     return this.getJson(url, MetaAdInterestSearchResponseSchema);
+  }
+
+  /** AAOS EPIC S, Phase S2: `GET /search?type=adgeolocation&location_types=["city"]&q=<query>` — see `IMetaAdsClient.searchAdLocations`. */
+  async searchAdLocations(
+    query: string,
+    locationType: "city",
+    accessToken: string,
+  ): Promise<Result<MetaAdLocationSearchResponse, MetaApiError>> {
+    const url = MetaApiRequestBuilder.adLocationSearchUrl(query, locationType, accessToken);
+    return this.getJson(url, MetaAdLocationSearchResponseSchema);
   }
 
   /** AAOS-GO-LIVE: `POST /{campaign-id}` with `status: "PAUSED"` — see `IMetaAdsClient.pauseCampaign`. */

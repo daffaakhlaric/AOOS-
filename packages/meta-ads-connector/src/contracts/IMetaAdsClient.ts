@@ -5,6 +5,7 @@ import type {
   MetaAdAccountResponse,
   MetaAdInterestSearchResponse,
   MetaAdListResponse,
+  MetaAdLocationSearchResponse,
   MetaAdSetListResponse,
   MetaCampaignListResponse,
   MetaCustomAudienceCreateResponse,
@@ -260,6 +261,21 @@ export interface IMetaAdsClient {
     term: string,
     accessToken: string,
   ): Promise<Result<MetaAdInterestSearchResponse, MetaApiError>>;
+
+  /**
+   * AAOS EPIC S, Phase S2: `GET /search?type=adgeolocation&location_types=["city"]&q=<query>` —
+   * Meta's real location-search endpoint (verified 2026-09-01 against Meta's Marketing API
+   * "Targeting Search" reference — see `SearchAdLocations`'s own docstring for the full citation
+   * and no-match/ambiguous-match behavior). A pure READ against the same ad-account-independent
+   * search node `searchAdInterests` uses. Nothing about this call creates, modifies, or targets a
+   * real campaign — it only resolves a free-text city name to Meta's own `key` id for later use in
+   * `CreateAdSetTargeting.geoLocations` (a later phase, not this one).
+   */
+  searchAdLocations(
+    query: string,
+    locationType: "city",
+    accessToken: string,
+  ): Promise<Result<MetaAdLocationSearchResponse, MetaApiError>>;
 
   /**
    * AAOS-GO-LIVE: `POST /{campaign-id}` with `status: "PAUSED"` — pauses a campaign. Unlike

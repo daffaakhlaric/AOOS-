@@ -46,6 +46,8 @@ export {
   MAX_INTERESTS_PER_TERM,
 } from "./application/use-cases/SearchAdInterests.js";
 export type { SearchAdInterestsInput } from "./application/use-cases/SearchAdInterests.js";
+export { SearchAdLocations } from "./application/use-cases/SearchAdLocations.js";
+export type { SearchAdLocationsInput } from "./application/use-cases/SearchAdLocations.js";
 export { ProcessLeadWebhook } from "./application/use-cases/ProcessLeadWebhook.js";
 export type { ProcessLeadWebhookInput } from "./application/use-cases/ProcessLeadWebhook.js";
 export { CreateCustomAudience } from "./application/use-cases/CreateCustomAudience.js";
@@ -75,6 +77,7 @@ export type { AdSet } from "./domain/entities/AdSet.js";
 export type { Ad } from "./domain/entities/Ad.js";
 export type { Lead } from "./domain/entities/Lead.js";
 export type { AdInterest } from "./domain/entities/AdInterest.js";
+export type { AdLocation } from "./domain/entities/AdLocation.js";
 
 // Domain — Value Objects
 export { AdAccountId } from "./domain/value-objects/AdAccountId.js";
@@ -170,12 +173,15 @@ export type {
   MetaAdAccountResponse,
   MetaAdInterest,
   MetaAdInterestSearchResponse,
+  MetaAdLocation,
+  MetaAdLocationSearchResponse,
   MetaVideoUploadResponse,
   MetaImageUploadResponse,
   MetaCustomAudienceCreateResponse,
   MetaCustomAudienceUsersResponse,
 } from "./types/MetaApiTypes.js";
 export { MetaAdInterestSchema, MetaAdInterestSearchResponseSchema } from "./types/MetaApiTypes.js";
+export { MetaAdLocationSchema, MetaAdLocationSearchResponseSchema } from "./types/MetaApiTypes.js";
 export type { ILeadWebhookParser, RawLeadData } from "./contracts/ILeadWebhookParser.js";
 export type {
   ExecutionAction,
@@ -233,4 +239,5 @@ export { mapAd } from "./mappers/AdMapper.js";
 export { mapInsightRowToMetrics } from "./mappers/MetricsMapper.js";
 export { mapLead, mapLeads, derivePublisherPlatform } from "./mappers/LeadMapper.js";
 export { mapAdInterest } from "./mappers/AdInterestMapper.js";
+export { mapAdLocation } from "./mappers/AdLocationMapper.js";
 export type { AdIdentifiers, AdResolver } from "./mappers/LeadMapper.js";

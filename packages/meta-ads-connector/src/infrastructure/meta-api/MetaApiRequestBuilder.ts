@@ -175,6 +175,25 @@ export class MetaApiRequestBuilder {
     return url.toString();
   }
 
+  /**
+   * AAOS EPIC S, Phase S2: `GET /search?type=adgeolocation&location_types=["city"]&q=<query>` —
+   * Meta's real location-search endpoint (verified 2026-09-01 against Meta's Marketing API
+   * "Targeting Search" reference, developers.facebook.com/docs/marketing-api/audiences/reference/
+   * targeting-search — see `SearchAdLocations`'s own docstring for the full citation). Mirrors
+   * `adInterestSearchUrl` above: the exact params the docs specify (`type`, `location_types`,
+   * `q`, `access_token`) and nothing else — no `limit`/`fields` of its own, no paging assumed.
+   * `location_types` is passed as a JSON-array-shaped string per the docs' own example
+   * (`location_types=["city"]`), not a bare/comma-joined value.
+   */
+  static adLocationSearchUrl(query: string, locationType: "city", accessToken: string): string {
+    const url = new URL(`${BASE_URL}/${API_VERSION}/search`);
+    url.searchParams.set("type", "adgeolocation");
+    url.searchParams.set("location_types", JSON.stringify([locationType]));
+    url.searchParams.set("q", query);
+    url.searchParams.set("access_token", accessToken);
+    return url.toString();
+  }
+
   private static buildGetUrl(
     path: string,
     accessToken: string,
