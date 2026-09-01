@@ -4,6 +4,7 @@ import type {
   CreativePackageOrigin,
   CreativePackageStatus,
   CreativePackageUrgency,
+  CreativePackageVertical,
   StoredCreativePackage,
 } from "../domain/creative-package.js";
 
@@ -18,12 +19,14 @@ export interface CreativePackageResponseDto {
   readonly briefId: string;
   readonly adId?: string;
   readonly stableId?: string;
-  readonly branch: string;
-  readonly unit: string;
+  readonly vertical: CreativePackageVertical;
+  readonly listingId?: string;
+  readonly branch?: string;
+  readonly unit?: string;
   readonly unitModel?: string;
   readonly title: string;
   readonly angle: string;
-  readonly targetPersona: string;
+  readonly targetPersona?: string;
   readonly reason: string;
   readonly requestedFormat: CreativePackageFormat;
   readonly decidedFormat?: CreativePackageFormat;

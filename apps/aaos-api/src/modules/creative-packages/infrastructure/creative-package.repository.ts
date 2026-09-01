@@ -7,6 +7,7 @@ import type {
   CreativePackageOrigin,
   CreativePackageStatus,
   CreativePackageUrgency,
+  CreativePackageVertical,
   StoredCopyVariant,
   StoredCreativePackage,
 } from "../domain/creative-package.js";
@@ -25,12 +26,15 @@ export interface CreativePackageRow {
   readonly brief_id: string;
   readonly ad_id: string | null;
   readonly stable_id: string | null;
-  readonly branch: string;
-  readonly unit: string;
+  /** Additive, `026_creative_packages_property.sql`. Defaults to `'AUTOMOTIVE'` at the DB layer for every pre-existing row. */
+  readonly vertical: string;
+  readonly listing_id: string | null;
+  readonly branch: string | null;
+  readonly unit: string | null;
   readonly unit_model: string | null;
   readonly title: string;
   readonly angle: string;
-  readonly target_persona: string;
+  readonly target_persona: string | null;
   readonly reason: string;
   readonly requested_format: string;
   readonly decided_format: string | null;
@@ -62,12 +66,14 @@ function toDomain(row: CreativePackageRow): StoredCreativePackage {
     briefId: row.brief_id,
     ...(row.ad_id !== null ? { adId: row.ad_id } : {}),
     ...(row.stable_id !== null ? { stableId: row.stable_id } : {}),
-    branch: row.branch,
-    unit: row.unit,
+    vertical: row.vertical as CreativePackageVertical,
+    ...(row.listing_id !== null ? { listingId: row.listing_id } : {}),
+    ...(row.branch !== null ? { branch: row.branch } : {}),
+    ...(row.unit !== null ? { unit: row.unit } : {}),
     ...(row.unit_model !== null ? { unitModel: row.unit_model } : {}),
     title: row.title,
     angle: row.angle,
-    targetPersona: row.target_persona,
+    ...(row.target_persona !== null ? { targetPersona: row.target_persona } : {}),
     reason: row.reason,
     requestedFormat: row.requested_format as CreativePackageFormat,
     ...(row.decided_format !== null
@@ -119,12 +125,14 @@ export class CreativePackageRepository {
         brief_id: input.briefId,
         ad_id: input.adId ?? null,
         stable_id: input.stableId ?? null,
-        branch: input.branch,
-        unit: input.unit,
+        vertical: input.vertical,
+        listing_id: input.listingId ?? null,
+        branch: input.branch ?? null,
+        unit: input.unit ?? null,
         unit_model: input.unitModel ?? null,
         title: input.title,
         angle: input.angle,
-        target_persona: input.targetPersona,
+        target_persona: input.targetPersona ?? null,
         reason: input.reason,
         requested_format: input.requestedFormat,
         primary_message: input.primaryMessage,

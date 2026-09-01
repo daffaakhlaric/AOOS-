@@ -1,13 +1,29 @@
 import { randomUUID } from "node:crypto";
 
 import type { AssetLibrary } from "@aos/asset-library";
-import type { CopyVariant, KaiAgentRuntime } from "@aos/creative-agent";
+import {
+  ConfidenceScore,
+  CreativeFormat,
+  PropertyCopyBuilder,
+  PropertyFormatDecider,
+  PropertyPromptBuilder,
+} from "@aos/creative-agent";
+import type {
+  CopyVariant,
+  ImageSpec,
+  KaiAgentRuntime,
+  OrchestrateGenerationOutput,
+  PropertyCopyVariant,
+  PropertyCreativeBrief,
+  VideoSpec,
+} from "@aos/creative-agent";
 import { NotFoundError, UnavailableError, ValidationError } from "@aos/errors";
 import { CreativeBrief, CreativeBriefId } from "@aos/meta-ads-agent";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, ASSET_LIBRARY, KAI_AGENT_RUNTIME } from "../../di-tokens.js";
+import { ListingsService } from "../listings/listings.service.js";
 
 import { buildCreativeBrief } from "./domain/creative-brief.factory.js";
 import type { CreativeLogJson } from "./domain/creative-log.js";
@@ -22,6 +38,7 @@ import type {
   GetLogsQueryDto,
   GetPackagesQueryDto,
 } from "./dto/create-package.dto.js";
+import type { PropertyCreatePackageBodyDto } from "./dto/create-property-package.dto.js";
 import {
   toCreativeLogResponseDto,
   toCreativePackageResponseDto,
@@ -34,6 +51,22 @@ import { CreativeLogRepository } from "./infrastructure/creative-log.repository.
 import { CreativePackageRepository } from "./infrastructure/creative-package.repository.js";
 
 const MS_PER_HOUR = 3_600_000;
+
+/**
+ * Kie AI's real, confirmed-live reference-image limit for both image-to-video and image-to-image
+ * generation — the SAME figure `@aos/creative-agent`'s `KaiAgentService.ts` pins as
+ * `MAX_SOURCE_PHOTOS` (that file's own comment: "REAL BUG FIX: Kie AI's real reference-image limit
+ * is 2 (confirmed live, 2026-08-18)") and `CreativeOrchestratorService.tryUploadSourcePhotos`'s own
+ * docstring documents ("Kie AI's real, confirmed-live limit is 2 reference images"). Duplicated
+ * here rather than exported from `@aos/creative-agent` — same "small deterministic constant stays
+ * local to each real caller" discipline `PropertyCopyBuilder.buildWithinLimit`'s own docstring
+ * documents for this codebase.
+ */
+const MAX_SOURCE_PHOTOS = 2;
+
+const propertyFormatDecider = new PropertyFormatDecider();
+const propertyPromptBuilder = new PropertyPromptBuilder();
+const propertyCopyBuilder = new PropertyCopyBuilder();
 
 /**
  * Backs `/api/v1/creative-packages/*` (AAOS-CREATIVE-REVIEW).
@@ -73,6 +106,12 @@ export class CreativePackagesService {
     @Inject(ASSET_LIBRARY) private readonly assetLibrary: AssetLibrary | undefined,
     private readonly repository: CreativePackageRepository,
     private readonly logRepository: CreativeLogRepository,
+    /**
+     * K1/K2 — the SAME real, tenant-scoped `ListingsService.getById` the Listing Manager and
+     * `SimulationService`'s PROPERTY Kai-prompt preview already use for a `listings` lookup, not a
+     * second query path.
+     */
+    private readonly listings: ListingsService,
   ) {}
 
   private get tenantId(): string {
@@ -130,6 +169,7 @@ export class CreativePackagesService {
       briefId: CreativeBriefId.generate().toString(),
       ...(body.adId !== undefined ? { adId: body.adId } : {}),
       ...(body.stableId !== undefined ? { stableId: body.stableId } : {}),
+      vertical: "AUTOMOTIVE",
       branch: body.branch,
       unit: body.unit,
       ...(body.unitModel !== undefined ? { unitModel: body.unitModel } : {}),
@@ -157,6 +197,14 @@ export class CreativePackagesService {
     const pkg = await this.findOrThrow(id);
     if (pkg.status === "GENERATING") {
       throw new ValidationError(`Creative package "${id}" is already generating`);
+    }
+    if (pkg.vertical !== "AUTOMOTIVE" || pkg.unit === undefined) {
+      // A PROPERTY package (K1/K2) has its own `generateProperty()` — this AUTOMOTIVE-only method
+      // reads `pkg.unit`/`pkg.branch` unconditionally below, so a non-AUTOMOTIVE row is rejected
+      // loudly here rather than reaching `findSourcePhotoUrls(undefined)`.
+      throw new ValidationError(
+        `Creative package "${id}" is vertical="${pkg.vertical}"; use POST /api/v1/creative-packages/property/:id/generate instead`,
+      );
     }
     const kai = this.requireKai();
 
@@ -216,6 +264,303 @@ export class CreativePackagesService {
     void this.runGeneration(id, brief, sourcePhotoUrls, Date.now(), kai);
 
     return toCreativePackageResponseDto(accepted);
+  }
+
+  /**
+   * K1 — `POST /api/v1/creative-packages/property`. Persists a `DRAFT` from a real, tenant-scoped
+   * `listings` row, mirroring `create()`'s "DRAFT unless generate:true" discipline exactly. Throws
+   * the real `NotFoundError` `ListingsService.getById` throws for a missing/foreign-tenant
+   * `listingId` — same tenant-isolation guarantee the rest of `modules/listings` already
+   * establishes (Property Tenant Isolation Phase 1/2).
+   */
+  async createProperty(
+    tenantId: string,
+    body: PropertyCreatePackageBodyDto,
+  ): Promise<CreativePackageResponseDto> {
+    const listing = await this.listings.getById(tenantId, body.listingId);
+    const created = await this.repository.create({
+      id: randomUUID(),
+      tenantId,
+      briefId: CreativeBriefId.generate().toString(),
+      vertical: "PROPERTY",
+      listingId: listing.id,
+      ...(listing.branchId !== undefined ? { branch: listing.branchId } : {}),
+      title: body.title ?? `${listing.title} · ${body.angle}`,
+      angle: body.angle,
+      reason: body.reason ?? defaultReason(body.origin),
+      requestedFormat: body.format,
+      primaryMessage: body.primaryMessage ?? listing.title,
+      urgency: body.urgency,
+      origin: body.origin,
+    });
+
+    if (!body.generate) {
+      return toCreativePackageResponseDto(created);
+    }
+    return this.generateProperty(tenantId, created.id);
+  }
+
+  /**
+   * K2 — `POST /api/v1/creative-packages/property/:id/generate`. The PROPERTY sibling to
+   * `generate()`: real, tenant-scoped `ListingsService.getById` lookup, `sourcePhotoUrls` resolved
+   * DIRECTLY from `listing.photos` (Finding 7 — no `@aos/asset-library`/`unitId` detour: that
+   * table has no `listing_id` concept at all), capped at Kie AI's real 2-image limit
+   * (`MAX_SOURCE_PHOTOS` above). A listing with zero photos degrades to a REAL text-only brief
+   * (`sourcePhotoAvailable = false`) — never a fabricated placeholder image URL.
+   *
+   * Threads into the SAME real `CreativeOrchestratorService` instance the AUTOMOTIVE path uses
+   * (`kai.orchestratorService` — additive on `KaiAgentRuntime`, see that interface's docstring):
+   * `KaiAgentService.processCreativeBrief` (what `generate()` calls) is hard-typed to the
+   * AUTOMOTIVE `CreativeBrief` and does its own unit-keyed photo lookup internally, so it cannot be
+   * driven by an already-resolved PROPERTY `sourcePhotoUrls` list.
+   */
+  async generateProperty(tenantId: string, id: string): Promise<CreativePackageResponseDto> {
+    const pkg = await this.findOrThrowScoped(tenantId, id);
+    if (pkg.status === "GENERATING") {
+      throw new ValidationError(`Creative package "${id}" is already generating`);
+    }
+    if (pkg.vertical !== "PROPERTY" || pkg.listingId === undefined) {
+      throw new ValidationError(
+        `Creative package "${id}" is vertical="${pkg.vertical}"; use POST /api/v1/creative-packages/:id/generate instead`,
+      );
+    }
+    const kai = this.requireKai();
+    const listing = await this.listings.getById(tenantId, pkg.listingId);
+
+    const sourcePhotoUrls = listing.photos.map((photo) => photo.url).slice(0, MAX_SOURCE_PHOTOS);
+    await this.repository.markGenerating(id, sourcePhotoUrls);
+
+    const brief: PropertyCreativeBrief = {
+      listingId: listing.id,
+      listingTitle: listing.title,
+      propertyType: listing.propertyType,
+      angle: pkg.angle as PropertyCreativeBrief["angle"],
+      ...(listing.branchId !== undefined ? { branch: listing.branchId } : {}),
+      ...(listing.waNumber !== undefined ? { waNumber: listing.waNumber } : {}),
+      ...(listing.highlights.length > 0 ? { highlights: listing.highlights } : {}),
+    };
+
+    const availablePhotos = sourcePhotoUrls.length;
+    const decidedFormat = propertyFormatDecider.decideFormat(brief, availablePhotos);
+    const imageSpec = propertyFormatDecider.decideImageSpec(brief);
+    const videoSpec =
+      decidedFormat === CreativeFormat.VIDEO_AND_IMAGES
+        ? propertyFormatDecider.decideVideoSpec(brief)
+        : undefined;
+
+    const sourcePhotoAvailable = availablePhotos > 0;
+    const videoPrompt =
+      videoSpec !== undefined
+        ? propertyPromptBuilder.buildVideoPrompt(brief, sourcePhotoAvailable)
+        : undefined;
+    const imagePrompts = Array.from({ length: imageSpec.count }, (_, index) =>
+      propertyPromptBuilder.buildImagePrompt(brief, index),
+    );
+
+    const copyResult = propertyCopyBuilder.buildVariants(brief);
+    if (!copyResult.ok) {
+      await this.repository.fail(id, copyResult.error.message);
+      await this.appendLog({
+        packageId: id,
+        fromAgent: "SYSTEM",
+        eventType: "ERROR",
+        message: `Brief tidak valid: ${copyResult.error.message}`,
+        error: copyResult.error.message,
+      });
+      throw copyResult.error;
+    }
+    const copyVariants = copyResult.value;
+
+    await this.appendLog({
+      packageId: id,
+      fromAgent: pkg.origin === "SAMANTHA" ? "SAMANTHA" : "MANAGER",
+      toAgent: "KAI",
+      eventType: "BRIEF_SENT",
+      message: `Brief ${pkg.angle} untuk listing ${listing.title} dikirim ke Kai.`,
+      brief: {
+        vertical: "PROPERTY",
+        listingId: listing.id,
+        listingTitle: listing.title,
+        propertyType: listing.propertyType,
+        angle: pkg.angle,
+        primaryMessage: pkg.primaryMessage,
+        requestedFormat: pkg.requestedFormat,
+        urgency: pkg.urgency,
+        reason: pkg.reason,
+        origin: pkg.origin,
+      },
+    });
+    await this.appendLog({
+      packageId: id,
+      fromAgent: "KAI",
+      toAgent: "KIE_AI",
+      eventType: "GENERATE",
+      message:
+        sourcePhotoUrls.length > 0
+          ? `Kai mulai generate (${sourcePhotoUrls.length} foto listing tersedia sebagai referensi).`
+          : "Kai mulai generate — listing tidak punya foto, Kai generate tanpa foto referensi.",
+      metadata: {
+        requestedFormat: pkg.requestedFormat,
+        sourcePhotosFound: sourcePhotoUrls.length,
+        sourcePhotoUrls: [...sourcePhotoUrls],
+      },
+    });
+
+    const accepted = await this.findOrThrowScoped(tenantId, id);
+
+    // Detached on purpose — not awaited, same discipline as `generate()`'s `runGeneration`.
+    void this.runGenerationProperty(
+      id,
+      tenantId,
+      sourcePhotoUrls,
+      decidedFormat,
+      videoPrompt,
+      videoSpec,
+      imagePrompts,
+      imageSpec,
+      copyVariants,
+      Date.now(),
+      kai,
+    );
+
+    return toCreativePackageResponseDto(accepted);
+  }
+
+  /** The detached PROPERTY pipeline body — real Kie AI calls via the shared `CreativeOrchestratorService`, real GCS persistence of the generated media via the SAME `IAssetStorage` adapter `ListingsService.addPhoto`/`addDocument` already establish bypassing `@aos/asset-library`'s `assets` table (Finding 7 — a generated PROPERTY creative has no `unit_id`/`Branch`-shaped home there either). */
+  private async runGenerationProperty(
+    id: string,
+    tenantId: string,
+    sourcePhotoUrls: readonly string[],
+    decidedFormat: CreativeFormat,
+    videoPrompt: string | undefined,
+    videoSpec: VideoSpec | undefined,
+    imagePrompts: readonly string[],
+    imageSpec: ImageSpec,
+    copyVariants: readonly PropertyCopyVariant[],
+    startedAtMs: number,
+    kai: KaiAgentRuntime,
+  ): Promise<void> {
+    try {
+      const orchestrationResult = await kai.orchestratorService.orchestrate({
+        sourcePhotoUrls,
+        ...(videoPrompt !== undefined ? { videoPrompt } : {}),
+        ...(videoSpec !== undefined ? { videoSpec } : {}),
+        imagePrompts,
+        imageSpec,
+        correlationId: id,
+      });
+      if (!orchestrationResult.ok) {
+        await this.recordFailure(id, orchestrationResult.error.message);
+        return;
+      }
+      const generated = orchestrationResult.value;
+
+      const persisted = await this.persistGeneratedMedia(tenantId, id, generated);
+      if (generated.imageBuffers.length > 0 && persisted.imageUrls.length === 0) {
+        await this.recordFailure(
+          id,
+          "CreativePackagesService: Kie AI generated images but persisting them to storage failed",
+        );
+        return;
+      }
+
+      const aiModel = describeModel(videoSpec?.model, imageSpec.model);
+      const confidenceScore = ConfidenceScore.compute({
+        imageUrlCount: persisted.imageUrls.length,
+        requestedImageCount: imageSpec.count,
+        videoRequested: videoSpec !== undefined,
+        videoDelivered: persisted.videoUrl !== undefined,
+      });
+      const decidedFormatOutcome: CreativePackageFormat =
+        decidedFormat === CreativeFormat.VIDEO_AND_IMAGES && persisted.videoUrl !== undefined
+          ? "VIDEO_AND_IMAGES"
+          : "IMAGES_ONLY";
+      const outcome: CreativeGenerationOutcome = {
+        decidedFormat: decidedFormatOutcome,
+        sourcePhotoUrls,
+        ...(persisted.videoUrl !== undefined ? { videoUrl: persisted.videoUrl } : {}),
+        imageUrls: persisted.imageUrls,
+        copyVariants: copyVariants.map(toStoredCopyVariantFromProperty),
+        aiModel,
+        confidenceScore: confidenceScore.toNumber(),
+        generationMs: Date.now() - startedAtMs,
+      };
+      await this.repository.complete(id, outcome, new Date().toISOString());
+      await this.appendLog({
+        packageId: id,
+        fromAgent: "KIE_AI",
+        toAgent: "KAI",
+        eventType: "COMPLETE",
+        message: `Selesai: ${outcome.videoUrl !== undefined ? "1 video, " : ""}${String(outcome.imageUrls.length)} gambar, ${String(outcome.copyVariants.length)} varian copy.`,
+        result: {
+          videoUrl: outcome.videoUrl ?? null,
+          imageUrls: [...outcome.imageUrls],
+          copyVariants: outcome.copyVariants.map((variant) => ({ ...variant })),
+        },
+        metadata: {
+          decidedFormat: outcome.decidedFormat,
+          model: outcome.aiModel ?? null,
+          confidenceScore: outcome.confidenceScore ?? null,
+          durationMs: outcome.generationMs ?? null,
+          sourcePhotoSkippedReason: generated.sourcePhotoSkippedReason ?? null,
+        },
+      });
+    } catch (caught) {
+      await this.recordFailure(id, caught instanceof Error ? caught.message : String(caught));
+    }
+  }
+
+  /**
+   * Uploads generated PROPERTY media buffers to real GCS storage via the shared `IAssetStorage`
+   * adapter — the SAME `library.assetStorage.upload({path, fileBody, contentType})` call
+   * `ListingsService.addPhoto`/`addDocument` already established (Phase 2), bypassing
+   * `@aos/asset-library`'s `assets` table/`SaveAiCreative` use case entirely: that use case
+   * requires a real `Branch` enum member (AUTOMOTIVE-only), which a PROPERTY package has no honest
+   * value for. A failed individual upload is skipped (not thrown) — `runGenerationProperty` decides
+   * whether an empty result is a real failure.
+   */
+  private async persistGeneratedMedia(
+    tenantId: string,
+    id: string,
+    generated: OrchestrateGenerationOutput,
+  ): Promise<{ readonly imageUrls: string[]; readonly videoUrl?: string }> {
+    if (this.assetLibrary === undefined) {
+      return { imageUrls: [] };
+    }
+    const library = this.assetLibrary;
+    const imageUrls: string[] = [];
+    for (const [index, buffer] of generated.imageBuffers.entries()) {
+      const path = `creative-property/${tenantId}/${id}/image-${String(index + 1)}.jpg`;
+      const uploaded = await library.assetStorage.upload({
+        path,
+        fileBody: buffer,
+        contentType: "image/jpeg",
+      });
+      if (uploaded.ok) {
+        imageUrls.push(uploaded.value.publicUrl);
+      } else {
+        this.logger.warn(
+          `CreativePackagesService.persistGeneratedMedia(${id}): image ${String(index + 1)} upload failed: ${uploaded.error.message}`,
+        );
+      }
+    }
+    let videoUrl: string | undefined;
+    if (generated.videoBuffer !== undefined) {
+      const path = `creative-property/${tenantId}/${id}/video.mp4`;
+      const uploaded = await library.assetStorage.upload({
+        path,
+        fileBody: generated.videoBuffer,
+        contentType: "video/mp4",
+      });
+      if (uploaded.ok) {
+        videoUrl = uploaded.value.publicUrl;
+      } else {
+        this.logger.warn(
+          `CreativePackagesService.persistGeneratedMedia(${id}): video upload failed: ${uploaded.error.message}`,
+        );
+      }
+    }
+    return { imageUrls, ...(videoUrl !== undefined ? { videoUrl } : {}) };
   }
 
   async approve(
@@ -388,6 +733,20 @@ export class CreativePackagesService {
     return pkg;
   }
 
+  /**
+   * The PROPERTY sibling to `findOrThrow` — scoped to the real, per-request `tenantId` (from
+   * `@TenantId()`) rather than `this.config.AAOS_TENANT_ID`, since `createProperty`/
+   * `generateProperty` persist PROPERTY rows under the caller's real tenant, matching
+   * `ListingsService`'s own tenant-isolation convention.
+   */
+  private async findOrThrowScoped(tenantId: string, id: string): Promise<StoredCreativePackage> {
+    const pkg = await this.repository.findById(tenantId, id);
+    if (pkg === undefined) {
+      throw new NotFoundError(`No creative package found with id "${id}"`);
+    }
+    return pkg;
+  }
+
   /** A failed log write must never abort the pipeline or a human's approve/reject. */
   private async appendLog(
     input: Omit<Parameters<CreativeLogRepository["append"]>[0], "tenantId">,
@@ -413,19 +772,34 @@ function labelOf(variants: readonly StoredCopyVariant[], id: string): string {
   return variants.find((variant) => variant.id === id)?.variantLabel ?? id;
 }
 
-/** The real brief fields, as persisted — no field is invented for the log. */
+/**
+ * The real brief fields, as persisted — no field is invented for the log. AUTOMOTIVE-only caller
+ * (`generate()`, guarded to `pkg.vertical === "AUTOMOTIVE"`); `unit`/`branch`/`targetPersona` are
+ * `null`-coalesced only for `CreativeLogJson`'s type (no `undefined` member), never actually
+ * `undefined` at this real call site.
+ */
 function briefToJson(pkg: StoredCreativePackage): CreativeLogJson {
   return {
-    unit: pkg.unit,
+    unit: pkg.unit ?? null,
     unitModel: pkg.unitModel ?? null,
-    branch: pkg.branch,
+    branch: pkg.branch ?? null,
     angle: pkg.angle,
-    targetPersona: pkg.targetPersona,
+    targetPersona: pkg.targetPersona ?? null,
     primaryMessage: pkg.primaryMessage,
     requestedFormat: pkg.requestedFormat,
     urgency: pkg.urgency,
     reason: pkg.reason,
     origin: pkg.origin,
+  };
+}
+
+function toStoredCopyVariantFromProperty(variant: PropertyCopyVariant): StoredCopyVariant {
+  return {
+    id: variant.id,
+    variantLabel: variant.variantLabel,
+    primaryText: variant.primaryText,
+    headline: variant.headline,
+    callToAction: variant.callToAction,
   };
 }
 

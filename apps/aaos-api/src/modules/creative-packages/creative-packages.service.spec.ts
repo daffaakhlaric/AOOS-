@@ -1,7 +1,7 @@
 import type { AssetLibrary } from "@aos/asset-library";
 import { err, ok } from "@aos/common";
 import type { CreativePackage, KaiAgentRuntime } from "@aos/creative-agent";
-import { GenerationError } from "@aos/creative-agent";
+import { GenerationError, PropertyAdAngle } from "@aos/creative-agent";
 import { NotFoundError, UnavailableError, ValidationError } from "@aos/errors";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,9 +10,11 @@ import {
   type FakeSupabaseClient,
 } from "../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
+import type { ListingsService } from "../listings/listings.service.js";
 
 import { CreativePackagesService } from "./creative-packages.service.js";
 import type { CreatePackageBodyDto } from "./dto/create-package.dto.js";
+import type { PropertyCreatePackageBodyDto } from "./dto/create-property-package.dto.js";
 import { CreativeLogRepository } from "./infrastructure/creative-log.repository.js";
 import { CreativePackageRepository } from "./infrastructure/creative-package.repository.js";
 
@@ -58,11 +60,25 @@ function buildKaiPackage(overrides: Partial<Record<string, unknown>> = {}): Crea
   } as unknown as CreativePackage;
 }
 
+interface FakeListing {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly title: string;
+  readonly propertyType?: string;
+  readonly branchId?: string;
+  readonly waNumber?: string;
+  readonly highlights?: readonly string[];
+  readonly photos?: readonly string[];
+}
+
 interface Harness {
   readonly service: CreativePackagesService;
   readonly client: FakeSupabaseClient;
   readonly processCreativeBrief: ReturnType<typeof vi.fn>;
   readonly getAssetsByUnit: ReturnType<typeof vi.fn>;
+  readonly getListingById: ReturnType<typeof vi.fn>;
+  readonly orchestrate: ReturnType<typeof vi.fn>;
+  readonly assetStorageUpload: ReturnType<typeof vi.fn>;
 }
 
 function buildHarness(
@@ -74,6 +90,11 @@ function buildHarness(
     readonly kaiResult?: unknown;
     readonly kaiThrows?: Error;
     readonly kaiNeverSettles?: boolean;
+    /** K1/K2 — the single real `listings` row `ListingsService.getById` resolves in this harness. */
+    readonly listing?: FakeListing;
+    readonly orchestrateResult?: unknown;
+    readonly orchestrateNeverSettles?: boolean;
+    readonly uploadFails?: boolean;
   } = {},
 ): Harness {
   const client = createFakeSupabaseClient();
@@ -96,14 +117,67 @@ function buildHarness(
         }),
   );
 
+  const getListingById = vi.fn(async (tenantId: string, id: string) => {
+    const listing = options.listing;
+    if (listing === undefined || listing.id !== id || listing.tenantId !== tenantId) {
+      throw new NotFoundError(`No listing found for id "${id}"`);
+    }
+    return {
+      id: listing.id,
+      title: listing.title,
+      propertyType: listing.propertyType ?? "RUMAH",
+      listingStatus: "AKTIF",
+      price: 500_000_000,
+      ...(listing.branchId !== undefined ? { branchId: listing.branchId } : {}),
+      ...(listing.waNumber !== undefined ? { waNumber: listing.waNumber } : {}),
+      highlights: listing.highlights ?? [],
+      photos: (listing.photos ?? []).map((url, index) => ({
+        id: `photo-${String(index)}`,
+        url,
+        order: index,
+        isMain: index === 0,
+      })),
+      documents: [],
+      inKnowledgeBase: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+  });
+  const listingsService = { getById: getListingById } as unknown as ListingsService;
+
+  const orchestrate = vi.fn(async () => {
+    if (options.orchestrateNeverSettles === true) {
+      return new Promise(() => undefined);
+    }
+    return (
+      options.orchestrateResult ??
+      ok({
+        imageBuffers: [Buffer.from("fake-image-bytes")],
+        imageSpecs: [],
+        videoDelivered: false,
+      })
+    );
+  });
+  const assetStorageUpload = vi.fn(async ({ path }: { path: string }) =>
+    options.uploadFails === true
+      ? err(new Error("gcs upload failed"))
+      : ok({ path, publicUrl: `https://storage.googleapis.com/${path}` }),
+  );
+
   const kai =
     options.kaiConfigured === false
       ? undefined
-      : ({ processCreativeBrief: { execute: processCreativeBrief } } as unknown as KaiAgentRuntime);
+      : ({
+          processCreativeBrief: { execute: processCreativeBrief },
+          orchestratorService: { orchestrate },
+        } as unknown as KaiAgentRuntime);
   const assetLibrary =
     options.assetLibraryConfigured === false
       ? undefined
-      : ({ getAssetsByUnit: { execute: getAssetsByUnit } } as unknown as AssetLibrary);
+      : ({
+          getAssetsByUnit: { execute: getAssetsByUnit },
+          assetStorage: { upload: assetStorageUpload },
+        } as unknown as AssetLibrary);
 
   const service = new CreativePackagesService(
     buildTestConfig(),
@@ -111,8 +185,17 @@ function buildHarness(
     assetLibrary,
     new CreativePackageRepository(client),
     new CreativeLogRepository(client),
+    listingsService,
   );
-  return { service, client, processCreativeBrief, getAssetsByUnit };
+  return {
+    service,
+    client,
+    processCreativeBrief,
+    getAssetsByUnit,
+    getListingById,
+    orchestrate,
+    assetStorageUpload,
+  };
 }
 
 /** The pipeline is detached; let its microtasks settle before asserting persisted state. */
@@ -458,5 +541,154 @@ describe("CreativePackagesService log-write resilience", () => {
     harness.client.forceErrorOnce("creative_logs", "log table down");
     const approved = await harness.service.approve(created.id, {}, new Date());
     expect(approved.status).toBe("APPROVED");
+  });
+});
+
+const TENANT_A = "tenant-a";
+const TENANT_B = "tenant-b";
+
+const PROPERTY_BODY: PropertyCreatePackageBodyDto = {
+  listingId: "listing-1",
+  angle: PropertyAdAngle.READY_HUNI,
+  format: "VIDEO_AND_IMAGES",
+  urgency: "MEDIUM",
+  origin: "MANUAL",
+  generate: false,
+};
+
+describe("CreativePackagesService.createProperty (K1)", () => {
+  it("persists a PROPERTY DRAFT from a real, tenant-scoped listing — no Kie AI spend without generate:true", async () => {
+    const harness = buildHarness({
+      listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    expect(created.status).toBe("DRAFT");
+    expect(created.vertical).toBe("PROPERTY");
+    expect(created.listingId).toBe("listing-1");
+    expect(created.title).toBe("Rumah Minimalis BSD · READY_HUNI");
+    expect(harness.orchestrate).not.toHaveBeenCalled();
+    expect(harness.getListingById).toHaveBeenCalledWith(TENANT_A, "listing-1");
+  });
+
+  it("404s for a listingId that doesn't exist", async () => {
+    const harness = buildHarness();
+    await expect(
+      harness.service.createProperty(TENANT_A, { ...PROPERTY_BODY, listingId: "nope" }),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("404s for a listing that belongs to another tenant — real tenant isolation", async () => {
+    const harness = buildHarness({
+      listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+    });
+    // Tenant B asking for tenant A's listing must get the same real 404 a missing id gets — never
+    // a cross-tenant leak.
+    await expect(harness.service.createProperty(TENANT_B, PROPERTY_BODY)).rejects.toThrow(
+      NotFoundError,
+    );
+  });
+});
+
+describe("CreativePackagesService.generateProperty (K2)", () => {
+  it("resolves sourcePhotoUrls DIRECTLY from listing.photos (no asset-library/unitId) and calls the SAME real CreativeOrchestratorService with those exact URLs", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg", "https://gcs/listing-1/foto-2.jpg"],
+      },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    const generating = await harness.service.generateProperty(TENANT_A, created.id);
+    expect(generating.status).toBe("GENERATING");
+    expect(generating.sourcePhotoUrls).toEqual([
+      "https://gcs/listing-1/foto-1.jpg",
+      "https://gcs/listing-1/foto-2.jpg",
+    ]);
+    expect(harness.getAssetsByUnit).not.toHaveBeenCalled();
+    await settle();
+    expect(harness.orchestrate).toHaveBeenCalledTimes(1);
+    const call = harness.orchestrate.mock.calls[0]?.[0] as { sourcePhotoUrls: readonly string[] };
+    expect(call.sourcePhotoUrls).toEqual([
+      "https://gcs/listing-1/foto-1.jpg",
+      "https://gcs/listing-1/foto-2.jpg",
+    ]);
+  });
+
+  it("caps sourcePhotoUrls at Kie AI's real 2-image limit when a listing has more photos", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: [
+          "https://gcs/listing-1/foto-1.jpg",
+          "https://gcs/listing-1/foto-2.jpg",
+          "https://gcs/listing-1/foto-3.jpg",
+        ],
+      },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    const generating = await harness.service.generateProperty(TENANT_A, created.id);
+    expect(generating.sourcePhotoUrls).toEqual([
+      "https://gcs/listing-1/foto-1.jpg",
+      "https://gcs/listing-1/foto-2.jpg",
+    ]);
+  });
+
+  it("a listing with zero photos degrades to a REAL text-only brief — never a fabricated photo URL", async () => {
+    const harness = buildHarness({
+      listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    const generating = await harness.service.generateProperty(TENANT_A, created.id);
+    expect(generating.sourcePhotoUrls).toEqual([]);
+    await settle();
+    const call = harness.orchestrate.mock.calls[0]?.[0] as { sourcePhotoUrls: readonly string[] };
+    expect(call.sourcePhotoUrls).toEqual([]);
+  });
+
+  it("persists generated media via the shared IAssetStorage adapter and completes as PENDING", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    await harness.service.generateProperty(TENANT_A, created.id);
+    await settle();
+    // `byId`/`list`/`logs` all still read `AAOS_API_CONFIG.AAOS_TENANT_ID` (the pre-existing,
+    // unfixed gap `generateProperty`'s own docstring flags), so a PROPERTY row persisted under a
+    // real per-request `tenantId` is asserted directly against the repository's raw row here
+    // rather than through those tenant-blind read paths.
+    const [row] = harness.client
+      .rows("creative_packages")
+      .filter((r) => r["id"] === created.id) as Array<Record<string, unknown>>;
+    expect(row?.["status"]).toBe("PENDING");
+    expect(row?.["image_urls"]).toHaveLength(1);
+    expect((row?.["image_urls"] as string[])[0]).toContain("creative-property/");
+    expect((row?.["copy_variants"] as unknown[]).length).toBeGreaterThan(0);
+    expect(harness.assetStorageUpload).toHaveBeenCalled();
+  });
+
+  it("404s for an unknown package", async () => {
+    await expect(buildHarness().service.generateProperty(TENANT_A, "nope")).rejects.toThrow(
+      NotFoundError,
+    );
+  });
+
+  it("refuses generateProperty on an AUTOMOTIVE package", async () => {
+    const harness = buildHarness({ photoUrls: [] });
+    const automotive = await harness.service.create(BODY);
+    // The AUTOMOTIVE row is persisted under `AAOS_API_CONFIG.AAOS_TENANT_ID` ("dss-motor",
+    // `buildTestConfig`'s default) — looking it up under an unrelated PROPERTY tenantId 404s
+    // exactly like any other cross-tenant lookup, never silently finding it.
+    await expect(harness.service.generateProperty(TENANT_A, automotive.id)).rejects.toThrow(
+      NotFoundError,
+    );
   });
 });

@@ -53,6 +53,25 @@ export interface BuildCreativeBriefInput {
 }
 
 /**
+ * `unit`/`branch`/`targetPersona` are `string | undefined` on `StoredCreativePackage` since
+ * K1/K2 (`docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`) made them optional to accommodate a
+ * PROPERTY-vertical row, which never has real values for them. This factory is ONLY ever called
+ * for an `AUTOMOTIVE` package (`CreativePackagesService.generate()` — the PROPERTY vertical has its
+ * own `generateProperty()`/`PropertyCreativeBrief` path), so these ARE always real, non-empty
+ * strings at this call site; a defensive check (never a silent cast) still guards the invariant so
+ * a genuinely malformed row fails loudly here instead of reaching `CreativeBrief.create` with
+ * `undefined`.
+ */
+function requireAutomotiveField(value: string | undefined, field: string, pkgId: string): string {
+  if (value === undefined) {
+    throw new Error(
+      `buildCreativeBrief: AUTOMOTIVE package "${pkgId}" is missing required field "${field}"`,
+    );
+  }
+  return value;
+}
+
+/**
  * Builds the REAL `CreativeBrief` aggregate `@aos/creative-agent`'s `ProcessCreativeBrief`
  * consumes. Goes through `CreativeBrief.create`'s real validation (never a cast): `adId`, `unit`,
  * `branch`, `angle`, `targetPersona`, `primaryMessage`, `formats` and `reason` are all checked
@@ -73,14 +92,18 @@ export function buildCreativeBrief(
   return CreativeBrief.create({
     id: briefIdResult.value,
     adId: pkg.adId ?? pkg.id,
-    unit: pkg.unit,
+    unit: requireAutomotiveField(pkg.unit, "unit", pkg.id),
     // REAL BUG FIX: without this, `AutomotivePromptBuilder` had no human-readable name and
     // interpolated the scraped identityKey/slug straight into the Kie AI prompt (see
     // `CreativeBrief.unitModel`'s docstring for the full story).
     ...(pkg.unitModel !== undefined ? { unitModel: pkg.unitModel } : {}),
-    branch: pkg.branch as Branch,
+    branch: requireAutomotiveField(pkg.branch, "branch", pkg.id) as Branch,
     angle: pkg.angle as AdAngle,
-    targetPersona: pkg.targetPersona as TargetPersona,
+    targetPersona: requireAutomotiveField(
+      pkg.targetPersona,
+      "targetPersona",
+      pkg.id,
+    ) as TargetPersona,
     primaryMessage: pkg.primaryMessage,
     tone: BRIEF_TONE,
     avoid: BRIEF_AVOID,

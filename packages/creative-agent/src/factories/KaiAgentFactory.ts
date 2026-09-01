@@ -59,6 +59,17 @@ export interface KaiAgentRuntime {
   readonly kaiAgentService: KaiAgentService;
   readonly jobRegistry: GenerationJobRegistry;
   readonly config: CreativeAgentConfig;
+  /**
+   * Additive (K1/K2, `docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`): the SAME
+   * `CreativeOrchestratorService` instance `kaiAgentService` composes above — real Kie AI
+   * upload/generate calls. `KaiAgentService.processCreativeBrief` is hard-typed to the AUTOMOTIVE
+   * `CreativeBrief` (unit-keyed source-photo lookup, `AutomotivePromptBuilder`/`CopyBuilder`), so
+   * there is no way to drive it with a PROPERTY listing's already-resolved `sourcePhotoUrls`.
+   * Exposing the orchestrator directly lets a PROPERTY-vertical caller (`aaos-api`'s
+   * `CreativePackagesService`) reach the real Kie AI generation step without duplicating this
+   * factory's `CreativeConnectorFactory` wiring into a second orchestrator instance.
+   */
+  readonly orchestratorService: CreativeOrchestratorService;
 }
 
 /**
@@ -113,6 +124,7 @@ export class KaiAgentFactory {
       kaiAgentService,
       jobRegistry,
       config,
+      orchestratorService,
     });
   }
 }

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
 
+import { TenantId } from "../../common/tenant-context.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
@@ -12,6 +13,10 @@ import {
   type GetLogsQueryDto,
   type GetPackagesQueryDto,
 } from "./dto/create-package.dto.js";
+import {
+  PropertyCreatePackageBodySchema,
+  type PropertyCreatePackageBodyDto,
+} from "./dto/create-property-package.dto.js";
 import type {
   CreativeLogResponseDto,
   CreativePackageDetailResponseDto,
@@ -53,6 +58,38 @@ export class CreativePackagesController {
     @Query(new ZodValidationPipe(GetLogsQuerySchema)) query: GetLogsQueryDto,
   ): Promise<readonly CreativeLogResponseDto[]> {
     return this.service.logs(query);
+  }
+
+  /**
+   * K1 (`docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`) — a real PROPERTY-vertical creative
+   * package request, genuinely separate from `CreatePackageBodySchema` (see that DTO file's
+   * docstring for why). Declared BEFORE the `:id`-based routes below, same defensive route-ordering
+   * discipline this controller's own doc already establishes for `logs`.
+   *
+   * Tenant-scoped via `@TenantId()` — `modules/listings`' own established convention. NOTE: the
+   * pre-existing AUTOMOTIVE endpoints below (`create`/`generate`/`byId`/...) do NOT use `@TenantId()`
+   * at all; `CreativePackagesService` reads a single static `AAOS_API_CONFIG.AAOS_TENANT_ID` for
+   * them instead — a real, pre-existing tenant-scoping gap this phase does not fix (K1/K2 scope is
+   * the new PROPERTY endpoint only).
+   */
+  @Post("property")
+  @HttpCode(201)
+  async createProperty(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(PropertyCreatePackageBodySchema))
+    body: PropertyCreatePackageBodyDto,
+  ): Promise<CreativePackageResponseDto> {
+    return this.service.createProperty(tenantId, body);
+  }
+
+  /** K2 — 202: the real Kie AI pipeline runs detached; the response is the `GENERATING` row. Tenant-scoped via `@TenantId()`. */
+  @Post("property/:id/generate")
+  @HttpCode(202)
+  async generateProperty(
+    @TenantId() tenantId: string,
+    @Param("id") id: string,
+  ): Promise<CreativePackageResponseDto> {
+    return this.service.generateProperty(tenantId, id);
   }
 
   @Get(":id")

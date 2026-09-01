@@ -2,6 +2,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { ListingsModule } from "../listings/listings.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
 import { CreativePackagesController } from "./creative-packages.controller.js";
@@ -22,6 +23,12 @@ import { CreativePackageRepository } from "./infrastructure/creative-package.rep
  * `IPublisher` as every other package.
  */
 @Module({
+  imports: [
+    // K1/K2 (`docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`) — reuses the SAME real,
+    // tenant-scoped `ListingsService.getById` `SimulationModule` already imports this module for
+    // (its PROPERTY Kai-prompt preview), not a second listing lookup path.
+    ListingsModule,
+  ],
   controllers: [CreativePackagesController],
   providers: [
     CreativePackagesService,

@@ -23,6 +23,15 @@ export type CreativePackageStatus =
 /** How the brief came to exist. Both require a human click before Kai/Kie AI ever runs. */
 export type CreativePackageOrigin = "MANUAL" | "SAMANTHA";
 
+/**
+ * Which real shape this row carries (K1/K2, `docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`).
+ * `AUTOMOTIVE` is the pre-existing shape (`unit`/`branch`/`AdAngle`/`targetPersona` all populated).
+ * `PROPERTY` populates `listingId`/`angle` (a real `PropertyAdAngle` member) instead — `unit`,
+ * `branch`, and `targetPersona` are genuinely inapplicable concepts for a listing-sourced brief and
+ * stay `undefined` rather than being fabricated.
+ */
+export type CreativePackageVertical = "AUTOMOTIVE" | "PROPERTY";
+
 /** `@aos/creative-agent`'s real `CreativeFormat` — a package-level decision, not a per-asset tag. */
 export type CreativePackageFormat = "VIDEO_AND_IMAGES" | "IMAGES_ONLY";
 
@@ -43,15 +52,20 @@ export interface StoredCreativePackage {
   readonly briefId: string;
   readonly adId?: string;
   readonly stableId?: string;
-  readonly branch: string;
-  /** The scraped unit's `identityKey` — the exact key `GetAssetsByUnit` matches on (`assets.unit_id`). */
-  readonly unit: string;
+  readonly vertical: CreativePackageVertical;
+  /** Real, tenant-scoped `listings.id` — set only when `vertical === "PROPERTY"`. */
+  readonly listingId?: string;
+  /** `AUTOMOTIVE`-only. */
+  readonly branch?: string;
+  /** The scraped unit's `identityKey` — the exact key `GetAssetsByUnit` matches on (`assets.unit_id`). `AUTOMOTIVE`-only. */
+  readonly unit?: string;
   /** Human-readable model for display (`assets.unit_model` / `scraped_units.model`). */
   readonly unitModel?: string;
   readonly title: string;
+  /** An `AdAngle` member for `AUTOMOTIVE`, a `PropertyAdAngle` member for `PROPERTY`. */
   readonly angle: string;
-  /** `TargetPersona` member — a required `CreativeBrief` field, chosen by the manager. */
-  readonly targetPersona: string;
+  /** `TargetPersona` member — a required `CreativeBrief` field, chosen by the manager. `AUTOMOTIVE`-only. */
+  readonly targetPersona?: string;
   /** Why this creative is being made (manager's words, or Samantha's real REFRESH reason). */
   readonly reason: string;
   /** What the manager asked for. */
@@ -87,12 +101,14 @@ export interface CreateCreativePackageInput {
   readonly briefId: string;
   readonly adId?: string;
   readonly stableId?: string;
-  readonly branch: string;
-  readonly unit: string;
+  readonly vertical: CreativePackageVertical;
+  readonly listingId?: string;
+  readonly branch?: string;
+  readonly unit?: string;
   readonly unitModel?: string;
   readonly title: string;
   readonly angle: string;
-  readonly targetPersona: string;
+  readonly targetPersona?: string;
   readonly reason: string;
   readonly requestedFormat: CreativePackageFormat;
   readonly primaryMessage: string;
