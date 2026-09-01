@@ -8,6 +8,7 @@ import type { CreativePackageDto } from "@/types/dashboard.types";
 const PACKAGE: CreativePackageDto = {
   id: "11111111-1111-4111-8111-111111111111",
   briefId: "22222222-2222-4222-8222-222222222222",
+  vertical: "AUTOMOTIVE",
   branch: "BINTARO",
   unit: "xpander-gls-2022-001",
   unitModel: "Xpander GLS 2022",

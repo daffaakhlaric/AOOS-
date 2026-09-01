@@ -215,13 +215,25 @@ export interface CreativePackageDto {
   readonly briefId: string;
   readonly adId?: string;
   readonly stableId?: string;
-  readonly branch: string;
-  /** The scraped unit's `identityKey` — the key Kai matches source photos on. */
-  readonly unit: string;
+  /**
+   * K4 (`docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`) — real finding: `aaos-api`'s
+   * `CreativePackageResponseDto` (K1) already carries `vertical: "AUTOMOTIVE" | "PROPERTY"` and an
+   * optional `listingId`, and already made `branch`/`unit`/`targetPersona` optional (a PROPERTY
+   * package has none of the three) — this dashboard type was stale relative to that K1 change
+   * (still declaring `branch`/`unit`/`targetPersona` as required `string`), which this phase fixes
+   * so the shared REVIEW/PROCESSING queue can render a real PROPERTY package alongside AUTOMOTIVE
+   * ones without lying about the response shape.
+   */
+  readonly vertical: "AUTOMOTIVE" | "PROPERTY";
+  /** The real, tenant-scoped `listings.id` a PROPERTY package was generated from. Absent for AUTOMOTIVE packages. */
+  readonly listingId?: string;
+  readonly branch?: string;
+  /** The scraped unit's `identityKey` — the key Kai matches source photos on. Absent for PROPERTY packages. */
+  readonly unit?: string;
   readonly unitModel?: string;
   readonly title: string;
   readonly angle: string;
-  readonly targetPersona: string;
+  readonly targetPersona?: string;
   readonly reason: string;
   readonly requestedFormat: CreativeFormatDto;
   /** What Kai's real `FormatDecider` decided — may downgrade to `IMAGES_ONLY` with no source photos. */

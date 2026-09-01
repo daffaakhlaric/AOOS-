@@ -110,11 +110,16 @@ export function CreativePackageCard({
 
       {pkg.sourcePhotoUrls.length > 0 ? (
         <p className={styles.meta}>
-          Sumber foto: {pkg.sourcePhotoUrls.length} foto unit dari stok Mobix ({pkg.unit})
+          Sumber foto: {pkg.sourcePhotoUrls.length}{" "}
+          {pkg.vertical === "PROPERTY"
+            ? "foto dari listing"
+            : `foto unit dari stok Mobix${pkg.unit !== undefined ? ` (${pkg.unit})` : ""}`}
         </p>
       ) : pkg.status !== "DRAFT" ? (
         <p className={styles.meta}>
-          Sumber foto: tidak ada foto unit {pkg.unit} di asset library saat generate.
+          {pkg.vertical === "PROPERTY"
+            ? "Sumber foto: listing ini tidak punya foto saat generate."
+            : `Sumber foto: tidak ada foto unit${pkg.unit !== undefined ? ` ${pkg.unit}` : ""} di asset library saat generate.`}
         </p>
       ) : null}
 

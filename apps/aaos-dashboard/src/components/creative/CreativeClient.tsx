@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CreativePackageCard } from "@/components/creative/CreativePackageCard";
 import { CreativeLogList } from "@/components/creative/CreativeLogList";
 import { ManualBriefForm } from "@/components/creative/ManualBriefForm";
+import { PropertyManualBriefForm } from "@/components/creative/PropertyManualBriefForm";
 import { SamanthaRecommendations } from "@/components/creative/SamanthaRecommendations";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
@@ -12,6 +13,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { formatDateTimeIdWib } from "@/lib/formatters";
 import type { CreativePackageDto } from "@/types/dashboard.types";
+import type { Vertical } from "@/types/tenant.types";
 
 import styles from "./CreativeClient.module.css";
 
@@ -58,6 +60,29 @@ export function CreativeClient(): React.ReactElement {
   const [error, setError] = useState<string | undefined>(undefined);
   const [busyId, setBusyId] = useState<string | undefined>(undefined);
   const [notice, setNotice] = useState<string | undefined>(undefined);
+  // Same `GET /api/settings` client-side vertical read `ContentStudioClient.tsx` already
+  // established for the Sosmed Studio's own AUTOMOTIVE/PROPERTY branch.
+  const [vertical, setVertical] = useState<Vertical>("AUTOMOTIVE");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((res) =>
+        res.ok ? (res.json() as Promise<{ tenant?: { vertical?: Vertical } }>) : null,
+      )
+      .then((data) => {
+        if (!cancelled && data?.tenant?.vertical !== undefined) {
+          setVertical(data.tenant.vertical);
+        }
+      })
+      .catch(() => {
+        // Least-surprise default (AUTOMOTIVE) stays in place — same discipline `lib/auth.ts`'s
+        // `parseVertical` documents for a missing/unreadable vertical.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -262,7 +287,13 @@ export function CreativeClient(): React.ReactElement {
         />
       ) : null}
 
-      {tab === "MANUAL" ? <ManualBriefForm onCreated={afterCreate} /> : null}
+      {tab === "MANUAL" ? (
+        vertical === "PROPERTY" ? (
+          <PropertyManualBriefForm onCreated={afterCreate} />
+        ) : (
+          <ManualBriefForm onCreated={afterCreate} />
+        )
+      ) : null}
 
       {tab === "SAMANTHA" ? <SamanthaRecommendations onCreated={afterCreate} /> : null}
 

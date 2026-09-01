@@ -16,6 +16,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 const PACKAGE: CreativePackageDto = {
   id: "11111111-1111-4111-8111-111111111111",
   briefId: "22222222-2222-4222-8222-222222222222",
+  vertical: "AUTOMOTIVE",
   branch: "BINTARO",
   unit: "xpander-gls-2022-001",
   title: "Xpander GLS 2022 BINTARO · DP_RINGAN",
