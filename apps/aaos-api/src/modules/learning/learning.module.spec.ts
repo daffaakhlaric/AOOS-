@@ -7,6 +7,8 @@ import { PromptOverrideModule } from "../prompt-override/prompt-override.module.
 import { SimulationRepository } from "../simulation/infrastructure/simulation.repository.js";
 
 import { LearningProposalRepository } from "./infrastructure/learning-proposal.repository.js";
+import { LearningDecisionService } from "./learning-decision.service.js";
+import { LearningController } from "./learning.controller.js";
 import { LearningModule } from "./learning.module.js";
 import { LearningService } from "./learning.service.js";
 
@@ -40,5 +42,15 @@ describe("LearningModule", () => {
         p.provide === LearningProposalRepository,
     );
     expect(learningProposalRepoProvider).toBeDefined();
+  });
+
+  it("registers LearningDecisionService as a provider (AAOS Self-Learning AI, Phase C)", () => {
+    const metadata = Reflect.getMetadata("providers", LearningModule) as unknown[];
+    expect(metadata).toContain(LearningDecisionService);
+  });
+
+  it("registers LearningController as a controller (Phase C's real HTTP surface)", () => {
+    const metadata = Reflect.getMetadata("controllers", LearningModule) as unknown[];
+    expect(metadata).toContain(LearningController);
   });
 });

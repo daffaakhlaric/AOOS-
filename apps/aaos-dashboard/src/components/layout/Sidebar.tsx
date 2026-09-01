@@ -62,6 +62,8 @@ const GO_LIVE: NavItem = { href: "/go-live", label: "Go Live Monitor", icon: "�
 const SETTINGS: NavItem = { href: "/settings", label: "Settings", icon: "⚙️" };
 /** AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B — PROPERTY-only real agent activity log + realtime UI, per the design doc's own Phase B point 4 (mirrors `LISTING_MANAGER`'s PROPERTY-only conditional add to OPERASIONAL, not an unconditional item every vertical gets). */
 const ACTIVITY_LOG: NavItem = { href: "/property/activity", label: "Activity Log", icon: "🪵" };
+/** AAOS Self-Learning AI, Phase C — the human-approval gate's real dashboard page. Unconditional (both verticals): gap detection runs off the real `SimulationScoring`/`ClaraPersonaRun.feedbackItems` shape, which is not vertical-specific. */
+const LEARNING_MONITOR: NavItem = { href: "/learning", label: "Learning Monitor", icon: "🧠" };
 
 /** CLARA (SALES AI) group — MENU RESTRUCTURE FINAL. `/knowledge`/`/simulator` moved here from OPERASIONAL. */
 const CLARA_ANALYTICS: NavItem = { href: "/clara/analytics", label: "Analytics", icon: "📊" };
@@ -178,8 +180,8 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
       key: "operasional",
       label: "OPERASIONAL",
       items: isProperty
-        ? [OBJECTIVE, BRANCHES, GO_LIVE, ACTIVITY_LOG, SETTINGS]
-        : [OBJECTIVE, BRANCHES, GO_LIVE, SETTINGS],
+        ? [OBJECTIVE, BRANCHES, GO_LIVE, ACTIVITY_LOG, LEARNING_MONITOR, SETTINGS]
+        : [OBJECTIVE, BRANCHES, GO_LIVE, LEARNING_MONITOR, SETTINGS],
     },
   ];
 }

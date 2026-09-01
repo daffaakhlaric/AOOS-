@@ -34,15 +34,16 @@ export interface CreateLearningProposalInput {
 export class LearningProposalRepositoryError extends Error {}
 
 /**
- * Supabase-backed persistence for `learning_proposals` (AAOS Self-Learning AI, Phase B). Built on
- * the same shared `SupabaseClientLike` port + `SUPABASE_CLIENT` DI token every other `aaos-api`
- * repository uses (see `PromptOverrideRepository`/`SimulationRepository` for the precedent this
- * mirrors) — one Supabase client for the whole app, not a second connection.
+ * Supabase-backed persistence for `learning_proposals` (AAOS Self-Learning AI, Phase B; extended in
+ * Phase C). Built on the same shared `SupabaseClientLike` port + `SUPABASE_CLIENT` DI token every
+ * other `aaos-api` repository uses (see `PromptOverrideRepository`/`SimulationRepository` for the
+ * precedent this mirrors) — one Supabase client for the whole app, not a second connection.
  *
- * `create` is the ONLY write this repository (or anything in Phase B) ever performs, and it ALWAYS
- * inserts `status: 'PENDING'` with every decision column left unset — the real Approve/Reject
- * writer is Phase C (a later, separate effort), per this table's own migration header doc. No
- * `updateStatus`/`decide` method is added here speculatively.
+ * `create` was the ONLY write Phase B ever performed, always inserting `status: 'PENDING'` with
+ * every decision column left unset. `updateDecision` is Phase C's real Approve/Reject writer,
+ * added now that a human-approval gate (`LearningDecisionService`) exists to call it — see this
+ * table's own migration header doc for why `decided_by`/`decision_notes`/`decided_at` existed as
+ * real columns before this phase, ready for exactly this write.
  */
 export class LearningProposalRepository {
   constructor(private readonly client: SupabaseClientLike) {}
@@ -88,5 +89,65 @@ export class LearningProposalRepository {
       );
     }
     return [...(data ?? [])].reverse();
+  }
+
+  /** A single proposal row by id, or `undefined` when none exists — `LearningDecisionService.getProposal`'s real lookup for every `:id`-scoped route (get/approve/reject). */
+  async findById(id: string): Promise<LearningProposalRow | undefined> {
+    const { data, error } = await this.client
+      .from<LearningProposalRow>(TABLE)
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error !== null) {
+      throw new LearningProposalRepositoryError(
+        `LearningProposalRepository.findById failed: ${error.message}`,
+      );
+    }
+    return data ?? undefined;
+  }
+
+  /** The tenant's proposal rows, newest-first, optionally filtered by real `status` — the Learning Monitor's real list source (AAOS Self-Learning AI, Phase C). */
+  async listForTenant(tenantId: string, status?: string): Promise<readonly LearningProposalRow[]> {
+    let query = this.client.from<LearningProposalRow>(TABLE).select("*").eq("tenant_id", tenantId);
+    if (status !== undefined) {
+      query = query.eq("status", status);
+    }
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error !== null) {
+      throw new LearningProposalRepositoryError(
+        `LearningProposalRepository.listForTenant failed: ${error.message}`,
+      );
+    }
+    return data ?? [];
+  }
+
+  /**
+   * Records a manager's real Approve/Reject decision (AAOS Self-Learning AI, Phase C — the human-
+   * approval gate). `void` return, same "update returns void, caller re-reads if it needs the
+   * fresh row" convention `SimulationRepository.recordDecision` already establishes for the exact
+   * same real "AI recommendation needs a human decision" shape (design doc Finding #5) — no
+   * `.select().single()` chained onto this write.
+   */
+  async updateDecision(
+    id: string,
+    status: "APPROVED" | "REJECTED",
+    decidedBy: string | undefined,
+    decisionNotes: string | undefined,
+    decidedAt: string,
+  ): Promise<void> {
+    const { error } = await this.client
+      .from<LearningProposalRow>(TABLE)
+      .update({
+        status,
+        decided_by: decidedBy ?? null,
+        decision_notes: decisionNotes ?? null,
+        decided_at: decidedAt,
+      })
+      .eq("id", id);
+    if (error !== null) {
+      throw new LearningProposalRepositoryError(
+        `LearningProposalRepository.updateDecision failed: ${error.message}`,
+      );
+    }
   }
 }

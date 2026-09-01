@@ -1,0 +1,276 @@
+.page {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filterSelect {
+  font-size: 13px;
+  padding: 7px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+  width: 100%;
+}
+
+.cardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agentBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.cardTime {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.statusBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.statusPending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.statusApproved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.statusRejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.gapSummary {
+  font-size: 12px;
+  color: var(--gray-700);
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: var(--border);
+  padding-top: 10px;
+}
+
+.analysis {
+  font-size: 13px;
+  color: var(--gray-800);
+  white-space: pre-wrap;
+}
+
+.improvement {
+  border-radius: var(--radius);
+  border: var(--border);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--gray-50);
+}
+
+.improvementHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.diffBlock {
+  font-size: 12px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+}
+
+.diffBefore {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.diffAfter {
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.reason {
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.notesInput {
+  flex: 1;
+  min-width: 200px;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+}
+
+.approveButton {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  border: none;
+  background: #16a34a;
+  color: white;
+  cursor: pointer;
+}
+
+.rejectButton {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  border: none;
+  background: #dc2626;
+  color: white;
+  cursor: pointer;
+}
+
+.rejectButton:disabled,
+.approveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.decidedInfo {
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.emptyState {
+  font-size: 13px;
+  color: var(--gray-500);
+  padding: 16px;
+}
+
+.overrideTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.overrideTable th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-500);
+  padding: 6px 10px;
+  border-bottom: var(--border);
+}
+
+.overrideTable td {
+  padding: 8px 10px;
+  border-bottom: var(--border);
+  color: var(--gray-800);
+}
+
+.rollbackButton {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--white);
+  color: var(--gray-800);
+  cursor: pointer;
+}
+
+.rollbackButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.errorText {
+  font-size: 12px;
+  color: #991b1b;
+}

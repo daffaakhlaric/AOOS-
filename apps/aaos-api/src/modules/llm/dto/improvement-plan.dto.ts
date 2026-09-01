@@ -49,7 +49,14 @@ export type ImprovementPlanRequestDto = z.infer<typeof ImprovementPlanRequestSch
  * documents a judgment call instead of inventing false precision). `severity` keeps a qualitative
  * signal instead — a real string, not a fake point estimate.
  */
-const ImprovementItemSchema = z.object({
+/**
+ * Exported (AAOS Self-Learning AI, Phase C) so `LearningDecisionService.approve` can re-validate
+ * each stored `learning_proposals.improvements[]` JSONB item against the SAME real shape this
+ * schema already enforces at Phase B write time, rather than re-declaring a second, possibly-
+ * drifting copy — same "call the real thing, never reimplement it" discipline this whole effort
+ * follows elsewhere (see `LearningModule`'s own doc).
+ */
+export const ImprovementItemSchema = z.object({
   agent: z.enum(["SAMANTHA", "CLARA"]),
   type: z.enum(["PROMPT_UPDATE", "CONFIG_UPDATE"]),
   /** MUST be a real `prompt_key`/`config_key` — validated server-side by `LlmService.generateImprovementPlan`, never trusted from the LLM alone (belt-and-braces, same discipline `selectTargeting`'s candidate-id intersection / `campaignStrategy`'s angle-membership check already establish). */

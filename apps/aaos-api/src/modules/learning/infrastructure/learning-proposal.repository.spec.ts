@@ -97,4 +97,113 @@ describe("LearningProposalRepository", () => {
       );
     });
   });
+
+  describe("findById", () => {
+    it("returns the matching row", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, { id: "row-1" });
+      const repository = new LearningProposalRepository(client);
+      const row = await repository.findById("row-1");
+      expect(row?.id).toBe("row-1");
+    });
+
+    it("returns undefined when no row matches", async () => {
+      const client = createFakeSupabaseClient();
+      const repository = new LearningProposalRepository(client);
+      expect(await repository.findById("missing")).toBeUndefined();
+    });
+
+    it("throws LearningProposalRepositoryError on a real Supabase error", async () => {
+      const client = createFakeSupabaseClient();
+      client.forceErrorOnce("learning_proposals", "connection reset");
+      const repository = new LearningProposalRepository(client);
+      await expect(repository.findById("row-1")).rejects.toThrow(LearningProposalRepositoryError);
+    });
+  });
+
+  describe("listForTenant", () => {
+    it("returns only the tenant's own rows, newest-first", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, { id: "row-1", created_at: "2026-08-01T00:00:00.000Z" });
+      seedProposal(client, { id: "row-2", created_at: "2026-08-02T00:00:00.000Z" });
+      seedProposal(client, {
+        id: "row-other-tenant",
+        tenant_id: "other-tenant",
+        created_at: "2026-08-03T00:00:00.000Z",
+      });
+      const repository = new LearningProposalRepository(client);
+      const rows = await repository.listForTenant("dss-motor");
+      expect(rows.map((row) => row.id)).toEqual(["row-2", "row-1"]);
+    });
+
+    it("filters by status when given", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, { id: "row-pending", status: "PENDING" });
+      seedProposal(client, { id: "row-approved", status: "APPROVED" });
+      const repository = new LearningProposalRepository(client);
+      const rows = await repository.listForTenant("dss-motor", "PENDING");
+      expect(rows.map((row) => row.id)).toEqual(["row-pending"]);
+    });
+
+    it("throws LearningProposalRepositoryError on a real Supabase error", async () => {
+      const client = createFakeSupabaseClient();
+      client.forceErrorOnce("learning_proposals", "connection reset");
+      const repository = new LearningProposalRepository(client);
+      await expect(repository.listForTenant("dss-motor")).rejects.toThrow(
+        LearningProposalRepositoryError,
+      );
+    });
+  });
+
+  describe("updateDecision", () => {
+    it("writes status/decided_by/decision_notes/decided_at on the matching row", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, { id: "row-1" });
+      const repository = new LearningProposalRepository(client);
+      await repository.updateDecision(
+        "row-1",
+        "APPROVED",
+        "manager@dss-motor.id",
+        "Looks good",
+        "2026-08-05T00:00:00.000Z",
+      );
+      const row = await repository.findById("row-1");
+      expect(row?.status).toBe("APPROVED");
+      expect(row?.decided_by).toBe("manager@dss-motor.id");
+      expect(row?.decision_notes).toBe("Looks good");
+      expect(row?.decided_at).toBe("2026-08-05T00:00:00.000Z");
+    });
+
+    it("writes null decided_by/decision_notes when omitted", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, { id: "row-1" });
+      const repository = new LearningProposalRepository(client);
+      await repository.updateDecision(
+        "row-1",
+        "REJECTED",
+        undefined,
+        undefined,
+        "2026-08-05T00:00:00.000Z",
+      );
+      const row = await repository.findById("row-1");
+      expect(row?.status).toBe("REJECTED");
+      expect(row?.decided_by).toBeNull();
+      expect(row?.decision_notes).toBeNull();
+    });
+
+    it("throws LearningProposalRepositoryError on a real Supabase error", async () => {
+      const client = createFakeSupabaseClient();
+      client.forceErrorOnce("learning_proposals", "connection reset");
+      const repository = new LearningProposalRepository(client);
+      await expect(
+        repository.updateDecision(
+          "row-1",
+          "APPROVED",
+          undefined,
+          undefined,
+          "2026-08-05T00:00:00.000Z",
+        ),
+      ).rejects.toThrow(LearningProposalRepositoryError);
+    });
+  });
 });
