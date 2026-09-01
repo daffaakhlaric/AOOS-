@@ -5,6 +5,8 @@ export interface LearningProposalResponseDto {
   readonly id: string;
   readonly tenantId: string;
   readonly simulationId: string | null;
+  /** AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 — the real LIVE-run trigger source alternative to `simulationId`. Exactly one of the two is ever non-null (`030_learning_proposals_agent_run_id.sql`). */
+  readonly agentRunId: string | null;
   readonly agent: string;
   readonly analysis: string | null;
   readonly gaps: Record<string, unknown>;
@@ -23,6 +25,7 @@ export function toLearningProposalResponseDto(
     id: row.id,
     tenantId: row.tenant_id,
     simulationId: row.simulation_id,
+    agentRunId: row.agent_run_id,
     agent: row.agent,
     analysis: row.analysis,
     gaps: row.gaps,

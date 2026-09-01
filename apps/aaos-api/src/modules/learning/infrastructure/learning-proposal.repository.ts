@@ -11,6 +11,8 @@ export interface LearningProposalRow {
   readonly id: string;
   readonly tenant_id: string;
   readonly simulation_id: string | null;
+  /** AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 (`030_learning_proposals_agent_run_id.sql`) — the real LIVE-run trigger source, an alternative to `simulation_id`. Exactly one of the two is ever non-NULL per row — see that migration's own header doc and its `learning_proposals_exactly_one_trigger_source` CHECK constraint. */
+  readonly agent_run_id: string | null;
   readonly agent: string;
   readonly analysis: string | null;
   readonly gaps: Record<string, unknown>;
@@ -22,9 +24,17 @@ export interface LearningProposalRow {
   readonly created_at: string;
 }
 
+/**
+ * `simulationId`/`agentRunId` are now both OPTIONAL, but exactly one MUST be supplied — `create()`
+ * asserts this at the app layer (a real, early, honest error) as well as `030_learning_proposals_
+ * agent_run_id.sql`'s own DB-level CHECK constraint enforcing the same real invariant (belt-and-
+ * braces, same discipline `LlmService.generateImprovementPlan`'s `KNOWN_PROMPT_KEYS` re-validation
+ * already establishes elsewhere in this effort).
+ */
 export interface CreateLearningProposalInput {
   readonly tenantId: string;
-  readonly simulationId: string;
+  readonly simulationId?: string;
+  readonly agentRunId?: string;
   readonly agent: string;
   readonly analysis: string;
   readonly gaps: Record<string, unknown>;
@@ -49,11 +59,22 @@ export class LearningProposalRepository {
   constructor(private readonly client: SupabaseClientLike) {}
 
   async create(input: CreateLearningProposalInput): Promise<LearningProposalRow> {
+    const hasSimulation = input.simulationId !== undefined;
+    const hasAgentRun = input.agentRunId !== undefined;
+    if (hasSimulation === hasAgentRun) {
+      // Mirrors `030_learning_proposals_agent_run_id.sql`'s own real DB CHECK constraint — caught
+      // here first so a bug produces an immediate, clear app-level error instead of a raw
+      // Postgres constraint-violation message.
+      throw new LearningProposalRepositoryError(
+        "LearningProposalRepository.create requires EXACTLY ONE of simulationId/agentRunId.",
+      );
+    }
     const { data, error } = await this.client
       .from<LearningProposalRow>(TABLE)
       .insert({
         tenant_id: input.tenantId,
-        simulation_id: input.simulationId,
+        simulation_id: input.simulationId ?? null,
+        agent_run_id: input.agentRunId ?? null,
         agent: input.agent,
         analysis: input.analysis,
         gaps: input.gaps,

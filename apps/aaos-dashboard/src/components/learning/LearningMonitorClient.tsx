@@ -40,6 +40,13 @@ function formatDate(iso: string): string {
  * page): `learning_proposals`/`agent_prompt_overrides` have no dashboard-facing realtime channel
  * wired up in this effort, so this page re-fetches after every Approve/Reject/Rollback action
  * instead, which is real and sufficient for a low-frequency manager review workflow.
+ *
+ * AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 — a real, minimal display-only update: a proposal whose
+ * `agentRunId` is populated (vs. `simulationId`) is a real LIVE-run-triggered proposal
+ * (`LearningService.onAgentRunJudged`), not a simulation-triggered one. A "LIVE RUN" badge plus the
+ * real triggering `agentRunId`/judge score/trend are shown in place of the simulation-shaped gap
+ * summary — Approve/Reject/Rollback mechanics below are completely unchanged (design doc Finding
+ * #6: no new approval mechanism, ever).
  */
 export function LearningMonitorClient(): React.ReactElement {
   const [proposals, setProposals] = useState<readonly LearningProposalDto[] | undefined>(undefined);
@@ -180,6 +187,9 @@ export function LearningMonitorClient(): React.ReactElement {
                     >
                       <span className={styles.cardHeaderLeft}>
                         <span className={styles.agentBadge}>{proposal.agent}</span>
+                        {proposal.agentRunId !== null ? (
+                          <span className={styles.statusBadge}>LIVE RUN</span>
+                        ) : null}
                         <span className={styles.cardTitle}>
                           {proposal.gaps.verdict ?? "Gap terdeteksi"} —{" "}
                           {proposal.improvements.length} improvement(s)
@@ -196,18 +206,36 @@ export function LearningMonitorClient(): React.ReactElement {
                     </button>
 
                     <div className={styles.gapSummary}>
-                      {proposal.gaps.overallScore !== undefined ? (
-                        <span>Overall: {proposal.gaps.overallScore}</span>
-                      ) : null}
-                      {proposal.gaps.samanthaCoverageScore !== undefined ? (
-                        <span>Samantha: {proposal.gaps.samanthaCoverageScore}</span>
-                      ) : null}
-                      {proposal.gaps.claraScore !== undefined ? (
-                        <span>Clara: {proposal.gaps.claraScore}</span>
-                      ) : null}
-                      {proposal.gaps.grade !== undefined ? (
-                        <span>Grade: {proposal.gaps.grade}</span>
-                      ) : null}
+                      {proposal.agentRunId !== null ? (
+                        // AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 — a real LIVE-run-triggered
+                        // proposal has no `simulations` link to show; surface the real triggering
+                        // context instead (the judged agent run + the real judge score that crossed
+                        // `LearningService`'s LIVE_RUN_GAP_THRESHOLD).
+                        <>
+                          <span>Agent Run: {proposal.agentRunId}</span>
+                          {proposal.gaps.overallScore !== undefined ? (
+                            <span>Judge Score: {proposal.gaps.overallScore}</span>
+                          ) : null}
+                          {proposal.gaps.trend !== undefined ? (
+                            <span>Trend: {proposal.gaps.trend}</span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {proposal.gaps.overallScore !== undefined ? (
+                            <span>Overall: {proposal.gaps.overallScore}</span>
+                          ) : null}
+                          {proposal.gaps.samanthaCoverageScore !== undefined ? (
+                            <span>Samantha: {proposal.gaps.samanthaCoverageScore}</span>
+                          ) : null}
+                          {proposal.gaps.claraScore !== undefined ? (
+                            <span>Clara: {proposal.gaps.claraScore}</span>
+                          ) : null}
+                          {proposal.gaps.grade !== undefined ? (
+                            <span>Grade: {proposal.gaps.grade}</span>
+                          ) : null}
+                        </>
+                      )}
                     </div>
 
                     {expanded ? (

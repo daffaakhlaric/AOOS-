@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
+import { LearningService } from "../learning/learning.service.js";
 import { LlmService } from "../llm/llm.service.js";
 
 import { JudgeResultRepository } from "./infrastructure/judge-result.repository.js";
@@ -40,6 +41,7 @@ export class AiJudgeService {
     private readonly agentRuns: AgentRunsService,
     private readonly llmService: LlmService,
     private readonly repository: JudgeResultRepository,
+    private readonly learningService: LearningService,
   ) {}
 
   /**
@@ -112,6 +114,19 @@ export class AiJudgeService {
         strengths: result.strengths,
         gaps: result.gaps,
         notes: result.notes,
+      });
+
+      // AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 — the real trigger point, wired AFTER this
+      // `judge_results` row is successfully persisted (see `LearningService.onAgentRunJudged`'s own
+      // doc for why this point, not one of J1's raw `agent_runs.record` call sites, is the real
+      // correct trigger — a score to gate on doesn't exist until here). Best-effort, same discipline
+      // as this whole method: a proposal-generation failure must never surface past `judgeRun`.
+      // `LearningService.onAgentRunJudged` already has its own outer try/catch, but this call is
+      // still made from inside `judgeRun`'s own try block for defense in depth.
+      await this.learningService.onAgentRunJudged(tenantId, agentRunId, agent, {
+        scores: result.scores,
+        gaps: result.gaps,
+        trend: result.trend,
       });
     } catch (caught) {
       this.logger.warn(`AiJudgeService.judgeRun(${agentRunId}) failed: ${String(caught)}`);

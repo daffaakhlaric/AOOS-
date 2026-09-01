@@ -1,6 +1,6 @@
 import { TokenBucketRateLimiter, type IRateLimiter } from "@aos/meta-ads-connector";
 import { HttpResponse, http } from "msw";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   createFakeSupabaseClient,
@@ -10,6 +10,7 @@ import { buildTestConfig } from "../../test-support/fixtures.js";
 import { mswServer, registerOpenAiChatHandler } from "../../test-support/openai-msw.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
+import type { LearningService } from "../learning/learning.service.js";
 import { ResponseCache } from "../llm/cache/ResponseCache.js";
 import { OpenAiClient } from "../llm/infrastructure/OpenAiClient.js";
 import { LlmService } from "../llm/llm.service.js";
@@ -40,13 +41,26 @@ function buildRealLlmService(apiKey = ""): LlmService {
   return new LlmService(config, client, rateLimiter, cache, promptOverride);
 }
 
+/** A fake `LearningService` whose `onAgentRunJudged` is a plain spy — real wiring assertions (Phase J3) check THIS spy's call args, never a second real `LearningService` instance's internal logic (that's `learning.service.spec.ts`'s own job). */
+function buildFakeLearningService(): LearningService & {
+  readonly onAgentRunJudgedSpy: ReturnType<typeof vi.fn>;
+} {
+  const onAgentRunJudgedSpy = vi.fn(async () => undefined);
+  return {
+    onAgentRunJudgedSpy,
+    onAgentRunJudged: onAgentRunJudgedSpy,
+  } as unknown as LearningService & { readonly onAgentRunJudgedSpy: ReturnType<typeof vi.fn> };
+}
+
 function buildService(
   client: FakeSupabaseClient = createFakeSupabaseClient(),
   llmService: LlmService = buildRealLlmService(),
+  learningService: LearningService = buildFakeLearningService(),
 ): {
   readonly client: FakeSupabaseClient;
   readonly agentRuns: AgentRunsService;
   readonly repository: JudgeResultRepository;
+  readonly learningService: LearningService;
   readonly service: AiJudgeService;
 } {
   const agentRuns = new AgentRunsService(new AgentRunRepository(client));
@@ -55,7 +69,8 @@ function buildService(
     client,
     agentRuns,
     repository,
-    service: new AiJudgeService(agentRuns, llmService, repository),
+    learningService,
+    service: new AiJudgeService(agentRuns, llmService, repository, learningService),
   };
 }
 
@@ -327,6 +342,86 @@ describe("AiJudgeService.judgeRun", () => {
         ],
         averageOverall: 70,
       });
+    });
+  });
+
+  describe("AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 — real trigger wiring into LearningService", () => {
+    it("calls LearningService.onAgentRunJudged with the real tenantId/agentRunId/agent/scores-gaps-trend, AFTER the judge_results row is persisted", async () => {
+      registerOpenAiChatHandler(validSamanthaJudgeJson);
+      const learningService = buildFakeLearningService();
+      const { client, agentRuns, service } = buildService(
+        createFakeSupabaseClient(),
+        buildRealLlmService("test-openai-key"),
+        learningService,
+      );
+      const runId = await agentRuns.record(TENANT_ID, "SAMANTHA", "evt-j3-1", {
+        campaigns: 3,
+        totalAds: 10,
+        pause: 1,
+        scale: 0,
+        aiAvailable: true,
+      });
+
+      await service.judgeRun(TENANT_ID, runId as string);
+
+      // The judge_results row already exists by the time onAgentRunJudged is called — proves this
+      // is wired AFTER persistence, not before (the real trigger-point decision this phase made).
+      expect(client.rows("judge_results")).toHaveLength(1);
+      expect(learningService.onAgentRunJudgedSpy).toHaveBeenCalledTimes(1);
+      expect(learningService.onAgentRunJudgedSpy).toHaveBeenCalledWith(
+        TENANT_ID,
+        runId,
+        "SAMANTHA",
+        expect.objectContaining({
+          scores: JSON.parse(validSamanthaJudgeJson).scores,
+          gaps: JSON.parse(validSamanthaJudgeJson).gaps,
+          trend: "STABLE",
+        }),
+      );
+    });
+
+    it("does NOT call LearningService.onAgentRunJudged when no judge_results row was written (LLM unavailable)", async () => {
+      const learningService = buildFakeLearningService();
+      const { agentRuns, service } = buildService(
+        createFakeSupabaseClient(),
+        buildRealLlmService(""),
+        learningService,
+      );
+      const runId = await agentRuns.record(TENANT_ID, "SAMANTHA", "evt-j3-2", {
+        campaigns: 1,
+        totalAds: 1,
+        pause: 0,
+        scale: 0,
+        aiAvailable: false,
+      });
+
+      await service.judgeRun(TENANT_ID, runId as string);
+
+      expect(learningService.onAgentRunJudgedSpy).not.toHaveBeenCalled();
+    });
+
+    it("never throws — a LearningService.onAgentRunJudged failure at this trigger point is caught and swallowed, and the already-persisted judge_results row is unaffected (best-effort discipline, same as judgeRun's own outer try/catch)", async () => {
+      registerOpenAiChatHandler(validSamanthaJudgeJson);
+      const learningService = {
+        onAgentRunJudged: vi.fn(async () => {
+          throw new Error("boom — proposal generation failed");
+        }),
+      } as unknown as LearningService;
+      const { client, agentRuns, service } = buildService(
+        createFakeSupabaseClient(),
+        buildRealLlmService("test-openai-key"),
+        learningService,
+      );
+      const runId = await agentRuns.record(TENANT_ID, "SAMANTHA", "evt-j3-3", {
+        campaigns: 3,
+        totalAds: 10,
+        pause: 1,
+        scale: 0,
+        aiAvailable: true,
+      });
+
+      await expect(service.judgeRun(TENANT_ID, runId as string)).resolves.toBeUndefined();
+      expect(client.rows("judge_results")).toHaveLength(1);
     });
   });
 });

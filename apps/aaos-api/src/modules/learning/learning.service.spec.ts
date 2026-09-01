@@ -85,7 +85,8 @@ function buildFakeProposalRepository(
       return {
         id: "proposal-1",
         tenant_id: input.tenantId,
-        simulation_id: input.simulationId,
+        simulation_id: input.simulationId ?? null,
+        agent_run_id: input.agentRunId ?? null,
         agent: input.agent,
         analysis: input.analysis,
         gaps: input.gaps,
@@ -221,6 +222,7 @@ describe("LearningService", () => {
           id: "p-1",
           tenant_id: "dss-motor",
           simulation_id: "sim-0",
+          agent_run_id: null,
           agent: "SAMANTHA",
           analysis: "analisa lama",
           gaps: {},
@@ -318,6 +320,133 @@ describe("LearningService", () => {
       expect(proposals.create).toHaveBeenCalledTimes(1);
       const call = proposals.create as unknown as { mock: { calls: unknown[][] } };
       expect(call.mock.calls[0]?.[0]).not.toHaveProperty("status");
+    });
+  });
+
+  describe("onAgentRunJudged (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3)", () => {
+    function buildService(
+      proposals: LearningProposalRepository,
+      llm: LlmService = buildFakeLlmService(),
+    ): LearningService {
+      return new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        llm,
+        buildFakePromptOverride(),
+      );
+    }
+
+    it("writes a real learning_proposals row with agentRunId populated and simulationId undefined when overall is below LIVE_RUN_GAP_THRESHOLD", async () => {
+      const proposals = buildFakeProposalRepository();
+      const llm = buildFakeLlmService();
+      const service = buildService(proposals, llm);
+
+      await service.onAgentRunJudged("dss-motor", "agent-run-1", "CLARA", {
+        scores: { overall: 45, outcome_completeness: 40 },
+        gaps: [
+          {
+            dimension: "outcome_completeness",
+            issue: "Closing record tidak lengkap",
+            suggestion: "Minta cabang & unit model diisi",
+          },
+        ],
+        trend: "DECLINING",
+      });
+
+      expect(llm.generateImprovementPlan).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({
+          agent: "CLARA",
+          currentPromptKey: "clara_system_prompt",
+          gap: expect.objectContaining({
+            source: "LIVE_RUN",
+            agent: "CLARA",
+            overallScore: 45,
+            trend: "DECLINING",
+            feedbackItems: [
+              {
+                dimension: "outcome_completeness",
+                message: "Closing record tidak lengkap — Saran: Minta cabang & unit model diisi",
+              },
+            ],
+          }),
+        }),
+      );
+      expect(proposals.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId: "dss-motor",
+          agentRunId: "agent-run-1",
+          agent: "CLARA",
+        }),
+      );
+      const call = proposals.create as unknown as { mock: { calls: unknown[][] } };
+      expect(call.mock.calls[0]?.[0]).not.toHaveProperty("simulationId");
+    });
+
+    it("does NOT write a proposal when overall is at/above LIVE_RUN_GAP_THRESHOLD (no gap)", async () => {
+      const proposals = buildFakeProposalRepository();
+      const service = buildService(proposals);
+
+      await service.onAgentRunJudged("dss-motor", "agent-run-2", "SAMANTHA", {
+        scores: { overall: 60 },
+        gaps: [],
+        trend: "STABLE",
+      });
+
+      expect(proposals.create).not.toHaveBeenCalled();
+    });
+
+    it("skips KAI (no known learning-proposal prompt key for it — see this method's own doc)", async () => {
+      const proposals = buildFakeProposalRepository();
+      const service = buildService(proposals);
+
+      await service.onAgentRunJudged("dss-motor", "agent-run-3", "KAI", {
+        scores: { overall: 10 },
+        gaps: [],
+        trend: "STABLE",
+      });
+
+      expect(proposals.create).not.toHaveBeenCalled();
+    });
+
+    it("writes nothing when generateImprovementPlan is unavailable", async () => {
+      const proposals = buildFakeProposalRepository();
+      const llm = buildFakeLlmService({
+        generateImprovementPlan: vi.fn(async () => ({
+          available: false as const,
+          reason: "PROVIDER_ERROR" as const,
+          message: "unavailable",
+          droppedCount: 0,
+        })),
+      });
+      const service = buildService(proposals, llm);
+
+      await service.onAgentRunJudged("dss-motor", "agent-run-4", "SAMANTHA", {
+        scores: { overall: 20 },
+        gaps: [],
+        trend: "STABLE",
+      });
+
+      expect(proposals.create).not.toHaveBeenCalled();
+    });
+
+    it("never throws — a proposal-generation failure at this trigger point is caught, logged, and swallowed (must never abort judgeRun/the real agent action above it)", async () => {
+      const failingProposals = {
+        create: vi.fn(),
+        listRecentForTenant: vi.fn(async () => {
+          throw new Error("boom");
+        }),
+      } as unknown as LearningProposalRepository;
+      const service = buildService(failingProposals);
+
+      await expect(
+        service.onAgentRunJudged("dss-motor", "agent-run-5", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        }),
+      ).resolves.toBeUndefined();
+      expect(failingProposals.create).not.toHaveBeenCalled();
     });
   });
 });

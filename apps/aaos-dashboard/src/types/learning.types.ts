@@ -15,13 +15,28 @@ export interface LearningImprovementDto {
   readonly severity: string;
 }
 
+/**
+ * `gaps` can now come from either a SIMULATION (`samanthaCoverageScore`/`kaiScore`/`claraScore`/
+ * `grade`/`verdict`) or a real LIVE agent run (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 —
+ * `source: "LIVE_RUN"`, `scores`/`trend`) — see `apps/aaos-api`'s `dto/improvement-plan.dto.ts`'s
+ * own `SimulationGapSchema`/`LiveRunGapSchema` discriminated union for the real shapes this mirrors.
+ * All fields stay optional here (this DTO is deliberately NOT a discriminated union) since the
+ * dashboard only ever reads by field presence (see `LearningMonitorClient.tsx`'s own rendering).
+ */
 export interface LearningGapDto {
+  readonly source?: "SIMULATION" | "LIVE_RUN";
   readonly samanthaCoverageScore?: number;
   readonly kaiScore?: number;
   readonly claraScore?: number;
   readonly overallScore?: number;
   readonly grade?: string;
   readonly verdict?: string;
+  /** LIVE_RUN only — the judged agent (redundant with the proposal's own `agent` field, kept here too since it's real, already-sent data from `LiveRunGapSchema`). */
+  readonly agent?: string;
+  /** LIVE_RUN only — real per-dimension `judge_results.scores`. */
+  readonly scores?: Record<string, number>;
+  /** LIVE_RUN only — real trend vs. this tenant+agent's recent judge history. */
+  readonly trend?: "IMPROVING" | "STABLE" | "DECLINING";
   readonly feedbackItems?: readonly { readonly dimension: string; readonly message: string }[];
 }
 
@@ -29,6 +44,8 @@ export interface LearningProposalDto {
   readonly id: string;
   readonly tenantId: string;
   readonly simulationId: string | null;
+  /** AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 — the real LIVE-run trigger source alternative to `simulationId`. Exactly one of the two is ever non-null. */
+  readonly agentRunId: string | null;
   readonly agent: string;
   readonly analysis: string | null;
   readonly gaps: LearningGapDto;

@@ -16,6 +16,7 @@ function seedProposal(
     id: "row-1",
     tenant_id: "dss-motor",
     simulation_id: "sim-1",
+    agent_run_id: null,
     agent: "SAMANTHA",
     analysis: "analisa nyata",
     gaps: { verdict: "NO-GO" },
@@ -45,7 +46,57 @@ describe("LearningProposalRepository", () => {
       expect(row.status).toBe("PENDING");
       expect(row.decided_by).toBeFalsy();
       expect(row.decided_at).toBeFalsy();
+      expect(row.simulation_id).toBe("sim-1");
+      expect(row.agent_run_id).toBeNull();
       expect(client.rows("learning_proposals")).toHaveLength(1);
+    });
+
+    it("inserts a real row with agent_run_id populated and simulation_id NULL (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J3 — the LIVE-run trigger source)", async () => {
+      const client = createFakeSupabaseClient();
+      const repository = new LearningProposalRepository(client);
+      const row = await repository.create({
+        tenantId: "dss-motor",
+        agentRunId: "agent-run-1",
+        agent: "CLARA",
+        analysis: "analisa run live",
+        gaps: { source: "LIVE_RUN" },
+        improvements: [],
+      });
+      expect(row.agent_run_id).toBe("agent-run-1");
+      expect(row.simulation_id).toBeNull();
+      expect(row.status).toBe("PENDING");
+    });
+
+    it("throws (never inserts) when both simulationId and agentRunId are given", async () => {
+      const client = createFakeSupabaseClient();
+      const repository = new LearningProposalRepository(client);
+      await expect(
+        repository.create({
+          tenantId: "dss-motor",
+          simulationId: "sim-1",
+          agentRunId: "agent-run-1",
+          agent: "SAMANTHA",
+          analysis: "a",
+          gaps: {},
+          improvements: [],
+        }),
+      ).rejects.toThrow(LearningProposalRepositoryError);
+      expect(client.rows("learning_proposals")).toHaveLength(0);
+    });
+
+    it("throws (never inserts) when neither simulationId nor agentRunId is given", async () => {
+      const client = createFakeSupabaseClient();
+      const repository = new LearningProposalRepository(client);
+      await expect(
+        repository.create({
+          tenantId: "dss-motor",
+          agent: "SAMANTHA",
+          analysis: "a",
+          gaps: {},
+          improvements: [],
+        }),
+      ).rejects.toThrow(LearningProposalRepositoryError);
+      expect(client.rows("learning_proposals")).toHaveLength(0);
     });
 
     it("throws LearningProposalRepositoryError on a real Supabase error", async () => {

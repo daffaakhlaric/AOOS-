@@ -21,6 +21,7 @@ function seedProposal(
     id: "proposal-1",
     tenant_id: "dss-motor",
     simulation_id: "sim-1",
+    agent_run_id: null,
     agent: "SAMANTHA",
     analysis: "analisa nyata",
     gaps: { verdict: "NO-GO" },
