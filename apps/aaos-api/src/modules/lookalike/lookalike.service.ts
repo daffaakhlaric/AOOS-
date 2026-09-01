@@ -163,6 +163,7 @@ export class LookalikeService {
     for (const lead of unsynced) {
       const markResult = await this.leadStore.markLeadSyncedToMetaAudience.execute({
         leadId: lead.id.toString(),
+        tenantId: this.tenantId,
       });
       if (!markResult.ok) {
         this.logger.warn(

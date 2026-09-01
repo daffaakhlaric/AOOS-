@@ -66,7 +66,7 @@ export class RecordAssignment {
       );
     }
 
-    const findResult = await this.leadRepository.findById(leadIdResult.value);
+    const findResult = await this.leadRepository.findById(leadIdResult.value, parsed.data.tenantId);
     if (!findResult.ok) {
       return err(findResult.error);
     }

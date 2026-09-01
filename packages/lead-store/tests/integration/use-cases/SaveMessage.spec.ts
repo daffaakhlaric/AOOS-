@@ -12,7 +12,7 @@ import { createFakeSupabaseClient } from "../../helpers/supabase.js";
 
 function setup() {
   const client = createFakeSupabaseClient();
-  const leadRow = makeLeadRow();
+  const leadRow = makeLeadRow({ tenant_id: "t1" });
   const conversationRow = makeConversationRow({ lead_id: leadRow.id });
   client.seed("leads", [leadRow]);
   client.seed("conversations", [conversationRow]);
@@ -124,7 +124,7 @@ describe("SaveMessage — general behavior", () => {
 
   it("emits ConversationUpdated", async () => {
     const client = createFakeSupabaseClient();
-    const leadRow = makeLeadRow();
+    const leadRow = makeLeadRow({ tenant_id: "t1" });
     const conversationRow = makeConversationRow({ lead_id: leadRow.id });
     client.seed("leads", [leadRow]);
     client.seed("conversations", [conversationRow]);

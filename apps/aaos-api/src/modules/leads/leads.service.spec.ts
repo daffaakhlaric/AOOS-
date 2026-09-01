@@ -236,6 +236,8 @@ function seedLeadRow(overrides: Row = {}): Row {
   };
 }
 
+const TENANT_ID = "dss-motor";
+
 describe("LeadsService", () => {
   describe("createLead", () => {
     it("creates a lead via @aos/lead-store and maps it to a LeadResponseDto", async () => {
@@ -247,6 +249,7 @@ describe("LeadsService", () => {
           branchId: BranchId.BINTARO,
           wabaPhoneNumberId: "waba-1",
         },
+        TENANT_ID,
         "corr-1",
       );
       expect(dto.status).toBe("NEW");
@@ -264,6 +267,7 @@ describe("LeadsService", () => {
             branchId: BranchId.BINTARO,
             wabaPhoneNumberId: "waba-1",
           },
+          TENANT_ID,
           "corr-2",
         ),
       ).rejects.toThrow();
@@ -273,7 +277,7 @@ describe("LeadsService", () => {
   describe("getLeadsByBranch", () => {
     it("returns an empty array when no leads exist for the branch", async () => {
       const service = buildService();
-      const dtos = await service.getLeadsByBranch({ branchId: BranchId.CINERE });
+      const dtos = await service.getLeadsByBranch({ branchId: BranchId.CINERE }, TENANT_ID);
       expect(dtos).toEqual([]);
     });
 
@@ -281,9 +285,9 @@ describe("LeadsService", () => {
       const client = buildFakeSupabaseClient();
       const service = buildService(client);
       client.forceSelectErrorOnce("leads", "connection reset");
-      await expect(service.getLeadsByBranch({ branchId: BranchId.CINERE })).rejects.toThrow(
-        /connection reset/,
-      );
+      await expect(
+        service.getLeadsByBranch({ branchId: BranchId.CINERE }, TENANT_ID),
+      ).rejects.toThrow(/connection reset/);
     });
 
     it("maps every optional Lead field once populated (assignment + activity timestamps)", async () => {
@@ -320,7 +324,7 @@ describe("LeadsService", () => {
         updated_at: now,
       });
 
-      const dtos = await service.getLeadsByBranch({ branchId: BranchId.UMUM });
+      const dtos = await service.getLeadsByBranch({ branchId: BranchId.UMUM }, TENANT_ID);
 
       expect(dtos).toHaveLength(1);
       expect(dtos[0]?.assignedSalesId).toBe("22222222-2222-4222-8222-222222222222");
@@ -340,9 +344,10 @@ describe("LeadsService", () => {
           branchId: BranchId.BANDUNG,
           wabaPhoneNumberId: "waba-bandung",
         },
+        TENANT_ID,
         "corr-3",
       );
-      const dtos = await service.getLeadsByBranch({ branchId: BranchId.BANDUNG });
+      const dtos = await service.getLeadsByBranch({ branchId: BranchId.BANDUNG }, TENANT_ID);
       expect(dtos).toHaveLength(1);
       expect(dtos[0]?.branchId).toBe(BranchId.BANDUNG);
     });
@@ -360,6 +365,7 @@ describe("LeadsService.claimLead (AAOS-W4B)", () => {
     const dto = await service.claimLead(
       "11111111-1111-4111-8111-111111111111",
       { salesHumanId: "22222222-2222-4222-8222-222222222222" },
+      TENANT_ID,
       "corr-claim-1",
     );
     expect(dto.status).toBe("ASSIGNED");
@@ -379,6 +385,7 @@ describe("LeadsService.claimLead (AAOS-W4B)", () => {
       service.claimLead(
         "11111111-1111-4111-8111-111111111111",
         { salesHumanId: "22222222-2222-4222-8222-222222222222" },
+        TENANT_ID,
         "corr-claim-2",
       ),
     ).rejects.toMatchObject({ status: 409 });
@@ -390,7 +397,21 @@ describe("LeadsService.claimLead (AAOS-W4B)", () => {
       service.claimLead(
         "00000000-0000-4000-8000-000000000000",
         { salesHumanId: "sales-1" },
+        TENANT_ID,
         "corr-claim-3",
+      ),
+    ).rejects.toThrow(LeadNotFoundError);
+  });
+
+  it("PROPERTY-TENANT-ISOLATION Phase 1: throws LeadNotFoundError (not the lead) when claiming a lead that belongs to a different tenant", async () => {
+    const { service, client } = buildServiceWithPersistentUpdates();
+    client.seed("leads", seedLeadRow({ tenant_id: "other-tenant" }));
+    await expect(
+      service.claimLead(
+        "11111111-1111-4111-8111-111111111111",
+        { salesHumanId: "22222222-2222-4222-8222-222222222222" },
+        TENANT_ID,
+        "corr-claim-4",
       ),
     ).rejects.toThrow(LeadNotFoundError);
   });
@@ -403,6 +424,7 @@ describe("LeadsService.updateStatus (AAOS-W4B)", () => {
     const dto = await service.updateStatus(
       "11111111-1111-4111-8111-111111111111",
       { status: LeadStatus.WARM },
+      TENANT_ID,
       "corr-status-1",
     );
     expect(dto.status).toBe("WARM");
@@ -415,6 +437,7 @@ describe("LeadsService.updateStatus (AAOS-W4B)", () => {
       service.updateStatus(
         "11111111-1111-4111-8111-111111111111",
         { status: LeadStatus.ASSIGNED },
+        TENANT_ID,
         "corr-status-2",
       ),
     ).rejects.toThrow();
@@ -426,14 +449,14 @@ describe("LeadsService.getMyLeads (AAOS-W4B)", () => {
     const client = buildFakeSupabaseClient();
     const service = buildService(client);
     client.seed("leads", seedLeadRow({ status: "ASSIGNED", assigned_sales_id: "sales-rina" }));
-    const dtos = await service.getMyLeads({ salesHumanId: "sales-rina" });
+    const dtos = await service.getMyLeads({ salesHumanId: "sales-rina" }, TENANT_ID);
     expect(dtos).toHaveLength(1);
     expect(dtos[0]?.assignedSalesId).toBe("sales-rina");
   });
 
   it("returns an empty array when the sales human has no assigned leads", async () => {
     const service = buildService();
-    const dtos = await service.getMyLeads({ salesHumanId: "sales-nobody" });
+    const dtos = await service.getMyLeads({ salesHumanId: "sales-nobody" }, TENANT_ID);
     expect(dtos).toEqual([]);
   });
 
@@ -447,7 +470,7 @@ describe("LeadsService.getLeadDetail (AAOS-W4B coordinator note #2)", () => {
     const client = buildFakeSupabaseClient();
     const service = buildService(client);
     client.seed("leads", seedLeadRow());
-    const detail = await service.getLeadDetail("11111111-1111-4111-8111-111111111111");
+    const detail = await service.getLeadDetail("11111111-1111-4111-8111-111111111111", TENANT_ID);
     expect(detail.qualification).toEqual({
       budget: true,
       unit: true,
@@ -498,7 +521,7 @@ describe("LeadsService.getLeadDetail (AAOS-W4B coordinator note #2)", () => {
       read_at: null,
       created_at: now,
     });
-    const detail = await service.getLeadDetail("11111111-1111-4111-8111-111111111111");
+    const detail = await service.getLeadDetail("11111111-1111-4111-8111-111111111111", TENANT_ID);
     expect(detail.conversation?.currentStage).toBe("QUALIFYING");
     expect(detail.conversation?.messageCount).toBe(2);
     expect(detail.messages).toHaveLength(1);
@@ -508,9 +531,18 @@ describe("LeadsService.getLeadDetail (AAOS-W4B coordinator note #2)", () => {
 
   it("throws LeadNotFoundError when the lead does not exist", async () => {
     const service = buildService();
-    await expect(service.getLeadDetail("00000000-0000-4000-8000-000000000000")).rejects.toThrow(
-      LeadNotFoundError,
-    );
+    await expect(
+      service.getLeadDetail("00000000-0000-4000-8000-000000000000", TENANT_ID),
+    ).rejects.toThrow(LeadNotFoundError);
+  });
+
+  it("PROPERTY-TENANT-ISOLATION Phase 1: throws LeadNotFoundError (not the lead) when the lead belongs to a different tenant", async () => {
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    client.seed("leads", seedLeadRow({ tenant_id: "other-tenant" }));
+    await expect(
+      service.getLeadDetail("11111111-1111-4111-8111-111111111111", TENANT_ID),
+    ).rejects.toThrow(LeadNotFoundError);
   });
 });
 
@@ -546,8 +578,21 @@ describe("LeadsService.getMessages (AAOS-CHAT-ROOM-JESSY coordinator note #5)", 
     const client = buildFakeSupabaseClient();
     const service = buildService(client);
     client.seed("leads", seedLeadRow());
-    const page = await service.getMessages(LEAD_ID, { page: 1, limit: 50, order: "asc" });
+    const page = await service.getMessages(
+      LEAD_ID,
+      { page: 1, limit: 50, order: "asc" },
+      TENANT_ID,
+    );
     expect(page).toEqual({ messages: [], page: 1, limit: 50, total: 0 });
+  });
+
+  it("PROPERTY-TENANT-ISOLATION Phase 1: throws LeadNotFoundError when the lead belongs to a different tenant", async () => {
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    client.seed("leads", seedLeadRow({ tenant_id: "other-tenant" }));
+    await expect(
+      service.getMessages(LEAD_ID, { page: 1, limit: 50, order: "asc" }, TENANT_ID),
+    ).rejects.toThrow(LeadNotFoundError);
   });
 
   it("paginates the real message thread in ascending order by default", async () => {
@@ -572,16 +617,28 @@ describe("LeadsService.getMessages (AAOS-CHAT-ROOM-JESSY coordinator note #5)", 
         created_at: new Date(Date.parse(NOW_ISO) + i * 1000).toISOString(),
       });
     }
-    const page1 = await service.getMessages(LEAD_ID, { page: 1, limit: 2, order: "asc" });
+    const page1 = await service.getMessages(
+      LEAD_ID,
+      { page: 1, limit: 2, order: "asc" },
+      TENANT_ID,
+    );
     expect(page1.total).toBe(3);
     expect(page1.messages).toHaveLength(2);
     expect(page1.messages[0]?.body).toBe("pesan 0");
 
-    const page2 = await service.getMessages(LEAD_ID, { page: 2, limit: 2, order: "asc" });
+    const page2 = await service.getMessages(
+      LEAD_ID,
+      { page: 2, limit: 2, order: "asc" },
+      TENANT_ID,
+    );
     expect(page2.messages).toHaveLength(1);
     expect(page2.messages[0]?.body).toBe("pesan 2");
 
-    const desc = await service.getMessages(LEAD_ID, { page: 1, limit: 10, order: "desc" });
+    const desc = await service.getMessages(
+      LEAD_ID,
+      { page: 1, limit: 10, order: "desc" },
+      TENANT_ID,
+    );
     expect(desc.messages[0]?.body).toBe("pesan 2");
   });
 });
@@ -609,6 +666,7 @@ describe("LeadsService.sendMessage (AAOS-CHAT-ROOM-JESSY coordinator note #5)", 
     const dto = await service.sendMessage(
       LEAD_ID,
       { salesHumanId: SALES_HUMAN_ID, salesName: "Ahmad Fauzi", message: "halo pak" },
+      TENANT_ID,
       "corr-msg-1",
     );
 
@@ -632,6 +690,7 @@ describe("LeadsService.sendMessage (AAOS-CHAT-ROOM-JESSY coordinator note #5)", 
       service.sendMessage(
         LEAD_ID,
         { salesHumanId: "someone-else", salesName: "X", message: "halo" },
+        TENANT_ID,
         "corr-msg-2",
       ),
     ).rejects.toMatchObject({ status: 403 });
@@ -646,6 +705,7 @@ describe("LeadsService.sendMessage (AAOS-CHAT-ROOM-JESSY coordinator note #5)", 
       service.sendMessage(
         LEAD_ID,
         { salesHumanId: SALES_HUMAN_ID, salesName: "X", message: "halo" },
+        TENANT_ID,
         "corr-msg-3",
       ),
     ).rejects.toMatchObject({ status: 403 });
@@ -682,9 +742,28 @@ describe("LeadsService.sendMessage (AAOS-CHAT-ROOM-JESSY coordinator note #5)", 
       service.sendMessage(
         LEAD_ID,
         { salesHumanId: SALES_HUMAN_ID, salesName: "Ahmad Fauzi", message: "halo pak" },
+        TENANT_ID,
         "corr-msg-4",
       ),
     ).rejects.toBe(notConfiguredError);
+  });
+
+  it("PROPERTY-TENANT-ISOLATION Phase 1: throws LeadNotFoundError when the lead belongs to a different tenant", async () => {
+    const { service, client } = buildServiceWithPersistentUpdates();
+    client.seed(
+      "leads",
+      seedLeadRow({ assigned_sales_id: SALES_HUMAN_ID, tenant_id: "other-tenant" }),
+    );
+    client.seed("conversations", seedConversationRow());
+
+    await expect(
+      service.sendMessage(
+        LEAD_ID,
+        { salesHumanId: SALES_HUMAN_ID, salesName: "Ahmad Fauzi", message: "halo pak" },
+        TENANT_ID,
+        "corr-msg-5",
+      ),
+    ).rejects.toThrow(LeadNotFoundError);
   });
 });
 
@@ -697,6 +776,7 @@ describe("LeadsService.intervene (AAOS-CHAT-ROOM-JESSY coordinator note #5)", ()
     const dto = await service.intervene(
       LEAD_ID,
       { message: "halo dari Clara (manager)", managerName: "Budi (Manager)" },
+      TENANT_ID,
       "corr-int-1",
     );
 
@@ -715,8 +795,28 @@ describe("LeadsService.intervene (AAOS-CHAT-ROOM-JESSY coordinator note #5)", ()
     client.seed("conversations", seedConversationRow());
 
     await expect(
-      service.intervene(LEAD_ID, { message: "halo", managerName: "Manager" }, "corr-int-2"),
+      service.intervene(
+        LEAD_ID,
+        { message: "halo", managerName: "Manager" },
+        TENANT_ID,
+        "corr-int-2",
+      ),
     ).resolves.toBeDefined();
+  });
+
+  it("PROPERTY-TENANT-ISOLATION Phase 1: throws LeadNotFoundError when the lead belongs to a different tenant", async () => {
+    const { service, client } = buildServiceWithPersistentUpdates();
+    client.seed("leads", seedLeadRow({ tenant_id: "other-tenant" }));
+    client.seed("conversations", seedConversationRow());
+
+    await expect(
+      service.intervene(
+        LEAD_ID,
+        { message: "halo", managerName: "Manager" },
+        TENANT_ID,
+        "corr-int-3",
+      ),
+    ).rejects.toThrow(LeadNotFoundError);
   });
 });
 
@@ -724,6 +824,7 @@ describe("LeadsService.getScoringHistory (AAOS-CHAT-ROOM-JESSY coordinator note 
   it("returns the real scoring_events thread for a lead, in chronological order", async () => {
     const client = buildFakeSupabaseClient();
     const service = buildService(client);
+    client.seed("leads", seedLeadRow());
     client.seed("scoring_events", {
       id: "55555555-5555-4555-8555-555555555555",
       lead_id: LEAD_ID,
@@ -734,15 +835,34 @@ describe("LeadsService.getScoringHistory (AAOS-CHAT-ROOM-JESSY coordinator note 
       triggered_by: null,
       created_at: NOW_ISO,
     });
-    const history = await service.getScoringHistory(LEAD_ID);
+    const history = await service.getScoringHistory(LEAD_ID, TENANT_ID);
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({ scoreAfter: 25, delta: 25, reason: "BUDGET" });
   });
 
   it("returns an empty array when the lead has no scoring events", async () => {
-    const service = buildService();
-    const history = await service.getScoringHistory(LEAD_ID);
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    client.seed("leads", seedLeadRow());
+    const history = await service.getScoringHistory(LEAD_ID, TENANT_ID);
     expect(history).toEqual([]);
+  });
+
+  it("PROPERTY-TENANT-ISOLATION Phase 1: throws LeadNotFoundError (not the scoring history) when the lead belongs to a different tenant", async () => {
+    const client = buildFakeSupabaseClient();
+    const service = buildService(client);
+    client.seed("leads", seedLeadRow({ tenant_id: "other-tenant" }));
+    client.seed("scoring_events", {
+      id: "55555555-5555-4555-8555-555555555555",
+      lead_id: LEAD_ID,
+      score_before: 0,
+      score_after: 25,
+      delta: 25,
+      reason: "BUDGET",
+      triggered_by: null,
+      created_at: NOW_ISO,
+    });
+    await expect(service.getScoringHistory(LEAD_ID, TENANT_ID)).rejects.toThrow(LeadNotFoundError);
   });
 });
 
@@ -770,7 +890,7 @@ describe("LeadsService.getAnalytics (MENU RESTRUCTURE FINAL /clara/analytics)", 
       }),
     );
 
-    const analytics = await service.getAnalytics({ days: 7 });
+    const analytics = await service.getAnalytics({ days: 7 }, TENANT_ID);
 
     expect(analytics.periodDays).toBe(7);
     expect(analytics.totalContacts).toBe(1);
@@ -830,7 +950,7 @@ describe("LeadsService.getAnalytics (MENU RESTRUCTURE FINAL /clara/analytics)", 
       created_at: outgoingAt.toISOString(),
     });
 
-    const analytics = await service.getAnalytics({ days: 7 });
+    const analytics = await service.getAnalytics({ days: 7 }, TENANT_ID);
 
     expect(analytics.avgResponseTimeMinutes).toBeCloseTo(5, 1);
     expect(analytics.avgFirstResponseTimeMinutes).toBeCloseTo(5, 1);
@@ -838,7 +958,7 @@ describe("LeadsService.getAnalytics (MENU RESTRUCTURE FINAL /clara/analytics)", 
 
   it("returns null response-time averages (never a fabricated 0) when no conversation has a reply yet", async () => {
     const service = buildService();
-    const analytics = await service.getAnalytics({ days: 7 });
+    const analytics = await service.getAnalytics({ days: 7 }, TENANT_ID);
     expect(analytics.avgResponseTimeMinutes).toBeNull();
     expect(analytics.avgFirstResponseTimeMinutes).toBeNull();
     expect(analytics.totalContacts).toBe(0);

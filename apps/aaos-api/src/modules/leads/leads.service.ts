@@ -44,6 +44,17 @@ import type { UpdateLeadStatusBodyDto } from "./dto/update-lead-status.dto.js";
  * the single place deciding the resulting HTTP status. The one deliberate exception is `claimLead`'s
  * "already assigned" check, which throws a Nest `ConflictException` directly (409) — `RecordAssignment`
  * itself has no "already assigned" concept to re-throw (coordinator note #3).
+ *
+ * PROPERTY-TENANT-ISOLATION Phase 1 (security fix): every method now takes a real, per-request
+ * `tenantId` (resolved by `LeadsController`'s `@TenantId()`) instead of reading the single,
+ * process-wide `this.config.AAOS_TENANT_ID` — `this.config` is kept ONLY as `AaosApiConfig`'s
+ * constructor dependency for other consumers of this class's DI wiring; no method below reads
+ * `AAOS_TENANT_ID` anymore. `getMessages`/`getScoringHistory` additionally gate on a real
+ * `getLead.execute(leadId, tenantId)` lookup FIRST (mirroring `getLeadDetail`/`claimLead`/
+ * `sendAndPersist`'s existing "fetch the lead first" shape) — their own downstream reads
+ * (`getConversation`/`scoringRepository.findByLeadId`) have no `tenant_id` filter of their own
+ * (a real, related finding beyond this phase's LeadRepository-only scope), so this tenant-scoped
+ * lead lookup is the access-control gate that closes the leak for those two endpoints too.
  */
 @Injectable()
 export class LeadsService {
@@ -58,7 +69,11 @@ export class LeadsService {
     private readonly whatsAppConnectorRegistry: WhatsAppConnectorRegistry,
   ) {}
 
-  async createLead(body: CreateLeadBodyDto, correlationId: string): Promise<LeadResponseDto> {
+  async createLead(
+    body: CreateLeadBodyDto,
+    tenantId: string,
+    correlationId: string,
+  ): Promise<LeadResponseDto> {
     const result = await this.leadStore.createLead.execute({
       leadSource: body.leadSource,
       leadPhone: body.leadPhone,
@@ -68,7 +83,7 @@ export class LeadsService {
       adId: body.adId,
       adAccountId: body.adAccountId,
       leadName: body.leadName,
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       correlationId,
     });
     if (!result.ok) {
@@ -77,11 +92,11 @@ export class LeadsService {
     return toLeadResponseDto(result.value);
   }
 
-  async getLeadsByBranch(query: GetLeadsQueryDto): Promise<readonly LeadResponseDto[]> {
-    const result = await this.leadStore.getLeadsByBranch.execute(
-      query.branchId,
-      this.config.AAOS_TENANT_ID,
-    );
+  async getLeadsByBranch(
+    query: GetLeadsQueryDto,
+    tenantId: string,
+  ): Promise<readonly LeadResponseDto[]> {
+    const result = await this.leadStore.getLeadsByBranch.execute(query.branchId, tenantId);
     if (!result.ok) {
       throw result.error;
     }
@@ -98,9 +113,10 @@ export class LeadsService {
   async claimLead(
     leadId: string,
     body: ClaimLeadBodyDto,
+    tenantId: string,
     correlationId: string,
   ): Promise<LeadResponseDto> {
-    const leadResult = await this.leadStore.getLead.execute(leadId);
+    const leadResult = await this.leadStore.getLead.execute(leadId, tenantId);
     if (!leadResult.ok) {
       throw leadResult.error;
     }
@@ -116,14 +132,14 @@ export class LeadsService {
       salesHumanId: body.salesHumanId,
       assignmentMode: AssignmentMode.MANUAL,
       branchId: lead.branchId,
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       correlationId,
     });
     if (!assignResult.ok) {
       throw assignResult.error;
     }
 
-    const updatedLeadResult = await this.leadStore.getLead.execute(leadId);
+    const updatedLeadResult = await this.leadStore.getLead.execute(leadId, tenantId);
     if (!updatedLeadResult.ok) {
       throw updatedLeadResult.error;
     }
@@ -134,12 +150,13 @@ export class LeadsService {
   async updateStatus(
     leadId: string,
     body: UpdateLeadStatusBodyDto,
+    tenantId: string,
     correlationId: string,
   ): Promise<LeadResponseDto> {
     const result = await this.leadStore.updateLeadStatus.execute({
       leadId,
       toStatus: body.status,
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       correlationId,
     });
     if (!result.ok) {
@@ -149,15 +166,15 @@ export class LeadsService {
   }
 
   /** `GET /api/v1/leads/my` — every lead currently assigned to one sales human. */
-  async getMyLeads(query: GetMyLeadsQueryDto): Promise<readonly LeadResponseDto[]> {
+  async getMyLeads(
+    query: GetMyLeadsQueryDto,
+    tenantId: string,
+  ): Promise<readonly LeadResponseDto[]> {
     const idResult = SalesHumanId.create(query.salesHumanId);
     if (!idResult.ok) {
       throw idResult.error;
     }
-    const result = await this.leadStore.getLeadsBySales.execute(
-      idResult.value,
-      this.config.AAOS_TENANT_ID,
-    );
+    const result = await this.leadStore.getLeadsBySales.execute(idResult.value, tenantId);
     if (!result.ok) {
       throw result.error;
     }
@@ -170,8 +187,8 @@ export class LeadsService {
    * state — `ConversationNotFoundError` is caught here and mapped to `conversation: undefined,
    * messages: []`, not re-thrown as a 404.
    */
-  async getLeadDetail(leadId: string): Promise<LeadDetailResponseDto> {
-    const leadResult = await this.leadStore.getLead.execute(leadId);
+  async getLeadDetail(leadId: string, tenantId: string): Promise<LeadDetailResponseDto> {
+    const leadResult = await this.leadStore.getLead.execute(leadId, tenantId);
     if (!leadResult.ok) {
       throw leadResult.error;
     }
@@ -203,10 +220,23 @@ export class LeadsService {
    * (coordinator note #5). `@aos/lead-store`'s `IMessageRepository` has no `LIMIT`/`OFFSET`
    * support of its own, so this fetches the full (already chronologically-ordered) thread once
    * via `findByConversationId` and paginates in memory — an honest tradeoff for a POC-scale
-   * conversation volume, not a real database-level `LIMIT`/`OFFSET`. `order: "desc"` reverses the
-   * repository's ascending order before slicing.
+   * conversation volume, not a real database-level `LIMIT`/`OFFSET`.
+   *
+   * PROPERTY-TENANT-ISOLATION Phase 1: fetches the lead via the real, tenant-scoped
+   * `getLead.execute(leadId, tenantId)` FIRST — `getConversation`'s own lookup has no `tenant_id`
+   * filter of its own, so this tenant-scoped lead lookup is what closes the cross-tenant leak here
+   * (mirroring `getLeadDetail`'s existing "fetch the lead first" shape).
    */
-  async getMessages(leadId: string, query: GetMessagesQueryDto): Promise<MessagesPageResponseDto> {
+  async getMessages(
+    leadId: string,
+    query: GetMessagesQueryDto,
+    tenantId: string,
+  ): Promise<MessagesPageResponseDto> {
+    const leadResult = await this.leadStore.getLead.execute(leadId, tenantId);
+    if (!leadResult.ok) {
+      throw leadResult.error;
+    }
+
     const conversationResult = await this.leadStore.getConversation.execute(leadId);
     if (!conversationResult.ok) {
       if (conversationResult.error instanceof ConversationNotFoundError) {
@@ -239,11 +269,18 @@ export class LeadsService {
   async sendMessage(
     leadId: string,
     body: SendMessageBodyDto,
+    tenantId: string,
     correlationId: string,
   ): Promise<MessageResponseDto> {
-    return this.sendAndPersist(leadId, body.message, "SALES_HUMAN", body.salesName, correlationId, {
-      requireAssignedSalesHumanId: body.salesHumanId,
-    });
+    return this.sendAndPersist(
+      leadId,
+      body.message,
+      "SALES_HUMAN",
+      body.salesName,
+      tenantId,
+      correlationId,
+      { requireAssignedSalesHumanId: body.salesHumanId },
+    );
   }
 
   /**
@@ -256,6 +293,7 @@ export class LeadsService {
   async intervene(
     leadId: string,
     body: InterveneBodyDto,
+    tenantId: string,
     correlationId: string,
   ): Promise<MessageResponseDto> {
     return this.sendAndPersist(
@@ -263,6 +301,7 @@ export class LeadsService {
       body.message,
       "MANAGER_INTERVENTION",
       body.managerName,
+      tenantId,
       correlationId,
     );
   }
@@ -278,10 +317,11 @@ export class LeadsService {
     message: string,
     senderType: "SALES_HUMAN" | "MANAGER_INTERVENTION",
     senderName: string,
+    tenantId: string,
     correlationId: string,
     options?: { readonly requireAssignedSalesHumanId?: string },
   ): Promise<MessageResponseDto> {
-    const leadResult = await this.leadStore.getLead.execute(leadId);
+    const leadResult = await this.leadStore.getLead.execute(leadId, tenantId);
     if (!leadResult.ok) {
       throw leadResult.error;
     }
@@ -301,9 +341,7 @@ export class LeadsService {
     }
     const conversation = conversationResult.value;
 
-    const connectorResult = await this.whatsAppConnectorRegistry.resolve(
-      this.config.AAOS_TENANT_ID,
-    );
+    const connectorResult = await this.whatsAppConnectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
@@ -312,7 +350,7 @@ export class LeadsService {
       branch: toBranch(lead.branchId),
       to: lead.leadPhone.toString(),
       body: message,
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       correlationId,
     });
     if (!sendResult.ok) {
@@ -323,7 +361,7 @@ export class LeadsService {
       conversationId: conversation.id.toString(),
       direction: "OUTGOING",
       body: message,
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       correlationId,
       senderType,
       senderName,
@@ -348,15 +386,16 @@ export class LeadsService {
    * volume (same precedent as `getMessages`'s in-memory pagination), not a pre-aggregated
    * database view.
    */
-  async getAnalytics(query: GetLeadsAnalyticsQueryDto): Promise<LeadsAnalyticsResponseDto> {
+  async getAnalytics(
+    query: GetLeadsAnalyticsQueryDto,
+    tenantId: string,
+  ): Promise<LeadsAnalyticsResponseDto> {
     const now = new Date();
     const periodStart = new Date(now.getTime() - query.days * 24 * 60 * 60 * 1000);
     const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const leadsByBranch = await Promise.all(
-      ALL_BRANCH_IDS.map((branchId) =>
-        this.leadStore.getLeadsByBranch.execute(branchId, this.config.AAOS_TENANT_ID),
-      ),
+      ALL_BRANCH_IDS.map((branchId) => this.leadStore.getLeadsByBranch.execute(branchId, tenantId)),
     );
     const leads = leadsByBranch.flatMap((result) => {
       if (!result.ok) {
@@ -461,8 +500,21 @@ export class LeadsService {
     return points;
   }
 
-  /** `GET /api/v1/leads/:id/scoring-history` — a thin read over the real `scoring_events` table (coordinator note #5: "no new domain logic"). */
-  async getScoringHistory(leadId: string): Promise<readonly ScoringEventResponseDto[]> {
+  /**
+   * `GET /api/v1/leads/:id/scoring-history` — a thin read over the real `scoring_events` table
+   * (coordinator note #5: "no new domain logic"). PROPERTY-TENANT-ISOLATION Phase 1: gates on a
+   * real, tenant-scoped `getLead.execute(leadId, tenantId)` lookup first — `scoringRepository.
+   * findByLeadId` has no `tenant_id` filter of its own, so this is what closes the cross-tenant
+   * leak here (same pattern as `getMessages` above).
+   */
+  async getScoringHistory(
+    leadId: string,
+    tenantId: string,
+  ): Promise<readonly ScoringEventResponseDto[]> {
+    const leadResult = await this.leadStore.getLead.execute(leadId, tenantId);
+    if (!leadResult.ok) {
+      throw leadResult.error;
+    }
     const idResult = LeadId.create(leadId);
     if (!idResult.ok) {
       throw idResult.error;

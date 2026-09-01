@@ -11,7 +11,7 @@ import { createFakeSupabaseClient } from "../../helpers/supabase.js";
 
 function setup(status: string) {
   const client = createFakeSupabaseClient();
-  const row = makeLeadRow({ status });
+  const row = makeLeadRow({ status, tenant_id: "t1" });
   client.seed("leads", [row]);
   const leadRepository = new LeadRepository(client);
   const events = new LeadStoreEvents(createFakePublisher());
@@ -92,7 +92,7 @@ describe("UpdateLeadStatus", () => {
 
   it("emits LeadStatusChanged on success", async () => {
     const client = createFakeSupabaseClient();
-    const row = makeLeadRow({ status: "NEW" });
+    const row = makeLeadRow({ status: "NEW", tenant_id: "t1" });
     client.seed("leads", [row]);
     const leadRepository = new LeadRepository(client);
     const publisher = createFakePublisher();

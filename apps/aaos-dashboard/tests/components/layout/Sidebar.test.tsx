@@ -67,6 +67,21 @@ describe("Sidebar", () => {
     expect(link).toHaveAttribute("href", "/property/activity");
   });
 
+  it("PROPERTY-TENANT-ISOLATION Phase 1: does NOT render Branch Settings under OPERASIONAL for PROPERTY", async () => {
+    mockSettingsFetch("PROPERTY");
+    render(<Sidebar />);
+    await waitFor(() => expect(screen.getByText("Listing Manager")).toBeInTheDocument());
+    expect(screen.queryByText("Branch Settings")).not.toBeInTheDocument();
+  });
+
+  it("PROPERTY-TENANT-ISOLATION Phase 1: keeps Branch Settings under OPERASIONAL for AUTOMOTIVE", async () => {
+    mockSettingsFetch("AUTOMOTIVE");
+    render(<Sidebar />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/settings"));
+    const link = screen.getByText("Branch Settings").closest("a");
+    expect(link).toHaveAttribute("href", "/branches");
+  });
+
   it("renders the Lead Recycling nav item under CLARA (SALES AI), for both verticals", () => {
     mockSettingsFetch(undefined);
     render(<Sidebar />);

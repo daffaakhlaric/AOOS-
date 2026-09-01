@@ -13,7 +13,12 @@ import { createFakeSupabaseClient } from "../../helpers/supabase.js";
 
 function setup() {
   const client = createFakeSupabaseClient();
-  const row = makeLeadRow({ status: "ASSIGNED", campaign_id: "#C047", ad_id: "#A001" });
+  const row = makeLeadRow({
+    status: "ASSIGNED",
+    campaign_id: "#C047",
+    ad_id: "#A001",
+    tenant_id: "t1",
+  });
   client.seed("leads", [row]);
   const leadRepository = new LeadRepository(client);
   const closingRepository = new ClosingRepository(client);

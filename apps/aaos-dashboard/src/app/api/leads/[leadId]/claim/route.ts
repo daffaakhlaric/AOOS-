@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AaosApiError, callAaosApi } from "@/lib/api";
+import { resolveRouteSession } from "@/lib/route-session";
 import type { LeadDto } from "@/types/dashboard.types";
+
+export const dynamic = "force-dynamic";
 
 interface ClaimLeadBody {
   readonly salesHumanId: string;
@@ -13,16 +16,23 @@ interface ClaimLeadBody {
  * derived server-side, never client input). Powers `/clara/contacts`'s "Assigned to" dropdown
  * (MENU RESTRUCTURE FINAL coordinator note #4) — there is no `/leads/:id/assign` endpoint; this
  * reuses the real, already-existing claim flow instead of inventing a parallel one.
+ *
+ * PROPERTY-TENANT-ISOLATION Phase 1 (security fix): forwards the real logged-in session's
+ * `tenantId` as `x-tenant-id`, same convention as `modules/settings`'s proxy routes.
  */
 export async function POST(
   request: NextRequest,
   { params }: { params: { leadId: string } },
 ): Promise<NextResponse> {
+  const session = await resolveRouteSession(request);
+  if (session === null) {
+    return NextResponse.json({ error: { message: "Unauthorized" } }, { status: 401 });
+  }
   const body = (await request.json()) as ClaimLeadBody;
   try {
     const lead = await callAaosApi<LeadDto>(
       `/api/v1/leads/${encodeURIComponent(params.leadId)}/claim`,
-      { method: "POST", body },
+      { method: "POST", body, headers: { "x-tenant-id": session.tenantId } },
     );
     return NextResponse.json(lead);
   } catch (error) {

@@ -155,7 +155,13 @@ export class RecyclingService {
     templateId: string,
     correlationId: string,
   ): Promise<BroadcastResultDto> {
-    const leadResult = await this.leadStore.getLead.execute(leadId);
+    // PROPERTY-TENANT-ISOLATION Phase 1: GetLead.execute now requires a real tenantId (the
+    // findById IDOR fix). This module is out of this phase's scope (recycling, not leads) and
+    // has no per-request tenant-context mechanism of its own yet (same static
+    // `this.config.AAOS_TENANT_ID` this class already reads for getAutoMode/setAutoMode above) —
+    // kept as-is here purely to keep this out-of-scope module compiling; not a regression, since
+    // this call site never had a real per-request tenantId to thread through in the first place.
+    const leadResult = await this.leadStore.getLead.execute(leadId, this.config.AAOS_TENANT_ID);
     if (!leadResult.ok) {
       throw leadResult.error;
     }

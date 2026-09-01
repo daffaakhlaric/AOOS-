@@ -62,7 +62,7 @@ describe("LeadService facade", () => {
 
   it("updateStatus() delegates to UpdateLeadStatus", async () => {
     const { service, client } = setup();
-    const row = makeLeadRow({ status: "NEW" });
+    const row = makeLeadRow({ status: "NEW", tenant_id: "t1" });
     client.seed("leads", [row]);
     const lead = unwrap(
       await service.updateStatus({
@@ -79,7 +79,7 @@ describe("LeadService facade", () => {
     const { service, client } = setup();
     const row = makeLeadRow();
     client.seed("leads", [row]);
-    const lead = unwrap(await service.byId(row.id));
+    const lead = unwrap(await service.byId(row.id, "dss-motor"));
     expect(lead.id.toString()).toBe(row.id);
   });
 
@@ -107,7 +107,7 @@ describe("LeadService facade", () => {
 
   it("recordScore() delegates to RecordScoreEvent", async () => {
     const { service, client } = setup();
-    const row = makeLeadRow({ score: 0 });
+    const row = makeLeadRow({ score: 0, tenant_id: "t1" });
     client.seed("leads", [row]);
     const event = unwrap(
       await service.recordScore({
@@ -125,7 +125,7 @@ describe("LeadService facade", () => {
 
   it("assign() delegates to RecordAssignment", async () => {
     const { service, client } = setup();
-    const row = makeLeadRow({ status: "HOT" });
+    const row = makeLeadRow({ status: "HOT", tenant_id: "t1" });
     client.seed("leads", [row]);
     const assignment = unwrap(
       await service.assign({

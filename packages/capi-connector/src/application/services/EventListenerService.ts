@@ -96,7 +96,7 @@ export class EventListenerService {
 
   private async onLeadBecameHot(event: BaseEventShape): Promise<void> {
     const payload = event.payload as LeadBecameHot;
-    const leadResult = await this.getLead.execute(payload.leadId);
+    const leadResult = await this.getLead.execute(payload.leadId, this.tenantId);
     if (!leadResult.ok) {
       this.logger.error(
         { err: leadResult.error, leadId: payload.leadId },
@@ -130,7 +130,7 @@ export class EventListenerService {
     )) {
       return;
     }
-    const leadResult = await this.getLead.execute(payload.leadId);
+    const leadResult = await this.getLead.execute(payload.leadId, this.tenantId);
     if (!leadResult.ok) {
       this.logger.error(
         { err: leadResult.error, leadId: payload.leadId },
@@ -180,7 +180,7 @@ export class EventListenerService {
       return;
     }
 
-    const leadResult = await this.getLead.execute(payload.leadId);
+    const leadResult = await this.getLead.execute(payload.leadId, this.tenantId);
     if (!leadResult.ok) {
       this.logger.error(
         { err: leadResult.error, leadId: payload.leadId },

@@ -12,7 +12,13 @@ import { createFakeSupabaseClient } from "../../helpers/supabase.js";
 
 function setup(overrides: Partial<ReturnType<typeof makeLeadRow>> = {}) {
   const client = createFakeSupabaseClient();
-  const row = makeLeadRow({ score: 0, status: "NEW", temperature: "COLD", ...overrides });
+  const row = makeLeadRow({
+    score: 0,
+    status: "NEW",
+    temperature: "COLD",
+    tenant_id: "t1",
+    ...overrides,
+  });
   client.seed("leads", [row]);
   const leadRepository = new LeadRepository(client);
   const scoringRepository = new ScoringRepository(client);

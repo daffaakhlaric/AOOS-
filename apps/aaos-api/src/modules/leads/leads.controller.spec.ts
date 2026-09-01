@@ -11,6 +11,8 @@ import type { LeadResponseDto } from "./dto/lead-response.dto.js";
 import { LeadsController } from "./leads.controller.js";
 import type { LeadsService } from "./leads.service.js";
 
+const TENANT_ID = "dss-motor";
+
 function buildFakeService(): LeadsService {
   return {
     createLead: vi.fn(async () => ({ id: "lead-1", status: "NEW" }) as LeadResponseDto),
@@ -38,7 +40,7 @@ function buildFakeService(): LeadsService {
 }
 
 describe("LeadsController", () => {
-  it("POST /api/v1/leads delegates to LeadsService.createLead with the body + correlation id", async () => {
+  it("POST /api/v1/leads delegates to LeadsService.createLead with the body + tenantId + correlation id", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
     const body = {
@@ -47,95 +49,114 @@ describe("LeadsController", () => {
       branchId: BranchId.BINTARO,
       wabaPhoneNumberId: "waba-1",
     };
-    const result = await controller.createLead(body, "corr-1");
-    expect(service.createLead).toHaveBeenCalledWith(body, "corr-1");
+    const result = await controller.createLead(body, TENANT_ID, "corr-1");
+    expect(service.createLead).toHaveBeenCalledWith(body, TENANT_ID, "corr-1");
     expect(result).toEqual({ id: "lead-1", status: "NEW" });
   });
 
-  it("GET /api/v1/leads delegates to LeadsService.getLeadsByBranch with the query", async () => {
+  it("GET /api/v1/leads delegates to LeadsService.getLeadsByBranch with the query + tenantId", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
-    const result = await controller.getLeads({ branchId: BranchId.BINTARO });
-    expect(service.getLeadsByBranch).toHaveBeenCalledWith({ branchId: BranchId.BINTARO });
+    const result = await controller.getLeads({ branchId: BranchId.BINTARO }, TENANT_ID);
+    expect(service.getLeadsByBranch).toHaveBeenCalledWith(
+      { branchId: BranchId.BINTARO },
+      TENANT_ID,
+    );
     expect(result).toEqual([{ id: "lead-1", status: "NEW" }]);
   });
 
-  it("GET /api/v1/leads/analytics delegates to LeadsService.getAnalytics with the query (MENU RESTRUCTURE FINAL)", async () => {
+  it("GET /api/v1/leads/analytics delegates to LeadsService.getAnalytics with the query + tenantId (MENU RESTRUCTURE FINAL)", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
-    const result = await controller.getAnalytics({ days: 7 });
-    expect(service.getAnalytics).toHaveBeenCalledWith({ days: 7 });
+    const result = await controller.getAnalytics({ days: 7 }, TENANT_ID);
+    expect(service.getAnalytics).toHaveBeenCalledWith({ days: 7 }, TENANT_ID);
     expect(result.totalContacts).toBe(1);
   });
 
-  it("GET /api/v1/leads/my delegates to LeadsService.getMyLeads with the query", async () => {
+  it("GET /api/v1/leads/my delegates to LeadsService.getMyLeads with the query + tenantId", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
-    const result = await controller.getMyLeads({ salesHumanId: "sales-1" });
-    expect(service.getMyLeads).toHaveBeenCalledWith({ salesHumanId: "sales-1" });
+    const result = await controller.getMyLeads({ salesHumanId: "sales-1" }, TENANT_ID);
+    expect(service.getMyLeads).toHaveBeenCalledWith({ salesHumanId: "sales-1" }, TENANT_ID);
     expect(result).toEqual([{ id: "lead-1", status: "ASSIGNED" }]);
   });
 
-  it("GET /api/v1/leads/:id delegates to LeadsService.getLeadDetail with the id", async () => {
+  it("GET /api/v1/leads/:id delegates to LeadsService.getLeadDetail with the id + tenantId", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
-    const result = await controller.getLeadDetail("lead-1");
-    expect(service.getLeadDetail).toHaveBeenCalledWith("lead-1");
+    const result = await controller.getLeadDetail("lead-1", TENANT_ID);
+    expect(service.getLeadDetail).toHaveBeenCalledWith("lead-1", TENANT_ID);
     expect(result).toEqual({ id: "lead-1", status: "HOT", messages: [] });
   });
 
-  it("POST /api/v1/leads/:id/claim delegates to LeadsService.claimLead with the id + body + correlation id", async () => {
+  it("POST /api/v1/leads/:id/claim delegates to LeadsService.claimLead with the id + body + tenantId + correlation id", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
-    const result = await controller.claimLead("lead-1", { salesHumanId: "sales-1" }, "corr-2");
-    expect(service.claimLead).toHaveBeenCalledWith("lead-1", { salesHumanId: "sales-1" }, "corr-2");
+    const result = await controller.claimLead(
+      "lead-1",
+      { salesHumanId: "sales-1" },
+      TENANT_ID,
+      "corr-2",
+    );
+    expect(service.claimLead).toHaveBeenCalledWith(
+      "lead-1",
+      { salesHumanId: "sales-1" },
+      TENANT_ID,
+      "corr-2",
+    );
     expect(result).toEqual({ id: "lead-1", status: "ASSIGNED" });
   });
 
-  it("PUT /api/v1/leads/:id/status delegates to LeadsService.updateStatus with the id + body + correlation id", async () => {
+  it("PUT /api/v1/leads/:id/status delegates to LeadsService.updateStatus with the id + body + tenantId + correlation id", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
-    const result = await controller.updateStatus("lead-1", { status: LeadStatus.WARM }, "corr-3");
+    const result = await controller.updateStatus(
+      "lead-1",
+      { status: LeadStatus.WARM },
+      TENANT_ID,
+      "corr-3",
+    );
     expect(service.updateStatus).toHaveBeenCalledWith(
       "lead-1",
       { status: LeadStatus.WARM },
+      TENANT_ID,
       "corr-3",
     );
     expect(result).toEqual({ id: "lead-1", status: "WARM" });
   });
 
-  it("GET /api/v1/leads/:id/messages delegates to LeadsService.getMessages with the id + query", async () => {
+  it("GET /api/v1/leads/:id/messages delegates to LeadsService.getMessages with the id + query + tenantId", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
     const query = { page: 1, limit: 50, order: "asc" as const };
-    const result = await controller.getMessages("lead-1", query);
-    expect(service.getMessages).toHaveBeenCalledWith("lead-1", query);
+    const result = await controller.getMessages("lead-1", query, TENANT_ID);
+    expect(service.getMessages).toHaveBeenCalledWith("lead-1", query, TENANT_ID);
     expect(result).toEqual({ messages: [], page: 1, limit: 50, total: 0 });
   });
 
-  it("POST /api/v1/leads/:id/message delegates to LeadsService.sendMessage with the id + body + correlation id", async () => {
+  it("POST /api/v1/leads/:id/message delegates to LeadsService.sendMessage with the id + body + tenantId + correlation id", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
     const body = { salesHumanId: "sales-1", salesName: "Ahmad", message: "halo pak" };
-    const result = await controller.sendMessage("lead-1", body, "corr-4");
-    expect(service.sendMessage).toHaveBeenCalledWith("lead-1", body, "corr-4");
+    const result = await controller.sendMessage("lead-1", body, TENANT_ID, "corr-4");
+    expect(service.sendMessage).toHaveBeenCalledWith("lead-1", body, TENANT_ID, "corr-4");
     expect(result).toEqual({ id: "msg-1", direction: "OUTGOING" });
   });
 
-  it("POST /api/v1/leads/:id/intervene delegates to LeadsService.intervene with the id + body + correlation id", async () => {
+  it("POST /api/v1/leads/:id/intervene delegates to LeadsService.intervene with the id + body + tenantId + correlation id", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
     const body = { message: "halo dari manager", managerName: "Budi" };
-    const result = await controller.intervene("lead-1", body, "corr-5");
-    expect(service.intervene).toHaveBeenCalledWith("lead-1", body, "corr-5");
+    const result = await controller.intervene("lead-1", body, TENANT_ID, "corr-5");
+    expect(service.intervene).toHaveBeenCalledWith("lead-1", body, TENANT_ID, "corr-5");
     expect(result).toEqual({ id: "msg-2", direction: "OUTGOING" });
   });
 
-  it("GET /api/v1/leads/:id/scoring-history delegates to LeadsService.getScoringHistory with the id", async () => {
+  it("GET /api/v1/leads/:id/scoring-history delegates to LeadsService.getScoringHistory with the id + tenantId", async () => {
     const service = buildFakeService();
     const controller = new LeadsController(service);
-    const result = await controller.getScoringHistory("lead-1");
-    expect(service.getScoringHistory).toHaveBeenCalledWith("lead-1");
+    const result = await controller.getScoringHistory("lead-1", TENANT_ID);
+    expect(service.getScoringHistory).toHaveBeenCalledWith("lead-1", TENANT_ID);
     expect(result).toEqual([]);
   });
 

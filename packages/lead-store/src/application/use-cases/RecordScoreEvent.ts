@@ -77,7 +77,7 @@ export class RecordScoreEvent {
       return err(new LeadStoreError(idResult.error.message, { code: ErrorCode.VALIDATION_ERROR }));
     }
 
-    const findResult = await this.leadRepository.findById(idResult.value);
+    const findResult = await this.leadRepository.findById(idResult.value, parsed.data.tenantId);
     if (!findResult.ok) {
       return err(findResult.error);
     }

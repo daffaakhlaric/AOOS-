@@ -11,7 +11,9 @@ describe("LeadRepository", () => {
   it("findById returns undefined when no row matches", async () => {
     const client = createFakeSupabaseClient();
     const repo = new LeadRepository(client);
-    const result = unwrap(await repo.findById(unwrap(LeadMapper.toDomain(makeLeadRow())).id));
+    const result = unwrap(
+      await repo.findById(unwrap(LeadMapper.toDomain(makeLeadRow())).id, "dss-motor"),
+    );
     expect(result).toBeUndefined();
   });
 
@@ -21,7 +23,7 @@ describe("LeadRepository", () => {
     client.seed("leads", [row]);
     const repo = new LeadRepository(client);
     const lead = unwrap(LeadMapper.toDomain(row));
-    const found = unwrap(await repo.findById(lead.id));
+    const found = unwrap(await repo.findById(lead.id, "dss-motor"));
     expect(found?.id.toString()).toBe(row.id);
   });
 
@@ -30,8 +32,36 @@ describe("LeadRepository", () => {
     client.forceErrorOnce("leads", "connection reset");
     const repo = new LeadRepository(client);
     const lead = unwrap(LeadMapper.toDomain(makeLeadRow()));
-    const error = unwrapErr(await repo.findById(lead.id));
+    const error = unwrapErr(await repo.findById(lead.id, "dss-motor"));
     expect(error.message).toContain("connection reset");
+  });
+
+  /**
+   * PROPERTY-TENANT-ISOLATION Phase 1 — THE security-critical regression test. Before this Phase's
+   * fix, `findById` filtered only by `id`, so tenant B could fetch (and, via every use case chained
+   * off it — claim/status/message/etc.) act on tenant A's lead just by knowing its UUID. Verified
+   * this test actually fails without the fix: temporarily reverting `LeadRepository.findById` to
+   * drop the `.eq("tenant_id", tenantId)` filter makes this assertion fail (`found` resolves to the
+   * tenant-A row instead of `undefined`) — see this session's final report for the exact repro.
+   */
+  it("findById does NOT return a lead belonging to a different tenant (real IDOR fix)", async () => {
+    const client = createFakeSupabaseClient();
+    const row = makeLeadRow({ tenant_id: "tenant-a" });
+    client.seed("leads", [row]);
+    const repo = new LeadRepository(client);
+    const lead = unwrap(LeadMapper.toDomain(row));
+    const found = unwrap(await repo.findById(lead.id, "tenant-b"));
+    expect(found).toBeUndefined();
+  });
+
+  it("findById DOES return the lead when queried with its own real tenant id", async () => {
+    const client = createFakeSupabaseClient();
+    const row = makeLeadRow({ tenant_id: "tenant-a" });
+    client.seed("leads", [row]);
+    const repo = new LeadRepository(client);
+    const lead = unwrap(LeadMapper.toDomain(row));
+    const found = unwrap(await repo.findById(lead.id, "tenant-a"));
+    expect(found?.id.toString()).toBe(row.id);
   });
 
   it("findByPhoneAndBranch returns undefined when no match", async () => {

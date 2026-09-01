@@ -161,7 +161,10 @@ export class SaveMessage {
       return err(insertResult.error);
     }
 
-    const leadResult = await this.leadRepository.findById(conversation.leadId);
+    const leadResult = await this.leadRepository.findById(
+      conversation.leadId,
+      parsed.data.tenantId,
+    );
     if (leadResult.ok && leadResult.value !== undefined) {
       const updatedLead = leadResult.value.withLastMessageAt(now);
       await this.leadRepository.update(updatedLead);

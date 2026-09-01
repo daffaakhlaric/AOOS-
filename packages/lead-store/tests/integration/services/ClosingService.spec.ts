@@ -15,7 +15,7 @@ import { createFakeSupabaseClient } from "../../helpers/supabase.js";
 
 function setup() {
   const client = createFakeSupabaseClient();
-  const leadRow = makeLeadRow({ status: "ASSIGNED" });
+  const leadRow = makeLeadRow({ status: "ASSIGNED", tenant_id: "t1" });
   client.seed("leads", [leadRow]);
   const closingRepository = new ClosingRepository(client);
   const leadRepository = new LeadRepository(client);

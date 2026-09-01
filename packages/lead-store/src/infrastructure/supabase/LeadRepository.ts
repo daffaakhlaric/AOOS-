@@ -15,11 +15,18 @@ const TABLE = "leads";
 export class LeadRepository implements ILeadRepository {
   constructor(private readonly client: SupabaseClientLike) {}
 
-  async findById(id: LeadId): Promise<Result<Lead | undefined, SupabaseError>> {
+  /**
+   * PROPERTY-TENANT-ISOLATION Phase 1: the real IDOR fix — `id` is a globally-unique primary key,
+   * but WITHOUT the `tenant_id` filter below any tenant could fetch (and, via every use case that
+   * chains off this call — assign/status/score/close/message) act on any other tenant's lead just
+   * by knowing its UUID. Every real caller now threads its own already-known `tenantId` through.
+   */
+  async findById(id: LeadId, tenantId: string): Promise<Result<Lead | undefined, SupabaseError>> {
     const { data, error } = await this.client
       .from<LeadRow>(TABLE)
       .select("*")
       .eq("id", id.toString())
+      .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error !== null) {
       return err(new SupabaseError(`LeadRepository.findById failed: ${error.message}`));

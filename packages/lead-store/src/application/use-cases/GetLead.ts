@@ -10,12 +10,12 @@ import { LeadId } from "../../domain/value-objects/LeadId.js";
 export class GetLead {
   constructor(private readonly leadRepository: ILeadRepository) {}
 
-  async execute(leadId: string): Promise<Result<Lead, LeadStoreError>> {
+  async execute(leadId: string, tenantId: string): Promise<Result<Lead, LeadStoreError>> {
     const idResult = LeadId.create(leadId);
     if (!idResult.ok) {
       return err(new LeadStoreError(idResult.error.message, { code: ErrorCode.VALIDATION_ERROR }));
     }
-    const findResult = await this.leadRepository.findById(idResult.value);
+    const findResult = await this.leadRepository.findById(idResult.value, tenantId);
     if (!findResult.ok) {
       return err(findResult.error);
     }

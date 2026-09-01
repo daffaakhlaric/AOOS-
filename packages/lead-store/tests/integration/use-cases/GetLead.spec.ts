@@ -12,21 +12,21 @@ describe("GetLead", () => {
     const row = makeLeadRow();
     client.seed("leads", [row]);
     const useCase = new GetLead(new LeadRepository(client));
-    const lead = unwrap(await useCase.execute(row.id));
+    const lead = unwrap(await useCase.execute(row.id, "dss-motor"));
     expect(lead.id.toString()).toBe(row.id);
   });
 
   it("returns LeadNotFoundError when missing", async () => {
     const client = createFakeSupabaseClient();
     const useCase = new GetLead(new LeadRepository(client));
-    const error = unwrapErr(await useCase.execute("nonexistent"));
+    const error = unwrapErr(await useCase.execute("nonexistent", "dss-motor"));
     expect(error.message).toContain("not found");
   });
 
   it("rejects an empty id", async () => {
     const client = createFakeSupabaseClient();
     const useCase = new GetLead(new LeadRepository(client));
-    const error = unwrapErr(await useCase.execute(""));
+    const error = unwrapErr(await useCase.execute("", "dss-motor"));
     expect(error.message).toContain("LeadId");
   });
 
@@ -34,7 +34,17 @@ describe("GetLead", () => {
     const client = createFakeSupabaseClient();
     client.forceErrorOnce("leads", "connection reset");
     const useCase = new GetLead(new LeadRepository(client));
-    const error = unwrapErr(await useCase.execute("some-id"));
+    const error = unwrapErr(await useCase.execute("some-id", "dss-motor"));
     expect(error.message).toContain("connection reset");
+  });
+
+  /** PROPERTY-TENANT-ISOLATION Phase 1 — use-case-level regression test mirroring `LeadRepository.spec.ts`'s repository-level one: a real, currently-CLOSED-off IDOR would otherwise let tenant B fetch tenant A's lead by UUID alone. */
+  it("returns LeadNotFoundError (not the lead) when queried with a different tenant's id", async () => {
+    const client = createFakeSupabaseClient();
+    const row = makeLeadRow({ tenant_id: "tenant-a" });
+    client.seed("leads", [row]);
+    const useCase = new GetLead(new LeadRepository(client));
+    const error = unwrapErr(await useCase.execute(row.id, "tenant-b"));
+    expect(error.message).toContain("not found");
   });
 });

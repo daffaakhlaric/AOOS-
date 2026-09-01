@@ -180,7 +180,7 @@ function buildNavGroups(vertical: Vertical | undefined): readonly NavGroup[] {
       key: "operasional",
       label: "OPERASIONAL",
       items: isProperty
-        ? [OBJECTIVE, BRANCHES, GO_LIVE, ACTIVITY_LOG, LEARNING_MONITOR, SETTINGS]
+        ? [OBJECTIVE, GO_LIVE, ACTIVITY_LOG, LEARNING_MONITOR, SETTINGS]
         : [OBJECTIVE, BRANCHES, GO_LIVE, LEARNING_MONITOR, SETTINGS],
     },
   ];

@@ -35,8 +35,8 @@ export class LeadService {
     return this.updateLeadStatus.execute(input);
   }
 
-  byId(leadId: string): Promise<Result<Lead, LeadStoreError>> {
-    return this.getLead.execute(leadId);
+  byId(leadId: string, tenantId: string): Promise<Result<Lead, LeadStoreError>> {
+    return this.getLead.execute(leadId, tenantId);
   }
 
   byBranch(branchId: BranchId, tenantId: string): Promise<Result<readonly Lead[], LeadStoreError>> {

@@ -14,11 +14,13 @@ export type { LeadId } from "../domain/value-objects/LeadId.js";
  * Every real query method takes a required `tenantId` (Multi-Tenant Phase 1B finding #3):
  * `BranchId` is a small, fixed, tenant-agnostic enum, so filtering by `branchId`/`salesHumanId`/
  * phone alone would let two different tenants using the same branch name see each other's leads.
- * `findById`/`insert`/`update` need no `tenantId` parameter — `Lead` already carries `tenantId` on
- * every instance, and `findById` looks up by the globally-unique primary key.
+ * `insert`/`update` need no `tenantId` parameter — `Lead` already carries `tenantId` on every
+ * instance. `findById` DOES require `tenantId` (PROPERTY-TENANT-ISOLATION Phase 1 — a real, closed
+ * IDOR: looking up by the globally-unique primary key alone let any tenant fetch/act on any other
+ * tenant's lead by UUID; every real caller now threads its own already-known `tenantId` through).
  */
 export interface ILeadRepository {
-  findById(id: LeadId): Promise<Result<Lead | undefined, SupabaseError>>;
+  findById(id: LeadId, tenantId: string): Promise<Result<Lead | undefined, SupabaseError>>;
   findByPhoneAndBranch(
     leadPhone: string,
     branchId: BranchId,

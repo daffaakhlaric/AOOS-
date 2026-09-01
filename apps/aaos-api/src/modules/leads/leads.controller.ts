@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 
 import { CorrelationId } from "../../common/correlation.js";
+import { TenantId } from "../../common/tenant-context.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
@@ -41,6 +42,13 @@ import { LeadsService } from "./leads.service.js";
  * discipline). AAOS-W4B adds `POST :id/claim`, `PUT :id/status`, `GET my`, `GET :id` for
  * `apps/aaos-crm`. `my` is registered BEFORE `:id` so Nest's route matching doesn't treat the
  * literal path segment `"my"` as a `:id` param.
+ *
+ * PROPERTY-TENANT-ISOLATION Phase 1 (security fix): every method now resolves the real per-request
+ * tenant via `@TenantId()` (`common/tenant-context.ts` — the SAME `resolveTenantId`/`x-tenant-id`
+ * mechanism `modules/settings`/`modules/superadmin` already establish) and threads it into every
+ * `LeadsService` call. Before this fix, `LeadsService` resolved tenant from a single, process-wide
+ * static config value, and `LeadRepository.findById` had no tenant filter at all — a real,
+ * currently-live cross-tenant lead read/claim/message IDOR, now closed end-to-end.
  */
 @Controller("api/v1/leads")
 @UseGuards(ApiKeyGuard)
@@ -51,54 +59,63 @@ export class LeadsController {
   @HttpCode(201)
   async createLead(
     @Body(new ZodValidationPipe(CreateLeadBodySchema)) body: CreateLeadBodyDto,
+    @TenantId() tenantId: string,
     @CorrelationId() correlationId: string,
   ): Promise<LeadResponseDto> {
-    return this.leadsService.createLead(body, correlationId);
+    return this.leadsService.createLead(body, tenantId, correlationId);
   }
 
   @Get()
   async getLeads(
     @Query(new ZodValidationPipe(GetLeadsQuerySchema)) query: GetLeadsQueryDto,
+    @TenantId() tenantId: string,
   ): Promise<readonly LeadResponseDto[]> {
-    return this.leadsService.getLeadsByBranch(query);
+    return this.leadsService.getLeadsByBranch(query, tenantId);
   }
 
   @Get("my")
   async getMyLeads(
     @Query(new ZodValidationPipe(GetMyLeadsQuerySchema)) query: GetMyLeadsQueryDto,
+    @TenantId() tenantId: string,
   ): Promise<readonly LeadResponseDto[]> {
-    return this.leadsService.getMyLeads(query);
+    return this.leadsService.getMyLeads(query, tenantId);
   }
 
   /** `GET /api/v1/leads/analytics?days=` — real `/clara/analytics` KPIs (MENU RESTRUCTURE FINAL). Registered before `:id` so the literal path segment `"analytics"` is never swallowed by `:id`, same reasoning as `"my"` above. */
   @Get("analytics")
   async getAnalytics(
     @Query(new ZodValidationPipe(GetLeadsAnalyticsQuerySchema)) query: GetLeadsAnalyticsQueryDto,
+    @TenantId() tenantId: string,
   ): Promise<LeadsAnalyticsResponseDto> {
-    return this.leadsService.getAnalytics(query);
+    return this.leadsService.getAnalytics(query, tenantId);
   }
 
   @Get(":id")
-  async getLeadDetail(@Param("id") id: string): Promise<LeadDetailResponseDto> {
-    return this.leadsService.getLeadDetail(id);
+  async getLeadDetail(
+    @Param("id") id: string,
+    @TenantId() tenantId: string,
+  ): Promise<LeadDetailResponseDto> {
+    return this.leadsService.getLeadDetail(id, tenantId);
   }
 
   @Post(":id/claim")
   async claimLead(
     @Param("id") id: string,
     @Body(new ZodValidationPipe(ClaimLeadBodySchema)) body: ClaimLeadBodyDto,
+    @TenantId() tenantId: string,
     @CorrelationId() correlationId: string,
   ): Promise<LeadResponseDto> {
-    return this.leadsService.claimLead(id, body, correlationId);
+    return this.leadsService.claimLead(id, body, tenantId, correlationId);
   }
 
   @Put(":id/status")
   async updateStatus(
     @Param("id") id: string,
     @Body(new ZodValidationPipe(UpdateLeadStatusBodySchema)) body: UpdateLeadStatusBodyDto,
+    @TenantId() tenantId: string,
     @CorrelationId() correlationId: string,
   ): Promise<LeadResponseDto> {
-    return this.leadsService.updateStatus(id, body, correlationId);
+    return this.leadsService.updateStatus(id, body, tenantId, correlationId);
   }
 
   /** `GET /api/v1/leads/:id/messages?page=&limit=&order=` — paginated real message thread (AAOS-CHAT-ROOM-JESSY coordinator note #5). */
@@ -106,8 +123,9 @@ export class LeadsController {
   async getMessages(
     @Param("id") id: string,
     @Query(new ZodValidationPipe(GetMessagesQuerySchema)) query: GetMessagesQueryDto,
+    @TenantId() tenantId: string,
   ): Promise<MessagesPageResponseDto> {
-    return this.leadsService.getMessages(id, query);
+    return this.leadsService.getMessages(id, query, tenantId);
   }
 
   /** `POST /api/v1/leads/:id/message` — a sales human's real reply, sent via the real WhatsApp connector. */
@@ -115,9 +133,10 @@ export class LeadsController {
   async sendMessage(
     @Param("id") id: string,
     @Body(new ZodValidationPipe(SendMessageBodySchema)) body: SendMessageBodyDto,
+    @TenantId() tenantId: string,
     @CorrelationId() correlationId: string,
   ): Promise<MessageResponseDto> {
-    return this.leadsService.sendMessage(id, body, correlationId);
+    return this.leadsService.sendMessage(id, body, tenantId, correlationId);
   }
 
   /** `POST /api/v1/leads/:id/intervene` — manager-as-Clara, persisted as `sender_type = 'MANAGER_INTERVENTION'` (coordinator note #5). */
@@ -125,14 +144,18 @@ export class LeadsController {
   async intervene(
     @Param("id") id: string,
     @Body(new ZodValidationPipe(InterveneBodySchema)) body: InterveneBodyDto,
+    @TenantId() tenantId: string,
     @CorrelationId() correlationId: string,
   ): Promise<MessageResponseDto> {
-    return this.leadsService.intervene(id, body, correlationId);
+    return this.leadsService.intervene(id, body, tenantId, correlationId);
   }
 
   /** `GET /api/v1/leads/:id/scoring-history` — thin read over the real `scoring_events` table. */
   @Get(":id/scoring-history")
-  async getScoringHistory(@Param("id") id: string): Promise<readonly ScoringEventResponseDto[]> {
-    return this.leadsService.getScoringHistory(id);
+  async getScoringHistory(
+    @Param("id") id: string,
+    @TenantId() tenantId: string,
+  ): Promise<readonly ScoringEventResponseDto[]> {
+    return this.leadsService.getScoringHistory(id, tenantId);
   }
 }
