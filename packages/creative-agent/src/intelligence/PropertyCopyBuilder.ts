@@ -1,5 +1,6 @@
 import { err, ok, type Result } from "@aos/common";
 import { ErrorCode } from "@aos/common";
+import { formatIDR } from "@aos/meta-ads-connector";
 
 import type { PropertyCreativeBrief } from "../contracts/IPropertyPromptBuilder.js";
 import { HEADLINE_MAX_LENGTH, PRIMARY_TEXT_MAX_LENGTH } from "../domain/entities/CopyVariant.js";
@@ -74,8 +75,42 @@ const ANGLE_TRUST_PHRASE: Readonly<Record<PropertyAdAngle, string>> = {
  * produced, same A/B/C CTA convention). `PropertyCreativeBrief` has no `priceContext`/`uspMessages`
  * fields (see `IPropertyPromptBuilder.ts`'s docstring) — `highlights` plays the role
  * `uspMessages` plays for automotive (its first entry is appended to Variant C when there's room),
- * and `angle` alone drives the per-angle hook/benefit/trust phrasing (no price to interpolate).
+ * and `angle` alone drives the per-angle hook/benefit/trust phrasing.
+ *
+ * K3 enrichment: `brief.price`/`brief.city` are optional real `Listing` fields (unlike automotive's
+ * `priceContext`, this is a single whole-Rupiah figure, not a DP/monthly estimate — formatted via
+ * the same shared `formatIDR` (`@aos/meta-ads-connector`) the rest of this codebase already uses
+ * for a full Rupiah amount, not `CopyBuilder`'s local `formatRupiahJuta`/`formatRupiahJutaTitle`,
+ * which are specifically shaped for DP/installment-sized figures, not a full property price).
+ * `price` is interpolated into Variant A only for the angles where a price genuinely reads
+ * naturally (`DP_RINGAN`/`PROMO_TERBATAS`/`INVESTASI` — see `PRICE_RELEVANT_ANGLES`); `city` is
+ * interpolated into Variant A's location clause for every angle, since a location clause reads
+ * naturally regardless of angle. Both are omitted entirely (never "undefined"/"NaN") when the
+ * underlying `Listing` field is absent — same optional-field discipline `highlights` establishes.
  */
+/** Angles where interpolating `brief.price` into Variant A genuinely reads naturally as ad copy (K3) — a price fits `DP_RINGAN`'s "mulai dari" framing, `PROMO_TERBATAS`'s "harga promo" framing, and `INVESTASI`'s "mulai investasi" framing, but reads as an unrelated field dump on the other 5 angles (e.g. `TESTIMONIAL`, `VIRTUAL_TOUR`), so it is deliberately NOT applied there. */
+const PRICE_RELEVANT_ANGLES: ReadonlySet<PropertyAdAngle> = new Set([
+  PropertyAdAngle.DP_RINGAN,
+  PropertyAdAngle.PROMO_TERBATAS,
+  PropertyAdAngle.INVESTASI,
+]);
+
+/** Real, correctly-formatted (`formatIDR`) price clause for Variant A — `undefined` (never interpolated) unless both `brief.price` is present AND `brief.angle` is in `PRICE_RELEVANT_ANGLES`. */
+function priceClause(brief: PropertyCreativeBrief): string | undefined {
+  if (brief.price === undefined || !PRICE_RELEVANT_ANGLES.has(brief.angle)) {
+    return undefined;
+  }
+  const formatted = formatIDR(brief.price);
+  switch (brief.angle) {
+    case PropertyAdAngle.PROMO_TERBATAS:
+      return `Harga promo ${formatted}`;
+    case PropertyAdAngle.DP_RINGAN:
+      return `Mulai dari ${formatted}`;
+    default:
+      return `Investasi mulai ${formatted}`;
+  }
+}
+
 export class PropertyCopyBuilder {
   buildVariants(
     brief: PropertyCreativeBrief,
@@ -98,10 +133,12 @@ export class PropertyCopyBuilder {
   private buildVariantA(
     brief: PropertyCreativeBrief,
   ): Result<PropertyCopyVariant, CreativeAgentError> {
+    const cityClause = brief.city !== undefined && brief.city.length > 0 ? ` di ${brief.city}` : "";
+    const price = priceClause(brief);
     const segments = [
       `${brief.listingTitle} — ${ANGLE_HOOK[brief.angle]}!`,
-      ` Cocok untuk ${brief.propertyType.toLowerCase()} idaman kamu.`,
-      firstHighlight(brief) ? ` ${firstHighlight(brief)}.` : "",
+      ` Cocok untuk ${brief.propertyType.toLowerCase()} idaman kamu${cityClause}.`,
+      price ? ` ${price}.` : firstHighlight(brief) ? ` ${firstHighlight(brief)}.` : "",
       " Tanya detailnya kak 😊",
     ];
     return this.build("A", brief, segments, [`${brief.listingTitle} Ready Sekarang`], CTA_DIRECT);

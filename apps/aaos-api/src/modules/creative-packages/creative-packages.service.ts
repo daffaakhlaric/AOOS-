@@ -338,6 +338,8 @@ export class CreativePackagesService {
       ...(listing.branchId !== undefined ? { branch: listing.branchId } : {}),
       ...(listing.waNumber !== undefined ? { waNumber: listing.waNumber } : {}),
       ...(listing.highlights.length > 0 ? { highlights: listing.highlights } : {}),
+      price: listing.price,
+      ...(listing.city !== undefined ? { city: listing.city } : {}),
     };
 
     const availablePhotos = sourcePhotoUrls.length;

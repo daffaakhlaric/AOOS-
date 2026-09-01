@@ -15,6 +15,10 @@ export interface PropertyCreativeBrief {
   readonly waNumber?: string;
   /** Free-text highlights carried "for Kai's convenience", same role `CreativeBrief.uspMessages` plays for automotive — Indonesian-language, so (per `PropertyPromptBuilder`'s docstring) never interpolated raw into the English-only prompt. */
   readonly highlights?: readonly string[];
+  /** Whole-Rupiah listing price (K3 enrichment) — real `Listing.price`, when present. `PropertyCopyBuilder` interpolates it (via `@aos/meta-ads-connector`'s `formatIDR`) only into angles where a price actually reads naturally (`DP_RINGAN`/`PROMO_TERBATAS`/`INVESTASI`); omitted entirely (never "undefined"/"NaN") when absent. */
+  readonly price?: number;
+  /** Real `Listing.city`, when present (K3 enrichment) — interpolated into `PropertyCopyBuilder`'s location-context phrasing. Omitted entirely when absent. */
+  readonly city?: string;
 }
 
 /** Port (Hexagonal Architecture) for Kai's PROPERTY-vertical Kie AI prompt generation. The only implementation is `intelligence/PropertyPromptBuilder.ts` — deterministic template rendering, no LLM calls, same discipline as `IPromptBuilder`. */

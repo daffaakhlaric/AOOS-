@@ -148,4 +148,69 @@ describe("PropertyCopyBuilder", () => {
       expect(variant.headline).toContain("Apartemen Cinere View");
     }
   });
+
+  it("PROMO_TERBATAS (price-relevant angle) -> variant A contains the real, correctly-formatted price", () => {
+    const brief = buildBrief({ angle: PropertyAdAngle.PROMO_TERBATAS, price: 1_500_000_000 });
+    const variants = unwrap(builder.buildVariants(brief));
+    expect(variants[0]?.primaryText).toContain("Rp 1.500.000.000");
+  });
+
+  it("DP_RINGAN (price-relevant angle) -> variant A contains the real, correctly-formatted price", () => {
+    const brief = buildBrief({ angle: PropertyAdAngle.DP_RINGAN, price: 850_000_000 });
+    const variants = unwrap(builder.buildVariants(brief));
+    expect(variants[0]?.primaryText).toContain("Rp 850.000.000");
+  });
+
+  it("a non-price-relevant angle (TESTIMONIAL) never interpolates price into variant A", () => {
+    const brief = buildBrief({ angle: PropertyAdAngle.TESTIMONIAL, price: 1_500_000_000 });
+    const variants = unwrap(builder.buildVariants(brief));
+    expect(variants[0]?.primaryText).not.toContain("Rp");
+  });
+
+  it("INVESTASI (location-relevant angle, 'Lokasi strategis') -> variant A contains the real city", () => {
+    const brief = buildBrief({ angle: PropertyAdAngle.INVESTASI, city: "Bintaro" });
+    const variants = unwrap(builder.buildVariants(brief));
+    expect(variants[0]?.primaryText).toContain("di Bintaro");
+  });
+
+  it("city is interpolated into variant A regardless of angle", () => {
+    const brief = buildBrief({ angle: PropertyAdAngle.EXCLUSIVE, city: "Cinere" });
+    const variants = unwrap(builder.buildVariants(brief));
+    expect(variants[0]?.primaryText).toContain("di Cinere");
+  });
+
+  it("a listing missing price/city degrades gracefully — never 'undefined' or 'NaN' in any variant", () => {
+    const brief = buildBrief({
+      angle: PropertyAdAngle.PROMO_TERBATAS,
+      price: undefined,
+      city: undefined,
+    });
+    const variants = unwrap(builder.buildVariants(brief));
+    for (const variant of variants) {
+      expect(variant.primaryText).not.toContain("undefined");
+      expect(variant.primaryText).not.toContain("NaN");
+      expect(variant.headline).not.toContain("undefined");
+      expect(variant.headline).not.toContain("NaN");
+    }
+  });
+
+  it("price present but city absent (and vice versa) never leaks 'undefined'/'NaN'", () => {
+    const briefPriceOnly = buildBrief({
+      angle: PropertyAdAngle.DP_RINGAN,
+      price: 500_000_000,
+      city: undefined,
+    });
+    const briefCityOnly = buildBrief({
+      angle: PropertyAdAngle.DP_RINGAN,
+      price: undefined,
+      city: "Bandung",
+    });
+    for (const brief of [briefPriceOnly, briefCityOnly]) {
+      const variants = unwrap(builder.buildVariants(brief));
+      for (const variant of variants) {
+        expect(variant.primaryText).not.toContain("undefined");
+        expect(variant.primaryText).not.toContain("NaN");
+      }
+    }
+  });
 });
