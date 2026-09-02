@@ -13,6 +13,7 @@ import type {
   AssetStatsDto,
   AssetTypeDto,
 } from "@/types/dashboard.types";
+import type { Vertical } from "@/types/tenant.types";
 
 import styles from "./AssetLibraryClient.module.css";
 
@@ -74,6 +75,16 @@ function parseError(body: unknown, fallback: string): string {
  * The delete action is labelled "Arsipkan" because `DELETE /api/v1/assets/:id` calls the real
  * `ArchiveAsset` use case: it sets `AssetStatus.ARCHIVED` and KEEPS both the row and the GCS object.
  * There is no hard delete anywhere in this domain.
+ *
+ * TENANT-SCOPING FIX, Phase T2 (docs/PROMPT-AAOS-TENANT-SCOPING-AND-PROPERTY-OBJECTIVE.md
+ * Finding 2): `asset.branch` (`packages/asset-library`'s `Asset` entity) is a real, OPTIONAL
+ * `Branch` value — the SAME AUTOMOTIVE-only dealer-branch enum `AreaPriority` uses — so a
+ * PROPERTY tenant's real assets simply never set it. Rather than inventing a PROPERTY-equivalent
+ * grouping with no real backing concept, the Branch filter/column is hidden entirely for PROPERTY
+ * tenants (same client-side vertical resolution `Sidebar.tsx`/`CampaignTable.tsx` already use:
+ * `GET /api/settings` → `tenant.vertical`, defaulting to showing the AUTOMOTIVE branch filter
+ * until/unless the lookup resolves to `"PROPERTY"`, so there is never a flash of a missing filter
+ * for the common AUTOMOTIVE case).
  */
 export function AssetLibraryClient(): React.ReactElement {
   const [stats, setStats] = useState<AssetStatsDto | undefined>(undefined);
@@ -95,6 +106,31 @@ export function AssetLibraryClient(): React.ReactElement {
   const [actionError, setActionError] = useState<string | undefined>(undefined);
   const [actionPending, setActionPending] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+
+  // Real vertical resolution — SAME client-side `GET /api/settings` → `tenant.vertical` fetch
+  // `Sidebar.tsx` already uses; no second "who am I" call invented. Defaults to `undefined`
+  // (unresolved → AUTOMOTIVE's branch filter shown), never a flash of the PROPERTY layout for the
+  // common AUTOMOTIVE case, and a failed/pending fetch just keeps that default.
+  const [vertical, setVertical] = useState<Vertical | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((res) =>
+        res.ok ? (res.json() as Promise<{ tenant?: { vertical?: Vertical } }>) : null,
+      )
+      .then((data) => {
+        if (!cancelled && data?.tenant?.vertical !== undefined) {
+          setVertical(data.tenant.vertical);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — a failed lookup keeps the branch filter shown, never breaks the page.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const isProperty = vertical === "PROPERTY";
 
   const loadStats = useCallback(async (): Promise<void> => {
     setStatsLoading(true);
@@ -263,25 +299,29 @@ export function AssetLibraryClient(): React.ReactElement {
           Cari
         </button>
 
-        <label className={styles.inlineLabel} htmlFor="asset-branch">
-          Cabang
-        </label>
-        <select
-          id="asset-branch"
-          value={branchFilter ?? ""}
-          onChange={(event) => {
-            setPage(1);
-            setBranchFilter(event.target.value.length > 0 ? event.target.value : undefined);
-          }}
-          className={styles.select}
-        >
-          <option value="">Semua cabang</option>
-          {BRANCHES.map((branch) => (
-            <option key={branch} value={branch}>
-              {branch} ({formatNumber(byBranch[branch] ?? 0)})
-            </option>
-          ))}
-        </select>
+        {!isProperty ? (
+          <>
+            <label className={styles.inlineLabel} htmlFor="asset-branch">
+              Cabang
+            </label>
+            <select
+              id="asset-branch"
+              value={branchFilter ?? ""}
+              onChange={(event) => {
+                setPage(1);
+                setBranchFilter(event.target.value.length > 0 ? event.target.value : undefined);
+              }}
+              className={styles.select}
+            >
+              <option value="">Semua cabang</option>
+              {BRANCHES.map((branch) => (
+                <option key={branch} value={branch}>
+                  {branch} ({formatNumber(byBranch[branch] ?? 0)})
+                </option>
+              ))}
+            </select>
+          </>
+        ) : null}
 
         <label className={styles.inlineLabel} htmlFor="asset-sort">
           Urutkan
@@ -329,7 +369,11 @@ export function AssetLibraryClient(): React.ReactElement {
       {!listLoading && listError === undefined && (list?.assets.length ?? 0) === 0 ? (
         <EmptyState
           title="Belum ada asset"
-          description="Jalankan Scraper Mobix untuk mengambil foto unit, atau generate creative lewat Kai."
+          description={
+            isProperty
+              ? "Upload foto listing di Listing Manager, atau generate creative lewat Kai."
+              : "Jalankan Scraper Mobix untuk mengambil foto unit, atau generate creative lewat Kai."
+          }
         />
       ) : null}
 
@@ -364,7 +408,9 @@ export function AssetLibraryClient(): React.ReactElement {
                   </p>
                 ) : null}
                 <p className={styles.cardMeta}>
-                  {asset.branch ?? "—"} · {formatBytes(asset.fileSize)}
+                  {isProperty
+                    ? formatBytes(asset.fileSize)
+                    : `${asset.branch ?? "—"} · ${formatBytes(asset.fileSize)}`}
                 </p>
                 {asset.aiModel !== undefined ? (
                   <p className={styles.cardMeta}>{asset.aiModel}</p>
@@ -445,7 +491,9 @@ export function AssetLibraryClient(): React.ReactElement {
               {detail.unitId !== undefined ? (
                 <Detail label="Unit ID" value={detail.unitId} />
               ) : null}
-              {detail.branch !== undefined ? <Detail label="Cabang" value={detail.branch} /> : null}
+              {!isProperty && detail.branch !== undefined ? (
+                <Detail label="Cabang" value={detail.branch} />
+              ) : null}
               <Detail label="Ukuran" value={formatBytes(detail.fileSize)} />
               <Detail label="MIME" value={detail.mimeType} />
               <Detail label="GCS path" value={detail.storagePath} />

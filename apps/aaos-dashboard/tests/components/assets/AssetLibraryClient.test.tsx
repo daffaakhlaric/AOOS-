@@ -61,6 +61,12 @@ function mockFetch(overrides: Record<string, () => Response> = {}): ReturnType<t
         return Promise.resolve(handler());
       }
     }
+    if (url.includes("/api/settings")) {
+      // Real vertical-resolution fetch (Sidebar.tsx's own convention) — unresolved by default,
+      // same as every other test in this file that doesn't care about vertical branching, so the
+      // pre-existing AUTOMOTIVE-branch-filter tests below keep passing unchanged.
+      return Promise.resolve(jsonResponse({ error: { message: "unhandled in test" } }, 500));
+    }
     if (url.includes("/api/assets/stats")) return Promise.resolve(jsonResponse(STATS));
     if (url.includes("/api/assets?")) {
       return Promise.resolve(
@@ -225,6 +231,59 @@ describe("AssetLibraryClient — filters", () => {
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("page=2"))).toBe(true);
     });
+  });
+});
+
+describe("AssetLibraryClient — PROPERTY vertical (Tenant-Scoping Fix, Phase T2)", () => {
+  function mockFetchProperty(
+    overrides: Record<string, () => Response> = {},
+  ): ReturnType<typeof vi.fn> {
+    return mockFetch({
+      "/api/settings": () => jsonResponse({ tenant: { vertical: "PROPERTY" } }),
+      ...overrides,
+    });
+  }
+
+  it("hides the Branch filter for a PROPERTY tenant", async () => {
+    mockFetchProperty();
+    render(<AssetLibraryClient />);
+    await screen.findByTestId("asset-grid");
+
+    expect(screen.queryByLabelText("Cabang")).not.toBeInTheDocument();
+  });
+
+  it("never renders a branch value on the card for a PROPERTY tenant", async () => {
+    mockFetchProperty();
+    render(<AssetLibraryClient />);
+    const grid = await screen.findByTestId("asset-grid");
+
+    expect(grid.textContent).not.toContain("CINERE");
+  });
+
+  it("never sends a branch filter param for a PROPERTY tenant", async () => {
+    const fetchMock = mockFetchProperty();
+    render(<AssetLibraryClient />);
+    await screen.findByTestId("asset-grid");
+
+    const listCall = fetchMock.mock.calls.find((call) => String(call[0]).includes("/api/assets?"));
+    expect(String(listCall?.[0])).not.toContain("branch=");
+  });
+
+  it("shows a PROPERTY-appropriate empty-state hint, not 'Scraper Mobix'", async () => {
+    mockFetchProperty({
+      "/api/assets?": () => jsonResponse({ assets: [], total: 0, page: 1, limit: 48 }),
+    });
+    render(<AssetLibraryClient />);
+    expect(await screen.findByText(/Listing Manager/)).toBeInTheDocument();
+    expect(screen.queryByText(/Scraper Mobix/)).not.toBeInTheDocument();
+  });
+
+  it("still shows the Branch filter for AUTOMOTIVE (default/unresolved vertical)", async () => {
+    mockFetch();
+    render(<AssetLibraryClient />);
+    await screen.findByTestId("asset-grid");
+
+    expect(screen.getByLabelText("Cabang")).toBeInTheDocument();
   });
 });
 
