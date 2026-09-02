@@ -15,6 +15,7 @@ import type {
   SimulationStatusDto,
 } from "@/types/dashboard.types";
 import type { ListingDto, ListingListDto } from "@/types/listing.types";
+import type { PropertyObjectiveDto } from "@/types/property-objective.types";
 import type { SettingsDto, Vertical } from "@/types/tenant.types";
 
 import styles from "./SimulationWizardClient.module.css";
@@ -91,6 +92,39 @@ type WizardStep = (typeof STEPS)[number];
 
 /** Days used to derive a daily budget from the objective's real monthly `budgetAllocation` — the same /30 convention already used elsewhere this session. */
 const DAYS_PER_MONTH = 30;
+
+/**
+ * Real, honest display-only adapter — `PropertyObjectiveDto`'s real shape into the
+ * `ObjectiveDto`-typed state this whole component already threads through many draw functions.
+ * The two DTOs are field-for-field identical except `focusListings` (PROPERTY) vs `focusUnits`
+ * (AUTOMOTIVE) — every real consumer in this file only ever reads
+ * targetHotLeads/budgetAllocation/focusUnits/areaPriorities for DISPLAY, nothing that depends on
+ * which vertical produced the row, so mapping `focusListings` -> `focusUnits` here is a real,
+ * honest relabeling, not a type conflation. `PropertyObjectiveDto`'s extra `budgetSource`/
+ * `activatedAt`/`completedAt` fields are simply not needed by anything this component reads.
+ */
+function isPropertyObjective(
+  real: ObjectiveDto | PropertyObjectiveDto,
+): real is PropertyObjectiveDto {
+  return "focusListings" in real;
+}
+
+function toObjectiveDisplayShape(real: ObjectiveDto | PropertyObjectiveDto): ObjectiveDto {
+  if (!isPropertyObjective(real)) {
+    return real;
+  }
+  return {
+    id: real.id,
+    tenantId: real.tenantId,
+    period: real.period,
+    targetHotLeads: real.targetHotLeads,
+    budgetAllocation: real.budgetAllocation,
+    focusUnits: real.focusListings,
+    areaPriorities: real.areaPriorities,
+    status: real.status,
+    createdAt: real.createdAt,
+  };
+}
 
 /**
  * Log-line presentation per real `simulation_logs.step` value. `step` is NOT literally an agent
@@ -259,10 +293,29 @@ export function SimulationWizardClient(): React.ReactElement {
     // `{ error: { message } }` instead, so `body.objective` silently came back `undefined`. Both
     // JSX branches below only handle `null`/a real `ObjectiveDto`, so `undefined` rendered
     // NOTHING — Step 1 looked like the objective section had vanished, with no error shown either.
-    fetch("/api/objective")
+    //
+    // Real user-reported bug fix (post-ship): this always fetched `/api/objective` — the AUTOMOTIVE-
+    // only `objective-engine` endpoint — even for PROPERTY tenants, who set their real objective via
+    // the genuinely separate `/api/property-objective` endpoint (Phase O1/O2,
+    // `docs/PROMPT-AAOS-TENANT-SCOPING-AND-PROPERTY-OBJECTIVE.md`). Step 1 correctly showed "Belum ada
+    // objective bulan ini" for a PROPERTY tenant who HAD set one, because it was checking the wrong
+    // store. Now branches on the real resolved `vertical` and adapts `PropertyObjectiveDto`'s real
+    // shape into this component's existing `ObjectiveDto`-typed state (the two DTOs are field-for-
+    // field identical except `focusListings` vs `focusUnits` — a real, honest display-only mapping,
+    // not a type conflation, since every consumer in this file only ever reads
+    // targetHotLeads/budgetAllocation/focusUnits/areaPriorities for display).
+    //
+    // Keyed on `[vertical]` (not `[]`): runs once immediately with `vertical` still `undefined`
+    // (fetches the AUTOMOTIVE endpoint, matching this component's own established "unresolved =
+    // treated as AUTOMOTIVE" convention elsewhere), then re-runs and re-fetches the real PROPERTY
+    // endpoint once `vertical` resolves to `"PROPERTY"` — a real, accepted one-time extra call for
+    // PROPERTY tenants during the brief unresolved window, the SAME tradeoff `ObjectiveClient.tsx`'s
+    // own vertical-resolution effect already documents accepting.
+    const endpoint = vertical === "PROPERTY" ? "/api/property-objective" : "/api/objective";
+    fetch(endpoint)
       .then(async (res) => {
         const body = (await res.json()) as {
-          objective?: ObjectiveDto | null;
+          objective?: (ObjectiveDto | PropertyObjectiveDto) | null;
           error?: { message?: string };
         };
         if (cancelled) {
@@ -273,7 +326,8 @@ export function SimulationWizardClient(): React.ReactElement {
           setObjective(null);
           return;
         }
-        setObjective(body.objective ?? null);
+        const real = body.objective ?? null;
+        setObjective(real === null ? null : toObjectiveDisplayShape(real));
       })
       .catch(() => {
         if (!cancelled) {
@@ -289,7 +343,7 @@ export function SimulationWizardClient(): React.ReactElement {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [vertical]);
 
   // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — resolves the tenant's real vertical once, the
   // same real `GET /api/settings` route Phase 1's tenant Settings page already uses. A fetch

@@ -698,6 +698,10 @@ describe("SimulationWizardClient", () => {
             ],
             total: 1,
           }),
+        // Real user-reported bug fix: Step 1 must check the genuinely separate
+        // `/api/property-objective` endpoint for PROPERTY tenants, not `/api/objective` (the
+        // AUTOMOTIVE-only store) — default to "none set" here, individual tests override.
+        "/api/property-objective": () => jsonResponse({ objective: null }),
         ...overrides,
       });
     }
@@ -716,6 +720,34 @@ describe("SimulationWizardClient", () => {
       // The automotive-only angle option must not leak into the PROPERTY select.
       expect(screen.queryByText("KREDIT_SYARIAH")).not.toBeInTheDocument();
       expect(screen.getByText("VIRTUAL_TOUR")).toBeInTheDocument();
+    });
+
+    it("shows a real, already-set PROPERTY objective in Step 1 — real bug fix, this used to always check the AUTOMOTIVE-only /api/objective and show 'Belum ada objective' even when a PROPERTY tenant had one set", async () => {
+      writeCampaignsCache({ data: DATA, fetchedAt: Date.now(), period: "last_30d" });
+      mockPropertySettings({
+        "/api/property-objective": () =>
+          jsonResponse({
+            objective: {
+              id: "po-1",
+              tenantId: "propertyklik-demo",
+              period: { month: 9, year: 2026 },
+              targetHotLeads: 50,
+              budgetAllocation: 15_000_000,
+              budgetSource: "SAMANTHA_SUGGESTED",
+              focusListings: ["Cluster Anggrek", "Rumah Blok C5"],
+              areaPriorities: ["Bintaro", "BSD"],
+              status: "DRAFT",
+              createdAt: "2026-09-01T00:00:00.000Z",
+            },
+          }),
+      });
+      render(<SimulationWizardClient />);
+
+      const setup = await screen.findByTestId("wizard-step-setup");
+      expect(setup.textContent).not.toContain("Belum ada objective bulan ini");
+      expect(setup.textContent).toContain("Target 50 hot leads");
+      expect(setup.textContent).toContain("15.000.000");
+      expect(setup.textContent).toContain("Cluster Anggrek, Rumah Blok C5");
     });
 
     it("'Mulai Simulasi Dry-Run' stays disabled until a listing is selected", async () => {
