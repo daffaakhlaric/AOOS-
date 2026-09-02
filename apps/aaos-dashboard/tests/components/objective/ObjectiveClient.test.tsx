@@ -88,4 +88,57 @@ describe("ObjectiveClient", () => {
     await userEvent.click(screen.getByRole("button", { name: /Set Objective/ }));
     await waitFor(() => expect(screen.getByText("gagal")).toBeInTheDocument());
   });
+
+  // Phase O2 — real PROPERTY vertical branch, resolved via GET /api/settings -> tenant.vertical
+  // (same client-side convention Sidebar.tsx/CreativeClient.tsx already use).
+  it("renders the PropertyObjectiveForm (not ObjectiveForm) for a PROPERTY tenant", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/api/settings")) {
+        return jsonResponse({ tenant: { vertical: "PROPERTY" } });
+      }
+      if (url.includes("/api/property-objective")) {
+        return jsonResponse({ objective: null });
+      }
+      return jsonResponse({ objective: null });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<ObjectiveClient />);
+    await waitFor(() =>
+      expect(screen.getByRole("form", { name: /Set objective properti/ })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("form", { name: "Set objective" })).not.toBeInTheDocument();
+  });
+
+  it("renders the PropertyObjectiveCard once a real property objective is loaded", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/api/settings")) {
+        return jsonResponse({ tenant: { vertical: "PROPERTY" } });
+      }
+      if (url.includes("/api/property-objective")) {
+        return jsonResponse({
+          objective: {
+            id: "po-1",
+            tenantId: "propertyklik-demo",
+            period: { month: 8, year: 2026 },
+            targetHotLeads: 30,
+            budgetAllocation: 9_000_000,
+            budgetSource: "SAMANTHA_SUGGESTED",
+            focusListings: ["Cluster Anggrek"],
+            areaPriorities: ["Bintaro"],
+            status: "DRAFT",
+            createdAt: "2026-08-01T00:00:00.000Z",
+          },
+        });
+      }
+      return jsonResponse({ objective: null });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<ObjectiveClient />);
+    await waitFor(() => expect(screen.getByTestId("property-objective-card")).toBeInTheDocument());
+    expect(screen.queryByTestId("objective-card")).not.toBeInTheDocument();
+  });
 });
