@@ -19,10 +19,16 @@
   min-height: 100vh;
 }
 
+/* AAOS Colorful Brand Guideline v2, Phase B2 — this `.main` background is the actual visible
+   page background for every real app page: it's opaque and fills the grid's `1fr` column, so it
+   sits on top of (and fully hides) `<body>`'s own background from `globals.css`. Repointed from
+   the flat `--gray-100` light gray to the v2 abu-biru `--v2-page-bg` for the same reason
+   `globals.css`'s `body` rule was — this one file is the single global source of truth for what
+   users actually see, not a per-page sweep. */
 .main {
   grid-column: 2;
   min-height: 100vh;
-  background: var(--gray-100);
+  background: var(--v2-page-bg);
   min-width: 0;
 }
 

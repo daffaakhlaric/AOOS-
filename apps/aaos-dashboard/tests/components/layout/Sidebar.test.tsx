@@ -160,4 +160,35 @@ describe("Sidebar", () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     expect(screen.getByText("Scraper Mobix")).toBeInTheDocument();
   });
+
+  /**
+   * AAOS Colorful Brand Guideline v2, Phase B2 — the one additive JSX change this recolor needed:
+   * each nav `Link` now carries `data-group` (the real `NavGroup.key`) so `Sidebar.module.css` can
+   * color the active-state pill/accent-bar per group (see that file's `.navItemActive[data-group=…]`
+   * rules). Asserted directly against the real markup, not just claimed.
+   */
+  it("tags every real nav group's links with data-group matching the group key (v2 active-state coloring)", () => {
+    mockSettingsFetch(undefined);
+    render(<Sidebar />);
+    expect(screen.getByText("Overview").closest("a")).toHaveAttribute("data-group", "top");
+    expect(screen.getByText("Data Iklan").closest("a")).toHaveAttribute("data-group", "samantha");
+    expect(screen.getByText("Lead Recycling").closest("a")).toHaveAttribute("data-group", "clara");
+    expect(screen.getByText("Creative Review").closest("a")).toHaveAttribute("data-group", "kai");
+    expect(screen.getByText("Branch Settings").closest("a")).toHaveAttribute(
+      "data-group",
+      "operasional",
+    );
+    expect(screen.getByText("Dashboard Sosmed").closest("a")).toHaveAttribute(
+      "data-group",
+      "sosmed",
+    );
+  });
+
+  it("marks the active Overview link (current route /dashboard) with the navItemActive styling hook", () => {
+    mockSettingsFetch(undefined);
+    render(<Sidebar />);
+    const overviewLink = screen.getByText("Overview").closest("a");
+    expect(overviewLink).toHaveAttribute("aria-current", "page");
+    expect(overviewLink?.className).toMatch(/navItemActive/);
+  });
 });

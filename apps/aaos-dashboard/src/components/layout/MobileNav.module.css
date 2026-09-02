@@ -1,3 +1,7 @@
+/* AAOS Colorful Brand Guideline v2, Phase B2 — recolored to match the desktop Sidebar's deep
+   indigo (`--v2-sidebar-*` tokens, `globals.css` Phase B1) so the two real nav surfaces share one
+   visual language, per the coordinator doc's "recolor it consistently too" instruction. Structure
+   unchanged: still the same 5-item bottom tab bar built from `NAV_ITEMS`. */
 .nav {
   position: fixed;
   right: 0;
@@ -6,8 +10,8 @@
   z-index: 10;
   display: none;
   justify-content: space-around;
-  border-top: var(--border);
-  background: var(--white);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--v2-sidebar-bg);
   padding: 8px 0;
 }
 
@@ -19,12 +23,12 @@
   padding: 0 8px;
   font-size: 11px;
   font-weight: 500;
-  color: var(--gray-400);
+  color: var(--v2-sidebar-text);
   text-decoration: none;
 }
 
 .linkActive {
-  color: var(--blue);
+  color: var(--v2-sidebar-text-active);
 }
 
 @media (max-width: 767px) {

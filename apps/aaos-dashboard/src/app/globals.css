@@ -86,11 +86,17 @@
   color-scheme: light;
 }
 
+/* AAOS Colorful Brand Guideline v2, Phase B2 — page background repointed from the flat
+   `--gray-100` light gray to the v2 abu-biru `--v2-page-bg` (`#F0F4FF`, Phase B1 token). This is
+   the single global source for the light-theme page background — every page-level CSS Module
+   renders its content on top of `<body>`'s background rather than setting its own, so this one
+   rule change is sufficient (no per-page sweep needed; `--gray-100` itself is left unchanged for
+   any other un-migrated consumer of that token). */
 body {
   font-family: var(--font);
   font-size: 14px;
   color: var(--gray-900);
-  background: var(--gray-100);
+  background: var(--v2-page-bg);
   -webkit-font-smoothing: antialiased;
 }
 

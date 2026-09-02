@@ -1,0 +1,8 @@
+/* Prompt 10's literal `SectionBar` dimensions: 4px wide, ~18px tall, 2px border-radius. */
+.bar {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+}

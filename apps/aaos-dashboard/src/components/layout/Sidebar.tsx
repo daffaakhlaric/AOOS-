@@ -375,6 +375,7 @@ export function Sidebar(): React.ReactElement {
                         href={item.href}
                         className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}
                         aria-current={active ? "page" : undefined}
+                        data-group={group.key}
                       >
                         <span aria-hidden="true" className={styles.navIcon}>
                           {item.icon}

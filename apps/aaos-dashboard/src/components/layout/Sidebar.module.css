@@ -1,4 +1,9 @@
-/* Spec "=== SIDEBAR ===" — fixed 220px rail, logo/nav/user sections. */
+/**
+ * AAOS Colorful Brand Guideline v2, Phase B2 — recolored to the deep-indigo sidebar
+ * (`--v2-sidebar-*` tokens from `globals.css`, Phase B1) per
+ * `docs/PROMPT-AAOS-BRAND-GUIDELINE-V2.md` decision #2: same real 220px rail / structure as
+ * before, palette swap only. Spec "=== SIDEBAR ===" — fixed 220px rail, logo/nav/user sections.
+ */
 .sidebar {
   position: fixed;
   top: 0;
@@ -6,8 +11,8 @@
   width: 220px;
   height: 100vh;
   overflow-y: auto;
-  background: var(--white);
-  border-right: var(--border);
+  background: var(--v2-sidebar-bg);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   z-index: 10;
@@ -15,7 +20,7 @@
 
 .logo {
   padding: 16px;
-  border-bottom: var(--border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .logoRow {
@@ -24,8 +29,9 @@
   gap: 10px;
 }
 
-/* Reference screenshot's black rounded-square wordmark, replacing the previous 🚗 emoji + live
-   dot + subtext combo. */
+/* Real "AAOS" wordmark (NOT the spec's fictional "Eyvra"/"E" mark — see coordinator doc decision
+   #2). Box recolored to `--v2-sidebar-active` (the spec's own logo-box color, `#3730A3`) so it
+   reads against the new deep-indigo surround instead of the old plain-black square. */
 .logoMark {
   display: flex;
   align-items: center;
@@ -33,8 +39,8 @@
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  background: var(--black);
-  color: var(--white);
+  background: var(--v2-sidebar-active);
+  color: var(--v2-sidebar-text-active);
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
@@ -45,7 +51,7 @@
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.3px;
-  color: var(--black);
+  color: var(--v2-sidebar-text-active);
 }
 
 .nav {
@@ -62,10 +68,11 @@
 }
 
 /* MENU RESTRUCTURE FINAL: thin divider between the standalone Overview item and the 4
-   collapsible sections below it — rendered only after the "top" group. */
+   collapsible sections below it — rendered only after the "top" group. Recolored to a
+   translucent white line for the dark indigo background (was a light-theme gray). */
 .divider {
   height: 1px;
-  background: var(--gray-100);
+  background: rgba(255, 255, 255, 0.08);
   margin: 6px 8px 4px;
 }
 
@@ -81,14 +88,14 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--gray-400);
+  color: var(--v2-sidebar-text);
   padding: 8px 8px 4px;
   cursor: pointer;
   border-radius: var(--radius);
 }
 
 .sectionLabel:hover {
-  color: var(--gray-600);
+  color: var(--v2-sidebar-text-active);
 }
 
 .chevron {
@@ -130,7 +137,7 @@
   padding: 7px 8px;
   border-radius: var(--radius);
   font-size: 13px;
-  color: var(--gray-600);
+  color: var(--v2-sidebar-text);
   cursor: pointer;
   transition:
     background 80ms,
@@ -139,13 +146,31 @@
 }
 
 .navItem:hover {
-  background: var(--gray-100);
-  color: var(--gray-900);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--v2-sidebar-text-active);
 }
 
+/**
+ * Active nav item — colored pill + left accent bar, per real nav GROUP (the spec's own
+ * `MENU_ITEMS`/`ACTIVITY_ROW_ACCENT` tables are keyed per flat item, one item = one page; this
+ * app's real sidebar groups 20+ items under 4-5 collapsible sections instead, so the sensible
+ * adaptation is one color per GROUP rather than per item). Every real group is matched to one of
+ * the 8 `--v2-menu-*` tokens by nearest semantic fit:
+ *   - "top" (Overview, standalone)     -> --v2-menu-overview  (blue)   — spec's own Overview color
+ *   - samantha (SAMANTHA / META ADS)   -> --v2-menu-campaigns (violet) — spec's "Campaign" color
+ *   - clara (CLARA / SALES AI)         -> --v2-menu-leads     (emerald)— spec's "Leads" color
+ *   - sosmed (SOSIAL MEDIA)            -> --v2-menu-analytics (pink)   — not in the spec's 4-group
+ *     mapping (real app has a 5th group the spec never anticipated); pink is otherwise unused by
+ *     any of the 4 mapped groups below and reads as a distinct "content/analytics" adjacent hue.
+ *   - kai (KAI / CREATIVE)             -> --v2-menu-creative  (amber)  — spec's "Creative" color
+ *   - operasional (OPERASIONAL)        -> --v2-menu-settings  (slate)  — spec's "Pengaturan" color
+ * Selected via the `data-group` attribute `Sidebar.tsx` sets on each `Link` (the one minimal,
+ * additive JSX change this recolor needed) rather than a separate CSS class per group, so the
+ * base `.navItemActive` pill/bar rule stays the fallback for any unmatched group key.
+ */
 .navItemActive {
-  background: var(--blue-light);
-  color: var(--blue);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--v2-sidebar-text-active);
   font-weight: 500;
 }
 
@@ -153,19 +178,62 @@
   content: "";
   position: absolute;
   left: -8px;
-  width: 2px;
+  width: 3px;
   height: 16px;
-  background: var(--blue);
   border-radius: 2px;
+  background: var(--v2-menu-overview);
 }
 
-/* Muted/grayscale by default, full color once active — approximates the reference's monochrome
-   line-icon set without pulling in a new icon-library dependency mid-restyle (this app has no
-   SVG icon set installed; swapping the emoji glyphs for one is a separate, larger decision). */
+.navItemActive[data-group="top"] {
+  background: color-mix(in srgb, var(--v2-menu-overview) 18%, transparent);
+}
+.navItemActive[data-group="top"]::before {
+  background: var(--v2-menu-overview);
+}
+
+.navItemActive[data-group="samantha"] {
+  background: color-mix(in srgb, var(--v2-menu-campaigns) 18%, transparent);
+}
+.navItemActive[data-group="samantha"]::before {
+  background: var(--v2-menu-campaigns);
+}
+
+.navItemActive[data-group="clara"] {
+  background: color-mix(in srgb, var(--v2-menu-leads) 18%, transparent);
+}
+.navItemActive[data-group="clara"]::before {
+  background: var(--v2-menu-leads);
+}
+
+.navItemActive[data-group="sosmed"] {
+  background: color-mix(in srgb, var(--v2-menu-analytics) 18%, transparent);
+}
+.navItemActive[data-group="sosmed"]::before {
+  background: var(--v2-menu-analytics);
+}
+
+.navItemActive[data-group="kai"] {
+  background: color-mix(in srgb, var(--v2-menu-creative) 18%, transparent);
+}
+.navItemActive[data-group="kai"]::before {
+  background: var(--v2-menu-creative);
+}
+
+.navItemActive[data-group="operasional"] {
+  background: color-mix(in srgb, var(--v2-menu-settings) 18%, transparent);
+}
+.navItemActive[data-group="operasional"]::before {
+  background: var(--v2-menu-settings);
+}
+
+/* Muted by default, full color once active — inactive icons dim against the dark sidebar,
+   matching the spec's rgba(255,255,255,0.35-0.4) inactive-icon treatment (grayscale/opacity
+   filter kept from the pre-v2 light-theme rule since these are emoji glyphs, not an SVG icon
+   set — swapping to one is a separate, larger decision, unchanged by this recolor). */
 .navIcon {
   font-size: 14px;
   line-height: 1;
-  filter: grayscale(1) opacity(0.55);
+  filter: grayscale(1) opacity(0.6);
   transition: filter 80ms;
 }
 
