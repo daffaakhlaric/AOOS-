@@ -88,6 +88,7 @@ import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { OverviewModule } from "./modules/overview/overview.module.js";
+import { PropertyObjectiveModule } from "./modules/property-objective/property-objective.module.js";
 import { RecyclingModule } from "./modules/recycling/recycling.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
 import { SchedulerModule } from "./modules/scheduler/scheduler.module.js";
@@ -415,6 +416,11 @@ export class AppModule {
         // identified (leads/campaigns/objective/activity-log/heatmap), all reused in-process via
         // each of their own module's newly-exported service (see `OverviewModule`'s own doc).
         OverviewModule,
+        // Phase O1 — new `property-objective` module: a genuinely separate PROPERTY-tenant
+        // equivalent of ObjectiveModule (see that module's own doc for why this is NOT a
+        // generalization of `packages/objective-engine`'s AUTOMOTIVE-specific domain model).
+        // Additive — ObjectiveModule itself is untouched.
+        PropertyObjectiveModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

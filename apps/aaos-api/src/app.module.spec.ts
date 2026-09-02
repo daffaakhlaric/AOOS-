@@ -120,7 +120,13 @@ describe("AppModule.forRoot", () => {
     // source it reuses is injected in-process via LeadsModule/MetaAdsModule/ObjectiveModule/
     // RecyclingModule/ActivityLogModule/LlmModule's own now-exported services, not a new
     // global provider here).
-    expect(dynamicModule.imports).toHaveLength(29);
+    // Phase O1 (PROPERTY Objective backend): +1 import (PropertyObjectiveModule, the new
+    // genuinely-separate `GET/POST /api/v1/property-objective` + budget-suggestion endpoints) —
+    // no new global provider (composes its own PropertyObjectiveRepository locally from the
+    // existing SUPABASE_CLIENT, same pattern OverviewModule/PendingActionsModule already
+    // establish; reuses MetaAdsModule's already-exported MetaAdsService in-process, not a new
+    // global provider here). ObjectiveModule itself is untouched.
+    expect(dynamicModule.imports).toHaveLength(30);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 
