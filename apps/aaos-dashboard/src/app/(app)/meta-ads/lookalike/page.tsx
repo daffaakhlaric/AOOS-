@@ -5,7 +5,7 @@ import { LookalikeClient } from "@/components/meta-ads/LookalikeClient";
 export default function LookalikePage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Lookalike Audience" />
+      <TopBar title="Lookalike Audience" accentColor="var(--v2-menu-campaigns)" />
       <LookalikeClient />
     </main>
   );

@@ -38,10 +38,13 @@
   gap: 8px;
 }
 
+/* v2 card treatment — 14px radius + subtle shadow, local override only (Phase B3's `Card.module.css`
+   precedent), not a change to any shared/global card token. */
 .card {
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   border: var(--border);
   background: var(--white);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -101,9 +104,15 @@
   color: #92400e;
 }
 
+/* AAOS Colorful Brand Guideline v2, Phase B4 real finding — this page's real proposal statuses are
+   `PENDING`/`APPROVED`/`REJECTED`, NOT `APPLIED`/`ROLLED_BACK` as `Badge`'s `BadgeType` (Phase B1)
+   anticipated for this page; `REJECTED` already matched `Badge`'s exact hex (kept as-is below).
+   `APPROVED` has no matching `BadgeType` (it is not the same concept as config-`APPLIED`), so it
+   is only aligned to the same green hex `Badge`'s APPLIED/STABLE/EXECUTED share, in place, rather
+   than fabricated as a literal `APPLIED` status this page doesn't have. */
 .statusApproved {
-  background: #dcfce7;
-  color: #166534;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .statusRejected {

@@ -5,7 +5,7 @@ import { AuditClient } from "@/components/meta-ads/AuditClient";
 export default function AuditPage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Audit Biaya" />
+      <TopBar title="Audit Biaya" accentColor="var(--v2-menu-campaigns)" />
       <AuditClient />
     </main>
   );

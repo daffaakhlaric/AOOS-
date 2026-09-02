@@ -5,7 +5,7 @@ import { TopBar } from "@/components/layout/TopBar";
 export default function AnalisaPage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Analisa & Rekomendasi" />
+      <TopBar title="Analisa & Rekomendasi" accentColor="var(--v2-menu-campaigns)" />
       <AnalisaClient />
     </main>
   );

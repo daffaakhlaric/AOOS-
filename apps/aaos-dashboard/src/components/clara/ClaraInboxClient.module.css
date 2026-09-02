@@ -48,8 +48,10 @@
   cursor: pointer;
 }
 
+/* AAOS Colorful Brand Guideline v2, Phase B4 — Leads section accent (Prompt 12's `#EF4444`,
+   `--v2-hot`) rather than the flat black v1 active pill. */
 .tabActive {
-  background: var(--black);
+  background: var(--v2-hot);
   color: var(--white);
 }
 
@@ -93,9 +95,11 @@
   background: var(--gray-100);
 }
 
+/* v2 — selected conversation tinted/accented with the Leads section color instead of blue, so
+   this list visually matches the rest of the Leads page group. */
 .rowActive {
-  background: var(--blue-light);
-  border-left: 2px solid var(--blue);
+  background: var(--v2-hot-tint);
+  border-left: 2px solid var(--v2-hot);
 }
 
 .avatar {

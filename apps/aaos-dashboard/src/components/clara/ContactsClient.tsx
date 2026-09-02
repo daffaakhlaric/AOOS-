@@ -2,16 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Badge,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-} from "@tremor/react";
+import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@tremor/react";
 
+import { Badge, type BadgeType } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { SkeletonRows } from "@/components/ui/Skeleton";
@@ -20,11 +13,16 @@ import type { BranchDto, LeadDto } from "@/types/dashboard.types";
 
 import styles from "./ContactsClient.module.css";
 
-/** Tremor `Badge`'s `color` prop per lead temperature — same map `LeadsClient` used before this move. */
-const TEMPERATURE_BADGE_COLOR: Readonly<Record<string, "red" | "amber" | "gray">> = {
-  HOT: "red",
-  WARM: "amber",
-  COLD: "gray",
+/**
+ * AAOS Colorful Brand Guideline v2, Phase B4 — real `lead.temperature` values (`HOT`/`WARM`/
+ * `COLD`) are already exactly 3 of the real `Badge` component's `BadgeType`s, so this now renders
+ * the unified v2 `Badge` instead of Tremor's own generic `Badge` (which this file no longer
+ * imports at all — nothing else here used it).
+ */
+const TEMPERATURE_BADGE_TYPE: Readonly<Record<string, BadgeType>> = {
+  HOT: "HOT",
+  WARM: "WARM",
+  COLD: "COLD",
 };
 
 /**
@@ -188,9 +186,7 @@ export function ContactsClient(): React.ReactElement {
                 </TableCell>
                 <TableCell className={styles.mutedCell}>{lead.leadSource ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge color={TEMPERATURE_BADGE_COLOR[lead.temperature] ?? "gray"}>
-                    {lead.temperature}
-                  </Badge>
+                  <Badge type={TEMPERATURE_BADGE_TYPE[lead.temperature] ?? "COLD"} />
                 </TableCell>
                 <TableCell>
                   <select

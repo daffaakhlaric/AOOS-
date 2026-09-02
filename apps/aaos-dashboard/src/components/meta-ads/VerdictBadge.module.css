@@ -18,50 +18,56 @@
   line-height: 1.4;
 }
 
+/* AAOS Colorful Brand Guideline v2, Phase B4 — recolored in place to the v2 palette per Prompt
+   11's "Verdict cards" hex table (SCALE→green/perf-good, PAUSE→red/perf-bad, FIX/REVIEW→
+   amber/perf-warn, KEEP→v2 blue). This stays `VerdictBadge`'s OWN component (not folded into the
+   generic `Badge`) per the coordinator note's explicit instruction — verdict semantics aren't one
+   of `Badge`'s real `BadgeType`s. */
 .scale {
-  background: var(--green-light);
-  color: var(--green);
-  border-color: rgba(15, 163, 127, 0.2);
+  background: var(--v2-perf-good-bg);
+  color: #065f46;
+  border-color: #a7f3d0;
 }
 
 .keep {
-  background: var(--blue-light);
-  color: var(--blue);
-  border-color: rgba(0, 112, 243, 0.2);
+  background: var(--v2-blue-light);
+  color: var(--v2-blue-dark);
+  border-color: #bfdbfe;
 }
 
 .review {
-  background: var(--amber-light);
-  color: var(--amber);
-  border-color: rgba(245, 166, 35, 0.2);
+  background: var(--v2-perf-warn-bg);
+  color: #92400e;
+  border-color: #fde68a;
 }
 
 .pause {
-  background: var(--red-light);
-  color: var(--red);
-  border-color: rgba(238, 0, 0, 0.2);
+  background: var(--v2-perf-bad-bg);
+  color: #991b1b;
+  border-color: #fecaca;
 }
 
 .fix {
-  background: var(--amber-light);
-  color: var(--amber);
-  border-color: rgba(245, 166, 35, 0.2);
+  background: var(--v2-perf-warn-bg);
+  color: #92400e;
+  border-color: #fde68a;
 }
 
 /* Real client-side per-branch verdict concept (AnalisaClient.tsx), not a `Verdict` enum member —
    intentionally the same red as PAUSE (both mean "stop"), differentiated by icon + label text. */
 .cut {
-  background: var(--red-light);
-  color: var(--red);
-  border-color: rgba(238, 0, 0, 0.2);
+  background: var(--v2-perf-bad-bg);
+  color: #991b1b;
+  border-color: #fecaca;
 }
 
-/* Real VerdictEngine output not depicted in any mockup — not in the spec's 5-color `:root` table,
-   so a dedicated `--purple`/`--purple-light` pair was added to globals.css for it. */
+/* Real VerdictEngine output not depicted in any mockup — kept on the existing dedicated
+   `--purple`/`--purple-light` pair (Kai violet reads as the closest v2 identity for a distinct
+   6th verdict color). */
 .refresh {
-  background: var(--purple-light);
-  color: var(--purple);
-  border-color: rgba(124, 58, 237, 0.2);
+  background: var(--v2-kai-tint);
+  color: var(--v2-kai);
+  border-color: var(--v2-kai-light);
 }
 
 .unknown {

@@ -6,10 +6,13 @@
   max-width: 900px;
 }
 
+/* v2 card treatment — 14px radius + subtle shadow, local override only (Phase B3's `Card.module.css`
+   precedent), not a change to any shared/global card token. */
 .card {
   border: var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   background: var(--white);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
@@ -142,10 +145,16 @@
   border: var(--border);
 }
 
+/* AAOS Colorful Brand Guideline v2, Phase B4 — recolored to the exact v2 hex the real `Badge`
+   component uses for the same semantic colors (green "on"/positive, red "off"/negative). This
+   pair is reused for two different real concepts (WABA row `status: ACTIVE|INACTIVE`, and the
+   tenant's LIVE/DEV + FULL_CONTROL/APPROVAL mode pills), so it stays a plain positive/negative
+   pairing rather than being repointed to DEV's indigo (which would misread as "inactive" on the
+   WABA table's genuinely-off rows). */
 .statusPillActive {
-  background: #dcfce7;
-  color: #166534;
-  border-color: #bbf7d0;
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #a7f3d0;
 }
 
 .statusPillInactive {

@@ -50,9 +50,11 @@
   color: var(--gray-900);
 }
 
+/* AAOS Colorful Brand Guideline v2, Phase B4 — Creative/Kai violet underline (Prompt 13's `#7C3AED`
+   active-tab color) instead of the flat black v1 underline. */
 .tabActive {
-  color: var(--black);
-  border-bottom-color: var(--black);
+  color: var(--v2-kai);
+  border-bottom-color: var(--v2-kai);
 }
 
 .notice {
@@ -70,10 +72,13 @@
   gap: 12px;
 }
 
+/* v2 card treatment — 14px radius + subtle shadow, local override only (Phase B3's `Card.module.css`
+   precedent), not a change to any shared/global card token. */
 .row {
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   border: var(--border);
   background: var(--white);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 16px;
   display: flex;
   flex-direction: column;

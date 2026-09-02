@@ -5,7 +5,7 @@ import { AbTestingClient } from "@/components/meta-ads/AbTestingClient";
 export default function AbTestingPage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="A/B Testing" />
+      <TopBar title="A/B Testing" accentColor="var(--v2-menu-campaigns)" />
       <AbTestingClient />
     </main>
   );

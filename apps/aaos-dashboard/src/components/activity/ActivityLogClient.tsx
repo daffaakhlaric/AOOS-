@@ -166,7 +166,7 @@ export function ActivityLogClient(): React.ReactElement {
 
   return (
     <main>
-      <TopBar title="Activity Log" />
+      <TopBar title="Activity Log" accentColor="var(--v2-menu-activity)" />
       <div className={styles.page}>
         <div className={styles.toolbar}>
           <select

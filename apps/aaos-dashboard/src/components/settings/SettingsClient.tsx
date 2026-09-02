@@ -334,7 +334,12 @@ export function SettingsClient(): React.ReactElement {
 
   return (
     <main>
-      <TopBar title="Settings" userEmail={email} onSignOut={onSignOut} />
+      <TopBar
+        title="Settings"
+        userEmail={email}
+        onSignOut={onSignOut}
+        accentColor="var(--v2-menu-settings)"
+      />
       <div className={styles.page}>
         <section className={styles.card}>
           <span className={styles.cardTitle}>Meta Ads Configuration</span>

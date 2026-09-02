@@ -5,7 +5,7 @@ import { StrategiClient } from "@/components/meta-ads/StrategiClient";
 export default function StrategiPage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Strategi & Approve" />
+      <TopBar title="Strategi & Approve" accentColor="var(--v2-menu-campaigns)" />
       <StrategiClient />
     </main>
   );

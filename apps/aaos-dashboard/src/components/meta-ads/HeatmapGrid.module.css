@@ -101,12 +101,16 @@
   color: var(--gray-500, #6b7280);
 }
 
+/* AAOS Colorful Brand Guideline v2, Phase B4 real finding — this heatmap's real cell tiers are a
+   binary frequency-warning `cellHigh`/`cellNormal` pair, not the spec's 4-tier good/warn/bad/best
+   CPL model (no CPL-benchmark data exists in this grid's real shape) — recolored in place to the
+   same v2 perf-bad/perf-good hex rather than inventing extra tiers. */
 .cellHigh .cellValue {
-  color: var(--red, #dc2626);
+  color: var(--v2-perf-bad, #ef4444);
 }
 
 .cellNormal .cellValue {
-  color: var(--green, #16a34a);
+  color: var(--v2-perf-good, #10b981);
 }
 
 .untagged {

@@ -5,7 +5,7 @@ import { ContactsClient } from "@/components/clara/ContactsClient";
 export default function ClaraContactsPage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Contacts" />
+      <TopBar title="Contacts" accentColor="var(--v2-menu-leads)" />
       <ContactsClient />
     </main>
   );

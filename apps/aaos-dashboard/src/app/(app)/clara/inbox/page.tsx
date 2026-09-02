@@ -13,7 +13,7 @@ export default function ClaraInboxPage({
 }): React.ReactElement {
   return (
     <main>
-      <TopBar title="Inbox" />
+      <TopBar title="Inbox" accentColor="var(--v2-menu-leads)" />
       <ClaraInboxClient initialLeadId={searchParams.lead} />
     </main>
   );

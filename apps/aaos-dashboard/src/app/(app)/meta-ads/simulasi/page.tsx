@@ -10,7 +10,7 @@ import { SimulationWizardClient } from "@/components/meta-ads/SimulationWizardCl
 export default function SimulasiPage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Simulasi Samantha × Kai × Clara" />
+      <TopBar title="Simulasi Samantha × Kai × Clara" accentColor="var(--v2-menu-campaigns)" />
       <SimulationWizardClient />
     </main>
   );

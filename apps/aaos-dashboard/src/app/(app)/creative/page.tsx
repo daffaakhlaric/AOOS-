@@ -5,7 +5,7 @@ import { TopBar } from "@/components/layout/TopBar";
 export default function CreativePage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Creative Review" />
+      <TopBar title="Creative Review" accentColor="var(--v2-menu-creative)" />
       <CreativeClient />
     </main>
   );

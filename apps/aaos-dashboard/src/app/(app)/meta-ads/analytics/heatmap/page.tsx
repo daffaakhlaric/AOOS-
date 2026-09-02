@@ -5,7 +5,7 @@ import { AnalyticsHeatmapClient } from "@/components/meta-ads/AnalyticsHeatmapCl
 export default function HeatmapPage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Heatmap Audiens × Kreatif" />
+      <TopBar title="Heatmap Audiens × Kreatif" accentColor="var(--v2-menu-analytics)" />
       <AnalyticsHeatmapClient />
     </main>
   );

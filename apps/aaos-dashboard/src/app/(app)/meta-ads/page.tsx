@@ -5,7 +5,7 @@ import { MetaAdsClient } from "@/components/meta-ads/MetaAdsClient";
 export default function MetaAdsPage(): React.ReactElement {
   return (
     <main>
-      <TopBar title="Data Iklan" />
+      <TopBar title="Data Iklan" accentColor="var(--v2-menu-campaigns)" />
       <MetaAdsClient />
     </main>
   );

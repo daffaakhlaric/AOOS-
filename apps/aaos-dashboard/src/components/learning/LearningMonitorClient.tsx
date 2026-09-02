@@ -216,7 +216,7 @@ export function LearningMonitorClient(): React.ReactElement {
 
   return (
     <main>
-      <TopBar title="Learning Monitor" />
+      <TopBar title="Learning Monitor" accentColor="var(--v2-menu-improve)" />
       <div className={styles.page}>
         {actionError !== undefined ? <p className={styles.errorText}>{actionError}</p> : null}
 
