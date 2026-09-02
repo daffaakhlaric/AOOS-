@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LearningMonitorClient } from "@/components/learning/LearningMonitorClient";
@@ -76,6 +77,9 @@ function mockFetch(proposals: readonly unknown[]): void {
     if (url.includes("/api/learning/prompt-overrides")) {
       return jsonResponse([]);
     }
+    if (url.includes("/api/pending-actions")) {
+      return jsonResponse([]);
+    }
     return jsonResponse({}, 404);
   }) as unknown as typeof fetch;
 }
@@ -107,5 +111,114 @@ describe("LearningMonitorClient", () => {
     expect(screen.getByText(/Overall: 58/)).toBeInTheDocument();
     expect(screen.getByText(/Samantha: 50/)).toBeInTheDocument();
     expect(screen.getByText(/Grade: D/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * AAOS-OPERATING-MODE-APPROVAL-GATE — real, minimal component test for the new Pending Actions
+ * section (`GET /api/pending-actions`, `POST /api/pending-actions/:id/approve|reject`). Mirrors
+ * this file's own `mockFetch`-by-URL-substring pattern above.
+ */
+const PENDING_ACTION = {
+  id: "pending-1",
+  tenantId: "dss-motor",
+  agent: "SAMANTHA",
+  actionType: "CREATE_PROPERTY_CAMPAIGN",
+  payload: { listingId: "listing-1" },
+  status: "PENDING",
+  decidedBy: null,
+  decisionNotes: null,
+  decidedAt: null,
+  createdAt: "2026-09-02T09:00:00.000Z",
+};
+
+function jsonResponse2(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+describe("LearningMonitorClient — Pending Actions section", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders a real PENDING pending_agent_actions row with its real listingId and Approve/Reject buttons", async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/pending-actions")) {
+        return jsonResponse2([PENDING_ACTION]);
+      }
+      return jsonResponse2([]);
+    }) as unknown as typeof fetch;
+
+    render(<LearningMonitorClient />);
+
+    await waitFor(() => expect(screen.getByText(/CREATE_PROPERTY_CAMPAIGN/)).toBeInTheDocument());
+    expect(screen.getByText(/listing listing-1/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
+  });
+
+  it("shows the real empty state when there are no pending actions for the selected status", async () => {
+    global.fetch = vi.fn(async () => jsonResponse2([])) as unknown as typeof fetch;
+
+    render(<LearningMonitorClient />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Belum ada pending action untuk status ini/)).toBeInTheDocument(),
+    );
+  });
+
+  it("Approve calls the real POST /api/pending-actions/:id/approve and refreshes the list", async () => {
+    let currentStatus: "PENDING" | "APPROVED" = "PENDING";
+    const approveSpy = vi.fn();
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/pending-1/approve") && init?.method === "POST") {
+        approveSpy();
+        currentStatus = "APPROVED";
+        return jsonResponse2({ ...PENDING_ACTION, status: "APPROVED" });
+      }
+      if (url.includes("/api/pending-actions")) {
+        return jsonResponse2([{ ...PENDING_ACTION, status: currentStatus }]);
+      }
+      return jsonResponse2([]);
+    }) as unknown as typeof fetch;
+
+    render(<LearningMonitorClient />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument(),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(approveSpy).toHaveBeenCalled());
+  });
+
+  it("Reject calls the real POST /api/pending-actions/:id/reject and never approves", async () => {
+    const rejectSpy = vi.fn();
+    const approveSpy = vi.fn();
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/pending-1/reject") && init?.method === "POST") {
+        rejectSpy();
+        return jsonResponse2({ ...PENDING_ACTION, status: "REJECTED" });
+      }
+      if (url.endsWith("/pending-1/approve") && init?.method === "POST") {
+        approveSpy();
+        return jsonResponse2({ ...PENDING_ACTION, status: "APPROVED" });
+      }
+      if (url.includes("/api/pending-actions")) {
+        return jsonResponse2([PENDING_ACTION]);
+      }
+      return jsonResponse2([]);
+    }) as unknown as typeof fetch;
+
+    render(<LearningMonitorClient />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => expect(rejectSpy).toHaveBeenCalled());
+    expect(approveSpy).not.toHaveBeenCalled();
   });
 });

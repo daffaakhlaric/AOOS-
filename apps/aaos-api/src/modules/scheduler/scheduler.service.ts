@@ -55,6 +55,7 @@ import {
 } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
+import { PendingActionsService } from "../pending-actions/pending-actions.service.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -137,6 +138,14 @@ export class SchedulerService {
      * the same way `agentRunsService` above already is.
      */
     private readonly aiJudgeService: AiJudgeService,
+    /**
+     * AAOS-OPERATING-MODE-APPROVAL-GATE — real human-approval gate for a tenant in `APPROVAL`
+     * operating mode. Injected the SAME way `campaignsService` above already is (`PendingActionsModule`
+     * imported directly by `SchedulerModule`) — `recordCampaignTriggerDecision` calls
+     * `pendingActions.enqueue` instead of `campaignsService.createPropertyCampaign` when this
+     * tenant's real `operating_mode` is `APPROVAL`.
+     */
+    private readonly pendingActions: PendingActionsService,
   ) {}
 
   /**
@@ -818,7 +827,19 @@ export class SchedulerService {
         continue;
       }
       try {
-        await this.recordCampaignTriggerDecision(tenantId, correlationId, listing, decision);
+        await this.recordCampaignTriggerDecision(
+          tenantId,
+          correlationId,
+          listing,
+          decision,
+          // AAOS-OPERATING-MODE-APPROVAL-GATE — `tenant` was already fetched above (real
+          // ownership/vertical check at the top of this method), so this reuses that SAME row
+          // rather than a second `findByTenantId` read: `operating_mode` defaults to
+          // 'FULL_CONTROL' at the DB column level (`031_operating_mode.sql`), so a `tenant` row
+          // from before this migration ran (or a test fixture that doesn't set the field) still
+          // resolves to the exact real, unconditional today's behavior — zero regression.
+          tenant.operating_mode ?? "FULL_CONTROL",
+        );
         triggered += 1;
       } catch (caught) {
         this.logger.warn(
@@ -873,12 +894,31 @@ export class SchedulerService {
    * method lets that error fail its OWN activity row (`activityLogger.fail`) and then re-throws, so
    * the caller (`runPropertyCampaignTriggerCheck`) can catch it and skip just this one listing,
    * never aborting the rest of the check (see that method's own doc).
+   *
+   * AAOS-OPERATING-MODE-APPROVAL-GATE — the real gate insertion point. `operatingMode === 'APPROVAL'`:
+   * writes a real `pending_agent_actions` row via `PendingActionsService.enqueue` INSTEAD OF calling
+   * `campaignsService.createPropertyCampaign` — no campaign is created yet, no real Meta call of any
+   * kind happens. The `CAMPAIGN_TRIGGER_RECOMMENDATION` activity row is still started (same real
+   * "the scheduler decided a trigger should fire, and why" audit trail as `FULL_CONTROL`) but
+   * finishes via `activityLogger.escalate` (`NEEDS_HUMAN` — the SAME real, already-established
+   * terminal status `CreativePackagesService`'s manual-shoot escalation uses for "informational,
+   * doesn't gate anything itself" — see that class's own doc) rather than `complete`, since neither
+   * `SUCCESS` nor `SIMULATED` honestly describes "nothing was executed, a human must decide".
+   * `operatingMode === 'FULL_CONTROL'` (including every value other than the literal `'APPROVAL'`,
+   * e.g. a tenant row from before this migration ran): completely unchanged real behavior — calls
+   * `createPropertyCampaign` directly, exactly as before this gate existed.
+   *
+   * SINGLE GATE, deliberately (same discipline this method's own docstring already establishes for
+   * `createPropertyCampaign`'s internal DEV/LIVE gate): `operatingMode` is resolved exactly once, by
+   * the caller (`runPropertyCampaignTriggerCheck`, from the SAME `tenant` row it already fetched),
+   * and branched on exactly once, here — never a second, redundant read/branch.
    */
   private async recordCampaignTriggerDecision(
     tenantId: string,
     correlationId: string,
     listing: ListingResponseDto,
     decision: CampaignTriggerDecision,
+    operatingMode: string,
   ): Promise<void> {
     const mode = await this.modeGuard.resolveMode(tenantId);
     const activityId = await this.activityLogger.start({
@@ -889,6 +929,29 @@ export class SchedulerService {
       loopId: correlationId,
       input: { listingId: listing.id, listingTitle: listing.title, reasons: decision.reasons },
     });
+
+    if (operatingMode === "APPROVAL") {
+      try {
+        const pendingActionId = await this.pendingActions.enqueue({
+          tenantId,
+          agent: "SAMANTHA",
+          actionType: "CREATE_PROPERTY_CAMPAIGN",
+          payload: { listingId: listing.id },
+        });
+        await this.activityLogger.escalate(activityId, {
+          output: {
+            status: "PENDING_APPROVAL",
+            pendingActionId,
+            listingId: listing.id,
+            reasons: decision.reasons,
+          },
+        });
+      } catch (error) {
+        await this.activityLogger.fail(activityId, error);
+        throw error;
+      }
+      return;
+    }
 
     try {
       const result = await this.campaignsService.createPropertyCampaign(

@@ -18,6 +18,7 @@ const SETTINGS_RESPONSE = {
     vertical: "AUTOMOTIVE",
     status: "ACTIVE",
     mode: "LIVE",
+    operatingMode: "FULL_CONTROL",
   },
   meta: { apiVersion: "v21.0", hasToken: true, usingEnvDefault: true, adAccountId: "act_1" },
 };
@@ -36,7 +37,7 @@ describe("SettingsClient", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads settings + waba configs + competitor pages and renders all 6 cards", async () => {
+  it("loads settings + waba configs + competitor pages and renders all 7 cards", async () => {
     mockFetchSequence([
       new Response(JSON.stringify(SETTINGS_RESPONSE), { status: 200 }),
       new Response(JSON.stringify({ wabaConfigs: [] }), { status: 200 }),
@@ -47,6 +48,7 @@ describe("SettingsClient", () => {
     expect(screen.getByText("WhatsApp Business (WABA)")).toBeInTheDocument();
     expect(screen.getByText("Competitor Pages (Samantha Intelligence)")).toBeInTheDocument();
     expect(screen.getByText("Mode Operasi")).toBeInTheDocument();
+    expect(screen.getByText("Mode Operasi AI")).toBeInTheDocument();
     expect(screen.getByText("Tenant Info")).toBeInTheDocument();
     expect(screen.getByText("Account")).toBeInTheDocument();
     expect(screen.getByText("Belum ada WABA yang dikonfigurasi.")).toBeInTheDocument();
@@ -130,6 +132,82 @@ describe("SettingsClient", () => {
     await waitFor(() => expect(screen.getByText("Mode Operasi")).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "Alihkan ke DEV" }));
+
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
+  it("Mode Operasi AI card: shows the real current operating mode and confirms before PATCHing a flip to APPROVAL", async () => {
+    let currentOperatingMode: "FULL_CONTROL" | "APPROVAL" = "FULL_CONTROL";
+    global.fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/settings/waba")) {
+        return new Response(JSON.stringify({ wabaConfigs: [] }), { status: 200 });
+      }
+      if (url.includes("/api/competitors")) {
+        return new Response(JSON.stringify({ competitors: [] }), { status: 200 });
+      }
+      if (url.endsWith("/api/settings/operating-mode") && init?.method === "PATCH") {
+        const parsed = JSON.parse(init.body as string) as {
+          operatingMode: "FULL_CONTROL" | "APPROVAL";
+        };
+        expect(parsed.operatingMode).toBe("APPROVAL");
+        currentOperatingMode = parsed.operatingMode;
+        return new Response(
+          JSON.stringify({
+            ...SETTINGS_RESPONSE,
+            tenant: { ...SETTINGS_RESPONSE.tenant, operatingMode: currentOperatingMode },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/api/settings")) {
+        return new Response(
+          JSON.stringify({
+            ...SETTINGS_RESPONSE,
+            tenant: { ...SETTINGS_RESPONSE.tenant, operatingMode: currentOperatingMode },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<SettingsClient />);
+    await waitFor(() => expect(screen.getByText("Mode Operasi AI")).toBeInTheDocument());
+    expect(screen.getByText("FULL_CONTROL")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Alihkan ke Approval" }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText("APPROVAL")).toBeInTheDocument());
+  });
+
+  it("Mode Operasi AI card: does NOT call PATCH when the user cancels the confirm dialog", async () => {
+    const patchSpy = vi.fn();
+    global.fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/settings/waba")) {
+        return new Response(JSON.stringify({ wabaConfigs: [] }), { status: 200 });
+      }
+      if (url.includes("/api/competitors")) {
+        return new Response(JSON.stringify({ competitors: [] }), { status: 200 });
+      }
+      if (url.endsWith("/api/settings/operating-mode") && init?.method === "PATCH") {
+        patchSpy();
+        return new Response(JSON.stringify(SETTINGS_RESPONSE), { status: 200 });
+      }
+      if (url.endsWith("/api/settings")) {
+        return new Response(JSON.stringify(SETTINGS_RESPONSE), { status: 200 });
+      }
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<SettingsClient />);
+    await waitFor(() => expect(screen.getByText("Mode Operasi AI")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Alihkan ke Approval" }));
 
     expect(patchSpy).not.toHaveBeenCalled();
   });

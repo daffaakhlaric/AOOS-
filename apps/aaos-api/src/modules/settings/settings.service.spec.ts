@@ -67,6 +67,11 @@ async function seedTenant(tenants: TenantRepository, overrides: Record<string, u
     mode: "LIVE",
     mode_changed_at: null,
     mode_changed_by: null,
+    // AAOS-OPERATING-MODE-APPROVAL-GATE — same real-DB-default mirroring reasoning as `mode` above
+    // (`031_operating_mode.sql`'s `DEFAULT 'FULL_CONTROL'`).
+    operating_mode: "FULL_CONTROL",
+    operating_mode_changed_at: null,
+    operating_mode_changed_by: null,
     ...overrides,
   });
 }
@@ -151,6 +156,53 @@ describe("SettingsService", () => {
   it("updateMode() throws NotFoundError for an unknown tenant", async () => {
     const { service } = buildService();
     await expect(service.updateMode("missing", { mode: "DEV" })).rejects.toThrow(NotFoundError);
+  });
+
+  it("getSettings() reports operatingMode='FULL_CONTROL' for a freshly seeded tenant (real DB column default)", async () => {
+    const { service, tenants } = buildService();
+    await seedTenant(tenants);
+    const result = await service.getSettings("dss-motor");
+    expect(result.tenant.operatingMode).toBe("FULL_CONTROL");
+    expect(result.tenant.operatingModeChangedAt).toBeUndefined();
+    expect(result.tenant.operatingModeChangedBy).toBeUndefined();
+  });
+
+  it("updateOperatingMode() persists the new operating mode and writes a real audit trail (operating_mode_changed_at/operating_mode_changed_by)", async () => {
+    const { service, tenants } = buildService();
+    await seedTenant(tenants);
+    const before = await tenants.findByTenantId("dss-motor");
+    expect(before?.operating_mode).toBe("FULL_CONTROL");
+
+    const result = await service.updateOperatingMode("dss-motor", {
+      operatingMode: "APPROVAL",
+      changedBy: "owner@dss-motor.test",
+    });
+
+    expect(result.tenant.operatingMode).toBe("APPROVAL");
+    expect(result.tenant.operatingModeChangedBy).toBe("owner@dss-motor.test");
+    expect(result.tenant.operatingModeChangedAt).toBeDefined();
+
+    const after = await tenants.findByTenantId("dss-motor");
+    expect(after?.operating_mode).toBe("APPROVAL");
+    expect(after?.operating_mode_changed_by).toBe("owner@dss-motor.test");
+    expect(after?.operating_mode_changed_at).toBeDefined();
+  });
+
+  it("updateOperatingMode() persists operating_mode_changed_by=null when changedBy is omitted (never a fabricated actor)", async () => {
+    const { service, tenants } = buildService();
+    await seedTenant(tenants);
+    const result = await service.updateOperatingMode("dss-motor", { operatingMode: "APPROVAL" });
+    expect(result.tenant.operatingMode).toBe("APPROVAL");
+    expect(result.tenant.operatingModeChangedBy).toBeUndefined();
+    const after = await tenants.findByTenantId("dss-motor");
+    expect(after?.operating_mode_changed_by).toBeNull();
+  });
+
+  it("updateOperatingMode() throws NotFoundError for an unknown tenant", async () => {
+    const { service } = buildService();
+    await expect(
+      service.updateOperatingMode("missing", { operatingMode: "APPROVAL" }),
+    ).rejects.toThrow(NotFoundError);
   });
 
   it("testMetaConnection() refuses to run when the tenant has no saved token (never falls back to the env default)", async () => {

@@ -33,6 +33,8 @@ import type { LlmService } from "../llm/llm.service.js";
 import type { LookalikeService } from "../lookalike/lookalike.service.js";
 import type { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
+import type { PendingActionRow } from "../pending-actions/infrastructure/pending-action.repository.js";
+import type { PendingActionsService } from "../pending-actions/pending-actions.service.js";
 import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
 import type { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -120,6 +122,8 @@ function buildFakeTenantRepository(
     readonly tenant_id: string;
     readonly status: string;
     readonly vertical?: string;
+    /** AAOS-OPERATING-MODE-APPROVAL-GATE — deliberately omittable: a row with no `operating_mode` field at all (like every pre-existing fixture in this file) exercises the exact real "tenant row from before the migration ran" zero-regression fallback (`tenant.operating_mode ?? "FULL_CONTROL"`). */
+    readonly operating_mode?: string;
   }[] = [{ tenant_id: "dss-motor", status: "ACTIVE", vertical: "AUTOMOTIVE" }],
 ): TenantRepository {
   return {
@@ -164,6 +168,18 @@ function buildFakeCampaignsService(
   } as unknown as CampaignsService;
 }
 
+/** AAOS-OPERATING-MODE-APPROVAL-GATE — a fake `PendingActionsService`; `enqueue` returns a real, deterministic id so tests can assert `ActivityLogger.escalate`'s real `output.pendingActionId`. */
+function buildFakePendingActionsService(
+  enqueue: PendingActionsService["enqueue"] = vi.fn(async () => "pending-1"),
+): PendingActionsService {
+  return {
+    enqueue,
+    listPending: vi.fn(async () => [] as readonly PendingActionRow[]),
+    approve: vi.fn(),
+    reject: vi.fn(),
+  } as unknown as PendingActionsService;
+}
+
 function buildFakeModeGuardService(mode: "DEV" | "LIVE" = "LIVE"): ModeGuardService {
   return {
     resolveMode: vi.fn(async () => mode),
@@ -193,6 +209,7 @@ function buildFakeActivityLogger(): ActivityLogger {
     logToolCall: vi.fn(async () => undefined),
     logReasoning: vi.fn(async () => undefined),
     complete: vi.fn(async () => undefined),
+    escalate: vi.fn(async () => undefined),
     fail: vi.fn(async () => undefined),
   } as unknown as ActivityLogger;
 }
@@ -358,6 +375,7 @@ function buildService(
     campaignsService?: CampaignsService;
     agentRunsService?: AgentRunsService;
     aiJudgeService?: AiJudgeService;
+    pendingActions?: PendingActionsService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -394,6 +412,7 @@ function buildService(
     options.campaignsService ?? buildFakeCampaignsService(),
     options.agentRunsService ?? buildRealAgentRunsService().agentRunsService,
     options.aiJudgeService ?? buildFakeAiJudgeService(),
+    options.pendingActions ?? buildFakePendingActionsService(),
   );
 }
 
@@ -688,6 +707,168 @@ describe("SchedulerService.executeEvent", () => {
           output: expect.objectContaining({ simulated: false, campaignId: "campaign-1" }),
         }),
       );
+    });
+
+    it("FULL_CONTROL operating_mode (AAOS-OPERATING-MODE-APPROVAL-GATE zero-regression) calls CampaignsService.createPropertyCampaign directly and never touches PendingActionsService — byte-for-byte the same real behavior as before this gate existed", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const activityLogger = buildFakeActivityLogger();
+      const campaignsService = buildFakeCampaignsService();
+      const pendingActions = buildFakePendingActionsService();
+      const service = buildService({
+        repository,
+        listingsService,
+        activityLogger,
+        campaignsService,
+        pendingActions,
+        tenants: buildFakeTenantRepository([
+          {
+            tenant_id: "dss-motor",
+            status: "ACTIVE",
+            vertical: "PROPERTY",
+            operating_mode: "FULL_CONTROL",
+          },
+        ]),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(campaignsService.createPropertyCampaign).toHaveBeenCalledWith(
+        "dss-motor",
+        { listingId: "listing-1" },
+        expect.any(String),
+      );
+      expect(pendingActions.enqueue).not.toHaveBeenCalled();
+      expect(activityLogger.complete).toHaveBeenCalledWith(
+        "activity-1",
+        expect.objectContaining({ status: "SUCCESS" }),
+      );
+      expect(activityLogger.escalate).not.toHaveBeenCalled();
+    });
+
+    it("a tenant row with no operating_mode value at all (pre-migration fixture) falls back to FULL_CONTROL — same zero-regression guarantee", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const campaignsService = buildFakeCampaignsService();
+      const pendingActions = buildFakePendingActionsService();
+      const service = buildService({
+        repository,
+        listingsService,
+        campaignsService,
+        pendingActions,
+        // No `operating_mode` field at all — exercises the real `tenant.operating_mode ?? "FULL_CONTROL"` fallback.
+        tenants: buildFakeTenantRepository(propertyTenants),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(campaignsService.createPropertyCampaign).toHaveBeenCalledWith(
+        "dss-motor",
+        { listingId: "listing-1" },
+        expect.any(String),
+      );
+      expect(pendingActions.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("APPROVAL operating_mode writes a real pending_agent_actions row via PendingActionsService.enqueue instead of calling CampaignsService.createPropertyCampaign — no real campaign is created", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const activityLogger = buildFakeActivityLogger();
+      const campaignsService = buildFakeCampaignsService();
+      const pendingActions = buildFakePendingActionsService();
+      const service = buildService({
+        repository,
+        listingsService,
+        activityLogger,
+        campaignsService,
+        pendingActions,
+        tenants: buildFakeTenantRepository([
+          {
+            tenant_id: "dss-motor",
+            status: "ACTIVE",
+            vertical: "PROPERTY",
+            operating_mode: "APPROVAL",
+          },
+        ]),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      // The real gate: no direct campaign-creation call, no real Meta call.
+      expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
+      expect(pendingActions.enqueue).toHaveBeenCalledWith({
+        tenantId: "dss-motor",
+        agent: "SAMANTHA",
+        actionType: "CREATE_PROPERTY_CAMPAIGN",
+        payload: { listingId: "listing-1" },
+      });
+      // Informational only (design doc Finding 4 / "log ≠ gate") — the activity row is escalated
+      // (NEEDS_HUMAN), never marked SUCCESS/SIMULATED, since nothing was actually executed.
+      expect(activityLogger.escalate).toHaveBeenCalledWith(
+        "activity-1",
+        expect.objectContaining({
+          output: expect.objectContaining({
+            status: "PENDING_APPROVAL",
+            pendingActionId: "pending-1",
+            listingId: "listing-1",
+          }),
+        }),
+      );
+      expect(activityLogger.complete).not.toHaveBeenCalled();
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({
+          propertyCampaignTriggersChecked: 1,
+          propertyCampaignTriggersFired: 1,
+        }),
+      );
+    });
+
+    it("APPROVAL operating_mode: a pendingActions.enqueue failure fails its own activity row and does not abort the rest of the check (multi-listing, same best-effort discipline as FULL_CONTROL)", async () => {
+      const repository = buildFakeRepository();
+      const failingListing = buildListing();
+      const okListing = { ...buildListing(), id: "listing-2", title: "Rumah Kedua Tanpa Campaign" };
+      const listingsService = buildFakeListingsService([failingListing, okListing]);
+      const activityLogger = buildFakeActivityLogger();
+      const campaignsService = buildFakeCampaignsService();
+      const enqueue = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("insert failed"))
+        .mockResolvedValueOnce("pending-2");
+      const pendingActions = buildFakePendingActionsService(enqueue);
+      const service = buildService({
+        repository,
+        listingsService,
+        activityLogger,
+        campaignsService,
+        pendingActions,
+        tenants: buildFakeTenantRepository([
+          {
+            tenant_id: "dss-motor",
+            status: "ACTIVE",
+            vertical: "PROPERTY",
+            operating_mode: "APPROVAL",
+          },
+        ]),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
+      expect(enqueue).toHaveBeenCalledTimes(2);
+      expect(activityLogger.fail).toHaveBeenCalledTimes(1);
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({
+          propertyCampaignTriggersChecked: 2,
+          propertyCampaignTriggersFired: 1,
+        }),
+      );
+      expect(repository.markFailed).not.toHaveBeenCalled();
     });
 
     it("a createPropertyCampaign failure for one listing is logged and does not abort the rest of the check (multi-listing)", async () => {

@@ -14,6 +14,7 @@ import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
+import { PendingActionsModule } from "../pending-actions/pending-actions.module.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -82,6 +83,10 @@ import { SchedulerService } from "./scheduler.service.js";
     CampaignsModule,
     AgentRunsModule,
     AiJudgeModule,
+    // AAOS-OPERATING-MODE-APPROVAL-GATE — so SchedulerService can inject the exported
+    // PendingActionsService for its own real enqueue() write path when a tenant's
+    // operating_mode is APPROVAL (see that module's own doc).
+    PendingActionsModule,
   ],
   controllers: [SchedulerController],
   providers: [

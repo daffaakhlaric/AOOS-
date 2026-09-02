@@ -9,6 +9,10 @@ export interface TenantInfoDto {
   readonly mode: "DEV" | "LIVE";
   readonly modeChangedAt?: string;
   readonly modeChangedBy?: string;
+  /** `'FULL_CONTROL' | 'APPROVAL'` (AAOS-OPERATING-MODE-APPROVAL-GATE) — a separate axis from `mode` above; the value `SchedulerService.runPropertyCampaignTriggerCheck` reads before firing its PROPERTY campaign-creation trigger. */
+  readonly operatingMode: "FULL_CONTROL" | "APPROVAL";
+  readonly operatingModeChangedAt?: string;
+  readonly operatingModeChangedBy?: string;
 }
 
 /**

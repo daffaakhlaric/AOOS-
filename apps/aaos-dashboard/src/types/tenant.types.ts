@@ -66,6 +66,8 @@ export interface ImpersonateResponseDto {
 
 export type TenantMode = "DEV" | "LIVE";
 
+export type OperatingMode = "FULL_CONTROL" | "APPROVAL";
+
 export interface TenantInfoDto {
   readonly tenantId: string;
   readonly name: string;
@@ -76,10 +78,19 @@ export interface TenantInfoDto {
   readonly mode: TenantMode;
   readonly modeChangedAt?: string;
   readonly modeChangedBy?: string;
+  /** AAOS-OPERATING-MODE-APPROVAL-GATE — a separate axis from `mode` above: gates whether an automated agentic action (today: Samantha's PROPERTY campaign-creation trigger) fires immediately or waits for an explicit human Approve. */
+  readonly operatingMode: OperatingMode;
+  readonly operatingModeChangedAt?: string;
+  readonly operatingModeChangedBy?: string;
 }
 
 export interface UpdateModeInput {
   readonly mode: TenantMode;
+  readonly changedBy?: string;
+}
+
+export interface UpdateOperatingModeInput {
+  readonly operatingMode: OperatingMode;
   readonly changedBy?: string;
 }
 

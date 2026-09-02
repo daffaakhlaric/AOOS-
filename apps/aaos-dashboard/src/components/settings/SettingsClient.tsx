@@ -66,6 +66,9 @@ export function SettingsClient(): React.ReactElement {
   const [modeSaving, setModeSaving] = useState(false);
   const [modeError, setModeError] = useState<string | undefined>(undefined);
 
+  const [operatingModeSaving, setOperatingModeSaving] = useState(false);
+  const [operatingModeError, setOperatingModeError] = useState<string | undefined>(undefined);
+
   const [competitors, setCompetitors] = useState<readonly CompetitorPageDto[] | undefined>(
     undefined,
   );
@@ -235,6 +238,49 @@ export function SettingsClient(): React.ReactElement {
       setModeError(caught instanceof Error ? caught.message : "Gagal mengubah mode.");
     } finally {
       setModeSaving(false);
+    }
+  }
+
+  /**
+   * "Mode Operasi AI" card's confirm-dialog action (AAOS-OPERATING-MODE-APPROVAL-GATE) — mirrors
+   * `handleToggleMode`'s exact real shape. A real `window.confirm`: flipping this tenant's
+   * operating mode changes whether Samantha's automated PROPERTY campaign-creation trigger fires
+   * immediately or waits for an explicit human Approve, so it deliberately isn't a single click
+   * with no confirmation step.
+   */
+  async function handleToggleOperatingMode(): Promise<void> {
+    if (settings === undefined) {
+      return;
+    }
+    const nextOperatingMode =
+      settings.tenant.operatingMode === "FULL_CONTROL" ? "APPROVAL" : "FULL_CONTROL";
+    const confirmed = window.confirm(
+      nextOperatingMode === "APPROVAL"
+        ? "Yakin ingin mengalihkan ke mode Approval? Pembuatan campaign otomatis oleh Samantha TIDAK akan langsung dijalankan — setiap trigger akan menunggu persetujuan manusia terlebih dahulu."
+        : "Yakin ingin mengalihkan ke mode Full Control? Samantha akan kembali membuat campaign secara otomatis tanpa perlu persetujuan manusia untuk setiap trigger.",
+    );
+    if (!confirmed) {
+      return;
+    }
+    setOperatingModeSaving(true);
+    setOperatingModeError(undefined);
+    try {
+      const response = await fetch("/api/settings/operating-mode", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ operatingMode: nextOperatingMode }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? "Gagal mengubah mode operasi.");
+      }
+      loadSettings();
+    } catch (caught) {
+      setOperatingModeError(
+        caught instanceof Error ? caught.message : "Gagal mengubah mode operasi.",
+      );
+    } finally {
+      setOperatingModeSaving(false);
     }
   }
 
@@ -610,6 +656,49 @@ export function SettingsClient(): React.ReactElement {
             </p>
           ) : null}
           {modeError !== undefined ? <p className={styles.error}>{modeError}</p> : null}
+        </section>
+
+        <section className={styles.card} data-testid="operating-mode-card">
+          <span className={styles.cardTitle}>Mode Operasi AI</span>
+          <p className={styles.hint}>
+            Full Control: Samantha membuat campaign PROPERTY otomatis tanpa perlu persetujuan
+            manusia. Approval: setiap trigger pembuatan campaign otomatis menunggu persetujuan
+            manusia terlebih dahulu sebelum campaign benar-benar dibuat.
+          </p>
+          <div className={styles.accountRow}>
+            <span
+              className={`${styles.statusPill} ${
+                settings.tenant.operatingMode === "FULL_CONTROL"
+                  ? styles.statusPillActive
+                  : styles.statusPillInactive
+              }`}
+            >
+              {settings.tenant.operatingMode}
+            </span>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => void handleToggleOperatingMode()}
+              disabled={operatingModeSaving}
+            >
+              {operatingModeSaving
+                ? "Menyimpan..."
+                : settings.tenant.operatingMode === "FULL_CONTROL"
+                  ? "Alihkan ke Approval"
+                  : "Alihkan ke Full Control"}
+            </button>
+          </div>
+          {settings.tenant.operatingModeChangedAt !== undefined ? (
+            <p className={styles.hint}>
+              Terakhir diubah: {settings.tenant.operatingModeChangedAt}
+              {settings.tenant.operatingModeChangedBy !== undefined
+                ? ` oleh ${settings.tenant.operatingModeChangedBy}`
+                : ""}
+            </p>
+          ) : null}
+          {operatingModeError !== undefined ? (
+            <p className={styles.error}>{operatingModeError}</p>
+          ) : null}
         </section>
 
         <section className={styles.card}>

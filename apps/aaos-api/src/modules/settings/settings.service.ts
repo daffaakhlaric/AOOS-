@@ -21,6 +21,7 @@ import type {
   UpdateMetaSettingsBodyDto,
 } from "./dto/update-meta-settings.dto.js";
 import type { UpdateModeBodyDto } from "./dto/update-mode.dto.js";
+import type { UpdateOperatingModeBodyDto } from "./dto/update-operating-mode.dto.js";
 import type {
   CreateWabaConfigBodyDto,
   TestWabaConnectionResponseDto,
@@ -109,6 +110,13 @@ export class SettingsService {
         mode: tenant.mode === "DEV" ? "DEV" : "LIVE",
         ...(tenant.mode_changed_at !== null ? { modeChangedAt: tenant.mode_changed_at } : {}),
         ...(tenant.mode_changed_by !== null ? { modeChangedBy: tenant.mode_changed_by } : {}),
+        operatingMode: tenant.operating_mode === "APPROVAL" ? "APPROVAL" : "FULL_CONTROL",
+        ...(tenant.operating_mode_changed_at !== null
+          ? { operatingModeChangedAt: tenant.operating_mode_changed_at }
+          : {}),
+        ...(tenant.operating_mode_changed_by !== null
+          ? { operatingModeChangedBy: tenant.operating_mode_changed_by }
+          : {}),
       },
       meta: {
         ...(tenant.meta_ad_account_id !== null
@@ -155,6 +163,29 @@ export class SettingsService {
       mode: dto.mode,
       mode_changed_at: new Date().toISOString(),
       mode_changed_by: dto.changedBy ?? null,
+      updated_at: new Date().toISOString(),
+    });
+    return this.getSettings(tenantId);
+  }
+
+  /**
+   * `PATCH /api/v1/settings/operating-mode` (AAOS-OPERATING-MODE-APPROVAL-GATE) — the "Mode Operasi
+   * AI" card's confirm-dialog action, mirroring `updateMode`'s exact real shape. Writes a real audit
+   * trail on every call (`operating_mode_changed_at`/`operating_mode_changed_by`), never only the
+   * `operating_mode` value itself — `SchedulerService.runPropertyCampaignTriggerCheck` reads
+   * `operating_mode` fresh (no cache) via `TenantRepository.findByTenantId` on its very next real
+   * pull, so no cache invalidation is needed here (same "no long-lived cache" reasoning
+   * `updateMode`'s own doc gives for `ModeGuardService`).
+   */
+  async updateOperatingMode(
+    tenantId: string,
+    dto: UpdateOperatingModeBodyDto,
+  ): Promise<SettingsResponseDto> {
+    await this.requireTenant(tenantId);
+    await this.tenants.updateByTenantId(tenantId, {
+      operating_mode: dto.operatingMode,
+      operating_mode_changed_at: new Date().toISOString(),
+      operating_mode_changed_by: dto.changedBy ?? null,
       updated_at: new Date().toISOString(),
     });
     return this.getSettings(tenantId);

@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { LearningProposalDto, PromptOverrideDto } from "@/types/learning.types";
+import type { PendingActionDto } from "@/types/pending-actions.types";
 
 import styles from "./LearningMonitorClient.module.css";
 
@@ -47,6 +48,15 @@ function formatDate(iso: string): string {
  * real triggering `agentRunId`/judge score/trend are shown in place of the simulation-shaped gap
  * summary — Approve/Reject/Rollback mechanics below are completely unchanged (design doc Finding
  * #6: no new approval mechanism, ever).
+ *
+ * AAOS-OPERATING-MODE-APPROVAL-GATE — a genuinely SEPARATE, additional section (real
+ * `pending_agent_actions` rows, `GET /api/pending-actions`), not a reuse of the Improvement
+ * Proposals mechanics above: this is a different real decision table (Samantha's PROPERTY
+ * campaign-creation trigger, gated by a tenant's `operating_mode`), never
+ * `learning_proposals`/`agent_prompt_overrides`. Lives on this SAME page (per the design doc's own
+ * suggestion) rather than a new page, since both sections are the same real "manager reviews an
+ * AI-driven pending action" workflow shape — same list/filter + Approve/Reject + refresh-after-
+ * action convention as the section above, no new mechanic invented.
  */
 export function LearningMonitorClient(): React.ReactElement {
   const [proposals, setProposals] = useState<readonly LearningProposalDto[] | undefined>(undefined);
@@ -57,6 +67,15 @@ export function LearningMonitorClient(): React.ReactElement {
   const [notesById, setNotesById] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | undefined>(undefined);
   const [actionError, setActionError] = useState<string | undefined>(undefined);
+
+  // AAOS-OPERATING-MODE-APPROVAL-GATE — separate real state for the Pending Actions section below.
+  const [pendingActions, setPendingActions] = useState<readonly PendingActionDto[] | undefined>(
+    undefined,
+  );
+  const [pendingStatusFilter, setPendingStatusFilter] = useState("PENDING");
+  const [pendingNotesById, setPendingNotesById] = useState<Record<string, string>>({});
+  const [pendingBusyId, setPendingBusyId] = useState<string | undefined>(undefined);
+  const [pendingActionError, setPendingActionError] = useState<string | undefined>(undefined);
 
   const loadProposals = useCallback(() => {
     const qs = statusFilter.length > 0 ? `?status=${encodeURIComponent(statusFilter)}` : "";
@@ -89,6 +108,23 @@ export function LearningMonitorClient(): React.ReactElement {
       });
   }, []);
 
+  const loadPendingActions = useCallback(() => {
+    const qs =
+      pendingStatusFilter.length > 0 ? `?status=${encodeURIComponent(pendingStatusFilter)}` : "";
+    fetch(`/api/pending-actions${qs}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+          throw new Error(body.error?.message ?? "Gagal memuat pending actions.");
+        }
+        return (await res.json()) as readonly PendingActionDto[];
+      })
+      .then(setPendingActions)
+      .catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : "Gagal memuat pending actions.");
+      });
+  }, [pendingStatusFilter]);
+
   useEffect(() => {
     loadProposals();
   }, [loadProposals]);
@@ -96,6 +132,10 @@ export function LearningMonitorClient(): React.ReactElement {
   useEffect(() => {
     loadOverrides();
   }, [loadOverrides]);
+
+  useEffect(() => {
+    loadPendingActions();
+  }, [loadPendingActions]);
 
   async function handleDecide(id: string, action: "approve" | "reject"): Promise<void> {
     setBusyId(id);
@@ -140,10 +180,37 @@ export function LearningMonitorClient(): React.ReactElement {
     }
   }
 
+  /** AAOS-OPERATING-MODE-APPROVAL-GATE — mirrors `handleDecide` above exactly, against `/api/pending-actions/:id/*` instead of `/api/learning/proposals/:id/*`. */
+  async function handleDecidePendingAction(
+    id: string,
+    action: "approve" | "reject",
+  ): Promise<void> {
+    setPendingBusyId(id);
+    setPendingActionError(undefined);
+    try {
+      const res = await fetch(`/api/pending-actions/${encodeURIComponent(id)}/${action}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decisionNotes: pendingNotesById[id] }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? `Gagal ${action} pending action.`);
+      }
+      loadPendingActions();
+    } catch (caught) {
+      setPendingActionError(
+        caught instanceof Error ? caught.message : `Gagal ${action} pending action.`,
+      );
+    } finally {
+      setPendingBusyId(undefined);
+    }
+  }
+
   if (error !== undefined) {
     return <ErrorCard message={error} />;
   }
-  if (proposals === undefined || overrides === undefined) {
+  if (proposals === undefined || overrides === undefined || pendingActions === undefined) {
     return <LoadingSpinner />;
   }
 
@@ -304,6 +371,107 @@ export function LearningMonitorClient(): React.ReactElement {
                         )}
                       </div>
                     ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className={styles.section} data-testid="pending-actions-section">
+          <div className={styles.toolbar}>
+            <span className={styles.sectionTitle}>Pending Actions (Mode Operasi AI)</span>
+            <select
+              className={styles.filterSelect}
+              value={pendingStatusFilter}
+              onChange={(e) => setPendingStatusFilter(e.target.value)}
+            >
+              <option value="">Semua Status</option>
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {pendingActionError !== undefined ? (
+            <p className={styles.errorText}>{pendingActionError}</p>
+          ) : null}
+
+          {pendingActions.length === 0 ? (
+            <p className={styles.emptyState}>
+              Belum ada pending action untuk status ini — tenant dalam mode Approval akan
+              menampilkan trigger campaign otomatis Samantha di sini menunggu persetujuan.
+            </p>
+          ) : (
+            <div className={styles.list}>
+              {pendingActions.map((action) => {
+                const busy = pendingBusyId === action.id;
+                const listingId =
+                  typeof action.payload["listingId"] === "string"
+                    ? action.payload["listingId"]
+                    : undefined;
+                return (
+                  <div key={action.id} className={styles.card}>
+                    <div className={styles.cardHeader}>
+                      <span className={styles.cardHeaderLeft}>
+                        <span className={styles.agentBadge}>{action.agent}</span>
+                        <span className={styles.cardTitle}>
+                          {action.actionType}
+                          {listingId !== undefined ? ` — listing ${listingId}` : ""}
+                        </span>
+                      </span>
+                      <span className={styles.cardHeaderLeft}>
+                        <span className={styles.cardTime}>{formatDate(action.createdAt)}</span>
+                        <span
+                          className={`${styles.statusBadge} ${statusBadgeClass(action.status)}`}
+                        >
+                          {action.status}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className={styles.detail}>
+                      {action.status === "PENDING" ? (
+                        <div className={styles.actions}>
+                          <input
+                            type="text"
+                            placeholder="Catatan keputusan (opsional)"
+                            className={styles.notesInput}
+                            value={pendingNotesById[action.id] ?? ""}
+                            onChange={(e) =>
+                              setPendingNotesById((prev) => ({
+                                ...prev,
+                                [action.id]: e.target.value,
+                              }))
+                            }
+                          />
+                          <button
+                            type="button"
+                            className={styles.approveButton}
+                            disabled={busy}
+                            onClick={() => void handleDecidePendingAction(action.id, "approve")}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.rejectButton}
+                            disabled={busy}
+                            onClick={() => void handleDecidePendingAction(action.id, "reject")}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <p className={styles.decidedInfo}>
+                          {action.status} oleh {action.decidedBy ?? "(tidak diketahui)"} pada{" "}
+                          {action.decidedAt !== null ? formatDate(action.decidedAt) : "-"}
+                          {action.decisionNotes !== null ? ` — "${action.decisionNotes}"` : ""}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 );
               })}

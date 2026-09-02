@@ -14,6 +14,7 @@ import { LlmModule } from "../llm/llm.module.js";
 import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
+import { PendingActionsModule } from "../pending-actions/pending-actions.module.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
 
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
@@ -28,7 +29,7 @@ type FactoryProvider = {
 };
 
 describe("SchedulerModule", () => {
-  it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule/IntelligenceModule/ListingsModule/ModeGuardModule/ActivityLogModule/CampaignsModule/AgentRunsModule/AiJudgeModule so SchedulerService can inject every real dependency (Phase C: PROPERTY campaign-trigger wiring; AAOS EPIC S Phase S5: real CampaignsService.createPropertyCampaign wiring, LocationResolverModule no longer imported directly here — see scheduler.module.ts's own doc; AAOS-AI-JUDGE-SELF-IMPROVING Phase J2: AiJudgeModule added for the real SAMANTHA_ANALYZE judging wiring)", () => {
+  it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule/IntelligenceModule/ListingsModule/ModeGuardModule/ActivityLogModule/CampaignsModule/AgentRunsModule/AiJudgeModule/PendingActionsModule so SchedulerService can inject every real dependency (Phase C: PROPERTY campaign-trigger wiring; AAOS EPIC S Phase S5: real CampaignsService.createPropertyCampaign wiring, LocationResolverModule no longer imported directly here — see scheduler.module.ts's own doc; AAOS-AI-JUDGE-SELF-IMPROVING Phase J2: AiJudgeModule added for the real SAMANTHA_ANALYZE judging wiring; AAOS-OPERATING-MODE-APPROVAL-GATE: PendingActionsModule added for the real APPROVAL-mode enqueue wiring)", () => {
     const metadata = Reflect.getMetadata("imports", SchedulerModule) as unknown[];
     expect(metadata).toEqual([
       LlmModule,
@@ -42,6 +43,7 @@ describe("SchedulerModule", () => {
       CampaignsModule,
       AgentRunsModule,
       AiJudgeModule,
+      PendingActionsModule,
     ]);
   });
 

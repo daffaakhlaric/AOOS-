@@ -23,6 +23,10 @@ import {
 } from "./dto/update-meta-settings.dto.js";
 import { UpdateModeBodySchema, type UpdateModeBodyDto } from "./dto/update-mode.dto.js";
 import {
+  UpdateOperatingModeBodySchema,
+  type UpdateOperatingModeBodyDto,
+} from "./dto/update-operating-mode.dto.js";
+import {
   CreateWabaConfigBodySchema,
   TestDraftWabaConnectionBodySchema,
   UpdateWabaConfigBodySchema,
@@ -73,6 +77,15 @@ export class SettingsController {
     @Body(new ZodValidationPipe(UpdateModeBodySchema)) body: UpdateModeBodyDto,
   ): Promise<SettingsResponseDto> {
     return this.service.updateMode(tenantId, body);
+  }
+
+  /** `PATCH /api/v1/settings/operating-mode` — the new "Mode Operasi AI" card's confirm-dialog action (AAOS-OPERATING-MODE-APPROVAL-GATE). */
+  @Patch("operating-mode")
+  async updateOperatingMode(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(UpdateOperatingModeBodySchema)) body: UpdateOperatingModeBodyDto,
+  ): Promise<SettingsResponseDto> {
+    return this.service.updateOperatingMode(tenantId, body);
   }
 
   @Get("waba")

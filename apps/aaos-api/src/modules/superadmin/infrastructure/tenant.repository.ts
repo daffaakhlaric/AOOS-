@@ -22,6 +22,19 @@ export interface TenantRow {
   readonly mode: string;
   readonly mode_changed_at: string | null;
   readonly mode_changed_by: string | null;
+  /**
+   * `'FULL_CONTROL' | 'APPROVAL'` (AAOS-OPERATING-MODE-APPROVAL-GATE) — a SEPARATE axis from
+   * `mode` above: `mode` (DEV/LIVE) gates whether a real Meta API call happens at all; this column
+   * gates whether a LIVE-mode automated action (today: `SchedulerService`'s PROPERTY
+   * campaign-creation trigger) still needs an explicit human Approve first. Free `TEXT` with a DB
+   * `CHECK` constraint (`031_operating_mode.sql`), same "Zod validates at the API boundary, DB just
+   * enforces the invariant" convention `mode` already uses. `DEFAULT 'FULL_CONTROL'` at the column
+   * level — zero behavior change for every tenant that already exists (see that migration's header
+   * doc for the user's own answer to the design doc's "default for existing tenants" question).
+   */
+  readonly operating_mode: string;
+  readonly operating_mode_changed_at: string | null;
+  readonly operating_mode_changed_by: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -38,9 +51,27 @@ export interface TenantRow {
  */
 export type TenantInsert = Omit<
   TenantRow,
-  "id" | "created_at" | "updated_at" | "mode" | "mode_changed_at" | "mode_changed_by"
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "mode"
+  | "mode_changed_at"
+  | "mode_changed_by"
+  | "operating_mode"
+  | "operating_mode_changed_at"
+  | "operating_mode_changed_by"
 > &
-  Partial<Pick<TenantRow, "mode" | "mode_changed_at" | "mode_changed_by">>;
+  Partial<
+    Pick<
+      TenantRow,
+      | "mode"
+      | "mode_changed_at"
+      | "mode_changed_by"
+      | "operating_mode"
+      | "operating_mode_changed_at"
+      | "operating_mode_changed_by"
+    >
+  >;
 /** Callers explicitly set `updated_at` on every real patch (no DB trigger backs it — see `SuperadminService.update`/`SettingsService.updateMeta`), so it stays a settable field here, unlike `id`/`tenant_id`/`created_at`. */
 export type TenantUpdate = Partial<Omit<TenantRow, "id" | "tenant_id" | "created_at">>;
 
