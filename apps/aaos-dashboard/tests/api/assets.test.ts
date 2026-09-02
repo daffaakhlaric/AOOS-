@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const resolveRouteSession = vi.fn();
+
+vi.mock("@/lib/route-session", () => ({
+  resolveRouteSession: (...args: unknown[]) => resolveRouteSession(...args),
+}));
+
 import { GET as getList } from "@/app/api/assets/route";
 import { DELETE as deleteAsset, GET as getById } from "@/app/api/assets/[id]/route";
 import { GET as getDownload } from "@/app/api/assets/[id]/download/route";
@@ -9,10 +15,18 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
+const SESSION = {
+  userId: "u1",
+  role: "manager",
+  tenantId: "dss-motor",
+  vertical: "AUTOMOTIVE",
+} as const;
+
 describe("assets proxy routes", () => {
   beforeEach(() => {
     process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
     process.env["AAOS_API_KEY"] = "test-key";
+    resolveRouteSession.mockResolvedValue(SESSION);
   });
 
   afterEach(() => {
@@ -20,7 +34,13 @@ describe("assets proxy routes", () => {
   });
 
   describe("GET /api/assets", () => {
-    it("proxies GET /api/v1/assets with the server-only x-api-key", async () => {
+    it("returns 401 with no session", async () => {
+      resolveRouteSession.mockResolvedValue(null);
+      const response = await getList(new Request("http://localhost/api/assets") as never);
+      expect(response.status).toBe(401);
+    });
+
+    it("proxies GET /api/v1/assets with the server-only x-api-key and the real tenant's x-tenant-id", async () => {
       const fetchMock = vi.fn(async () =>
         jsonResponse({ assets: [{ id: "asset-1" }], total: 1, page: 1, limit: 48 }),
       );
@@ -34,6 +54,7 @@ describe("assets proxy routes", () => {
       const [url, init] = fetchMock.mock.calls[0]! as unknown as [URL, RequestInit];
       expect(url.pathname).toBe("/api/v1/assets");
       expect((init.headers as Record<string, string>)["x-api-key"]).toBe("test-key");
+      expect((init.headers as Record<string, string>)["x-tenant-id"]).toBe("dss-motor");
     });
 
     it("forwards every supplied filter and omits the rest", async () => {
@@ -91,8 +112,14 @@ describe("assets proxy routes", () => {
   });
 
   describe("GET /api/assets/stats", () => {
-    it("proxies the aggregate counts", async () => {
-      global.fetch = vi.fn(async () =>
+    it("returns 401 with no session", async () => {
+      resolveRouteSession.mockResolvedValue(null);
+      const response = await getStats(new Request("http://localhost/api/assets/stats") as never);
+      expect(response.status).toBe(401);
+    });
+
+    it("proxies the aggregate counts with the real tenant's x-tenant-id", async () => {
+      const fetchMock = vi.fn(async () =>
         jsonResponse({
           totalAssets: 412,
           byType: { UNIT_PHOTO: 312 },
@@ -100,29 +127,43 @@ describe("assets proxy routes", () => {
           byStatus: {},
           totalSizeBytes: 100,
         }),
-      ) as unknown as typeof fetch;
+      );
+      global.fetch = fetchMock as unknown as typeof fetch;
 
-      const response = await getStats();
+      const response = await getStats(new Request("http://localhost/api/assets/stats") as never);
       const body = (await response.json()) as { totalAssets: number };
       expect(body.totalAssets).toBe(412);
+
+      const [, init] = fetchMock.mock.calls[0]! as unknown as [URL, RequestInit];
+      expect((init.headers as Record<string, string>)["x-tenant-id"]).toBe("dss-motor");
     });
 
     it("passes through an upstream failure", async () => {
       global.fetch = vi.fn(async () =>
         jsonResponse({ message: "boom" }, 500),
       ) as unknown as typeof fetch;
-      expect((await getStats()).status).toBe(500);
+      const response = await getStats(new Request("http://localhost/api/assets/stats") as never);
+      expect(response.status).toBe(500);
     });
   });
 
   describe("GET /api/assets/:id", () => {
-    it("URL-encodes the id and returns the asset", async () => {
+    it("returns 401 with no session", async () => {
+      resolveRouteSession.mockResolvedValue(null);
+      const response = await getById(new Request("http://localhost") as never, {
+        params: { id: "asset-1" },
+      });
+      expect(response.status).toBe(401);
+    });
+
+    it("URL-encodes the id, forwards the real tenant's x-tenant-id, and returns the asset", async () => {
       const fetchMock = vi.fn(async () => jsonResponse({ id: "a/b" }));
       global.fetch = fetchMock as unknown as typeof fetch;
 
       await getById(new Request("http://localhost") as never, { params: { id: "a/b" } });
-      const [url] = fetchMock.mock.calls[0]! as unknown as [URL];
+      const [url, init] = fetchMock.mock.calls[0]! as unknown as [URL, RequestInit];
       expect(String(url)).toBe("http://localhost:3000/api/v1/assets/a%2Fb");
+      expect((init.headers as Record<string, string>)["x-tenant-id"]).toBe("dss-motor");
     });
 
     it("passes through an upstream 404", async () => {
@@ -137,7 +178,15 @@ describe("assets proxy routes", () => {
   });
 
   describe("DELETE /api/assets/:id — ARCHIVE, not a hard delete", () => {
-    it("issues an upstream DELETE and returns the ARCHIVED asset (never { deleted: true })", async () => {
+    it("returns 401 with no session", async () => {
+      resolveRouteSession.mockResolvedValue(null);
+      const response = await deleteAsset(new Request("http://localhost") as never, {
+        params: { id: "asset-1" },
+      });
+      expect(response.status).toBe(401);
+    });
+
+    it("issues an upstream DELETE with the real tenant's x-tenant-id and returns the ARCHIVED asset (never { deleted: true })", async () => {
       const fetchMock = vi.fn(async () => jsonResponse({ id: "asset-1", status: "ARCHIVED" }));
       global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -151,6 +200,7 @@ describe("assets proxy routes", () => {
 
       const [, init] = fetchMock.mock.calls[0]! as unknown as [URL, RequestInit];
       expect(init.method).toBe("DELETE");
+      expect((init.headers as Record<string, string>)["x-tenant-id"]).toBe("dss-motor");
     });
 
     it("passes through an upstream 404", async () => {
@@ -165,13 +215,23 @@ describe("assets proxy routes", () => {
   });
 
   describe("GET /api/assets/:id/download", () => {
-    it("returns the real signed URL as JSON (not a redirect)", async () => {
-      global.fetch = vi.fn(async () =>
+    it("returns 401 with no session", async () => {
+      resolveRouteSession.mockResolvedValue(null);
+      const response = await getDownload(
+        new Request("http://localhost/api/assets/asset-1/download") as never,
+        { params: { id: "asset-1" } },
+      );
+      expect(response.status).toBe(401);
+    });
+
+    it("returns the real signed URL as JSON (not a redirect), forwarding the real tenant's x-tenant-id", async () => {
+      const fetchMock = vi.fn(async () =>
         jsonResponse({
           url: "https://storage.googleapis.com/aoos/x.jpg?X-Goog-Signature=abc",
           expiresInSeconds: 3600,
         }),
-      ) as unknown as typeof fetch;
+      );
+      global.fetch = fetchMock as unknown as typeof fetch;
 
       const response = await getDownload(
         new Request("http://localhost/api/assets/asset-1/download") as never,
@@ -181,6 +241,9 @@ describe("assets proxy routes", () => {
       const body = (await response.json()) as { url: string; expiresInSeconds: number };
       expect(body.url).toContain("X-Goog-Signature");
       expect(body.expiresInSeconds).toBe(3600);
+
+      const [, init] = fetchMock.mock.calls[0]! as unknown as [URL, RequestInit];
+      expect((init.headers as Record<string, string>)["x-tenant-id"]).toBe("dss-motor");
     });
 
     it("forwards an explicit expiresIn and omits it otherwise", async () => {

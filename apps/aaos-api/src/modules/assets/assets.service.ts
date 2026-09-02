@@ -4,8 +4,7 @@ import type { AssetLibrary } from "@aos/asset-library";
 import { UnavailableError } from "@aos/errors";
 import { Inject, Injectable } from "@nestjs/common";
 
-import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, ASSET_LIBRARY } from "../../di-tokens.js";
+import { ASSET_LIBRARY } from "../../di-tokens.js";
 
 import {
   toAssetDto,
@@ -37,13 +36,15 @@ import {
  * `AssetStatus.ARCHIVED` and deliberately keeps both the row and the GCS object ("keep for
  * history"). `IAssetRepository` has no `delete` method and this service does not invent one; the
  * dashboard labels the action "Arsipkan", not "Hapus permanen".
+ *
+ * TENANT-SCOPING FIX (Phase T1): `list`/`stats`/`archive` now take a real, per-request `tenantId`
+ * parameter (resolved by `AssetsController` via `@TenantId()`) instead of reading the single,
+ * process-wide `AAOS_API_CONFIG.AAOS_TENANT_ID` env var — this was the only real consumer of that
+ * config field in this file, so the `AAOS_API_CONFIG` injection is dropped entirely.
  */
 @Injectable()
 export class AssetsService {
-  constructor(
-    @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
-    @Inject(ASSET_LIBRARY) private readonly assetLibrary: AssetLibrary | undefined,
-  ) {}
+  constructor(@Inject(ASSET_LIBRARY) private readonly assetLibrary: AssetLibrary | undefined) {}
 
   private requireLibrary(): AssetLibrary {
     if (this.assetLibrary === undefined) {
@@ -55,10 +56,10 @@ export class AssetsService {
     return this.assetLibrary;
   }
 
-  async list(query: GetAssetsQueryDto): Promise<AssetListResponseDto> {
+  async list(query: GetAssetsQueryDto, tenantId: string): Promise<AssetListResponseDto> {
     const library = this.requireLibrary();
     const result = await library.listAssets.execute({
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       ...(query.type !== undefined ? { type: query.type } : {}),
       ...(query.status !== undefined ? { status: query.status } : {}),
       ...(query.branch !== undefined ? { branch: query.branch } : {}),
@@ -80,10 +81,10 @@ export class AssetsService {
     };
   }
 
-  async stats(): Promise<AssetStatsResponseDto> {
+  async stats(tenantId: string): Promise<AssetStatsResponseDto> {
     const library = this.requireLibrary();
     const result = await library.getAssetStats.execute({
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
     });
     if (!result.ok) {
       throw result.error;
@@ -103,11 +104,11 @@ export class AssetsService {
   }
 
   /** Soft delete — see this class's "NO HARD DELETE" doc note. */
-  async archive(id: string): Promise<AssetDto> {
+  async archive(id: string, tenantId: string): Promise<AssetDto> {
     const library = this.requireLibrary();
     const result = await library.archiveAsset.execute({
       id,
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       correlationId: randomUUID(),
     });
     if (!result.ok) {

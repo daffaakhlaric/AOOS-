@@ -26,18 +26,20 @@ function buildFakeService(): AssetsService {
   } as unknown as AssetsService;
 }
 
+const TENANT_ID = "dss-motor";
+
 describe("AssetsController", () => {
-  it("GET / delegates to AssetsService.list", async () => {
+  it("GET / delegates to AssetsService.list with the real per-request tenantId", async () => {
     const service = buildFakeService();
     const query = { page: 1, limit: 48, sort: "newest" as const };
-    await new AssetsController(service).list(query);
-    expect(service.list).toHaveBeenCalledWith(query);
+    await new AssetsController(service).list(query, TENANT_ID);
+    expect(service.list).toHaveBeenCalledWith(query, TENANT_ID);
   });
 
-  it("GET stats delegates to AssetsService.stats", async () => {
+  it("GET stats delegates to AssetsService.stats with the real per-request tenantId", async () => {
     const service = buildFakeService();
-    await new AssetsController(service).stats();
-    expect(service.stats).toHaveBeenCalled();
+    await new AssetsController(service).stats(TENANT_ID);
+    expect(service.stats).toHaveBeenCalledWith(TENANT_ID);
   });
 
   it("GET :id delegates to AssetsService.byId", async () => {
@@ -53,10 +55,10 @@ describe("AssetsController", () => {
     expect(result.url).toBe("https://signed");
   });
 
-  it("DELETE :id ARCHIVES (soft delete) and returns the ARCHIVED asset, not { deleted: true }", async () => {
+  it("DELETE :id ARCHIVES (soft delete) with the real per-request tenantId and returns the ARCHIVED asset, not { deleted: true }", async () => {
     const service = buildFakeService();
-    const result = await new AssetsController(service).archive("asset-1");
-    expect(service.archive).toHaveBeenCalledWith("asset-1");
+    const result = await new AssetsController(service).archive("asset-1", TENANT_ID);
+    expect(service.archive).toHaveBeenCalledWith("asset-1", TENANT_ID);
     expect(result.status).toBe(AssetStatus.ARCHIVED);
     expect(result).not.toHaveProperty("deleted");
   });

@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
-import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 
 import type { StoredMetaInterest } from "./domain/meta-interest.js";
@@ -31,13 +30,17 @@ import { MetaInterestRepository } from "./infrastructure/meta-interest.repositor
  * HARD SCOPE BOUNDARY: this module only READS Meta's interest catalogue. It never creates,
  * modifies, or targets a real campaign — `CreateCampaign`/`CreateAdSet` are untouched by this
  * feature (the user's explicit decision), so real campaign creation behaves exactly as before.
+ *
+ * TENANT-SCOPING FIX (Phase T1): `sync`/`list` now take an explicit, REQUIRED `tenantId` — from
+ * `body.tenantId` / the `tenantId` query param respectively — instead of reading the single,
+ * process-wide `AAOS_API_CONFIG.AAOS_TENANT_ID` env var. This endpoint has no dashboard proxy/session
+ * to derive a tenant from (see `dto/sync-interests.dto.ts`'s doc note), so the caller must state it.
  */
 @Injectable()
 export class MetaInterestsService {
   private readonly logger = new Logger(MetaInterestsService.name);
 
   constructor(
-    @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly repository: MetaInterestRepository,
@@ -47,7 +50,7 @@ export class MetaInterestsService {
     body: SyncInterestsBodyDto,
     now: Date = new Date(),
   ): Promise<SyncInterestsResponseDto> {
-    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    const connectorResult = await this.connectorRegistry.resolve(body.tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
@@ -85,7 +88,7 @@ export class MetaInterestsService {
         const outcome = await this.repository.save(
           {
             id: interest.id,
-            tenantId: this.config.AAOS_TENANT_ID,
+            tenantId: body.tenantId,
             name: interest.name,
             audienceSizeLower: interest.audienceSizeLower,
             audienceSizeUpper: interest.audienceSizeUpper,
@@ -106,7 +109,7 @@ export class MetaInterestsService {
     }
 
     return {
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId: body.tenantId,
       fetchedAt,
       terms: results,
       totalInserted: results.reduce((sum, r) => sum + r.inserted, 0),
@@ -114,8 +117,8 @@ export class MetaInterestsService {
     };
   }
 
-  async list(): Promise<readonly MetaInterestResponseDto[]> {
-    const stored = await this.repository.listByTenant(this.config.AAOS_TENANT_ID);
+  async list(tenantId: string): Promise<readonly MetaInterestResponseDto[]> {
+    const stored = await this.repository.listByTenant(tenantId);
     return stored.map(toResponseDto);
   }
 }

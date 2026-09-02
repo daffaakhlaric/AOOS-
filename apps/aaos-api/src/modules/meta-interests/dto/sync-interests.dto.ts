@@ -61,12 +61,20 @@ export const INTERESTS_BY_VERTICAL: Readonly<Record<"AUTOMOTIVE" | "PROPERTY", r
   };
 
 /**
- * `POST /api/v1/meta-interests/sync` request body. Everything is optional: the no-body case runs
- * `INTERESTS_BY_VERTICAL[vertical]` (defaulting to `AUTOMOTIVE`, this app's real single-tenant
- * bootstrap default — see `common/tenant-context.ts`'s `DEFAULT_TENANT_ID` doc for the same
- * rationale), which is the intended manual/cron-by-hand usage.
+ * `POST /api/v1/meta-interests/sync` request body.
+ *
+ * TENANT-SCOPING FIX (Phase T1, docs/PROMPT-AAOS-TENANT-SCOPING-AND-PROPERTY-OBJECTIVE.md Finding 1):
+ * `tenantId` is now REQUIRED. This endpoint has no dashboard proxy and no session to derive a tenant
+ * from — it's a manual/external tool (this class's own docstring: "no scheduler, no cron... a human
+ * or external cron hitting the URL") — so the caller must state explicitly which tenant it's syncing
+ * for, instead of the service silently defaulting to the single, process-wide `AAOS_TENANT_ID` env
+ * var. Everything else stays optional: the no-`terms` case still runs
+ * `INTERESTS_BY_VERTICAL[vertical]` (defaulting to `AUTOMOTIVE`), which remains the intended
+ * manual/cron-by-hand usage.
  */
 export const SyncInterestsBodySchema = z.object({
+  /** The real tenant this sync writes rows for — required, never inferred (see doc note above). */
+  tenantId: z.string().trim().min(1),
   /** Overrides `INTERESTS_BY_VERTICAL[vertical]` for this run. */
   terms: z.array(z.string().min(1)).min(1).optional(),
   /** Which curated term list to default to when `terms` is omitted. Ignored when `terms` is supplied. */
@@ -75,6 +83,16 @@ export const SyncInterestsBodySchema = z.object({
   limitPerTerm: z.number().int().min(1).max(50).optional(),
 });
 export type SyncInterestsBodyDto = z.infer<typeof SyncInterestsBodySchema>;
+
+/**
+ * `GET /api/v1/meta-interests?tenantId=` — same required-`tenantId` fix as the sync body above,
+ * shaped as a query-param DTO the same way `GetAssetsQuerySchema` validates `modules/assets`' query
+ * params (Zod object, `ZodValidationPipe`).
+ */
+export const GetMetaInterestsQuerySchema = z.object({
+  tenantId: z.string().trim().min(1),
+});
+export type GetMetaInterestsQueryDto = z.infer<typeof GetMetaInterestsQuerySchema>;
 
 /** Per-term outcome — a term whose real Meta call failed is reported honestly, never silently skipped. */
 export interface SyncInterestsTermResultDto {

@@ -53,18 +53,19 @@ function buildService(connector: MetaAdsConnector) {
         adAccountIds: config.META_AD_ACCOUNT_IDS,
       }),
   };
-  const service = new MetaInterestsService(config, registry as never, repository);
+  const service = new MetaInterestsService(registry as never, repository);
   return { service, client, repository };
 }
 
 const NOW = new Date("2026-08-18T09:00:00.000Z");
+const TENANT_ID = "dss-motor";
 
 describe("MetaInterestsService.sync", () => {
   it("runs the curated confirmed-live term list when the body supplies none", async () => {
     const execute = vi.fn(async () => ok([USED_CAR]));
     const { service } = buildService(buildConnector(execute));
 
-    const response = await service.sync({}, NOW);
+    const response = await service.sync({ tenantId: TENANT_ID }, NOW);
 
     expect(execute).toHaveBeenCalledTimes(CURATED_INTEREST_SEARCH_TERMS.length);
     expect(response.terms.map((t) => t.term)).toEqual([...CURATED_INTEREST_SEARCH_TERMS]);
@@ -77,27 +78,29 @@ describe("MetaInterestsService.sync", () => {
     const execute = vi.fn(async () => ok([USED_CAR]));
     const { service } = buildService(buildConnector(execute));
 
-    const response = await service.sync({ vertical: "PROPERTY" }, NOW);
+    const response = await service.sync({ tenantId: TENANT_ID, vertical: "PROPERTY" }, NOW);
 
     expect(execute).toHaveBeenCalledTimes(CURATED_PROPERTY_INTEREST_SEARCH_TERMS.length);
     expect(response.terms.map((t) => t.term)).toEqual([...CURATED_PROPERTY_INTEREST_SEARCH_TERMS]);
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ term: "real estate" }));
   });
 
-  it("persists the REAL returned interests verbatim, stamped with one shared fetchedAt", async () => {
+  it("persists the REAL returned interests verbatim, stamped with one shared fetchedAt, scoped to the caller's explicit tenantId", async () => {
     const { service, client } = buildService(
       buildConnector(vi.fn(async () => ok([USED_CAR, AUTOMOTIVE]))),
     );
 
-    const response = await service.sync({ terms: ["used car"] }, NOW);
+    const response = await service.sync({ tenantId: TENANT_ID, terms: ["used car"] }, NOW);
 
     expect(response.totalInserted).toBe(2);
     expect(response.totalUpdated).toBe(0);
     expect(response.fetchedAt).toBe(NOW.toISOString());
+    expect(response.tenantId).toBe(TENANT_ID);
     const rows = client.rows("meta_interests");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       id: "6003257869482",
+      tenant_id: TENANT_ID,
       audience_size_lower: 61362891,
       audience_size_upper: 72162760,
       fetched_at: NOW.toISOString(),
@@ -107,8 +110,8 @@ describe("MetaInterestsService.sync", () => {
   it("re-running the same sync updates in place rather than duplicating rows", async () => {
     const { service, client } = buildService(buildConnector());
 
-    await service.sync({ terms: ["used car"] }, NOW);
-    const second = await service.sync({ terms: ["used car"] }, NOW);
+    await service.sync({ tenantId: TENANT_ID, terms: ["used car"] }, NOW);
+    const second = await service.sync({ tenantId: TENANT_ID, terms: ["used car"] }, NOW);
 
     expect(client.rows("meta_interests")).toHaveLength(1);
     expect(second.totalInserted).toBe(0);
@@ -122,7 +125,10 @@ describe("MetaInterestsService.sync", () => {
       .mockResolvedValueOnce(ok([AUTOMOTIVE]));
     const { service, client } = buildService(buildConnector(execute));
 
-    const response = await service.sync({ terms: ["used car", "automotive"] }, NOW);
+    const response = await service.sync(
+      { tenantId: TENANT_ID, terms: ["used car", "automotive"] },
+      NOW,
+    );
 
     expect(response.terms[0]).toMatchObject({ term: "used car", ok: false, inserted: 0 });
     expect(response.terms[0]?.error).toContain("Meta is down");
@@ -135,7 +141,7 @@ describe("MetaInterestsService.sync", () => {
     const execute = vi.fn(async () => ok([USED_CAR]));
     const { service } = buildService(buildConnector(execute));
 
-    await service.sync({ terms: ["used car"], limitPerTerm: 3 }, NOW);
+    await service.sync({ tenantId: TENANT_ID, terms: ["used car"], limitPerTerm: 3 }, NOW);
 
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ limit: 3 }));
   });
@@ -144,18 +150,18 @@ describe("MetaInterestsService.sync", () => {
     const execute = vi.fn(async () => ok([USED_CAR]));
     const { service } = buildService(buildConnector(execute));
 
-    await service.sync({ terms: ["used car"] }, NOW);
+    await service.sync({ tenantId: TENANT_ID, terms: ["used car"] }, NOW);
 
     expect(execute).toHaveBeenCalledWith(expect.not.objectContaining({ limit: expect.anything() }));
   });
 });
 
 describe("MetaInterestsService.list", () => {
-  it("returns the stored catalogue for the configured tenant", async () => {
+  it("returns the stored catalogue for the caller's explicit tenantId", async () => {
     const { service } = buildService(buildConnector());
-    await service.sync({ terms: ["used car"] }, NOW);
+    await service.sync({ tenantId: TENANT_ID, terms: ["used car"] }, NOW);
 
-    const listed = await service.list();
+    const listed = await service.list(TENANT_ID);
 
     expect(listed).toEqual([
       {
@@ -173,6 +179,13 @@ describe("MetaInterestsService.list", () => {
 
   it("returns an empty list — never a fabricated seed — before any sync has run", async () => {
     const { service } = buildService(buildConnector());
-    expect(await service.list()).toEqual([]);
+    expect(await service.list(TENANT_ID)).toEqual([]);
+  });
+
+  it("never returns another tenant's rows — the real cross-tenant leak this phase fixes", async () => {
+    const { service } = buildService(buildConnector());
+    await service.sync({ tenantId: TENANT_ID, terms: ["used car"] }, NOW);
+
+    expect(await service.list("some-other-tenant")).toEqual([]);
   });
 });

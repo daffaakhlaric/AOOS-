@@ -13,9 +13,9 @@ import { UnavailableError } from "@aos/errors";
 import { Branch } from "@aos/meta-ads-connector";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildTestConfig } from "../../test-support/fixtures.js";
-
 import { AssetsService } from "./assets.service.js";
+
+const TENANT_ID = "dss-motor";
 
 function asset(overrides: (builder: AssetBuilder) => AssetBuilder = (b) => b): Asset {
   const result = overrides(
@@ -91,20 +91,20 @@ beforeEach(() => {
 
 describe("AssetsService — graceful degradation with no GCS configured", () => {
   it("list raises UnavailableError (→503) naming the missing env vars, never an empty list", async () => {
-    const service = new AssetsService(buildTestConfig(), undefined);
-    await expect(service.list({ page: 1, limit: 48, sort: "newest" })).rejects.toThrow(
+    const service = new AssetsService(undefined);
+    await expect(service.list({ page: 1, limit: 48, sort: "newest" }, TENANT_ID)).rejects.toThrow(
       UnavailableError,
     );
-    await expect(service.list({ page: 1, limit: 48, sort: "newest" })).rejects.toThrow(
+    await expect(service.list({ page: 1, limit: 48, sort: "newest" }, TENANT_ID)).rejects.toThrow(
       /GCS_PROJECT_ID/,
     );
   });
 
   it("every other endpoint degrades the same way", async () => {
-    const service = new AssetsService(buildTestConfig(), undefined);
-    await expect(service.stats()).rejects.toThrow(UnavailableError);
+    const service = new AssetsService(undefined);
+    await expect(service.stats(TENANT_ID)).rejects.toThrow(UnavailableError);
     await expect(service.byId("a")).rejects.toThrow(UnavailableError);
-    await expect(service.archive("a")).rejects.toThrow(UnavailableError);
+    await expect(service.archive("a", TENANT_ID)).rejects.toThrow(UnavailableError);
     await expect(service.downloadUrl("a", { expiresIn: 3600 })).rejects.toThrow(UnavailableError);
   });
 });
@@ -112,8 +112,8 @@ describe("AssetsService — graceful degradation with no GCS configured", () => 
 describe("AssetsService.list", () => {
   it("maps real Asset entities to DTOs", async () => {
     const { library } = createLibrary();
-    const service = new AssetsService(buildTestConfig(), library);
-    const page = await service.list({ page: 1, limit: 48, sort: "newest" });
+    const service = new AssetsService(library);
+    const page = await service.list({ page: 1, limit: 48, sort: "newest" }, TENANT_ID);
 
     expect(page.total).toBe(1);
     const dto = page.assets[0];
@@ -127,8 +127,8 @@ describe("AssetsService.list", () => {
 
   it("never emits fabricated width/height/durationSeconds/usedInPackages fields", async () => {
     const { library } = createLibrary();
-    const service = new AssetsService(buildTestConfig(), library);
-    const page = await service.list({ page: 1, limit: 48, sort: "newest" });
+    const service = new AssetsService(library);
+    const page = await service.list({ page: 1, limit: 48, sort: "newest" }, TENANT_ID);
     const dto = page.assets[0] as Record<string, unknown>;
     for (const key of [
       "width",
@@ -142,23 +142,26 @@ describe("AssetsService.list", () => {
     }
   });
 
-  it("always scopes the query to the configured tenant", async () => {
+  it("always scopes the query to the real per-request tenant", async () => {
     const { library, listAssets } = createLibrary();
-    const service = new AssetsService(buildTestConfig({ AAOS_TENANT_ID: "dss-motor" }), library);
-    await service.list({ page: 1, limit: 48, sort: "newest" });
+    const service = new AssetsService(library);
+    await service.list({ page: 1, limit: 48, sort: "newest" }, "dss-motor");
     expect(listAssets).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "dss-motor" }));
   });
 
   it("forwards only the filters the caller actually supplied", async () => {
     const { library, listAssets } = createLibrary();
-    const service = new AssetsService(buildTestConfig(), library);
-    await service.list({
-      page: 2,
-      limit: 12,
-      sort: "oldest",
-      type: AssetType.AI_VIDEO,
-      branch: Branch.BINTARO,
-    });
+    const service = new AssetsService(library);
+    await service.list(
+      {
+        page: 2,
+        limit: 12,
+        sort: "oldest",
+        type: AssetType.AI_VIDEO,
+        branch: Branch.BINTARO,
+      },
+      TENANT_ID,
+    );
     expect(listAssets).toHaveBeenCalledWith({
       tenantId: "dss-motor",
       type: AssetType.AI_VIDEO,
@@ -171,8 +174,8 @@ describe("AssetsService.list", () => {
 
   it("forwards the AAOS-CREATIVE-REVIEW `model` filter through to the library", async () => {
     const { library, listAssets } = createLibrary();
-    const service = new AssetsService(buildTestConfig(), library);
-    await service.list({ page: 1, limit: 48, sort: "newest", model: "xpander" });
+    const service = new AssetsService(library);
+    await service.list({ page: 1, limit: 48, sort: "newest", model: "xpander" }, TENANT_ID);
     expect(listAssets).toHaveBeenCalledWith(expect.objectContaining({ model: "xpander" }));
   });
 
@@ -180,34 +183,43 @@ describe("AssetsService.list", () => {
     const { library } = createLibrary({
       listAssets: { execute: vi.fn(async () => err(new StorageError("postgrest down"))) },
     });
-    const service = new AssetsService(buildTestConfig(), library);
-    await expect(service.list({ page: 1, limit: 48, sort: "newest" })).rejects.toThrow(AssetError);
+    const service = new AssetsService(library);
+    await expect(service.list({ page: 1, limit: 48, sort: "newest" }, TENANT_ID)).rejects.toThrow(
+      AssetError,
+    );
   });
 });
 
 describe("AssetsService.stats", () => {
   it("returns real aggregate counts", async () => {
     const { library } = createLibrary();
-    const service = new AssetsService(buildTestConfig(), library);
-    const stats = await service.stats();
+    const service = new AssetsService(library);
+    const stats = await service.stats(TENANT_ID);
     expect(stats.totalAssets).toBe(412);
     expect(stats.byType[AssetType.UNIT_PHOTO]).toBe(312);
     expect(stats.totalSizeBytes).toBe(1_234_567);
+  });
+
+  it("scopes to the real per-request tenant", async () => {
+    const { library, getAssetStats } = createLibrary();
+    const service = new AssetsService(library);
+    await service.stats("dss-motor");
+    expect(getAssetStats).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "dss-motor" }));
   });
 
   it("re-throws a repository failure", async () => {
     const { library } = createLibrary({
       getAssetStats: { execute: vi.fn(async () => err(new StorageError("boom"))) },
     });
-    const service = new AssetsService(buildTestConfig(), library);
-    await expect(service.stats()).rejects.toThrow(AssetError);
+    const service = new AssetsService(library);
+    await expect(service.stats(TENANT_ID)).rejects.toThrow(AssetError);
   });
 });
 
 describe("AssetsService.byId", () => {
   it("returns the mapped asset", async () => {
     const { library } = createLibrary();
-    const service = new AssetsService(buildTestConfig(), library);
+    const service = new AssetsService(library);
     const dto = await service.byId("asset-1");
     expect(dto.fileName).toBe("foto-1.jpg");
   });
@@ -216,7 +228,7 @@ describe("AssetsService.byId", () => {
     const { library } = createLibrary({
       getAsset: { execute: vi.fn(async () => err(new AssetNotFoundError("Asset not found: x"))) },
     });
-    const service = new AssetsService(buildTestConfig(), library);
+    const service = new AssetsService(library);
     await expect(service.byId("x")).rejects.toThrow(AssetNotFoundError);
   });
 });
@@ -224,8 +236,8 @@ describe("AssetsService.byId", () => {
 describe("AssetsService.archive — SOFT delete only", () => {
   it("calls the real ArchiveAsset use case and returns the ARCHIVED asset", async () => {
     const { library, archiveAsset } = createLibrary();
-    const service = new AssetsService(buildTestConfig(), library);
-    const dto = await service.archive("asset-1");
+    const service = new AssetsService(library);
+    const dto = await service.archive("asset-1", TENANT_ID);
 
     expect(archiveAsset).toHaveBeenCalledWith(
       expect.objectContaining({ id: "asset-1", tenantId: "dss-motor" }),
@@ -235,7 +247,7 @@ describe("AssetsService.archive — SOFT delete only", () => {
 
   it("passes a real correlationId through to the use case", async () => {
     const { library, archiveAsset } = createLibrary();
-    await new AssetsService(buildTestConfig(), library).archive("asset-1");
+    await new AssetsService(library).archive("asset-1", TENANT_ID);
     const input = archiveAsset.mock.calls[0]?.[0] as { correlationId: string };
     expect(input.correlationId).toMatch(/^[0-9a-f-]{36}$/);
   });
@@ -246,7 +258,7 @@ describe("AssetsService.archive — SOFT delete only", () => {
         execute: vi.fn(async () => err(new AssetNotFoundError("Asset not found: x"))),
       },
     });
-    await expect(new AssetsService(buildTestConfig(), library).archive("x")).rejects.toThrow(
+    await expect(new AssetsService(library).archive("x", TENANT_ID)).rejects.toThrow(
       AssetNotFoundError,
     );
   });
@@ -255,7 +267,7 @@ describe("AssetsService.archive — SOFT delete only", () => {
 describe("AssetsService.downloadUrl", () => {
   it("signs the asset's REAL storage path (not its public URL)", async () => {
     const { library, getSignedUrl } = createLibrary();
-    const service = new AssetsService(buildTestConfig(), library);
+    const service = new AssetsService(library);
     const result = await service.downloadUrl("asset-1", { expiresIn: 900 });
 
     expect(getSignedUrl).toHaveBeenCalledWith("units/unit-001/photo-1700000000000.jpg", 900);
@@ -267,7 +279,7 @@ describe("AssetsService.downloadUrl", () => {
     const { library, getSignedUrl } = createLibrary({
       getAsset: { execute: vi.fn(async () => err(new AssetNotFoundError("nope"))) },
     });
-    const service = new AssetsService(buildTestConfig(), library);
+    const service = new AssetsService(library);
     await expect(service.downloadUrl("x", { expiresIn: 3600 })).rejects.toThrow(AssetNotFoundError);
     expect(getSignedUrl).not.toHaveBeenCalled();
   });
@@ -278,7 +290,7 @@ describe("AssetsService.downloadUrl", () => {
         getSignedUrl: vi.fn(async () => err(new StorageError("cannot sign without a private key"))),
       },
     });
-    const service = new AssetsService(buildTestConfig(), library);
+    const service = new AssetsService(library);
     await expect(service.downloadUrl("asset-1", { expiresIn: 3600 })).rejects.toThrow(StorageError);
   });
 });
