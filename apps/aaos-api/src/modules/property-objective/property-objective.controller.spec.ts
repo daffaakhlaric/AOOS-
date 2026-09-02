@@ -51,11 +51,15 @@ describe("PropertyObjectiveController", () => {
     expect(result).toEqual({ id: "obj-2", status: "DRAFT" });
   });
 
-  it("GET /api/v1/property-objective/budget-suggestion delegates to PropertyObjectiveService.getBudgetSuggestion", async () => {
+  it("GET /api/v1/property-objective/budget-suggestion delegates to PropertyObjectiveService.getBudgetSuggestion with the real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new PropertyObjectiveController(service);
-    const result = await controller.getBudgetSuggestion({ targetHotLeads: 10 }, "corr-1");
-    expect(service.getBudgetSuggestion).toHaveBeenCalledWith(10, "corr-1");
+    const result = await controller.getBudgetSuggestion(
+      { targetHotLeads: 10 },
+      "corr-1",
+      "tenant-1",
+    );
+    expect(service.getBudgetSuggestion).toHaveBeenCalledWith(10, "corr-1", "tenant-1");
     expect(result).toEqual({
       available: true,
       suggestedBudget: 1_500_000,

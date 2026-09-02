@@ -73,15 +73,16 @@ export class GoLiveService {
     id: string,
     body: GoLiveBodyDto,
     correlationId: string,
+    tenantId: string,
   ): Promise<SimulationStatusResponseDto> {
     const simulation = await this.findOrThrow(id);
 
-    // AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves this tenant's own MetaAdsConnector
-    // (accessToken + ad-account-ids) up front — `config.AAOS_TENANT_ID` today (no per-request
-    // tenant context on this endpoint yet, same static-default approach every other converted
-    // consumer in this phase uses). Resolved before the guards below since one of them reads the
-    // tenant's own default ad account id.
-    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    // TENANT-SCOPING FIX (Phase T2): resolves this tenant's own MetaAdsConnector (accessToken +
+    // ad-account-ids) up front, using the real per-request tenant id (`@TenantId()`, threaded in
+    // from `GoLiveController`) rather than the single, process-wide `config.AAOS_TENANT_ID`.
+    // Resolved before the guards below since one of them reads the tenant's own default ad
+    // account id.
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
@@ -313,6 +314,7 @@ export class GoLiveService {
     id: string,
     _body: RollbackBodyDto,
     correlationId: string,
+    tenantId: string,
   ): Promise<SimulationStatusResponseDto> {
     const simulation = await this.findOrThrow(id);
     if (simulation.status !== "LIVE") {
@@ -333,7 +335,7 @@ export class GoLiveService {
 
     await this.log(id, "INFO", "ROLLBACK_START", { correlationId });
 
-    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
@@ -390,12 +392,16 @@ export class GoLiveService {
    * `'LIVE'` (a paused-but-still-live campaign is a real, valid Meta state; only a full
    * `.../rollback` also re-activates whatever else Go Live mutated and marks `'ROLLED_BACK'`).
    */
-  async pauseLive(id: string, correlationId: string): Promise<SimulationStatusResponseDto> {
+  async pauseLive(
+    id: string,
+    correlationId: string,
+    tenantId: string,
+  ): Promise<SimulationStatusResponseDto> {
     const simulation = await this.findOrThrow(id);
     if (simulation.status !== "LIVE" || simulation.liveCampaignId === undefined) {
       throw new ConflictError(`Simulation "${id}" has no live campaign to pause`);
     }
-    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }

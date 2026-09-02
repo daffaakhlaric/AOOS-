@@ -80,14 +80,18 @@ export class OverviewService {
 
     const [leads, campaigns, objective, agentStatus, recycling, heatmap] = await Promise.all([
       this.safeFetch("leads", errors, () => this.getLeadsSummary(tenantId, now)),
-      this.safeFetch("campaigns", errors, () => this.getCampaignsSummary(correlationId)),
+      this.safeFetch("campaigns", errors, () => this.getCampaignsSummary(correlationId, tenantId)),
       this.safeFetch("objective", errors, () =>
         Promise.resolve(this.objectiveService.getCurrentObjective()),
       ),
       this.getAgentStatus(tenantId, now, activityDtos, errors),
       this.safeFetch("recycling", errors, () => this.recyclingService.getTodaySummary()),
       this.safeFetch("heatmap", errors, () =>
-        this.metaAdsService.getHeatmap({ datePreset: OVERVIEW_HEATMAP_DATE_PRESET }, correlationId),
+        this.metaAdsService.getHeatmap(
+          { datePreset: OVERVIEW_HEATMAP_DATE_PRESET },
+          correlationId,
+          tenantId,
+        ),
       ),
     ]);
 
@@ -173,13 +177,17 @@ export class OverviewService {
    * `adAccountId` query is passed — same "fall back to the connector's first configured ad account"
    * behavior `MetaAdsService.pullAdAccount` already implements for its own controller.
    */
-  private async getCampaignsSummary(correlationId: string): Promise<OverviewCampaignsSummaryDto> {
+  private async getCampaignsSummary(
+    correlationId: string,
+    tenantId: string,
+  ): Promise<OverviewCampaignsSummaryDto> {
     // `MetaAdsService.pullCampaigns` already returns the real, JSON-serializable
     // `AdAccountResponseDto` (it calls `toAdAccountResponseDto` internally) — reused AS-IS here,
     // never re-converted a second time.
     const dto = await this.metaAdsService.pullCampaigns(
       { datePreset: OVERVIEW_CAMPAIGNS_DATE_PRESET },
       correlationId,
+      tenantId,
     );
     const activeCampaignsCount = dto.campaigns.filter((c) => c.status === "ACTIVE").length;
     const totalSpend = dto.campaigns.reduce((sum, c) => sum + c.spend, 0);

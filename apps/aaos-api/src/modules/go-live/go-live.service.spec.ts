@@ -148,7 +148,7 @@ describe("GoLiveService.execute — guards (fail closed, before any external cal
     const simulation = buildSimulation();
     const { service, connector } = makeService(simulation);
     await expect(
-      service.execute("sim-1", { ...goLiveBody, confirmation: "go live" }, "corr-1"),
+      service.execute("sim-1", { ...goLiveBody, confirmation: "go live" }, "corr-1", "dss-motor"),
     ).rejects.toThrow(ValidationError);
     expect(connector.client.createCampaign).not.toHaveBeenCalled();
   });
@@ -156,13 +156,17 @@ describe("GoLiveService.execute — guards (fail closed, before any external cal
   it("rejects when the simulation status is not DONE", async () => {
     const simulation = buildSimulation({ status: "RUNNING" });
     const { service } = makeService(simulation);
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toThrow(ConflictError);
+    await expect(service.execute("sim-1", goLiveBody, "corr-1", "dss-motor")).rejects.toThrow(
+      ConflictError,
+    );
   });
 
   it("rejects when decision is not APPROVED", async () => {
     const simulation = buildSimulation({ decision: "REJECTED" });
     const { service } = makeService(simulation);
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toThrow(ValidationError);
+    await expect(service.execute("sim-1", goLiveBody, "corr-1", "dss-motor")).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it("rejects when overallScore is below GO_LIVE_MIN_SCORE", async () => {
@@ -173,31 +177,41 @@ describe("GoLiveService.execute — guards (fail closed, before any external cal
       },
     });
     const { service } = makeService(simulation, {}, { GO_LIVE_MIN_SCORE: 60 });
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toThrow(ValidationError);
+    await expect(service.execute("sim-1", goLiveBody, "corr-1", "dss-motor")).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it("rejects when another simulation already went live today", async () => {
     const simulation = buildSimulation();
     const { service } = makeService(simulation, {}, {}, { hasLiveSince: vi.fn(async () => true) });
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toThrow(ConflictError);
+    await expect(service.execute("sim-1", goLiveBody, "corr-1", "dss-motor")).rejects.toThrow(
+      ConflictError,
+    );
   });
 
   it("rejects when dailyBudgetIDR exceeds objective.budget / 30", async () => {
     const simulation = buildSimulation({ objectiveSnapshot: { budget: 300_000 } }); // cap = 10,000
     const { service } = makeService(simulation);
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toThrow(ValidationError);
+    await expect(service.execute("sim-1", goLiveBody, "corr-1", "dss-motor")).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it("rejects when objective.budget is missing/non-numeric", async () => {
     const simulation = buildSimulation({ objectiveSnapshot: {} });
     const { service } = makeService(simulation);
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toThrow(ValidationError);
+    await expect(service.execute("sim-1", goLiveBody, "corr-1", "dss-motor")).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it("rejects a real (non-dry-run) request when META_PAGE_ID is unset", async () => {
     const simulation = buildSimulation();
     const { service } = makeService(simulation, {}, { META_PAGE_ID: "" });
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toThrow(ValidationError);
+    await expect(service.execute("sim-1", goLiveBody, "corr-1", "dss-motor")).rejects.toThrow(
+      ValidationError,
+    );
   });
 });
 
@@ -209,7 +223,7 @@ describe("GoLiveService.execute — dry run", () => {
       {},
       { GO_LIVE_DRY_RUN: true },
     );
-    await service.execute("sim-1", goLiveBody, "corr-1");
+    await service.execute("sim-1", goLiveBody, "corr-1", "dss-motor");
     expect(connector.client.createCampaign).not.toHaveBeenCalled();
     expect(connector.createAd.execute).not.toHaveBeenCalled();
     expect(repository.markLive).not.toHaveBeenCalled();
@@ -222,7 +236,7 @@ describe("GoLiveService.execute — real run", () => {
   it("creates campaign+adset (ACTIVE), uploads the creative, creates the ad, and marks LIVE", async () => {
     const simulation = buildSimulation();
     const { service, repository, connector } = makeService(simulation);
-    const result = await service.execute("sim-1", goLiveBody, "corr-1");
+    const result = await service.execute("sim-1", goLiveBody, "corr-1", "dss-motor");
 
     expect(connector.client.createCampaign).toHaveBeenCalledWith(
       "act_752604553578354",
@@ -266,9 +280,9 @@ describe("GoLiveService.execute — real run", () => {
         createAdSet: vi.fn(),
       },
     });
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toBeInstanceOf(
-      ApiServerError,
-    );
+    await expect(
+      service.execute("sim-1", goLiveBody, "corr-1", "dss-motor"),
+    ).rejects.toBeInstanceOf(ApiServerError);
     expect(repository.markLive).not.toHaveBeenCalled();
   });
 
@@ -279,9 +293,9 @@ describe("GoLiveService.execute — real run", () => {
         execute: vi.fn().mockResolvedValue(err(new ApiServerError("boom", { httpStatus: 500 }))),
       },
     });
-    await expect(service.execute("sim-1", goLiveBody, "corr-1")).rejects.toBeInstanceOf(
-      ApiServerError,
-    );
+    await expect(
+      service.execute("sim-1", goLiveBody, "corr-1", "dss-motor"),
+    ).rejects.toBeInstanceOf(ApiServerError);
     expect(connector.client.createCampaign).toHaveBeenCalled();
     expect(repository.markLive).not.toHaveBeenCalled();
   });
@@ -291,7 +305,7 @@ describe("GoLiveService.pauseLive", () => {
   it("rejects when the simulation has no live campaign", async () => {
     const simulation = buildSimulation({ status: "DONE" });
     const { service } = makeService(simulation);
-    await expect(service.pauseLive("sim-1", "corr-1")).rejects.toThrow(ConflictError);
+    await expect(service.pauseLive("sim-1", "corr-1", "dss-motor")).rejects.toThrow(ConflictError);
   });
 
   it("pauses the live campaign and keeps status LIVE", async () => {
@@ -302,7 +316,7 @@ describe("GoLiveService.pauseLive", () => {
       liveAt: "2026-08-13T11:30:00.000Z",
     });
     const { service, connector } = makeService(simulation);
-    await service.pauseLive("sim-1", "corr-1");
+    await service.pauseLive("sim-1", "corr-1", "dss-motor");
     expect(connector.pauseCampaign.execute).toHaveBeenCalledWith({
       campaignId: "campaign-1",
       accessToken: "test-access-token",
@@ -321,7 +335,9 @@ describe("GoLiveService.rollback", () => {
   it("rejects when the simulation is not LIVE", async () => {
     const simulation = buildSimulation({ status: "DONE" });
     const { service } = makeService(simulation);
-    await expect(service.rollback("sim-1", {}, "corr-1")).rejects.toThrow(ConflictError);
+    await expect(service.rollback("sim-1", {}, "corr-1", "dss-motor")).rejects.toThrow(
+      ConflictError,
+    );
   });
 
   it("rejects once the rollback window has expired", async () => {
@@ -331,7 +347,9 @@ describe("GoLiveService.rollback", () => {
       rollbackData,
     });
     const { service } = makeService(simulation, {}, { ROLLBACK_WINDOW_HOURS: 1 });
-    await expect(service.rollback("sim-1", {}, "corr-1")).rejects.toThrow(ConflictError);
+    await expect(service.rollback("sim-1", {}, "corr-1", "dss-motor")).rejects.toThrow(
+      ConflictError,
+    );
   });
 
   it("pauses the campaign, reactivates reversible ads, logs ROLLBACK_COMPLETE, and marks ROLLED_BACK", async () => {
@@ -345,7 +363,7 @@ describe("GoLiveService.rollback", () => {
       {},
       { ROLLBACK_WINDOW_HOURS: 1 },
     );
-    const result = await service.rollback("sim-1", {}, "corr-1");
+    const result = await service.rollback("sim-1", {}, "corr-1", "dss-motor");
     expect(connector.pauseCampaign.execute).toHaveBeenCalledWith({
       campaignId: "campaign-1",
       accessToken: "test-access-token",

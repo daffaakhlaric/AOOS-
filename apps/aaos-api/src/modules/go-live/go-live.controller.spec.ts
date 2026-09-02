@@ -25,29 +25,29 @@ describe("GoLiveController", () => {
     expect(result).toEqual([{ id: "sim-1", status: "LIVE" }]);
   });
 
-  it("POST :id/go-live delegates to GoLiveService.execute", async () => {
+  it("POST :id/go-live delegates to GoLiveService.execute with the real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new GoLiveController(service);
     const body = { confirmation: "GO LIVE", dailyBudgetIDR: 50_000, creative: {} } as never;
-    const result = await controller.goLive("sim-1", body, "corr-1");
-    expect(service.execute).toHaveBeenCalledWith("sim-1", body, "corr-1");
+    const result = await controller.goLive("sim-1", body, "corr-1", "tenant-a");
+    expect(service.execute).toHaveBeenCalledWith("sim-1", body, "corr-1", "tenant-a");
     expect(result).toEqual({ id: "sim-1", status: "LIVE" });
   });
 
-  it("POST :id/pause delegates to GoLiveService.pauseLive", async () => {
+  it("POST :id/pause delegates to GoLiveService.pauseLive with the real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new GoLiveController(service);
-    const result = await controller.pause("sim-1", "corr-1");
-    expect(service.pauseLive).toHaveBeenCalledWith("sim-1", "corr-1");
+    const result = await controller.pause("sim-1", "corr-1", "tenant-a");
+    expect(service.pauseLive).toHaveBeenCalledWith("sim-1", "corr-1", "tenant-a");
     expect(result).toEqual({ id: "sim-1", status: "LIVE" });
   });
 
-  it("POST :id/rollback delegates to GoLiveService.rollback", async () => {
+  it("POST :id/rollback delegates to GoLiveService.rollback with the real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new GoLiveController(service);
     const body = { notes: "operator note" };
-    const result = await controller.rollback("sim-1", body, "corr-1");
-    expect(service.rollback).toHaveBeenCalledWith("sim-1", body, "corr-1");
+    const result = await controller.rollback("sim-1", body, "corr-1", "tenant-a");
+    expect(service.rollback).toHaveBeenCalledWith("sim-1", body, "corr-1", "tenant-a");
     expect(result).toEqual({ id: "sim-1", status: "ROLLED_BACK" });
   });
 

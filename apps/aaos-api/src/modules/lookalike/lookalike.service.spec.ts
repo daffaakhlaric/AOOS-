@@ -109,6 +109,11 @@ function buildFakeConnector(
   } as unknown as MetaAdsConnector;
 }
 
+// TENANT-SCOPING FIX (Phase T2): every real caller (`LookalikeController`'s `@TenantId()`,
+// `SchedulerService`'s own `config.AAOS_TENANT_ID`) now passes this real tenant id explicitly —
+// matches `buildTestConfig`'s own `AAOS_TENANT_ID` default.
+const TENANT_ID = "dss-motor";
+
 function buildService(options: {
   audienceRepository?: MetaAudienceRepository;
   leadStore?: LeadStore;
@@ -126,7 +131,6 @@ function buildService(options: {
     ),
   };
   return new LookalikeService(
-    config,
     connectorRegistry as never,
     options.leadStore ?? buildFakeLeadStore(),
     options.audienceRepository ?? buildFakeAudienceRepository(),
@@ -144,7 +148,7 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
         ],
       });
       const service = buildService({ leadStore });
-      const status = await service.getStatus();
+      const status = await service.getStatus(TENANT_ID);
       expect(status.totalHotLeads).toBe(2);
       expect(status.syncedToMetaAudience).toBe(1);
       expect(status.minRequiredForLookalike).toBe(100);
@@ -159,7 +163,7 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
       );
       const leadStore = buildFakeLeadStore({ [BranchId.BINTARO]: leads });
       const service = buildService({ leadStore });
-      const status = await service.getStatus();
+      const status = await service.getStatus(TENANT_ID);
       expect(status.totalHotLeads).toBe(100);
       expect(status.progressPercentage).toBe(100);
       expect(status.lookalikeEligible).toBe(true);
@@ -173,7 +177,7 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
       });
       const connector = buildFakeConnector();
       const service = buildService({ leadStore, connector });
-      const result = await service.syncHotLeadsToMeta();
+      const result = await service.syncHotLeadsToMeta(TENANT_ID);
       expect(result.newlySynced).toBe(0);
       expect(connector.addUsersToCustomAudience.execute).not.toHaveBeenCalled();
     });
@@ -186,7 +190,7 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
       const connector = buildFakeConnector();
       const service = buildService({ leadStore, audienceRepository, connector });
 
-      const result = await service.syncHotLeadsToMeta();
+      const result = await service.syncHotLeadsToMeta(TENANT_ID);
 
       expect(connector.createCustomAudience.execute).toHaveBeenCalledTimes(1);
       expect(connector.addUsersToCustomAudience.execute).toHaveBeenCalledWith(
@@ -218,7 +222,7 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
       const connector = buildFakeConnector();
       const service = buildService({ leadStore, audienceRepository, connector });
 
-      const result = await service.syncHotLeadsToMeta();
+      const result = await service.syncHotLeadsToMeta(TENANT_ID);
 
       expect(connector.createCustomAudience.execute).not.toHaveBeenCalled();
       expect(connector.addUsersToCustomAudience.execute).toHaveBeenCalledWith(
@@ -237,14 +241,14 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
         } as unknown as MetaAdsConnector["addUsersToCustomAudience"],
       });
       const service = buildService({ leadStore, connector });
-      await expect(service.syncHotLeadsToMeta()).rejects.toThrow("boom");
+      await expect(service.syncHotLeadsToMeta(TENANT_ID)).rejects.toThrow("boom");
     });
   });
 
   describe("createLookalike", () => {
     it("throws when no HOT_LEADS custom audience exists yet", async () => {
       const service = buildService({});
-      await expect(service.createLookalike(1)).rejects.toThrow(/Sync Hot Leads/);
+      await expect(service.createLookalike(1, TENANT_ID)).rejects.toThrow(/Sync Hot Leads/);
     });
 
     it("creates a real Lookalike audience seeded from the existing Custom Audience", async () => {
@@ -261,7 +265,7 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
       const connector = buildFakeConnector();
       const service = buildService({ audienceRepository, connector });
 
-      const created = await service.createLookalike(1);
+      const created = await service.createLookalike(1, TENANT_ID);
 
       expect(connector.createLookalikeAudience.execute).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -300,7 +304,7 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
       const connector = buildFakeConnector();
       const service = buildService({ audienceRepository, connector });
 
-      const result = await service.createLookalike(1);
+      const result = await service.createLookalike(1, TENANT_ID);
 
       expect(connector.createLookalikeAudience.execute).not.toHaveBeenCalled();
       expect(result.metaAudienceId).toBe("existing-lookalike");
@@ -313,7 +317,7 @@ describe("LookalikeService (AAOS-ABTESTING-LOOKALIKE Part 2)", () => {
         [BranchId.BINTARO]: [buildLead({ synced: true, syncedAt: NOW })],
       });
       const service = buildService({ leadStore });
-      const result = await service.runLookalikeSync();
+      const result = await service.runLookalikeSync(TENANT_ID);
       expect(result.summary).toBe("0 hot leads baru untuk disync");
     });
   });

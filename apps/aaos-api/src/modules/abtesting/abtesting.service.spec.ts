@@ -271,6 +271,11 @@ function toFakeRegistry(config: ReturnType<typeof buildTestConfig>, connector: M
   };
 }
 
+// TENANT-SCOPING FIX (Phase T2): every real caller (`AbTestingController`'s `@TenantId()`,
+// `SchedulerService`'s own `config.AAOS_TENANT_ID`) now passes this real tenant id explicitly —
+// matches `buildTestConfig`'s own `AAOS_TENANT_ID` default.
+const TENANT_ID = "dss-motor";
+
 function buildService(options: {
   testRepository?: AbTestRepository;
   variantRepository?: AbTestVariantRepository;
@@ -280,7 +285,6 @@ function buildService(options: {
 }): AbTestingService {
   const config = buildTestConfig();
   return new AbTestingService(
-    config,
     toFakeRegistry(config, options.connector ?? buildFakeConnector()) as never,
     options.creativePackages ?? buildFakeCreativePackages(),
     options.testRepository ?? buildFakeTestRepository(),
@@ -318,7 +322,7 @@ describe("AbTestingService.createTest", () => {
     const variantRepository = buildFakeVariantRepository();
     const service = buildService({ creativePackages, testRepository, variantRepository });
 
-    const test = await service.createTest(CREATE_BODY);
+    const test = await service.createTest(CREATE_BODY, TENANT_ID);
 
     expect(test.status).toBe("DRAFT");
     expect(creativePackages.create).toHaveBeenCalledTimes(2);
@@ -396,7 +400,7 @@ describe("AbTestingService.createTest", () => {
     const creativePackages = buildFakeCreativePackages();
     const service = buildService({ testRepository, variantRepository, creativePackages });
 
-    await service.createTest(CREATE_BODY);
+    await service.createTest(CREATE_BODY, TENANT_ID);
 
     expect(creativePackages.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -489,7 +493,7 @@ describe("AbTestingService.runAbTestCheck — launching a DRAFT test", () => {
       creativePackages,
     });
 
-    const result = await service.runAbTestCheck();
+    const result = await service.runAbTestCheck(TENANT_ID);
 
     expect(result.launched).toBe(1);
     expect(createAd.execute).toHaveBeenCalledTimes(2);
@@ -505,7 +509,7 @@ describe("AbTestingService.runAbTestCheck — launching a DRAFT test", () => {
     const creativePackages = buildFakeCreativePackages({ "pkg-a": { status: "FAILED" } });
     const service = buildService({ testRepository, variantRepository, creativePackages });
 
-    await service.runAbTestCheck();
+    await service.runAbTestCheck(TENANT_ID);
 
     const test = await testRepository.findById("dss-motor", testId);
     expect(test?.status).toBe("FAILED");
@@ -516,7 +520,7 @@ describe("AbTestingService.runAbTestCheck — launching a DRAFT test", () => {
     const creativePackages = buildFakeCreativePackages({ "pkg-a": { status: "GENERATING" } });
     const service = buildService({ testRepository, variantRepository, creativePackages });
 
-    const result = await service.runAbTestCheck();
+    const result = await service.runAbTestCheck(TENANT_ID);
 
     expect(result.launched).toBe(0);
     const test = await testRepository.findById("dss-motor", testId);
@@ -659,7 +663,7 @@ describe("AbTestingService.runAbTestCheck — monitoring a RUNNING test", () => 
       now: () => new Date("2026-08-19T06:00:00.000Z"),
     });
 
-    const result = await service.runAbTestCheck();
+    const result = await service.runAbTestCheck(TENANT_ID);
 
     expect(result.winnersDeclared).toBe(1);
     const test = await testRepository.findById("dss-motor", testId);
@@ -704,7 +708,7 @@ describe("AbTestingService.runAbTestCheck — monitoring a RUNNING test", () => 
       now: () => new Date("2026-08-19T06:00:00.000Z"),
     });
 
-    const result = await service.runAbTestCheck();
+    const result = await service.runAbTestCheck(TENANT_ID);
 
     expect(result.winnersDeclared).toBe(0);
     const test = await testRepository.findById("dss-motor", testId);

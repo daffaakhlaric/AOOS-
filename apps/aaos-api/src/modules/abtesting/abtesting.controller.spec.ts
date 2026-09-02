@@ -40,53 +40,58 @@ function buildFakeService(overrides: Partial<AbTestingService> = {}): AbTestingS
 }
 
 describe("AbTestingController", () => {
-  it("GET / lists tests with their variants", async () => {
+  it("GET / lists tests with their variants, scoped to the real per-request tenant", async () => {
     const service = buildFakeService();
     const controller = new AbTestingController(service);
-    const result = await controller.list({});
+    const result = await controller.list({}, "tenant-a");
+    expect(service.listTests).toHaveBeenCalledWith("tenant-a", undefined);
     expect(result).toHaveLength(1);
     expect(result[0]?.name).toBe("ABT-001");
   });
 
-  it("GET /:id returns one test with its variants", async () => {
+  it("GET /:id returns one test with its variants, scoped to the real per-request tenant", async () => {
     const service = buildFakeService();
     const controller = new AbTestingController(service);
-    const result = await controller.byId("test-1");
+    const result = await controller.byId("test-1", "tenant-a");
+    expect(service.getTest).toHaveBeenCalledWith("test-1", "tenant-a");
     expect(result.id).toBe("test-1");
   });
 
-  it("POST / creates a test and returns it with variants", async () => {
+  it("POST / creates a test and returns it with variants, scoped to the real per-request tenant", async () => {
     const service = buildFakeService();
     const controller = new AbTestingController(service);
-    const result = await controller.create({
-      name: "ABT-001",
-      campaignId: "camp-1",
-      adSetId: "adset-1",
-      pageId: "page-1",
-      waLink: "https://wa.me/6281234567890",
-      mode: "AUTO",
-      variantCount: 2,
-      unit: "unit-1",
-      branch: "CINERE" as never,
-      targetPersona: "PRIMARY_FAMILY" as never,
-      primaryMessage: "DP ringan",
-      format: "VIDEO_AND_IMAGES",
-      urgency: "MEDIUM",
-      thresholdSpend: 100_000,
-      thresholdDays: 3,
-      minMarginPct: 20,
-      autoPauseLoser: true,
-      autoScaleWinner: true,
-    });
-    expect(service.createTest).toHaveBeenCalled();
+    const result = await controller.create(
+      {
+        name: "ABT-001",
+        campaignId: "camp-1",
+        adSetId: "adset-1",
+        pageId: "page-1",
+        waLink: "https://wa.me/6281234567890",
+        mode: "AUTO",
+        variantCount: 2,
+        unit: "unit-1",
+        branch: "CINERE" as never,
+        targetPersona: "PRIMARY_FAMILY" as never,
+        primaryMessage: "DP ringan",
+        format: "VIDEO_AND_IMAGES",
+        urgency: "MEDIUM",
+        thresholdSpend: 100_000,
+        thresholdDays: 3,
+        minMarginPct: 20,
+        autoPauseLoser: true,
+        autoScaleWinner: true,
+      },
+      "tenant-a",
+    );
+    expect(service.createTest).toHaveBeenCalledWith(expect.anything(), "tenant-a");
     expect(result.status).toBe("DRAFT");
   });
 
-  it("POST /:id/pause pauses a test", async () => {
+  it("POST /:id/pause pauses a test, scoped to the real per-request tenant", async () => {
     const service = buildFakeService();
     const controller = new AbTestingController(service);
-    const result = await controller.pause("test-1");
-    expect(service.pauseTest).toHaveBeenCalledWith("test-1");
+    const result = await controller.pause("test-1", "tenant-a");
+    expect(service.pauseTest).toHaveBeenCalledWith("test-1", "tenant-a");
     expect(result.status).toBe("PAUSED");
   });
 });

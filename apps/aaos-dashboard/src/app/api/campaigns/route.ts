@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AaosApiError, callAaosApi } from "@/lib/api";
+import { resolveRouteSession } from "@/lib/route-session";
 import type {
   AdAccountSummaryDto,
   AdSetSummaryDto,
@@ -8,6 +9,10 @@ import type {
   CampaignAdDto,
   CampaignSummaryDto,
 } from "@/types/dashboard.types";
+
+// See `app/api/settings/route.ts`'s comment on this same export — this handler also reads the
+// caller's real session cookies (via `resolveRouteSession`) on every request.
+export const dynamic = "force-dynamic";
 
 /** `aaos-api`'s real `GET /api/v1/campaigns` response shape (`apps/aaos-api/src/modules/meta-ads/dto/campaign-response.dto.ts`) — already carries the full hierarchy with real, spend-sorted `stableId`s (`@aos/meta-ads-connector`'s `StableIdAssigner`) and per-ad `verdict` (the real `VerdictEngine`). Nothing here is recomputed — this route only reshapes field names for the browser. */
 interface AdAccountResponseDto {
@@ -189,11 +194,22 @@ interface CacheEntry {
  * in the route module's closure is correct for this scale and needs no extra infrastructure. It is
  * cleared on every server restart/redeploy, which is fine — a cold cache just means the next
  * request pays for one real fetch.
+ *
+ * TENANT-SCOPING FIX (Phase T2, docs/PROMPT-AAOS-META-ADS-TENANT-SCOPING.md): `cacheKey` now
+ * includes the real per-request `tenantId` — this cache is process-wide (shared across every
+ * tenant's requests in this one Next.js server), so without a tenant-scoped key, one tenant's
+ * first fetch would serve a second tenant's `adAccountId`/`datePreset`-matching request its
+ * cached campaign data for up to 5 minutes — the exact same class of bug this whole phase fixes,
+ * just newly introduced here instead of inherited.
  */
 const cache = new Map<string, CacheEntry>();
 
-function cacheKey(adAccountId: string | undefined, datePreset: string | undefined): string {
-  return `${adAccountId ?? ""}::${datePreset ?? ""}`;
+function cacheKey(
+  tenantId: string,
+  adAccountId: string | undefined,
+  datePreset: string | undefined,
+): string {
+  return `${tenantId}::${adAccountId ?? ""}::${datePreset ?? ""}`;
 }
 
 /**
@@ -205,10 +221,14 @@ function cacheKey(adAccountId: string | undefined, datePreset: string | undefine
  * genuinely fresh data rather than up-to-5-minutes-stale.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const session = await resolveRouteSession(request);
+  if (session === null) {
+    return NextResponse.json({ error: { message: "Unauthorized" } }, { status: 401 });
+  }
   const adAccountId = request.nextUrl.searchParams.get("adAccountId") ?? undefined;
   const datePreset = request.nextUrl.searchParams.get("datePreset") ?? undefined;
   const forceRefresh = request.nextUrl.searchParams.get("refresh") === "1";
-  const key = cacheKey(adAccountId, datePreset);
+  const key = cacheKey(session.tenantId, adAccountId, datePreset);
 
   const cached = cache.get(key);
   if (!forceRefresh && cached !== undefined && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
@@ -218,6 +238,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const data = await callAaosApi<AdAccountResponseDto>("/api/v1/campaigns", {
       searchParams: { adAccountId, datePreset },
+      headers: { "x-tenant-id": session.tenantId },
     });
     const summary = toSummary(data);
     cache.set(key, { body: summary, cachedAt: Date.now() });

@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AaosApiError, callAaosApi } from "@/lib/api";
+import { resolveRouteSession } from "@/lib/route-session";
 import type { HeatmapResponseDto } from "@/types/dashboard.types";
+
+// See `app/api/settings/route.ts`'s comment on this same export — this handler also reads the
+// caller's real session cookies (via `resolveRouteSession`) on every request.
+export const dynamic = "force-dynamic";
 
 /**
  * `GET /api/analytics/heatmap` — proxies `GET /api/v1/analytics/heatmap` on `aaos-api` (AAOS
@@ -14,6 +19,13 @@ import type { HeatmapResponseDto } from "@/types/dashboard.types";
  * `aaos-api`→Meta Insights API round-trip, protecting against multiple tabs/sessions each
  * independently deciding they need a fresh pull around the same time) — not a second, independently
  * invented caching approach.
+ *
+ * TENANT-SCOPING FIX (Phase T2, docs/PROMPT-AAOS-META-ADS-TENANT-SCOPING.md): forwards
+ * `x-tenant-id: session.tenantId` (this proxy previously called `aaos-api` with no tenant header
+ * at all, now that `MetaAdsController.getHeatmap` reads one), and `cacheKey` now includes that
+ * real tenant id too — this cache is process-wide, so without a tenant-scoped key one tenant's
+ * cached heatmap would leak to a second tenant's matching `adAccountId`/`datePreset` request, same
+ * fix `/api/campaigns/route.ts` needed for the identical reason.
  */
 
 const CACHE_TTL_MS = 300_000; // 5 minutes
@@ -25,15 +37,23 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-function cacheKey(adAccountId: string | undefined, datePreset: string | undefined): string {
-  return `${adAccountId ?? ""}::${datePreset ?? ""}`;
+function cacheKey(
+  tenantId: string,
+  adAccountId: string | undefined,
+  datePreset: string | undefined,
+): string {
+  return `${tenantId}::${adAccountId ?? ""}::${datePreset ?? ""}`;
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const session = await resolveRouteSession(request);
+  if (session === null) {
+    return NextResponse.json({ error: { message: "Unauthorized" } }, { status: 401 });
+  }
   const adAccountId = request.nextUrl.searchParams.get("adAccountId") ?? undefined;
   const datePreset = request.nextUrl.searchParams.get("datePreset") ?? undefined;
   const forceRefresh = request.nextUrl.searchParams.get("refresh") === "1";
-  const key = cacheKey(adAccountId, datePreset);
+  const key = cacheKey(session.tenantId, adAccountId, datePreset);
 
   const cached = cache.get(key);
   if (!forceRefresh && cached !== undefined && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
@@ -43,6 +63,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const data = await callAaosApi<HeatmapResponseDto>("/api/v1/analytics/heatmap", {
       searchParams: { adAccountId, datePreset },
+      headers: { "x-tenant-id": session.tenantId },
     });
     cache.set(key, { body: data, cachedAt: Date.now() });
     return NextResponse.json(data);

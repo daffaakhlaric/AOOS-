@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
 
 import { CorrelationId } from "../../common/correlation.js";
+import { TenantId } from "../../common/tenant-context.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
@@ -17,7 +18,16 @@ import { PullCampaignsQuerySchema, type PullCampaignsQueryDto } from "./dto/pull
 import { ApiKeyGuard } from "./guards/api-key.guard.js";
 import { MetaAdsService } from "./meta-ads.service.js";
 
-/** `GET /api/v1/campaigns`, `POST /api/v1/verdicts` — both require `x-api-key` auth. */
+/**
+ * `GET /api/v1/campaigns`, `POST /api/v1/verdicts` — both require `x-api-key` auth.
+ *
+ * TENANT-SCOPING FIX (Phase T2, docs/PROMPT-AAOS-META-ADS-TENANT-SCOPING.md): every endpoint here
+ * ultimately calls `MetaAdsService`'s `connectorRegistry.resolve` (directly, or via the shared
+ * `pullAdAccount` helper), so every one of them now resolves the real per-request tenant via
+ * `@TenantId()` (`common/tenant-context.ts` — the same `AssetsController` convention Phase T1
+ * already established) and threads it into `MetaAdsService`, instead of the service reading the
+ * single, process-wide `AAOS_TENANT_ID` env var.
+ */
 @Controller("api/v1")
 @UseGuards(ApiKeyGuard)
 export class MetaAdsController {
@@ -27,8 +37,9 @@ export class MetaAdsController {
   async getCampaigns(
     @Query(new ZodValidationPipe(PullCampaignsQuerySchema)) query: PullCampaignsQueryDto,
     @CorrelationId() correlationId: string,
+    @TenantId() tenantId: string,
   ): Promise<AdAccountResponseDto> {
-    return this.metaAdsService.pullCampaigns(query, correlationId);
+    return this.metaAdsService.pullCampaigns(query, correlationId, tenantId);
   }
 
   /**
@@ -39,8 +50,8 @@ export class MetaAdsController {
    * needs to render the "Semua Akun" pill when this array has more than 1 element.
    */
   @Get("meta-ads/accounts")
-  async getAdAccounts(): Promise<readonly AdAccountOptionDto[]> {
-    return this.metaAdsService.getAdAccounts();
+  async getAdAccounts(@TenantId() tenantId: string): Promise<readonly AdAccountOptionDto[]> {
+    return this.metaAdsService.getAdAccounts(tenantId);
   }
 
   /**
@@ -53,8 +64,9 @@ export class MetaAdsController {
   async getAssetRollup(
     @Query(new ZodValidationPipe(PullCampaignsQuerySchema)) query: PullCampaignsQueryDto,
     @CorrelationId() correlationId: string,
+    @TenantId() tenantId: string,
   ): Promise<AssetRollupResponseDto> {
-    return this.metaAdsService.getAssetRollup(query, correlationId);
+    return this.metaAdsService.getAssetRollup(query, correlationId, tenantId);
   }
 
   /**
@@ -67,8 +79,9 @@ export class MetaAdsController {
   async getHeatmap(
     @Query(new ZodValidationPipe(PullCampaignsQuerySchema)) query: PullCampaignsQueryDto,
     @CorrelationId() correlationId: string,
+    @TenantId() tenantId: string,
   ): Promise<HeatmapResponseDto> {
-    return this.metaAdsService.getHeatmap(query, correlationId);
+    return this.metaAdsService.getHeatmap(query, correlationId, tenantId);
   }
 
   /**
@@ -85,8 +98,9 @@ export class MetaAdsController {
     @Param("assetId") assetId: string,
     @Query(new ZodValidationPipe(PullCampaignsQuerySchema)) query: PullCampaignsQueryDto,
     @CorrelationId() correlationId: string,
+    @TenantId() tenantId: string,
   ): Promise<AssetDetailResponseDto> {
-    return this.metaAdsService.getAssetDetail(assetId, query, correlationId);
+    return this.metaAdsService.getAssetDetail(assetId, query, correlationId, tenantId);
   }
 
   @Post("verdicts")
@@ -94,7 +108,8 @@ export class MetaAdsController {
   async postVerdict(
     @Body(new ZodValidationPipe(ExecuteVerdictBodySchema)) body: ExecuteVerdictBodyDto,
     @CorrelationId() correlationId: string,
+    @TenantId() tenantId: string,
   ): Promise<ExecuteVerdictResponseDto> {
-    return this.metaAdsService.executeVerdict(body, correlationId);
+    return this.metaAdsService.executeVerdict(body, correlationId, tenantId);
   }
 }

@@ -645,7 +645,10 @@ export class SchedulerService {
    * this SAME due-window cron rather than a second, parallel `@Cron`.
    */
   private async runAbTestCheck(): Promise<CalendarEventResult> {
-    return this.abTestingService.runAbTestCheck();
+    // TENANT-SCOPING FIX (Phase T2): this is a background cron handler with no per-request
+    // tenant context (no `@TenantId()` to read here) — explicitly passes the single,
+    // process-wide `AAOS_TENANT_ID`, preserving today's exact single-tenant background behavior.
+    return this.abTestingService.runAbTestCheck(this.config.AAOS_TENANT_ID);
   }
 
   /**
@@ -656,7 +659,10 @@ export class SchedulerService {
    * checked by this SAME due-window cron rather than a second, parallel `@Cron`.
    */
   private async runLookalikeSync(): Promise<CalendarEventResult> {
-    return this.lookalikeService.runLookalikeSync();
+    // TENANT-SCOPING FIX (Phase T2): this is a background cron handler with no per-request
+    // tenant context (no `@TenantId()` to read here) — explicitly passes the single,
+    // process-wide `AAOS_TENANT_ID`, preserving today's exact single-tenant background behavior.
+    return this.lookalikeService.runLookalikeSync(this.config.AAOS_TENANT_ID);
   }
 
   /**
@@ -686,7 +692,7 @@ export class SchedulerService {
    * `runDailyDigest` filters that out rather than appending an empty line.
    */
   private async buildAbTestDigestSection(): Promise<string | undefined> {
-    const completed = await this.abTestingService.listTests("COMPLETE");
+    const completed = await this.abTestingService.listTests(this.config.AAOS_TENANT_ID, "COMPLETE");
     const windowStart = Date.now() - 24 * 60 * 60 * 1000;
     const recentlyCompleted = completed.filter(
       (test) =>
@@ -708,7 +714,7 @@ export class SchedulerService {
    * real hot-leads-synced-to-Meta count/milestone, read via `LookalikeService.getStatus`.
    */
   private async buildLookalikeDigestSection(): Promise<string | undefined> {
-    const status = await this.lookalikeService.getStatus();
+    const status = await this.lookalikeService.getStatus(this.config.AAOS_TENANT_ID);
     if (status.totalHotLeads === 0) {
       return undefined;
     }

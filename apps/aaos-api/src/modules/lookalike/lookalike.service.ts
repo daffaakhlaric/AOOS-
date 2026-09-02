@@ -6,8 +6,7 @@ import type { Lead, LeadStore } from "@aos/lead-store";
 import { AdAccountId } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
-import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, LEAD_STORE, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import { LEAD_STORE, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import type {
   MetaAdsConnectorContext,
   MetaAdsConnectorRegistry,
@@ -24,9 +23,18 @@ const COUNTRY = "ID";
 
 /**
  * Backs `/api/v1/lookalike/*` and the `LOOKALIKE_SYNC` Kalender handler (AAOS-ABTESTING-LOOKALIKE
- * Part 2). Single-tenant, exactly like every other service in this app (coordinator note section
- * 4) — every method operates on `this.config.AAOS_TENANT_ID`/the single composed
- * `MetaAdsConnector`/`META_AD_ACCOUNT_IDS[0]`, no per-tenant loop.
+ * Part 2). Single-tenant per call, exactly like every other service in this app (coordinator note
+ * section 4) — every method operates on one real `tenantId`/the single composed
+ * `MetaAdsConnector`/`META_AD_ACCOUNT_IDS[0]` for that tenant, no per-tenant loop.
+ *
+ * TENANT-SCOPING FIX (Phase T2, docs/PROMPT-AAOS-META-ADS-TENANT-SCOPING.md): every method that
+ * used to read the private `tenantId` getter (itself just an alias for the single, process-wide
+ * `config.AAOS_TENANT_ID`) now takes a real `tenantId` parameter instead — removed entirely, same
+ * as `AbTestingService`'s own identical fix, verified via grep. `/api/v1/lookalike*`
+ * (`LookalikeController`) now passes the real per-request tenant (`@TenantId()`); the
+ * `LOOKALIKE_SYNC` Kalender handler and the Daily Digest's lookalike section (`SchedulerService`,
+ * no per-request tenant context — background cron/digest, not an HTTP request) explicitly pass
+ * their own `config.AAOS_TENANT_ID`, preserving today's exact single-tenant background behavior.
  *
  * Every Meta Custom Audience/Lookalike capability here goes through the genuinely new
  * `packages/meta-ads-connector` use cases built for this feature (coordinator note section 3) —
@@ -38,7 +46,6 @@ export class LookalikeService {
   private readonly logger = new Logger(LookalikeService.name);
 
   constructor(
-    @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
     @Inject(LEAD_STORE) private readonly leadStore: LeadStore,
@@ -49,15 +56,11 @@ export class LookalikeService {
     @Optional() private readonly now: () => Date = () => new Date(),
   ) {}
 
-  private get tenantId(): string {
-    return this.config.AAOS_TENANT_ID;
-  }
-
   // ---------------------------------------------------------------------------------------------
   // `GET /api/v1/lookalike/status` — the spec's "Hot Leads Database" status card.
   // ---------------------------------------------------------------------------------------------
 
-  async getStatus(): Promise<{
+  async getStatus(tenantId: string): Promise<{
     readonly totalHotLeads: number;
     readonly syncedToMetaAudience: number;
     readonly minRequiredForLookalike: number;
@@ -66,7 +69,7 @@ export class LookalikeService {
     readonly lastSyncedAt: string | undefined;
     readonly customAudience: StoredMetaAudience | undefined;
   }> {
-    const hotLeads = await this.allHotLeads();
+    const hotLeads = await this.allHotLeads(tenantId);
     const synced = hotLeads.filter((lead) => lead.syncedToMetaAudience);
     const lastSyncedAt = synced.reduce<Date | undefined>((latest, lead) => {
       if (lead.syncedAt === undefined) {
@@ -76,10 +79,7 @@ export class LookalikeService {
         ? lead.syncedAt
         : latest;
     }, undefined);
-    const customAudience = await this.audienceRepository.findByTenantAndType(
-      this.tenantId,
-      "HOT_LEADS",
-    );
+    const customAudience = await this.audienceRepository.findByTenantAndType(tenantId, "HOT_LEADS");
     const total = hotLeads.length;
     const progressPercentage = Math.min(
       100,
@@ -100,16 +100,16 @@ export class LookalikeService {
   // `GET /api/v1/lookalike/audiences` — the spec's Custom Audience + Lookalike list.
   // ---------------------------------------------------------------------------------------------
 
-  async listAudiences(): Promise<readonly StoredMetaAudience[]> {
-    return this.audienceRepository.listByTenant(this.tenantId);
+  async listAudiences(tenantId: string): Promise<readonly StoredMetaAudience[]> {
+    return this.audienceRepository.listByTenant(tenantId);
   }
 
   // ---------------------------------------------------------------------------------------------
   // `POST /api/v1/lookalike/sync` + `LOOKALIKE_SYNC` Kalender handler — spec's `syncHotLeadsToMeta`.
   // ---------------------------------------------------------------------------------------------
 
-  async runLookalikeSync(): Promise<CalendarEventResult> {
-    const result = await this.syncHotLeadsToMeta();
+  async runLookalikeSync(tenantId: string): Promise<CalendarEventResult> {
+    const result = await this.syncHotLeadsToMeta(tenantId);
     return {
       summary: result.summary,
       newlySynced: result.newlySynced,
@@ -117,20 +117,17 @@ export class LookalikeService {
     };
   }
 
-  async syncHotLeadsToMeta(): Promise<{
+  async syncHotLeadsToMeta(tenantId: string): Promise<{
     readonly summary: string;
     readonly newlySynced: number;
     readonly totalSynced: number;
     readonly customAudience: StoredMetaAudience | undefined;
   }> {
-    const hotLeads = await this.allHotLeads();
+    const hotLeads = await this.allHotLeads(tenantId);
     const unsynced = hotLeads.filter((lead) => !lead.syncedToMetaAudience);
 
     if (unsynced.length === 0) {
-      const existing = await this.audienceRepository.findByTenantAndType(
-        this.tenantId,
-        "HOT_LEADS",
-      );
+      const existing = await this.audienceRepository.findByTenantAndType(tenantId, "HOT_LEADS");
       return {
         summary: "0 hot leads baru untuk disync",
         newlySynced: 0,
@@ -139,12 +136,12 @@ export class LookalikeService {
       };
     }
 
-    const connectorResult = await this.connectorRegistry.resolve(this.tenantId);
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
     const connector = connectorResult.value;
-    const audience = await this.getOrCreateCustomAudience(connector);
+    const audience = await this.getOrCreateCustomAudience(connector, tenantId);
     const accessToken = connector.accessToken;
 
     const uploadResult = await connector.addUsersToCustomAudience.execute({
@@ -163,7 +160,7 @@ export class LookalikeService {
     for (const lead of unsynced) {
       const markResult = await this.leadStore.markLeadSyncedToMetaAudience.execute({
         leadId: lead.id.toString(),
-        tenantId: this.tenantId,
+        tenantId,
       });
       if (!markResult.ok) {
         this.logger.warn(
@@ -188,8 +185,8 @@ export class LookalikeService {
   // `POST /api/v1/lookalike/audiences/lookalike` — spec's `createLookalike`.
   // ---------------------------------------------------------------------------------------------
 
-  async createLookalike(percentage: 1 | 2 | 3): Promise<StoredMetaAudience> {
-    const origin = await this.audienceRepository.findByTenantAndType(this.tenantId, "HOT_LEADS");
+  async createLookalike(percentage: 1 | 2 | 3, tenantId: string): Promise<StoredMetaAudience> {
+    const origin = await this.audienceRepository.findByTenantAndType(tenantId, "HOT_LEADS");
     if (origin === undefined) {
       throw new ValidationError(
         "Belum ada Custom Audience hot leads — jalankan Sync Hot Leads ke Meta dulu.",
@@ -197,12 +194,12 @@ export class LookalikeService {
     }
 
     const audienceType = lookalikeAudienceType(percentage);
-    const existing = await this.audienceRepository.findByTenantAndType(this.tenantId, audienceType);
+    const existing = await this.audienceRepository.findByTenantAndType(tenantId, audienceType);
     if (existing !== undefined) {
       return existing;
     }
 
-    const connectorResult = await this.connectorRegistry.resolve(this.tenantId);
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
@@ -214,7 +211,7 @@ export class LookalikeService {
 
     const result = await connector.createLookalikeAudience.execute({
       adAccountId: adAccountIdResult.value,
-      name: `AAOS-Lookalike-${String(percentage)}pct-${this.tenantId}`,
+      name: `AAOS-Lookalike-${String(percentage)}pct-${tenantId}`,
       originAudienceId: origin.metaAudienceId,
       percentage,
       country: COUNTRY,
@@ -226,10 +223,10 @@ export class LookalikeService {
 
     return this.audienceRepository.create({
       id: randomUUID(),
-      tenantId: this.tenantId,
+      tenantId,
       metaAudienceId: result.value.audienceId,
       audienceType,
-      name: `AAOS-Lookalike-${String(percentage)}pct-${this.tenantId}`,
+      name: `AAOS-Lookalike-${String(percentage)}pct-${tenantId}`,
       originAudienceId: origin.metaAudienceId,
       percentage,
     });
@@ -240,10 +237,10 @@ export class LookalikeService {
   // ---------------------------------------------------------------------------------------------
 
   /** Every real HOT-status lead across every branch (mirrors `SchedulerService.countHotLeads`'s per-branch aggregation — `@aos/lead-store`'s `GetHotLeads` has no tenant-wide aggregate use case). A branch whose lookup fails contributes nothing and is logged, never aborts the whole sync. */
-  private async allHotLeads(): Promise<readonly Lead[]> {
+  private async allHotLeads(tenantId: string): Promise<readonly Lead[]> {
     const leads: Lead[] = [];
     for (const branchId of ALL_BRANCH_IDS) {
-      const result = await this.leadStore.getHotLeads.execute(branchId, this.tenantId);
+      const result = await this.leadStore.getHotLeads.execute(branchId, tenantId);
       if (result.ok) {
         leads.push(...result.value);
       } else {
@@ -257,8 +254,9 @@ export class LookalikeService {
 
   private async getOrCreateCustomAudience(
     connector: MetaAdsConnectorContext,
+    tenantId: string,
   ): Promise<StoredMetaAudience> {
-    const existing = await this.audienceRepository.findByTenantAndType(this.tenantId, "HOT_LEADS");
+    const existing = await this.audienceRepository.findByTenantAndType(tenantId, "HOT_LEADS");
     if (existing !== undefined) {
       return existing;
     }
@@ -271,7 +269,7 @@ export class LookalikeService {
     const monthYear = formatMonthYear(this.now());
     const result = await connector.createCustomAudience.execute({
       adAccountId: adAccountIdResult.value,
-      name: `AAOS-HotLeads-${this.tenantId}-${monthYear}`,
+      name: `AAOS-HotLeads-${tenantId}-${monthYear}`,
       description: "Hot leads dari AAOS Clara AI (score >= 65)",
       accessToken: connector.accessToken,
     });
@@ -281,10 +279,10 @@ export class LookalikeService {
 
     return this.audienceRepository.create({
       id: randomUUID(),
-      tenantId: this.tenantId,
+      tenantId,
       metaAudienceId: result.value.audienceId,
       audienceType: "HOT_LEADS",
-      name: `AAOS-HotLeads-${this.tenantId}-${monthYear}`,
+      name: `AAOS-HotLeads-${tenantId}-${monthYear}`,
     });
   }
 

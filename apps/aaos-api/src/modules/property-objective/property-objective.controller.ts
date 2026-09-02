@@ -22,14 +22,12 @@ import { PropertyObjectiveService } from "./property-objective.service.js";
  * app already uses. `get`/`create` are `@TenantId()`-scoped (`common/tenant-context.ts`) — per this
  * session's own Phase T1 tenant-scoping lesson, applied here from day one.
  *
- * `budget-suggestion` is the ONE real exception, and honestly so, not an oversight: it computes its
- * suggestion from `MetaAdsService.pullCampaigns`, which itself has no `tenantId` parameter and no
- * `@TenantId()` on `MetaAdsController` today — this whole `meta-ads` module pulls from one
- * environment-wide configured Meta ad account, the same real single-tenant-per-environment
- * architecture gap Phase T1 fixed for `assets`/`meta-interests` but did NOT touch here (out of that
- * phase's scope). Threading a real per-tenant scope through `budget-suggestion` would require fixing
- * `MetaAdsService` itself first — flagged to the coordinator as a real, separate follow-up, not
- * silently worked around by inventing a second Meta-pull mechanism in this module.
+ * `budget-suggestion` is now ALSO `@TenantId()`-scoped (TENANT-SCOPING FIX, Phase T2,
+ * docs/PROMPT-AAOS-META-ADS-TENANT-SCOPING.md): it computes its suggestion from
+ * `MetaAdsService.pullCampaigns`, which used to have no `tenantId` parameter — this was the exact,
+ * previously-flagged follow-up this doc comment's own earlier version called out as blocked on
+ * fixing `MetaAdsService` itself first. That fix landed in this same phase, so this endpoint is
+ * updated alongside it rather than left on the stale env-wide tenant.
  *
  * `budget-suggestion` is declared BEFORE the bare `POST`/`GET` routes' handlers are irrelevant here
  * (both live under the same fixed `/budget-suggestion` sub-path, not a `:id`-style dynamic segment,
@@ -44,8 +42,9 @@ export class PropertyObjectiveController {
   async getBudgetSuggestion(
     @Query(new ZodValidationPipe(BudgetSuggestionQuerySchema)) query: BudgetSuggestionQueryDto,
     @CorrelationId() correlationId: string,
+    @TenantId() tenantId: string,
   ): Promise<BudgetSuggestionResponseDto> {
-    return this.service.getBudgetSuggestion(query.targetHotLeads, correlationId);
+    return this.service.getBudgetSuggestion(query.targetHotLeads, correlationId, tenantId);
   }
 
   @Get()

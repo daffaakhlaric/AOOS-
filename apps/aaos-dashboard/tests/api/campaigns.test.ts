@@ -1,7 +1,20 @@
 import type { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const resolveRouteSession = vi.fn();
+
+vi.mock("@/lib/route-session", () => ({
+  resolveRouteSession: (...args: unknown[]) => resolveRouteSession(...args),
+}));
+
 import { GET } from "@/app/api/campaigns/route";
+
+const SESSION = {
+  userId: "u1",
+  role: "manager",
+  tenantId: "dss-motor",
+  vertical: "AUTOMOTIVE",
+} as const;
 
 function requestWith(searchParams: Record<string, string> = {}): NextRequest {
   const url = new URL("http://localhost/api/campaigns");
@@ -63,16 +76,27 @@ describe("GET /api/campaigns", () => {
   beforeEach(() => {
     process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
     process.env["AAOS_API_KEY"] = "test-key";
+    resolveRouteSession.mockResolvedValue(SESSION);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("proxies to aaos-api, returning both the flattened ad list AND the real hierarchy with its stableIds (real bug fix: this used to discard the hierarchy/stableIds entirely — see route.ts's docstring)", async () => {
-    global.fetch = vi.fn(
-      async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
-    ) as unknown as typeof fetch;
+  // TENANT-SCOPING FIX (Phase T2): this route now resolves the real session and forwards
+  // `x-tenant-id` — 401s with no session, same as every other proxy route in this app.
+  it("returns 401 with no session", async () => {
+    resolveRouteSession.mockResolvedValue(null);
+    const response = await GET(requestWith());
+    expect(response.status).toBe(401);
+  });
+
+  it("proxies to aaos-api, returning both the flattened ad list AND the real hierarchy with its stableIds (real bug fix: this used to discard the hierarchy/stableIds entirely — see route.ts's docstring), forwarding the real per-request tenant id", async () => {
+    const fetchMock = vi.fn(async (_url: URL, init?: RequestInit) => {
+      expect((init?.headers as Record<string, string>)["x-tenant-id"]).toBe("dss-motor");
+      return new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     const response = await GET(requestWith({ datePreset: "last_30d" }));
     expect(response.status).toBe(200);
@@ -217,6 +241,24 @@ describe("GET /api/campaigns", () => {
 
       await GET(requestWith({ adAccountId: "act_cache_4a", datePreset: "last_30d" }));
       await GET(requestWith({ adAccountId: "act_cache_4b", datePreset: "last_30d" }));
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    // TENANT-SCOPING FIX (Phase T2): the real regression test for this phase's own cache-key fix
+    // — two different tenants requesting the identical `adAccountId`/`datePreset` must NOT share
+    // a cached response.
+    it("caches distinct tenants' identical adAccountId/datePreset combinations independently (real tenant-scoping regression test)", async () => {
+      const fetchMock = vi.fn(
+        async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
+      );
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      const params = { adAccountId: "act_cache_tenant", datePreset: "last_30d" };
+      resolveRouteSession.mockResolvedValue(SESSION);
+      await GET(requestWith(params));
+      resolveRouteSession.mockResolvedValue({ ...SESSION, tenantId: "other-tenant" });
+      await GET(requestWith(params));
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });

@@ -30,26 +30,28 @@ function buildFakeService(): MetaAdsService {
 }
 
 describe("MetaAdsController", () => {
-  it("GET /api/v1/campaigns delegates to MetaAdsService.pullCampaigns with the query + correlation id", async () => {
+  it("GET /api/v1/campaigns delegates to MetaAdsService.pullCampaigns with the query + correlation id + real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new MetaAdsController(service);
     const result = await controller.getCampaigns(
       { adAccountId: "act_1", datePreset: "last_30d" },
       "corr-1",
+      "tenant-a",
     );
     expect(service.pullCampaigns).toHaveBeenCalledWith(
       { adAccountId: "act_1", datePreset: "last_30d" },
       "corr-1",
+      "tenant-a",
     );
     expect(result).toEqual({ id: "act_1" });
   });
 
-  it("POST /api/v1/verdicts delegates to MetaAdsService.executeVerdict with the body + correlation id", async () => {
+  it("POST /api/v1/verdicts delegates to MetaAdsService.executeVerdict with the body + correlation id + real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new MetaAdsController(service);
     const body = { verdict: "PAUSE" as const, targetId: "id", targetType: "ad" as const };
-    const result = await controller.postVerdict(body, "corr-2");
-    expect(service.executeVerdict).toHaveBeenCalledWith(body, "corr-2");
+    const result = await controller.postVerdict(body, "corr-2", "tenant-a");
+    expect(service.executeVerdict).toHaveBeenCalledWith(body, "corr-2", "tenant-a");
     expect(result).toEqual({
       action: "PAUSED",
       targetId: "id",
@@ -58,26 +60,28 @@ describe("MetaAdsController", () => {
     });
   });
 
-  it("GET /api/v1/meta-ads/accounts delegates to MetaAdsService.getAdAccounts", async () => {
+  it("GET /api/v1/meta-ads/accounts delegates to MetaAdsService.getAdAccounts with the real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new MetaAdsController(service);
-    const result = await controller.getAdAccounts();
-    expect(service.getAdAccounts).toHaveBeenCalledWith();
+    const result = await controller.getAdAccounts("tenant-a");
+    expect(service.getAdAccounts).toHaveBeenCalledWith("tenant-a");
     expect(result).toEqual([{ id: "act_1", name: "DSS Motor" }]);
   });
 
-  it("GET /api/v1/analytics/assets/:assetId delegates to MetaAdsService.getAssetDetail with the assetId + query + correlation id", async () => {
+  it("GET /api/v1/analytics/assets/:assetId delegates to MetaAdsService.getAssetDetail with the assetId + query + correlation id + real per-request tenant id", async () => {
     const service = buildFakeService();
     const controller = new MetaAdsController(service);
     const result = await controller.getAssetDetail(
       "hash-A",
       { adAccountId: "act_1", datePreset: "last_30d" },
       "corr-3",
+      "tenant-a",
     );
     expect(service.getAssetDetail).toHaveBeenCalledWith(
       "hash-A",
       { adAccountId: "act_1", datePreset: "last_30d" },
       "corr-3",
+      "tenant-a",
     );
     expect(result).toEqual({ assetId: "hash-A" });
   });

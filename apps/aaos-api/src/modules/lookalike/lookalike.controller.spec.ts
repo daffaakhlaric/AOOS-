@@ -44,36 +44,38 @@ function buildFakeService(overrides: Partial<LookalikeService> = {}): LookalikeS
 }
 
 describe("LookalikeController", () => {
-  it("GET /status returns the status card fields", async () => {
+  it("GET /status returns the status card fields, scoped to the real per-request tenant", async () => {
     const service = buildFakeService();
     const controller = new LookalikeController(service);
-    const result = await controller.status();
+    const result = await controller.status("tenant-a");
+    expect(service.getStatus).toHaveBeenCalledWith("tenant-a");
     expect(result.totalHotLeads).toBe(47);
     expect(result.syncedToMetaAudience).toBe(38);
     expect(result.customAudience?.metaAudienceId).toBe("audience-1");
   });
 
-  it("GET /audiences lists every audience", async () => {
+  it("GET /audiences lists every audience, scoped to the real per-request tenant", async () => {
     const service = buildFakeService();
     const controller = new LookalikeController(service);
-    const result = await controller.audiences();
+    const result = await controller.audiences("tenant-a");
+    expect(service.listAudiences).toHaveBeenCalledWith("tenant-a");
     expect(result).toHaveLength(1);
     expect(result[0]?.audienceType).toBe("HOT_LEADS");
   });
 
-  it("POST /sync triggers a sync and returns the result", async () => {
+  it("POST /sync triggers a sync and returns the result, scoped to the real per-request tenant", async () => {
     const service = buildFakeService();
     const controller = new LookalikeController(service);
-    const result = await controller.sync();
-    expect(service.syncHotLeadsToMeta).toHaveBeenCalled();
+    const result = await controller.sync("tenant-a");
+    expect(service.syncHotLeadsToMeta).toHaveBeenCalledWith("tenant-a");
     expect(result.newlySynced).toBe(5);
   });
 
-  it("POST /audiences/lookalike creates a Lookalike audience", async () => {
+  it("POST /audiences/lookalike creates a Lookalike audience, scoped to the real per-request tenant", async () => {
     const service = buildFakeService();
     const controller = new LookalikeController(service);
-    const result = await controller.createLookalike({ percentage: 1 });
-    expect(service.createLookalike).toHaveBeenCalledWith(1);
+    const result = await controller.createLookalike({ percentage: 1 }, "tenant-a");
+    expect(service.createLookalike).toHaveBeenCalledWith(1, "tenant-a");
     expect(result.audienceType).toBe("LOOKALIKE_1PCT");
   });
 });

@@ -213,7 +213,7 @@ describe("PropertyObjectiveService", () => {
         buildAdAccount([100_000, 200_000]),
       );
 
-      const result = await service.getBudgetSuggestion(10, CORRELATION_ID);
+      const result = await service.getBudgetSuggestion(10, CORRELATION_ID, TENANT_ID);
 
       expect(metaAdsService.pullCampaigns).toHaveBeenCalledTimes(1);
       expect(result.available).toBe(true);
@@ -230,7 +230,7 @@ describe("PropertyObjectiveService", () => {
         buildAdAccount([100_000, null, 300_000]),
       );
 
-      const result = await service.getBudgetSuggestion(2, CORRELATION_ID);
+      const result = await service.getBudgetSuggestion(2, CORRELATION_ID, TENANT_ID);
       expect(result.available).toBe(true);
       if (result.available) {
         expect(result.portfolioAvgCplIDR).toBe(200_000);
@@ -241,7 +241,7 @@ describe("PropertyObjectiveService", () => {
       const client = createFakeSupabaseClient();
       const { service } = buildService(client, async () => buildAdAccount([null, null]));
 
-      const result = await service.getBudgetSuggestion(10, CORRELATION_ID);
+      const result = await service.getBudgetSuggestion(10, CORRELATION_ID, TENANT_ID);
       expect(result.available).toBe(false);
       if (!result.available) {
         expect(result.reason.length).toBeGreaterThan(0);
@@ -252,7 +252,7 @@ describe("PropertyObjectiveService", () => {
       const client = createFakeSupabaseClient();
       const { service } = buildService(client, async () => buildAdAccount([]));
 
-      const result = await service.getBudgetSuggestion(10, CORRELATION_ID);
+      const result = await service.getBudgetSuggestion(10, CORRELATION_ID, TENANT_ID);
       expect(result.available).toBe(false);
     });
   });

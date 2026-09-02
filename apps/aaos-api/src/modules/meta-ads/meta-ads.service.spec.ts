@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from "@aos/errors";
 import { MetaAdsConnectorFactory, Verdict, type MetaAdsConnector } from "@aos/meta-ads-connector";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_TENANT_ID } from "../../common/tenant-context.js";
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { toConnectorConfig } from "../../config/to-connector-config.js";
 import { createFakePublisher } from "../../test-support/fake-publisher.js";
@@ -71,6 +72,10 @@ function buildFakeLlmService() {
   };
 }
 
+// TENANT-SCOPING FIX (Phase T2): `MetaAdsService` no longer takes `AAOS_API_CONFIG` — its
+// constructor list is one shorter than before this phase, and every method call below now passes
+// a real `tenantId` (`DEFAULT_TENANT_ID`, matching this file's own `buildTestConfig`'s
+// `AAOS_TENANT_ID`) as an explicit final argument instead of the service reading it off config.
 function buildService(
   dev = false,
   activityLogger: ReturnType<typeof buildFakeActivityLogger> = buildFakeActivityLogger(),
@@ -86,7 +91,6 @@ function buildService(
     publisher: createFakePublisher(),
   });
   return new MetaAdsService(
-    config,
     toRegistry(config, connector) as never,
     buildFakeAdTenantIndex() as never,
     buildFakeModeGuard(dev) as never,
@@ -107,6 +111,7 @@ describe("MetaAdsService", () => {
       const dto = await service.pullCampaigns(
         { adAccountId: "act_752604553578354", datePreset: "last_30d" },
         "corr-1",
+        DEFAULT_TENANT_ID,
       );
       expect(dto.id).toBe("act_752604553578354");
       expect(dto.campaigns).toHaveLength(1);
@@ -116,14 +121,22 @@ describe("MetaAdsService", () => {
     it("defaults to the first configured ad account when adAccountId is omitted", async () => {
       registerHappyPathMetaApiHandlers();
       const service = buildService();
-      const dto = await service.pullCampaigns({ datePreset: "last_30d" }, "corr-2");
+      const dto = await service.pullCampaigns(
+        { datePreset: "last_30d" },
+        "corr-2",
+        DEFAULT_TENANT_ID,
+      );
       expect(dto.id).toBe("act_752604553578354");
     });
 
     it("throws the raw AdAccountId ValidationError for a malformed adAccountId", async () => {
       const service = buildService();
       await expect(
-        service.pullCampaigns({ adAccountId: "not-an-account", datePreset: "last_30d" }, "corr-3"),
+        service.pullCampaigns(
+          { adAccountId: "not-an-account", datePreset: "last_30d" },
+          "corr-3",
+          DEFAULT_TENANT_ID,
+        ),
       ).rejects.toBeInstanceOf(ValidationError);
     });
 
@@ -135,6 +148,7 @@ describe("MetaAdsService", () => {
         service.pullCampaigns(
           { adAccountId: "act_752604553578354", datePreset: "last_30d" },
           "corr-4",
+          DEFAULT_TENANT_ID,
         ),
       ).rejects.toBeInstanceOf(AuthError);
     });
@@ -150,7 +164,6 @@ describe("MetaAdsService", () => {
         publisher: createFakePublisher(),
       });
       const service = new MetaAdsService(
-        config,
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
@@ -158,7 +171,7 @@ describe("MetaAdsService", () => {
         buildFakeLlmService() as never,
       );
       await expect(
-        service.pullCampaigns({ datePreset: "last_30d" }, "corr-5"),
+        service.pullCampaigns({ datePreset: "last_30d" }, "corr-5", DEFAULT_TENANT_ID),
       ).rejects.toBeInstanceOf(ValidationError);
     });
   });
@@ -173,6 +186,7 @@ describe("MetaAdsService", () => {
           "asset-that-does-not-exist",
           { adAccountId: "act_752604553578354", datePreset: "last_30d" },
           "corr-asset-1",
+          DEFAULT_TENANT_ID,
         ),
       ).rejects.toBeInstanceOf(NotFoundError);
       expect(llmService.assetInsight).not.toHaveBeenCalled();
@@ -197,14 +211,13 @@ describe("MetaAdsService", () => {
         publisher: createFakePublisher(),
       });
       const service = new MetaAdsService(
-        config,
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
         buildFakeActivityLogger() as never,
         buildFakeLlmService() as never,
       );
-      const accounts = await service.getAdAccounts();
+      const accounts = await service.getAdAccounts(DEFAULT_TENANT_ID);
       expect(accounts).toEqual([
         { id: "act_752604553578354", name: "DSS Motor" },
         { id: "act_999999999999999", name: "Pusat Grosir Mobil" },
@@ -225,14 +238,13 @@ describe("MetaAdsService", () => {
         publisher: createFakePublisher(),
       });
       const service = new MetaAdsService(
-        config,
         toRegistry(config, connector) as never,
         buildFakeAdTenantIndex() as never,
         buildFakeModeGuard() as never,
         buildFakeActivityLogger() as never,
         buildFakeLlmService() as never,
       );
-      const accounts = await service.getAdAccounts();
+      const accounts = await service.getAdAccounts(DEFAULT_TENANT_ID);
       expect(accounts).toEqual([
         { id: "act_752604553578354", name: "DSS Motor" },
         { id: "act_000000000000000", name: "act_000000000000000" },
@@ -247,6 +259,7 @@ describe("MetaAdsService", () => {
       const result = await service.executeVerdict(
         { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
         "corr-6",
+        DEFAULT_TENANT_ID,
       );
       expect(result.action).toBe("PAUSED");
       expect(result.targetId).toBe("120000000000003");
@@ -260,6 +273,7 @@ describe("MetaAdsService", () => {
       const result = await service.executeVerdict(
         { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
         "corr-dev-1",
+        DEFAULT_TENANT_ID,
       );
       expect(result).toEqual({
         action: "SIMULATED",
@@ -275,6 +289,7 @@ describe("MetaAdsService", () => {
       const result = await service.executeVerdict(
         { verdict: "SCALE", targetId: "120000000000002", targetType: "adset" },
         "corr-7",
+        DEFAULT_TENANT_ID,
       );
       expect(result.action).toBe("SCALED");
     });
@@ -285,6 +300,7 @@ describe("MetaAdsService", () => {
       const result = await service.executeVerdict(
         { verdict: "FIX", targetId: "120000000000001", targetType: "campaign" },
         "corr-fix",
+        DEFAULT_TENANT_ID,
       );
       expect(result.action).toBe("FIXED");
     });
@@ -294,6 +310,7 @@ describe("MetaAdsService", () => {
       const result = await service.executeVerdict(
         { verdict: "REFRESH", targetId: "120000000000003", targetType: "ad" },
         "corr-refresh",
+        DEFAULT_TENANT_ID,
       );
       expect(result.action).toBe("HUMAN_ACTION_REQUIRED");
     });
@@ -303,6 +320,7 @@ describe("MetaAdsService", () => {
       const result = await service.executeVerdict(
         { verdict: "KEEP", targetId: "120000000000003", targetType: "ad" },
         "corr-8",
+        DEFAULT_TENANT_ID,
       );
       expect(result.action).toBe("NO_ACTION");
     });
@@ -314,6 +332,7 @@ describe("MetaAdsService", () => {
       const result = service.executeVerdict(
         { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
         "corr-9",
+        DEFAULT_TENANT_ID,
       );
       await expect(result).rejects.toBeInstanceOf(PermissionError);
     });
@@ -323,6 +342,7 @@ describe("MetaAdsService", () => {
       const result = await service.executeVerdict(
         { verdict: "REVIEW", targetId: "id", targetType: "campaign" },
         "corr-10",
+        DEFAULT_TENANT_ID,
       );
       expect(result.action).toBe("NO_ACTION");
       expect(Verdict.REVIEW).toBe("REVIEW");
@@ -336,6 +356,7 @@ describe("MetaAdsService", () => {
         const result = await service.executeVerdict(
           { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
           "corr-activity-live",
+          DEFAULT_TENANT_ID,
         );
 
         expect(activityLogger.start).toHaveBeenCalledTimes(1);
@@ -361,6 +382,7 @@ describe("MetaAdsService", () => {
         const result = await service.executeVerdict(
           { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
           "corr-activity-dev",
+          DEFAULT_TENANT_ID,
         );
 
         expect(activityLogger.start).toHaveBeenCalledWith(expect.objectContaining({ mode: "DEV" }));
@@ -380,6 +402,7 @@ describe("MetaAdsService", () => {
           service.executeVerdict(
             { verdict: "PAUSE", targetId: "120000000000003", targetType: "ad" },
             "corr-activity-error",
+            DEFAULT_TENANT_ID,
           ),
         ).rejects.toBeInstanceOf(PermissionError);
 

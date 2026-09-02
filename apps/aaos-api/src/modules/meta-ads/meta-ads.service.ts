@@ -2,8 +2,7 @@ import { NotFoundError, ValidationError } from "@aos/errors";
 import { AdAccountId, Verdict, type AdAccount } from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
-import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { LlmService } from "../llm/llm.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
@@ -34,15 +33,17 @@ import type { MetaAdsConnectorRegistry } from "./infrastructure/meta-ads-connect
  * re-throws the raw `@aos/errors` / connector error instance — never a Nest `HttpException` —
  * so `AaosExceptionFilter` is the single place deciding the resulting HTTP status.
  *
- * AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves the caller's tenant's own `MetaAdsConnector`
- * (accessToken + ad-account-ids) from `MetaAdsConnectorRegistry` rather than the single static
- * connector — `config.AAOS_TENANT_ID` today (no per-request tenant context on this endpoint yet),
- * same static-default approach every other converted consumer in this phase uses.
+ * TENANT-SCOPING FIX (Phase T2, docs/PROMPT-AAOS-META-ADS-TENANT-SCOPING.md): resolves the
+ * caller's tenant's own `MetaAdsConnector` (accessToken + ad-account-ids) from
+ * `MetaAdsConnectorRegistry` using the real per-request `tenantId` (`@TenantId()`,
+ * `common/tenant-context.ts` — same convention `AssetsController`/`AssetsService` already
+ * established in Phase T1) — no longer the single, process-wide `config.AAOS_TENANT_ID`.
+ * `AAOS_API_CONFIG` is dropped from this service entirely: `AAOS_TENANT_ID` was its only real
+ * field ever read here.
  */
 @Injectable()
 export class MetaAdsService {
   constructor(
-    @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly adTenantIndex: AdTenantIndexRepository,
@@ -54,8 +55,9 @@ export class MetaAdsService {
   async pullCampaigns(
     query: PullCampaignsQueryDto,
     correlationId: string,
+    tenantId: string,
   ): Promise<AdAccountResponseDto> {
-    const adAccount = await this.pullAdAccount(query, correlationId);
+    const adAccount = await this.pullAdAccount(query, correlationId, tenantId);
     return toAdAccountResponseDto(adAccount);
   }
 
@@ -72,8 +74,9 @@ export class MetaAdsService {
   async getAssetRollup(
     query: PullCampaignsQueryDto,
     correlationId: string,
+    tenantId: string,
   ): Promise<AssetRollupResponseDto> {
-    const adAccount = await this.pullAdAccount(query, correlationId);
+    const adAccount = await this.pullAdAccount(query, correlationId, tenantId);
     return getAssetRollup(adAccount, new Date());
   }
 
@@ -86,8 +89,9 @@ export class MetaAdsService {
   async getHeatmap(
     query: PullCampaignsQueryDto,
     correlationId: string,
+    tenantId: string,
   ): Promise<HeatmapResponseDto> {
-    const adAccount = await this.pullAdAccount(query, correlationId);
+    const adAccount = await this.pullAdAccount(query, correlationId, tenantId);
     return getAudienceCreativeHeatmap(adAccount, new Date());
   }
 
@@ -113,8 +117,9 @@ export class MetaAdsService {
     assetId: string,
     query: PullCampaignsQueryDto,
     correlationId: string,
+    tenantId: string,
   ): Promise<AssetDetailResponseDto> {
-    const adAccount = await this.pullAdAccount(query, correlationId);
+    const adAccount = await this.pullAdAccount(query, correlationId, tenantId);
     const now = new Date();
 
     // First pass with a synchronous "unavailable" placeholder insight just to confirm the asset is
@@ -130,13 +135,10 @@ export class MetaAdsService {
       throw new NotFoundError(`No real ad in the current pull carries asset id "${assetId}"`);
     }
 
-    // AAOS Self-Learning AI Phase A: this module has no real per-request tenant context yet (see
-    // this class's own doc, "no per-request tenant context on this endpoint yet") — every real
-    // call this service already makes (`connectorRegistry.resolve`, `pullCampaignData.execute`,
-    // `indexPulledAdAccount`) scopes by `this.config.AAOS_TENANT_ID`, so the SAME real tenant id is
-    // threaded here for prompt-override resolution, consistent with how this exact service already
-    // treats tenancy everywhere else — not a guessed/hardcoded value.
-    const insight = await this.llmService.assetInsight(this.config.AAOS_TENANT_ID, {
+    // TENANT-SCOPING FIX (Phase T2): this endpoint now has a real per-request tenant id
+    // (`@TenantId()`, threaded in above) — the SAME value is used here for prompt-override
+    // resolution, consistent with how this exact service now treats tenancy everywhere else.
+    const insight = await this.llmService.assetInsight(tenantId, {
       assetKind: probe.assetKind,
       assetId: probe.assetId,
       adCount: probe.adCount,
@@ -160,8 +162,9 @@ export class MetaAdsService {
   private async pullAdAccount(
     query: PullCampaignsQueryDto,
     correlationId: string,
+    tenantId: string,
   ): Promise<AdAccount> {
-    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
@@ -183,7 +186,7 @@ export class MetaAdsService {
       adAccountId: adAccountIdResult.value,
       datePreset: query.datePreset,
       accessToken: connector.accessToken,
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       correlationId,
     });
     if (!result.ok) {
@@ -192,7 +195,7 @@ export class MetaAdsService {
 
     // AAOS-MULTI-TENANT-PHASE1C — best-effort, never-throwing index of this pull's real ads, so a
     // later Meta lead webhook can resolve this tenant honestly.
-    await indexPulledAdAccount(this.adTenantIndex, this.config.AAOS_TENANT_ID, result.value);
+    await indexPulledAdAccount(this.adTenantIndex, tenantId, result.value);
 
     return result.value;
   }
@@ -212,8 +215,8 @@ export class MetaAdsService {
    * call is for one specific account the caller asked for, so there's nothing to gracefully
    * degrade to.)
    */
-  async getAdAccounts(): Promise<readonly AdAccountOptionDto[]> {
-    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+  async getAdAccounts(tenantId: string): Promise<readonly AdAccountOptionDto[]> {
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
@@ -244,16 +247,17 @@ export class MetaAdsService {
   async executeVerdict(
     body: ExecuteVerdictBodyDto,
     correlationId: string,
+    tenantId: string,
   ): Promise<ExecuteVerdictResponseDto> {
-    const connectorResult = await this.connectorRegistry.resolve(this.config.AAOS_TENANT_ID);
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
       throw connectorResult.error;
     }
     const connector = connectorResult.value;
 
-    const mode = await this.modeGuard.resolveMode(this.config.AAOS_TENANT_ID);
+    const mode = await this.modeGuard.resolveMode(tenantId);
     const activityId = await this.activityLogger.start({
-      tenantId: this.config.AAOS_TENANT_ID,
+      tenantId,
       agent: "SAMANTHA",
       actionType: "EXECUTE_VERDICT",
       mode,
@@ -263,14 +267,14 @@ export class MetaAdsService {
 
     try {
       const result = await this.modeGuard.executeOrSimulate<ExecuteVerdictResponseDto>(
-        this.config.AAOS_TENANT_ID,
+        tenantId,
         async () => {
           const executed = await connector.executeVerdict.execute({
             verdict: Verdict[body.verdict],
             targetId: body.targetId,
             targetType: body.targetType,
             accessToken: connector.accessToken,
-            tenantId: this.config.AAOS_TENANT_ID,
+            tenantId,
             correlationId,
           });
           if (!executed.ok) {

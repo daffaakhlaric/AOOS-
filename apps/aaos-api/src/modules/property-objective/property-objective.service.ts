@@ -112,10 +112,12 @@ export class PropertyObjectiveService {
   async getBudgetSuggestion(
     targetHotLeads: number,
     correlationId: string,
+    tenantId: string,
   ): Promise<BudgetSuggestionResponseDto> {
     const adAccount = await this.metaAdsService.pullCampaigns(
       { datePreset: "last_30d" },
       correlationId,
+      tenantId,
     );
     const cplValues = adAccount.campaigns
       .flatMap((campaign) => campaign.adSets.flatMap((adSet) => adSet.ads))

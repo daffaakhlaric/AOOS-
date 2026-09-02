@@ -1,7 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { AaosApiError, callAaosApi } from "@/lib/api";
+import { resolveRouteSession } from "@/lib/route-session";
 import type { AdAccountOptionDto } from "@/types/dashboard.types";
+
+// See `app/api/settings/route.ts`'s comment on this same export — this handler also reads the
+// caller's real session cookies (via `resolveRouteSession`) on every request.
+export const dynamic = "force-dynamic";
 
 /**
  * `GET /api/meta-ads-accounts` — proxies `aaos-api`'s real `GET /api/v1/meta-ads/accounts`
@@ -15,10 +20,20 @@ import type { AdAccountOptionDto } from "@/types/dashboard.types";
  * handful of entries), so `aaos-api`'s own per-request cost (one lightweight `fields=name` Graph
  * API call per configured account, not a full campaign pull) is cheap enough not to warrant a
  * second cache here.
+ *
+ * TENANT-SCOPING FIX (Phase T2, docs/PROMPT-AAOS-META-ADS-TENANT-SCOPING.md): forwards
+ * `x-tenant-id: session.tenantId` — this proxy previously called `aaos-api` with no tenant header
+ * at all, now that `MetaAdsController.getAdAccounts` reads one.
  */
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const session = await resolveRouteSession(request);
+  if (session === null) {
+    return NextResponse.json({ error: { message: "Unauthorized" } }, { status: 401 });
+  }
   try {
-    const accounts = await callAaosApi<readonly AdAccountOptionDto[]>("/api/v1/meta-ads/accounts");
+    const accounts = await callAaosApi<readonly AdAccountOptionDto[]>("/api/v1/meta-ads/accounts", {
+      headers: { "x-tenant-id": session.tenantId },
+    });
     return NextResponse.json(accounts);
   } catch (error) {
     if (error instanceof AaosApiError) {

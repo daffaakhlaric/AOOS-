@@ -10,8 +10,7 @@ import {
 } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
-import type { AaosApiConfig } from "../../config/aaos-api.config.js";
-import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import {
   AdTenantIndexRepository,
@@ -34,9 +33,18 @@ const MS_PER_DAY = 86_400_000;
 
 /**
  * Backs `/api/v1/abtesting/*` and the `AB_TEST_CHECK` Kalender handler (AAOS-ABTESTING-LOOKALIKE).
- * Single-tenant, exactly like every other service in this app (coordinator note section 4) —
- * every method operates on `this.config.AAOS_TENANT_ID`/the single composed `MetaAdsConnector`,
- * no per-tenant loop.
+ * Single-tenant per call, exactly like every other service in this app (coordinator note section
+ * 4) — every method operates on one real `tenantId`/the single composed `MetaAdsConnector` for
+ * that tenant, no per-tenant loop.
+ *
+ * TENANT-SCOPING FIX (Phase T2, docs/PROMPT-AAOS-META-ADS-TENANT-SCOPING.md): every method that
+ * used to read the private `tenantId` getter (itself just an alias for the single, process-wide
+ * `config.AAOS_TENANT_ID`) now takes a real `tenantId` parameter instead — removed entirely, per
+ * this phase's own note ("removed once nothing real calls it anymore", verified via grep). The
+ * `/api/v1/abtesting*` HTTP endpoints (`AbTestingController`) now pass the real per-request tenant
+ * (`@TenantId()`); the `AB_TEST_CHECK` Kalender handler (`SchedulerService`, no per-request tenant
+ * context — a background cron job, not an HTTP request) explicitly passes its own
+ * `config.AAOS_TENANT_ID`, preserving today's exact single-tenant background behavior.
  *
  * Reuses the REAL existing capabilities per coordinator note section 1: creative generation goes
  * through the SAME `CreativePackagesService`/Kai pipeline every manual/Samantha-approved brief
@@ -50,7 +58,6 @@ export class AbTestingService {
   private readonly logger = new Logger(AbTestingService.name);
 
   constructor(
-    @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly creativePackages: CreativePackagesService,
@@ -63,10 +70,6 @@ export class AbTestingService {
     @Optional() private readonly now: () => Date = () => new Date(),
   ) {}
 
-  private get tenantId(): string {
-    return this.config.AAOS_TENANT_ID;
-  }
-
   /**
    * AAOS-MULTI-TENANT-PHASE1B (Phase 3): resolves this tenant's own `MetaAdsConnector` (real
    * `Result.err(ConnectorNotConfiguredError)` re-thrown as-is on an unconfigured tenant, never a
@@ -75,11 +78,11 @@ export class AbTestingService {
    * resolve since `MetaAdsConnectorRegistry.resolve` is async and the old static connector no
    * longer exists to compose from eagerly at construction time.
    */
-  private async resolveConnector(): Promise<{
+  private async resolveConnector(tenantId: string): Promise<{
     readonly connector: MetaAdsConnectorContext;
     readonly syncService: MetaAdsSyncService;
   }> {
-    const result = await this.connectorRegistry.resolve(this.tenantId);
+    const result = await this.connectorRegistry.resolve(tenantId);
     if (!result.ok) {
       throw result.error;
     }
@@ -93,14 +96,15 @@ export class AbTestingService {
   // CRUD — `GET/POST /api/v1/abtesting*`.
   // ---------------------------------------------------------------------------------------------
 
-  async listTests(status?: AbTestStatus): Promise<readonly StoredAbTest[]> {
-    return this.testRepository.listByTenant(this.tenantId, status);
+  async listTests(tenantId: string, status?: AbTestStatus): Promise<readonly StoredAbTest[]> {
+    return this.testRepository.listByTenant(tenantId, status);
   }
 
   async getTest(
     id: string,
+    tenantId: string,
   ): Promise<{ readonly test: StoredAbTest; readonly variants: readonly StoredAbTestVariant[] }> {
-    const test = await this.findOrThrow(id);
+    const test = await this.findOrThrow(id, tenantId);
     const variants = await this.variantRepository.listByAbTest(id);
     return { test, variants };
   }
@@ -113,13 +117,13 @@ export class AbTestingService {
    * (`CreativePackagesService`'s own detached pipeline), so nothing here waits for it. The
    * `AB_TEST_CHECK` handler launches the test onto Meta once every variant's creative finishes.
    */
-  async createTest(body: CreateAbTestBodyDto): Promise<StoredAbTest> {
-    const usedKeys = await this.usedAngleKeysForCampaign(body.campaignId);
+  async createTest(body: CreateAbTestBodyDto, tenantId: string): Promise<StoredAbTest> {
+    const usedKeys = await this.usedAngleKeysForCampaign(body.campaignId, tenantId);
     const angleSet = selectUnusedAngleSet(usedKeys, body.variantCount);
 
     const test = await this.testRepository.create({
       id: randomUUID(),
-      tenantId: this.tenantId,
+      tenantId,
       name: body.name,
       campaignId: body.campaignId,
       adSetId: body.adSetId,
@@ -157,20 +161,20 @@ export class AbTestingService {
       await this.variantRepository.create({
         id: randomUUID(),
         abTestId: test.id,
-        tenantId: this.tenantId,
+        tenantId,
         variantLabel: label,
         angle,
         creativePackageId: pkg.id,
       });
     }
 
-    return this.findOrThrow(test.id);
+    return this.findOrThrow(test.id, tenantId);
   }
 
-  async pauseTest(id: string): Promise<StoredAbTest> {
-    await this.findOrThrow(id);
+  async pauseTest(id: string, tenantId: string): Promise<StoredAbTest> {
+    await this.findOrThrow(id, tenantId);
     await this.testRepository.markStatus(id, "PAUSED");
-    return this.findOrThrow(id);
+    return this.findOrThrow(id, tenantId);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -178,9 +182,9 @@ export class AbTestingService {
   // RUNNING tests for a winner (spec's `monitorABTests`/`declareWinner`, every ~6 hours).
   // ---------------------------------------------------------------------------------------------
 
-  async runAbTestCheck(): Promise<CalendarEventResult> {
-    const launched = await this.launchReadyDraftTests();
-    const declared = await this.monitorRunningTests();
+  async runAbTestCheck(tenantId: string): Promise<CalendarEventResult> {
+    const launched = await this.launchReadyDraftTests(tenantId);
+    const declared = await this.monitorRunningTests(tenantId);
     return {
       summary: `${String(launched)} test di-launch · ${String(declared)} winner ditemukan`,
       launched,
@@ -189,8 +193,8 @@ export class AbTestingService {
   }
 
   /** Advances every `DRAFT` test's variants past `PENDING_CREATIVE`, then launches the test onto Meta once every variant is `READY`. */
-  private async launchReadyDraftTests(): Promise<number> {
-    const draftTests = await this.testRepository.listByStatus(this.tenantId, "DRAFT");
+  private async launchReadyDraftTests(tenantId: string): Promise<number> {
+    const draftTests = await this.testRepository.listByStatus(tenantId, "DRAFT");
     let launchedCount = 0;
     for (const test of draftTests) {
       const variants = await this.variantRepository.listByAbTest(test.id);
@@ -217,7 +221,7 @@ export class AbTestingService {
       }
       const refreshed = await this.variantRepository.listByAbTest(test.id);
       if (refreshed.length > 0 && refreshed.every((variant) => variant.status === "READY")) {
-        const ok = await this.launchTest(test, refreshed);
+        const ok = await this.launchTest(test, refreshed, tenantId);
         if (ok) {
           launchedCount += 1;
         }
@@ -230,8 +234,9 @@ export class AbTestingService {
   private async launchTest(
     test: StoredAbTest,
     variants: readonly StoredAbTestVariant[],
+    tenantId: string,
   ): Promise<boolean> {
-    const { connector } = await this.resolveConnector();
+    const { connector } = await this.resolveConnector(tenantId);
     const adAccountIdResult = AdAccountId.create(this.requireAdAccountId(connector.adAccountIds));
     if (!adAccountIdResult.ok) {
       await this.testRepository.markFailed(test.id, adAccountIdResult.error.message);
@@ -310,13 +315,13 @@ export class AbTestingService {
   }
 
   /** Re-pulls every configured ad account (SAME `PullCampaignData` use case every other Samantha feature uses — coordinator note section 1), matches each `RUNNING` variant's `meta_ad_id`, updates its stored insights, and declares a winner once the threshold+margin are met. */
-  private async monitorRunningTests(): Promise<number> {
-    const runningTests = await this.testRepository.listByStatus(this.tenantId, "RUNNING");
+  private async monitorRunningTests(tenantId: string): Promise<number> {
+    const runningTests = await this.testRepository.listByStatus(tenantId, "RUNNING");
     if (runningTests.length === 0) {
       return 0;
     }
-    const { connector } = await this.resolveConnector();
-    const adAccounts = await this.pullAdAccounts();
+    const { connector } = await this.resolveConnector(tenantId);
+    const adAccounts = await this.pullAdAccounts(tenantId);
     const allAds = adAccounts.flatMap((account) =>
       account.campaigns.flatMap((campaign) =>
         campaign.adSets.flatMap((adSet) => adSet.ads.map((ad) => ({ adSet, ad }))),
@@ -428,8 +433,11 @@ export class AbTestingService {
   // ---------------------------------------------------------------------------------------------
 
   /** Every angle-set key already tested for one campaign (spec's "belum pernah di-test untuk campaign ini") — every prior test's variants, regardless of status. */
-  private async usedAngleKeysForCampaign(campaignId: string): Promise<ReadonlySet<string>> {
-    const priorTests = await this.testRepository.listByCampaign(this.tenantId, campaignId);
+  private async usedAngleKeysForCampaign(
+    campaignId: string,
+    tenantId: string,
+  ): Promise<ReadonlySet<string>> {
+    const priorTests = await this.testRepository.listByCampaign(tenantId, campaignId);
     const keys = new Set<string>();
     for (const test of priorTests) {
       const variants = await this.variantRepository.listByAbTest(test.id);
@@ -449,8 +457,8 @@ export class AbTestingService {
     return id;
   }
 
-  private async pullAdAccounts(): Promise<readonly AdAccount[]> {
-    const { connector, syncService } = await this.resolveConnector();
+  private async pullAdAccounts(tenantId: string): Promise<readonly AdAccount[]> {
+    const { connector, syncService } = await this.resolveConnector(tenantId);
     const correlationId = randomUUID();
     const inputs = connector.adAccountIds.map((rawId) => {
       const idResult = AdAccountId.create(rawId);
@@ -461,7 +469,7 @@ export class AbTestingService {
         adAccountId: idResult.value,
         datePreset: "last_30d",
         accessToken: connector.accessToken,
-        tenantId: this.tenantId,
+        tenantId,
         correlationId,
       } as const;
     });
@@ -477,13 +485,13 @@ export class AbTestingService {
     // AAOS-MULTI-TENANT-PHASE1C — best-effort, never-throwing index of every successfully-pulled
     // ad's real Meta id -> tenant, so a later Meta lead webhook can resolve this tenant honestly.
     for (const adAccount of adAccounts) {
-      await indexPulledAdAccount(this.adTenantIndex, this.tenantId, adAccount);
+      await indexPulledAdAccount(this.adTenantIndex, tenantId, adAccount);
     }
     return adAccounts;
   }
 
-  private async findOrThrow(id: string): Promise<StoredAbTest> {
-    const test = await this.testRepository.findById(this.tenantId, id);
+  private async findOrThrow(id: string, tenantId: string): Promise<StoredAbTest> {
+    const test = await this.testRepository.findById(tenantId, id);
     if (test === undefined) {
       throw new NotFoundError(`No A/B test found with id "${id}"`);
     }
