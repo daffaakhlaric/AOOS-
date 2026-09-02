@@ -115,6 +115,56 @@
   color: var(--red);
 }
 
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.checkboxRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+  background: var(--white);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.checkboxLabel:hover {
+  border-color: var(--gray-300);
+}
+
+.checkboxLabelChecked {
+  background: var(--blue-light);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.checkboxInput {
+  accent-color: var(--blue);
+}
+
 .footer {
   display: flex;
   align-items: center;

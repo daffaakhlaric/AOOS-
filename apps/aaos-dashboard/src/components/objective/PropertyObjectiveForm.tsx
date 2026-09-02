@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { BudgetSuggestionDto } from "@/types/property-objective.types";
+import type { ListingDto, ListingListDto } from "@/types/listing.types";
 
 import styles from "./PropertyObjectiveForm.module.css";
 
@@ -44,6 +45,15 @@ export interface PropertyObjectiveFormProps {
  * `budgetSource` flips from `"SAMANTHA_SUGGESTED"` to `"MANUAL"` for real, honest provenance
  * (mirrors O1's own `budget_source` column's purpose) and the field is never silently
  * auto-overwritten by a later suggestion again.
+ *
+ * USER FEEDBACK FIX (post-ship): "Fokus Listing" was originally a free-text comma-separated input
+ * — real user testing found this confusing ("ambil list dari listing manager"). Reuses the SAME
+ * real `GET /api/listings?status=AKTIF` route `PropertyManualBriefForm.tsx` already calls (no new
+ * listings-fetching mechanism) as a checkbox picker over real `ListingDto.title` values — the
+ * checked titles ARE `focusListings` directly (still free `string[]` server-side, per O1's own real
+ * DTO — no listing-id coupling invented). Also fixed: a failed/non-2xx budget-suggestion fetch
+ * previously failed completely silently (the button just returned to its idle label with nothing
+ * shown) — now surfaces a real, honest error message instead of leaving the user guessing.
  */
 export function PropertyObjectiveForm({
   onSubmit,
@@ -55,9 +65,42 @@ export function PropertyObjectiveForm({
   const [budgetTouched, setBudgetTouched] = useState(false);
   const [suggestion, setSuggestion] = useState<BudgetSuggestionDto | undefined>(undefined);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
-  const [focusListingsRaw, setFocusListingsRaw] = useState("");
+  const [suggestionError, setSuggestionError] = useState<string | undefined>(undefined);
+  const [listings, setListings] = useState<readonly ListingDto[] | undefined>(undefined);
+  const [listingsError, setListingsError] = useState<string | undefined>(undefined);
+  const [focusListings, setFocusListings] = useState<readonly string[]>([]);
   const [areaPrioritiesRaw, setAreaPrioritiesRaw] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);
+
+  // Real listing picker — SAME `GET /api/listings?status=AKTIF` route `PropertyManualBriefForm.tsx`
+  // already calls, no new listings-fetching mechanism (see this component's header doc).
+  useEffect(() => {
+    let active = true;
+    fetch("/api/listings?status=AKTIF")
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Gagal memuat daftar listing.");
+        return (await res.json()) as ListingListDto;
+      })
+      .then((body) => {
+        if (active) {
+          setListings(body.listings);
+        }
+      })
+      .catch((caught: unknown) => {
+        if (active) {
+          setListingsError(caught instanceof Error ? caught.message : "Gagal memuat listing.");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function toggleListing(title: string): void {
+    setFocusListings((current) =>
+      current.includes(title) ? current.filter((entry) => entry !== title) : [...current, title],
+    );
+  }
 
   async function fetchSuggestion(rawTarget: string): Promise<void> {
     const target = Number(rawTarget);
@@ -65,11 +108,14 @@ export function PropertyObjectiveForm({
       return;
     }
     setSuggestionLoading(true);
+    setSuggestionError(undefined);
     try {
       const res = await fetch(
         `/api/property-objective/budget-suggestion?targetHotLeads=${encodeURIComponent(String(target))}`,
       );
       if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+        setSuggestionError(body.error?.message ?? "Gagal menghitung saran budget.");
         return;
       }
       const data = (await res.json()) as BudgetSuggestionDto;
@@ -79,7 +125,7 @@ export function PropertyObjectiveForm({
         setBudgetSource("SAMANTHA_SUGGESTED");
       }
     } catch {
-      // Best-effort only — a failed suggestion lookup just leaves the field for real manual entry.
+      setSuggestionError("Gagal menghitung saran budget — cek koneksi lalu coba lagi.");
     } finally {
       setSuggestionLoading(false);
     }
@@ -95,10 +141,6 @@ export function PropertyObjectiveForm({
     event.preventDefault();
     const target = Number(targetHotLeads);
     const budget = Number(budgetAllocation);
-    const focusListings = focusListingsRaw
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
     const areaPriorities = areaPrioritiesRaw
       .split(",")
       .map((entry) => entry.trim())
@@ -113,7 +155,7 @@ export function PropertyObjectiveForm({
       return;
     }
     if (focusListings.length === 0) {
-      setError("Isi minimal 1 fokus listing.");
+      setError("Pilih minimal 1 fokus listing.");
       return;
     }
     if (areaPriorities.length === 0) {
@@ -171,6 +213,11 @@ export function PropertyObjectiveForm({
             >
               {suggestionLoading ? "Menghitung..." : "🔄 Hitung Saran Budget"}
             </button>
+            {suggestionError !== undefined ? (
+              <span data-testid="budget-suggestion-error" className={styles.error}>
+                {suggestionError}
+              </span>
+            ) : null}
             {suggestion !== undefined ? (
               suggestion.available ? (
                 <span data-testid="budget-suggestion-hint" className={styles.hint}>
@@ -186,16 +233,39 @@ export function PropertyObjectiveForm({
             ) : null}
           </label>
         </div>
-        <label className={styles.field}>
-          Fokus Listing <span className={styles.hint}>(pisahkan dengan koma)</span>
-          <input
-            type="text"
-            placeholder="cth. Cluster Anggrek, Rumah Blok C5"
-            value={focusListingsRaw}
-            onChange={(event) => setFocusListingsRaw(event.target.value)}
-            className={styles.input}
-          />
-        </label>
+        <fieldset className={styles.fieldset}>
+          <legend>Fokus Listing</legend>
+          {listingsError !== undefined ? <p className={styles.error}>{listingsError}</p> : null}
+          {listings === undefined && listingsError === undefined ? (
+            <p className={styles.hint}>Memuat listing…</p>
+          ) : null}
+          {listings !== undefined && listings.length === 0 ? (
+            <p className={styles.hint}>
+              Belum ada listing aktif — tambahkan dulu di Listing Manager.
+            </p>
+          ) : null}
+          {listings !== undefined && listings.length > 0 ? (
+            <div className={styles.checkboxRow}>
+              {listings.map((listing) => {
+                const checked = focusListings.includes(listing.title);
+                return (
+                  <label
+                    key={listing.id}
+                    className={`${styles.checkboxLabel} ${checked ? styles.checkboxLabelChecked : ""}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleListing(listing.title)}
+                      className={styles.checkboxInput}
+                    />
+                    {listing.title}
+                  </label>
+                );
+              })}
+            </div>
+          ) : null}
+        </fieldset>
         <label className={styles.field}>
           Area Prioritas <span className={styles.hint}>(pisahkan dengan koma)</span>
           <input
