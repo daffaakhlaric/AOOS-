@@ -142,6 +142,11 @@
   white-space: nowrap;
 }
 
+/* Brand Guideline v2 (Phase B3, Prompt 7): paused-row name muted, per spec's "Campaign name paused" rule. */
+.namePaused {
+  color: var(--v2-paused, #94a3b8);
+}
+
 .rowMetrics {
   display: flex;
   align-items: center;
@@ -175,16 +180,37 @@
   font-weight: 700;
 }
 
-/* CPL-vs-benchmark / frequency-warning coloring (Phase 1) — see CampaignTable.tsx's top docstring
-   for the real, cited thresholds/multiplier behind these two tones. */
-.toneHigh {
-  color: var(--red, #dc2626);
-  font-weight: 700;
+/* CPL-vs-benchmark / frequency-warning coloring (Brand Guideline v2, Phase B3, Prompt 7) — solid
+   pills replace the old plain colored text. See CampaignTable.tsx's top docstring for the real,
+   cited thresholds/multiplier behind these tones. */
+.cplPill {
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-.toneMedium {
-  color: var(--amber, #d97706);
+.cplPillNormal {
+  background: var(--v2-perf-good-bg, #ecfdf5);
+  color: #065f46;
+}
+
+.cplPillHigh {
+  background: var(--v2-perf-bad-bg, #fef2f2);
+  color: #991b1b;
+}
+
+.freqPill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 10px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--v2-perf-bad-bg, #fef2f2);
+  color: #991b1b;
 }
 
 .housingBadge {

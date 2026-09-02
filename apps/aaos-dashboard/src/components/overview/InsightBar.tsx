@@ -11,6 +11,13 @@ import styles from "./InsightBar.module.css";
  * exactly 2 real states — `available: true` (the real generated summary) or `available: false` (an
  * honest reason/message, e.g. no `OPENAI_API_KEY`, rate-limited, provider error) — never a 3rd
  * "loading"/fabricated placeholder state of its own.
+ *
+ * COLORFUL BRAND GUIDELINE V2 (Phase B3, Prompt 10 "Insight bar"): bg `#EFF6FF` / border `#BFDBFE`
+ * / text `#1E40AF`. `--v2-blue-tint` (`#EFF6FF`) matches the bg exactly, but there is no `--v2-*`
+ * token for this exact `#BFDBFE` border / `#1E40AF` text pairing — per this phase's own scoping
+ * note, that pairing is genuinely specific to this insight/DEV-banner-style info-box treatment
+ * (shared only with Prompt 15's DEV banner, a later phase's file) and doesn't warrant a new global
+ * token for one component, so those two values are literal hex in `InsightBar.module.css` only.
  */
 export function InsightBar({
   insight,

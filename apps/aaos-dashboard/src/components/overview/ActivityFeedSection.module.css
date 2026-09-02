@@ -5,24 +5,28 @@
   flex-direction: column;
 }
 
+/* Brand Guideline v2 (Phase B3, Prompt 6): 3px colored left border per agent. */
 .row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 4px;
+  padding: 6px 4px 6px 8px;
   border-bottom: 1px solid var(--gray-100);
-  background: transparent;
-  border-left: none;
   border-right: none;
   border-top: none;
+  border-left: 3px solid var(--agent-color, transparent);
+  background: transparent;
   text-align: left;
   cursor: pointer;
   width: 100%;
   font: inherit;
+  transition:
+    background 0.1s,
+    border-left-color 0.1s;
 }
 
 .row:hover {
-  background: var(--gray-100);
+  background: var(--v2-card-flat, var(--gray-100));
 }
 
 .time {
@@ -33,15 +37,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Brand Guideline v2 (Phase B3, Prompt 6): solid colored badge + white text — was an outline/tint
+   badge with colored text. */
 .agentBadge {
   font-size: 9px;
   font-weight: 600;
-  border-radius: 4px;
-  padding: 1px 6px;
+  border-radius: 5px;
+  padding: 2px 7px;
   flex-shrink: 0;
-  color: var(--agent-color, var(--gray-500));
-  border: 1px solid var(--agent-color, var(--gray-300));
-  background: color-mix(in srgb, var(--agent-color, var(--gray-300)) 10%, transparent);
+  color: #ffffff;
+  letter-spacing: 0.03em;
 }
 
 .label {
@@ -53,30 +58,16 @@
   white-space: nowrap;
 }
 
+/* NEEDS_HUMAN has no matching `Badge` `BadgeType` (see ActivityFeedSection.tsx's `badgeTypeFor`
+   doc) — every other real status now renders via the shared `Badge` component instead. */
 .statusBadge {
   font-size: 9px;
   font-weight: 600;
   flex-shrink: 0;
 }
 
-.statusSuccess {
-  color: var(--green);
-}
-
-.statusSimulated {
-  color: var(--blue);
-}
-
-.statusError {
-  color: var(--red);
-}
-
 .statusNeedsHuman {
   color: var(--amber);
-}
-
-.statusRunning {
-  color: var(--gray-500);
 }
 
 .duration {

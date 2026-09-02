@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { aggregateVerdict } from "@/components/meta-ads/CampaignTree";
 import { VerdictBadge } from "@/components/meta-ads/VerdictBadge";
+import { Badge, type BadgeType } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { stripAdNameSuffix } from "@/lib/adName";
 import { formatIdr, formatNumber } from "@/lib/formatters";
@@ -75,6 +76,26 @@ import styles from "./CampaignTable.module.css";
  * bundle, so the two numbers are restated here as local constants (matching
  * `AuditClient.tsx`'s own existing `FREQUENCY_THRESHOLD = 3.5` local-constant precedent for the
  * exact same reason) rather than a second, independently-chosen number.
+ *
+ * COLORFUL BRAND GUIDELINE V2 (Phase B3, Prompt 7) — REAL FINDINGS + adaptations:
+ *   1. `row.status` (real values like Meta's own `ACTIVE`/`PAUSED`/`CAMPAIGN_PAUSED`/etc. — this
+ *      DTO field is typed as a bare `string`, never a `LIVE`/`PAUSED`/`LEARNING` enum) was
+ *      COMPUTED (`adRow`/`adSetRow`/`campaignRow` all set it) but never actually RENDERED anywhere
+ *      in this component before this phase — there was no status pill in the real row UI at all,
+ *      only `VerdictBadge` for the separate `verdict` (SCALE/KEEP/PAUSE/REVIEW/FIX/REFRESH)
+ *      concept. `statusBadgeTypeFor` below adapts Meta's real free-text status into the spec's
+ *      3-value `LIVE`/`PAUSED`/`LEARNING` `BadgeType` set by substring match (`PAUSE` -> `PAUSED`,
+ *      `LEARN` -> `LEARNING`, everything else -> `LIVE`) — an honest best-effort mapping of real
+ *      data onto the spec's smaller enum, not a fabricated status.
+ *   2. The CPL benchmark computation is a real, already-cited "own portfolio average x1.5" 2-tier
+ *      judgment (`cplTone` -> `"high" | "normal" | "none"`, see this file's docstring above) — NOT
+ *      the spec's 3-tier `<0.85`/`<1.15`/`>=1.15` ratio buckets (no ratio-to-fixed-benchmark
+ *      concept exists in this real derivation). `CplPill` below keeps the real 2-tier computation,
+ *      restyled as a solid pill (green/red) rather than inventing an unfounded 3rd "medium" tier.
+ *   3. `FrequencyCell`'s real `frequencyTone` already distinguishes `medium`(>3.5) vs `high`(>4.5)
+ *      (2 real warning tiers, both cited real thresholds) — both now render as a solid warning
+ *      pill with "⚠", `normal`/`none` stay plain text, matching the spec's "pill only when
+ *      warning" behavior without collapsing the real 2-tier distinction.
  *
  * HOUSING compliance (PROPERTY-only, display-only per finding #5): direct read of
  * `src/types/dashboard.types.ts` confirms NO `specialAdCategories` (or any HOUSING-adjacent) field
@@ -282,6 +303,18 @@ function cplTone(
   return rphLead > benchmark * CPL_BENCHMARK_MULTIPLIER ? "high" : "normal";
 }
 
+/** See this file's top docstring, "COLORFUL BRAND GUIDELINE V2" point 1 — real free-text `status` adapted onto the spec's `LIVE`/`PAUSED`/`LEARNING` set by substring match. */
+function statusBadgeTypeFor(status: string): Extract<BadgeType, "LIVE" | "PAUSED" | "LEARNING"> {
+  const upper = status.toUpperCase();
+  if (upper.includes("PAUSE")) {
+    return "PAUSED";
+  }
+  if (upper.includes("LEARN")) {
+    return "LEARNING";
+  }
+  return "LIVE";
+}
+
 function readVisibleColumns(): ReadonlySet<OptionalColumn["id"]> {
   if (typeof window === "undefined") {
     return new Set();
@@ -438,7 +471,12 @@ export function CampaignTable({
                   <div className={styles.rowTop}>
                     <div className={styles.rowMain}>
                       <span className={styles.idBadge}>{row.stableId}</span>
-                      <span className={styles.name}>{stripAdNameSuffix(row.name)}</span>
+                      <span
+                        className={`${styles.name} ${statusBadgeTypeFor(row.status) === "PAUSED" ? styles.namePaused : ""}`}
+                      >
+                        {stripAdNameSuffix(row.name)}
+                      </span>
+                      <Badge type={statusBadgeTypeFor(row.status)} size="xs" />
                     </div>
                     <div className={styles.rowMetrics}>
                       <Metric label="Belanja" value={formatIdr(row.spend)} />
@@ -451,25 +489,17 @@ export function CampaignTable({
                         />
                       ) : null}
                       {showColumn("rphLead") ? (
-                        <Metric
+                        <CplMetric
                           label="Rp/Lead"
                           value={row.rphLead !== null ? formatIdr(row.rphLead) : "—"}
-                          tone={cplTone_ === "none" ? undefined : cplTone_}
+                          tone={cplTone_}
                         />
                       ) : null}
                       {showColumn("frequency") ? (
-                        <Metric
+                        <FrequencyMetric
                           label="Freq"
                           value={row.frequency !== null ? row.frequency.toFixed(1) : "—"}
-                          tone={
-                            freqTone === "none"
-                              ? undefined
-                              : freqTone === "high"
-                                ? "high"
-                                : freqTone === "medium"
-                                  ? "medium"
-                                  : "normal"
-                          }
+                          tone={freqTone}
                           title={
                             row.level !== "ad"
                               ? "Frequency tertinggi di antara iklan turunannya (bukan rata-rata)"
@@ -541,24 +571,71 @@ function Metric({
   label,
   value,
   accent,
-  tone,
   title,
 }: {
   readonly label: string;
   readonly value: string;
   readonly accent?: boolean;
-  readonly tone?: "high" | "medium" | "normal";
   readonly title?: string;
 }): React.ReactElement {
-  const toneClass = tone === "high" ? styles.toneHigh : tone === "medium" ? styles.toneMedium : "";
   return (
     <div className={styles.metricCol} title={title}>
       <span className={styles.metricLabel}>{label}</span>
-      <span
-        className={`${styles.metricValue} ${accent === true ? styles.metricAccent : ""} ${toneClass ?? ""}`}
-      >
+      <span className={`${styles.metricValue} ${accent === true ? styles.metricAccent : ""}`}>
         {value}
       </span>
+    </div>
+  );
+}
+
+/** Rp/Lead column, restyled per spec Prompt 7's `CplPill` — always a solid colored pill (green/red), never plain colored text. See this file's top docstring point 2 for why this keeps the real 2-tier `cplTone` computation instead of the spec's fabricated 3-tier ratio buckets. */
+function CplMetric({
+  label,
+  value,
+  tone,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly tone: "high" | "normal" | "none";
+}): React.ReactElement {
+  const pillClass =
+    tone === "high" ? styles.cplPillHigh : tone === "normal" ? styles.cplPillNormal : "";
+  return (
+    <div className={styles.metricCol}>
+      <span className={styles.metricLabel}>{label}</span>
+      {pillClass !== "" ? (
+        <span className={`${styles.cplPill} ${pillClass}`}>{value}</span>
+      ) : (
+        <span className={styles.metricValue}>{value}</span>
+      )}
+    </div>
+  );
+}
+
+/** Frequency column, restyled per spec Prompt 7's `FrequencyBadge` — solid red warning pill with "⚠" only when the real, cited fatigue threshold is exceeded (`medium`/`high`), plain text otherwise. See this file's top docstring point 3. */
+function FrequencyMetric({
+  label,
+  value,
+  tone,
+  title,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly tone: "high" | "medium" | "normal" | "none";
+  readonly title?: string;
+}): React.ReactElement {
+  const isWarning = tone === "high" || tone === "medium";
+  return (
+    <div className={styles.metricCol} title={title}>
+      <span className={styles.metricLabel}>{label}</span>
+      {isWarning ? (
+        <span className={styles.freqPill}>
+          <span>{value}</span>
+          <span aria-hidden="true"> ⚠</span>
+        </span>
+      ) : (
+        <span className={styles.metricValue}>{value}</span>
+      )}
     </div>
   );
 }

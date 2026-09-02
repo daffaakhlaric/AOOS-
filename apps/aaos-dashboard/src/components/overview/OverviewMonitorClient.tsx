@@ -45,6 +45,14 @@ import styles from "./OverviewMonitorClient.module.css";
  * reason on the Activity Log page). KPI/agent/campaign/lead/recycling sections stay a real
  * periodic-refetch-free single load for this phase (matching `docs/PROMPT-AAOS-OVERVIEW-
  * MONITOR.md`'s own Finding 5 — no new per-KPI realtime channel).
+ *
+ * COLORFUL BRAND GUIDELINE V2 (Phase B3, Prompt 10 page-level changes): topbar height bumped to
+ * 52px with a new 28x28 `--v2-blue` logo box (this component's own mini-topbar previously had no
+ * logo mark at all — added here, additive, doesn't touch the real `date`/`mode` content); each
+ * `Card` now receives a real `accentColor` per the spec's section->color mapping (Aktivitas-> indigo
+ * `--v2-menu-activity`, Campaign-> violet `--v2-kai` (#7C3AED), AI self-improve-> indigo
+ * `--v2-menu-activity`, Lead pipeline-> red `--v2-hot`, Recycling-> violet `#8B5CF6`
+ * (`--v2-menu-campaigns`), Performance heatmap-> blue `--v2-blue`); section gap bumped to 10px.
  */
 export function OverviewMonitorClient({
   tenantId,
@@ -112,6 +120,9 @@ export function OverviewMonitorClient({
   return (
     <div className={styles.page} data-testid="overview-monitor">
       <div className={styles.topbar}>
+        <span aria-hidden="true" className={styles.logoBox}>
+          A
+        </span>
         <span className={styles.date}>{formatMonthYearId(new Date(data.generatedAt))}</span>
         <span className={`${styles.modePill} ${mode === "LIVE" ? styles.modePillLive : ""}`}>
           Mode: {mode}
@@ -129,29 +140,29 @@ export function OverviewMonitorClient({
 
       <AgentStatusRow agentStatus={data.agentStatus} />
 
-      <Card title="Activity hari ini">
+      <Card title="Activity hari ini" accentColor="var(--v2-menu-activity)">
         <ActivityFeedSection activities={allActivities} />
       </Card>
 
       <div className={styles.twoCol}>
-        <Card title="Campaign aktif">
+        <Card title="Campaign aktif" accentColor="var(--v2-kai)">
           <CampaignSection campaigns={data.campaigns} />
         </Card>
-        <Card title="AI self-improve score">
+        <Card title="AI self-improve score" accentColor="var(--v2-menu-activity)">
           <AiScoreCard agentStatus={data.agentStatus} />
         </Card>
       </div>
 
       <div className={styles.twoCol}>
-        <Card title="Lead pipeline hari ini">
+        <Card title="Lead pipeline hari ini" accentColor="var(--v2-hot)">
           <LeadPipelineSection leads={data.leads} />
         </Card>
-        <Card title="Recycling hari ini">
+        <Card title="Recycling hari ini" accentColor="var(--v2-menu-campaigns)">
           <RecyclingStatusSection recycling={data.recycling} />
         </Card>
       </div>
 
-      <Card title="Performance heatmap — creative × audiens">
+      <Card title="Performance heatmap — creative × audiens" accentColor="var(--v2-blue)">
         <HeatmapMiniSection heatmap={data.heatmap} />
       </Card>
     </div>

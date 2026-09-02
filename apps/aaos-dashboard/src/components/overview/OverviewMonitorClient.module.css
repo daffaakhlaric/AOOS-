@@ -1,7 +1,12 @@
+/* Brand Guideline v2 (Phase B3, Prompt 10): section gap 10px (was 12px). Outer page padding stays
+   this file's own real 32px shell padding — spec's "0 20px" describes the CONTENT padding inside a
+   full-bleed page shell that doesn't exist at this component's level (this whole `.page` already
+   sits inside `DashboardClient`'s own real page chrome), so it isn't a literal fit here; the 52px
+   topbar height + logo box below ARE applied as they describe this component's own real topbar. */
 .page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   padding: 32px;
 }
 
@@ -9,6 +14,23 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 52px;
+}
+
+/* Brand Guideline v2 (Phase B3, Prompt 10): 28x28 logo box, `--v2-blue` — this mini-topbar had no
+   logo mark before this phase (additive, doesn't touch the real date/mode content). */
+.logoBox {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--v2-blue, #1e6fd9);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .date {

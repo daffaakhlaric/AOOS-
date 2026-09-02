@@ -1,6 +1,6 @@
 import type { OverviewAgentScoreDto } from "@/types/dashboard.types";
 
-import { agentColorFor } from "./agentColors";
+import { agentColorFor, AGENT_SCORE_BAR_GRADIENT } from "./agentColors";
 import styles from "./AiScoreCard.module.css";
 
 const AGENT_LABEL: Readonly<Record<OverviewAgentScoreDto["agent"], string>> = {
@@ -17,6 +17,11 @@ const AGENT_LABEL: Readonly<Record<OverviewAgentScoreDto["agent"], string>> = {
  * `target`/threshold field). Rather than fabricate one, this card shows the real score + real delta
  * only, honestly omitting the spec's warning banner (a real, later addition once a real target
  * concept exists server-side).
+ *
+ * COLORFUL BRAND GUIDELINE V2 (Phase B3, Prompt 9): progress-bar fill is now a per-agent gradient
+ * (`agentColors.ts`'s corrected `AGENT_SCORE_BAR_GRADIENT` — same corrected KAI/CLARA hex as
+ * `AgentStatusRow.tsx`, see that file's own doc) instead of a flat color; colored dot added before
+ * the agent name per spec's `ScoreRow` layout.
  */
 export function AiScoreCard({
   agentStatus,
@@ -27,10 +32,14 @@ export function AiScoreCard({
     <div data-testid="ai-score-card">
       {agentStatus.map((entry) => {
         const color = agentColorFor(entry.agent);
+        const gradient = AGENT_SCORE_BAR_GRADIENT[entry.agent];
         return (
           <div key={entry.agent} className={styles.row}>
-            <span className={styles.name} style={{ color }}>
-              {AGENT_LABEL[entry.agent]}
+            <span className={styles.nameWrap}>
+              <span aria-hidden="true" className={styles.dot} style={{ background: color }} />
+              <span className={styles.name} style={{ color }}>
+                {AGENT_LABEL[entry.agent]}
+              </span>
             </span>
             {entry.todayAverageOverall === undefined ? (
               <span className={styles.unavailable}>Belum ada skor hari ini</span>
@@ -41,7 +50,7 @@ export function AiScoreCard({
                     className={styles.fill}
                     style={{
                       width: `${Math.min(Math.max(entry.todayAverageOverall, 0), 100)}%`,
-                      background: color,
+                      background: gradient,
                     }}
                   />
                 </div>

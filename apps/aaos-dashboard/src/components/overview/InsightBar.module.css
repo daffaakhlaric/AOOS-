@@ -1,10 +1,13 @@
+/* Brand Guideline v2 (Phase B3, Prompt 10): this exact #EFF6FF/#BFDBFE/#1E40AF trio is a
+   one-component-specific info-box pairing — see InsightBar.tsx's top docstring for why #BFDBFE /
+   #1E40AF stay literal hex here rather than becoming new global `--v2-*` tokens. */
 .bar {
   border-radius: var(--radius-lg);
-  border: 1px solid var(--blue);
-  background: var(--blue-light);
+  border: 1px solid #bfdbfe;
+  background: var(--v2-blue-tint, #eff6ff);
   padding: 8px 14px;
   font-size: 12px;
-  color: var(--blue);
+  color: #1e40af;
   display: flex;
   align-items: center;
   gap: 8px;

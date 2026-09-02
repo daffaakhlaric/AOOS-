@@ -1,5 +1,8 @@
+/* Brand Guideline v2 (Phase B3, Prompt 10 points 3-4): 14px radius + subtle shadow, as LOCAL
+   overrides only — `--radius-lg`/`--border`/`--white` are shared tokens used elsewhere in the app
+   and stay untouched globally (see this file's usage — only this component's own selectors change). */
 .card {
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   border: var(--border);
   background: var(--white);
   padding: 16px;
@@ -7,10 +10,14 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .title {
   font-size: 13px;
   font-weight: 600;
   color: var(--gray-900);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }

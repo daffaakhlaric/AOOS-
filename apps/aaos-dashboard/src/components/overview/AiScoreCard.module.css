@@ -10,11 +10,28 @@
   border-bottom: none;
 }
 
+/* Brand Guideline v2 (Phase B3, Prompt 9): colored dot + name, replacing the plain name label. */
+.nameWrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 78px;
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .name {
   font-size: 12px;
   font-weight: 500;
-  width: 70px;
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .track {

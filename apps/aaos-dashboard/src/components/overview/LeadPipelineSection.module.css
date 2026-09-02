@@ -3,20 +3,36 @@
   gap: 16px;
 }
 
+/* Brand Guideline v2 (Phase B3, Prompt 8): each column is a colored header band (tint bg + border
+   radius), not plain text on the card background. */
 .column {
   flex: 1;
   text-align: center;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.columnHot {
+  background: var(--v2-hot-tint, #fff5f5);
+}
+
+.columnWarm {
+  background: var(--v2-warm-tint, #fffbeb);
+}
+
+.columnCold {
+  background: var(--v2-cold-tint, #f8fafc);
 }
 
 .title {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .count {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   margin-top: 4px;
