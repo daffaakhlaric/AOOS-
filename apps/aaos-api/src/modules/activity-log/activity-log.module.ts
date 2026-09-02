@@ -29,6 +29,11 @@ import { ActivityRepository } from "./infrastructure/activity.repository.js";
       inject: [SUPABASE_CLIENT],
     },
   ],
-  exports: [ActivityLogger],
+  // `ActivityRepository` is additionally exported (AAOS Overview Monitor Phase O1) so
+  // `OverviewModule` can inject the SAME real, tenant-scoped `.list(...)` this module's own
+  // `ActivityLogController` already uses — an in-process reuse (not a second HTTP round trip to
+  // this module's own `GET /api/v1/activity-log`), same "call the real thing in-process" precedent
+  // `MetaAdsService` already establishes for `LlmService`.
+  exports: [ActivityLogger, ActivityRepository],
 })
 export class ActivityLogModule {}

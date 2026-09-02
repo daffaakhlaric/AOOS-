@@ -39,6 +39,19 @@ function renderTemplate(content: string, lead: Lead): string {
   return content.replaceAll("{nama}", lead.leadName ?? "Kak").replaceAll("{cabang}", lead.branchId);
 }
 
+/** Start of the caller's real wall-clock UTC day — same convention `sales.service.ts`'s `startOfTodayUtc`/`go-live.service.ts`'s `startOfTodayIso` already establish elsewhere in this app (each file defines its own copy). */
+function startOfTodayUtc(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+}
+
+/** AAOS Overview Monitor Phase O1, Finding 4 item 3 — real "today" recycling stats for the Overview page's Recycling Status section. */
+export interface RecyclingTodaySummary {
+  readonly sentToday: number;
+  readonly respondedToday: number;
+  /** Real, CURRENT snapshot count — leads in the recycling pool (`isInRecyclingPool`) that are NOT `isReadyToSend` right now (mid-cooldown or outside send-hours). Deliberately NOT filtered to "today" — cooldown is an inherently CURRENT state (a lead is or isn't on cooldown right now), not a per-day event like `sentToday`/`respondedToday`, so mixing a "since today" filter into it would be dishonest. */
+  readonly onCooldown: number;
+}
+
 export interface RecyclingRunResult {
   readonly summary: string;
   readonly attempted: number;
@@ -212,6 +225,34 @@ export class RecyclingService {
 
   async getLogs(limit: number): Promise<readonly BroadcastLogRow[]> {
     return this.logRepository.listByTenant(this.config.AAOS_TENANT_ID, limit);
+  }
+
+  /**
+   * AAOS Overview Monitor Phase O1, Finding 4 item 3 — real "sent/responded/on-cooldown today"
+   * summary for the Overview page. NOTE (real, honest limitation, same static-tenant scoping this
+   * whole class already has — see this class's own doc): reads `this.config.AAOS_TENANT_ID`, NOT a
+   * real per-request tenant id, because `RecyclingService` has no per-request tenant context of its
+   * own yet (unlike `LeadsService`, converted in PROPERTY-TENANT-ISOLATION Phase 1). The overview
+   * endpoint that calls this is still `@TenantId()`-scoped end-to-end for the sections that DO
+   * support it; this section reflects the single static tenant this service has always operated on.
+   * `sentToday`/`respondedToday` come from `BroadcastLogRepository.getTodaySummary` (real "today"
+   * UTC window, `startOfTodayUtc` above); `onCooldown` reuses this same class's own real
+   * `getPool()`/`isReadyToSendNow()` (a CURRENT snapshot, not filtered to "today" — see
+   * `RecyclingTodaySummary.onCooldown`'s own doc for why).
+   */
+  async getTodaySummary(): Promise<RecyclingTodaySummary> {
+    const at = this.now();
+    const todayStartISO = startOfTodayUtc(at).toISOString();
+    const [logSummary, pool] = await Promise.all([
+      this.logRepository.getTodaySummary(this.config.AAOS_TENANT_ID, todayStartISO),
+      this.getPool(),
+    ]);
+    const onCooldown = pool.filter((lead) => !this.isReadyToSendNow(lead)).length;
+    return {
+      sentToday: logSummary.sentToday,
+      respondedToday: logSummary.respondedToday,
+      onCooldown,
+    };
   }
 
   // ---------------------------------------------------------------------------------------------

@@ -23,6 +23,7 @@ import type { AnalyzeRequestDto } from "./dto/analyze.dto.js";
 import type { AssetInsightRequestDto } from "./dto/asset-insight.dto.js";
 import type { CampaignStrategyRequestDto } from "./dto/campaign-strategy.dto.js";
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
+import type { DailyInsightRequestDto } from "./dto/daily-insight.dto.js";
 import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
 import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js";
 import type { ImprovementPlanRequestDto } from "./dto/improvement-plan.dto.js";
@@ -1170,6 +1171,99 @@ describe("LlmService", () => {
         message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
         droppedCount: 0,
       });
+    });
+  });
+
+  describe("generateDailyInsight", () => {
+    const validDailyInsightBody: DailyInsightRequestDto = {
+      tenantId: TENANT_ID,
+      date: "2026-01-15",
+      agents: [
+        { agent: "SAMANTHA", todayAverageOverall: 82, delta: 5, actionsToday: 3 },
+        { agent: "KAI", todayAverageOverall: null, delta: null, actionsToday: 0 },
+        { agent: "CLARA", todayAverageOverall: 70, delta: -2, actionsToday: 4 },
+      ],
+      campaigns: { activeCampaignsCount: 3, totalSpend: 1_500_000, datePreset: "last_7d" },
+      leads: { hot: 5, warm: 8, cold: 12, hotToday: 2, hotYesterday: 1 },
+      recycling: { sentToday: 4, respondedToday: 1, onCooldown: 6 },
+    };
+
+    const validDailyInsightLlmJson = JSON.stringify({
+      summary:
+        "Samantha: 3 campaign aktif, CPL stabil. Kai: belum ada run hari ini. Clara: 2 lead baru jadi HOT hari ini.",
+      perAgent: {
+        samantha: "3 campaign aktif, CPL stabil.",
+        kai: "Belum ada run hari ini.",
+        clara: "2 lead baru jadi HOT hari ini.",
+      },
+    });
+
+    it("returns available:true with a real, Zod-validated summary from a mocked OpenAI response", async () => {
+      registerOpenAiChatHandler(validDailyInsightLlmJson);
+      const service = buildService();
+      const result = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validDailyInsightLlmJson) });
+    });
+
+    it("never mentions Karen — only samantha/kai/clara keys are valid on the parsed payload", async () => {
+      registerOpenAiChatHandler(validDailyInsightLlmJson);
+      const service = buildService();
+      const result = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      expect(result.available).toBe(true);
+      if (result.available) {
+        expect(Object.keys(result.perAgent).sort()).toEqual(["clara", "kai", "samantha"]);
+      }
+    });
+
+    it("returns NO_API_KEY (no fabricated summary) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns PROVIDER_ERROR (no fabricated summary) when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE (no fabricated summary) when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validDailyInsightLlmJson);
+      const service = buildService();
+      const first = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      expect(second).toEqual(first);
     });
   });
 

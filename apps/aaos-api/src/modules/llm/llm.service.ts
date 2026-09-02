@@ -33,6 +33,11 @@ import {
   type CreativeBriefResponseDto,
 } from "./dto/creative-brief.dto.js";
 import {
+  DailyInsightLlmPayloadSchema,
+  type DailyInsightRequestDto,
+  type DailyInsightResponseDto,
+} from "./dto/daily-insight.dto.js";
+import {
   GenerateCaptionLlmPayloadSchema,
   type GenerateCaptionRequestDto,
   type GenerateCaptionResponseDto,
@@ -96,6 +101,8 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
   "generate_hashtags",
   "clara_system_prompt",
   "generate_improvement_plan",
+  // AAOS Overview Monitor Phase O1 — `LlmService.generateDailyInsight`'s prompt key.
+  "generate_daily_insight",
 ];
 
 /**
@@ -371,6 +378,45 @@ Format response JSON:
       "severity": "LOW" | "MEDIUM" | "HIGH"
     }
   ]
+}`;
+
+/**
+ * AAOS Overview Monitor Phase O1, Finding 4 item 2 — `LlmService.generateDailyInsight`'s system
+ * prompt. Adapted from the pasted EYVRA spec's own "BAGIAN 2: INSIGHT BAR" `insightPrompt`
+ * template (`docs/PROMPT-EYVRA-OVERVIEW-MONITOR-PAGE.md`), CORRECTED per
+ * `docs/PROMPT-AAOS-OVERVIEW-MONITOR.md` Finding 1: only SAMANTHA/KAI/CLARA are real agents in
+ * this codebase — the spec's own `"Samantha: ... Clara: ... Kai: ..."` example line and its
+ * `perAgent.karen` field are both dropped; there is no real "Karen" data to summarize, and
+ * fabricating a 4th sentence would be exactly the kind of dishonest placeholder this whole effort's
+ * discipline avoids elsewhere. The real per-agent/campaign/lead/recycling data sent as the user
+ * message (`JSON.stringify(body)`, same static-persona-plus-JSON-user-message shape every other
+ * prompt in this file uses) is `DailyInsightRequestDto` — every field on it is a REAL number this
+ * codebase can already honestly compute (see that DTO's own doc for exactly which real source each
+ * field comes from); a `null` field (e.g. `campaigns: null` when the real Meta pull failed this
+ * request) is a real, honest "unavailable" signal, not an invented zero.
+ */
+const DAILY_INSIGHT_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk tenant AAOS. Kamu menulis ringkasan harian singkat untuk pemilik bisnis, dibaca sekali sambil lihat dashboard pagi hari.
+
+Kamu diberi data hari ini (JSON di pesan user):
+- "agents": array 3 agent nyata — SAMANTHA (Meta Ads Manager), KAI (Creative AI), CLARA (Sales AI). Masing-masing punya "todayAverageOverall" (skor AI Judge rata-rata hari ini, bisa null jika belum ada run yang dinilai hari ini), "delta" (vs rata-rata 7 hari sebelumnya, bisa null), "actionsToday" (jumlah aksi nyata hari ini).
+- "campaigns": ringkasan campaign Meta Ads nyata (activeCampaignsCount, totalSpend, datePreset) — BISA null jika data campaign tidak tersedia saat ini.
+- "leads": ringkasan lead nyata (hot, warm, cold, hotToday, hotYesterday) — BISA null jika tidak tersedia.
+- "recycling": ringkasan recycling nyata (sentToday, respondedToday, onCooldown) — BISA null jika tidak tersedia.
+
+ATURAN KERAS:
+- HANYA sebut SAMANTHA, KAI, CLARA. JANGAN sebut "Karen" atau agent lain — agent itu tidak nyata di sistem ini.
+- HANYA gunakan angka yang benar-benar ada di data JSON di atas. JANGAN mengarang angka atau kejadian yang tidak ada di data.
+- Jika satu field bernilai null (mis. "campaigns" null), JANGAN mengarang angka untuk itu — lewati saja bagian itu di kalimatmu untuk agent/topik terkait, atau sebutkan singkat bahwa datanya belum tersedia.
+- Bahasa Indonesia, casual tapi informatif, ringkas.
+
+Format response JSON:
+{
+  "summary": "satu baris ringkasan gabungan, format mirip: \\"Samantha: [ringkasan]. Kai: [ringkasan]. Clara: [ringkasan].\\"",
+  "perAgent": {
+    "samantha": "satu kalimat ringkasan untuk Samantha",
+    "kai": "satu kalimat ringkasan untuk Kai",
+    "clara": "satu kalimat ringkasan untuk Clara"
+  }
 }`;
 
 /**
@@ -1134,6 +1180,60 @@ export class LlmService {
     }
 
     this.cache.set("judge-agent-run", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS Overview Monitor Phase O1, Finding 4 item 2 — `GET /api/v1/overview`'s Insight Bar. Called
+   * IN-PROCESS ONLY by `OverviewService.getOverview` (no HTTP endpoint of its own, same "in-process
+   * only" precedent `selectTargeting`/`generateImprovementPlan` already establish), fed by that
+   * SAME request's own already-computed real numbers — see `DailyInsightRequestDto`'s own doc. Same
+   * cache/gate/call/validate/cache shape as every other method on this service; unlike
+   * `judgeAgentRun`, this DOES resolve through `PromptOverrideService` (it is an ordinary
+   * insight-generation prompt, not a judge prompt policing the self-improving loop — no circularity
+   * concern applies here).
+   */
+  async generateDailyInsight(
+    tenantId: string,
+    body: DailyInsightRequestDto,
+  ): Promise<DailyInsightResponseDto> {
+    const cached = this.cache.get("generate-daily-insight", body) as
+      DailyInsightResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "generate_daily_insight",
+      DAILY_INSIGHT_SYSTEM_PROMPT,
+    );
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : DailyInsightLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: DailyInsightResponseDto = { available: true, ...validated.data };
+    this.cache.set("generate-daily-insight", body, response);
     return response;
   }
 

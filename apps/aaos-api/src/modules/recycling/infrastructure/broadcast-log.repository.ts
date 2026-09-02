@@ -34,6 +34,15 @@ export type BroadcastLogInsert = Omit<
 
 export class BroadcastLogRepositoryError extends Error {}
 
+/** Real "today" sent/responded counts for one tenant — AAOS Overview Monitor Phase O1, Finding 4 item 3. */
+export interface BroadcastLogTodaySummary {
+  readonly sentToday: number;
+  readonly respondedToday: number;
+}
+
+/** Practical POC-scale cap for `getTodaySummary`'s underlying fetch — `SupabaseFilterBuilderLike` has no `count: 'exact', head: true` support to push a real count down to the database, so this fetches the tenant's most-recent logs once and filters in-memory, same honest tradeoff `LeadsService.getAnalytics`/`getMessages` already establish for their own in-memory aggregation. */
+const TODAY_SUMMARY_FETCH_LIMIT = 2000;
+
 /**
  * Supabase-backed persistence for `broadcast_logs` (TAB 3's Riwayat Broadcast + the reply-
  * detection hook's write path), on the same shared `SupabaseClientLike` port + `SUPABASE_CLIENT`
@@ -93,6 +102,35 @@ export class BroadcastLogRepository {
       );
     }
     return data ?? [];
+  }
+
+  /**
+   * AAOS Overview Monitor Phase O1, Finding 4 item 3 — real "sent today"/"responded today" counts
+   * for one tenant, honestly derived from `broadcast_logs`. `sentToday` counts rows whose real
+   * `sent_at >= sinceISO`; `respondedToday` counts rows whose real `replied === true` AND
+   * `replied_at >= sinceISO` — a reply can land TODAY for a broadcast that was SENT on an earlier
+   * day, so this is its own real filter, never a mere subset of the sent-today rows. `sinceISO` is
+   * the caller's own real "start of today" boundary (see `RecyclingService.getTodaySummary`'s doc
+   * for the exact window this app uses).
+   */
+  async getTodaySummary(tenantId: string, sinceISO: string): Promise<BroadcastLogTodaySummary> {
+    const { data, error } = await this.client
+      .from<BroadcastLogRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("sent_at", { ascending: false })
+      .limit(TODAY_SUMMARY_FETCH_LIMIT);
+    if (error !== null) {
+      throw new BroadcastLogRepositoryError(
+        `BroadcastLogRepository.getTodaySummary failed: ${error.message}`,
+      );
+    }
+    const rows = data ?? [];
+    const sentToday = rows.filter((row) => row.sent_at >= sinceISO).length;
+    const respondedToday = rows.filter(
+      (row) => row.replied && row.replied_at !== null && row.replied_at >= sinceISO,
+    ).length;
+    return { sentToday, respondedToday };
   }
 
   /** Marks one log row `replied = true, replied_at = repliedAtIso` — the reply-detection hook's ONLY write to this table (never touches `converted_to_hot`, per coordinator note section 9). */

@@ -113,7 +113,14 @@ describe("AppModule.forRoot", () => {
     // ActivityLogger — MetaAdsModule/CampaignsModule each import it directly, same "small
     // standalone module" pattern ModeGuardModule already establishes) — no new global provider
     // (ActivityRepository is composed locally from the existing SUPABASE_CLIENT).
-    expect(dynamicModule.imports).toHaveLength(28);
+    // AAOS Overview Monitor Phase O1: +1 import (OverviewModule, the new
+    // `GET /api/v1/overview` aggregate) — no new global provider (composes its own
+    // JudgeResultRepository locally from the existing SUPABASE_CLIENT, same pattern
+    // AiJudgeModule already establishes for this exact repository class; every other real
+    // source it reuses is injected in-process via LeadsModule/MetaAdsModule/ObjectiveModule/
+    // RecyclingModule/ActivityLogModule/LlmModule's own now-exported services, not a new
+    // global provider here).
+    expect(dynamicModule.imports).toHaveLength(29);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

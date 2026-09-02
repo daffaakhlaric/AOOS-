@@ -87,6 +87,7 @@ import { MetaAdsConnectorRegistry } from "./modules/meta-ads/infrastructure/meta
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
+import { OverviewModule } from "./modules/overview/overview.module.js";
 import { RecyclingModule } from "./modules/recycling/recycling.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
 import { SchedulerModule } from "./modules/scheduler/scheduler.module.js";
@@ -408,6 +409,12 @@ export class AppModule {
         // "each real consumer imports the small standalone module directly" pattern
         // `ModeGuardModule` already establishes).
         ActivityLogModule,
+        // AAOS Overview Monitor Phase O1 — new `overview` module: one real aggregate
+        // `GET /api/v1/overview` composing 3 genuinely new real reads (judge-score-today,
+        // recycling-today, the daily LLM insight) with the already-real sources Finding 4
+        // identified (leads/campaigns/objective/activity-log/heatmap), all reused in-process via
+        // each of their own module's newly-exported service (see `OverviewModule`'s own doc).
+        OverviewModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

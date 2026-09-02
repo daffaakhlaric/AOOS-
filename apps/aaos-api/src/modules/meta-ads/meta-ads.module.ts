@@ -18,6 +18,7 @@ import { MetaAdsService } from "./meta-ads.service.js";
  * connection" pattern `SchedulerModule`/`IntelligenceModule`/`AbTestingModule` each establish for
  * their own repositories.
  */
+/** `MetaAdsService` is exported (AAOS Overview Monitor Phase O1) so `OverviewModule` can inject the SAME real `pullCampaigns`/`getHeatmap` this module's own controller already uses — never a second, parallel Meta pull path. */
 @Module({
   imports: [ModeGuardModule, ActivityLogModule, LlmModule],
   controllers: [MetaAdsController],
@@ -31,5 +32,6 @@ import { MetaAdsService } from "./meta-ads.service.js";
       inject: [SUPABASE_CLIENT],
     },
   ],
+  exports: [MetaAdsService],
 })
 export class MetaAdsModule {}
