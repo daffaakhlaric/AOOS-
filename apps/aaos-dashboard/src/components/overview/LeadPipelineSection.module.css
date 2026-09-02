@@ -1,0 +1,35 @@
+.columns {
+  display: flex;
+  gap: 16px;
+}
+
+.column {
+  flex: 1;
+  text-align: center;
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.count {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+.caption {
+  font-size: 10px;
+  color: var(--gray-500);
+  margin-top: 4px;
+}
+
+.unavailable {
+  font-size: 12px;
+  color: var(--gray-400);
+  font-style: italic;
+}

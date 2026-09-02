@@ -453,6 +453,87 @@ export interface LeadDetailDto {
 }
 
 /**
+ * `GET /api/overview` (dashboard proxy) — client-safe DTOs mirroring `apps/aaos-api`'s real
+ * `OverviewResponseDto` (AAOS Overview Monitor Phase O1,
+ * `apps/aaos-api/src/modules/overview/dto/overview-response.dto.ts`) EXACTLY: same field names,
+ * same optionality, same 3-agent (`SAMANTHA`/`KAI`/`CLARA`, no "Karen") roster. Hand-written per
+ * this file's own top docstring — never imports the backend DTO file directly.
+ *
+ * `OverviewCampaignsSummaryDto.campaigns` is deliberately typed as this file's OWN
+ * `CampaignSummaryDto[]` (not a new parallel type): the real `aaos-api` response actually sends the
+ * richer `CampaignResponseDto`/`AdSetResponseDto`/`AdResponseDto` shapes (extra `metaId`/`funnel`/
+ * `branch`/`createdAt` fields `CampaignSummaryDto`'s hierarchy doesn't model) — a strict superset,
+ * so `CampaignSummaryDto` already describes every field this dashboard actually needs. This is what
+ * lets the Overview page's campaign section hand the array straight to the already-built
+ * `CampaignTable.tsx` with zero adapter/mapping code (see `OverviewMonitorClient.tsx`'s own
+ * docstring for the fuller "why reuse `CampaignTable`" reasoning).
+ */
+export interface OverviewLeadsSummaryDto {
+  readonly hot: number;
+  readonly warm: number;
+  readonly cold: number;
+  readonly hotToday: number;
+  readonly hotYesterday: number;
+  readonly hotDeltaVsYesterday: number;
+}
+
+export interface OverviewCampaignsSummaryDto {
+  readonly adAccountId: string;
+  readonly datePreset: string;
+  readonly activeCampaignsCount: number;
+  readonly totalCampaignsCount: number;
+  readonly totalSpend: number;
+  readonly campaigns: readonly CampaignSummaryDto[];
+}
+
+export interface OverviewAgentScoreDto {
+  readonly agent: "SAMANTHA" | "KAI" | "CLARA";
+  readonly todayAverageOverall?: number;
+  readonly priorSevenDayAverageOverall?: number;
+  readonly delta?: number;
+  readonly todaySampleSize: number;
+  readonly priorSevenDaySampleSize: number;
+  readonly actionsToday: number;
+}
+
+export interface OverviewRecyclingSummaryDto {
+  readonly sentToday: number;
+  readonly respondedToday: number;
+  readonly onCooldown: number;
+}
+
+export interface OverviewInsightPerAgentDto {
+  readonly samantha: string;
+  readonly kai: string;
+  readonly clara: string;
+}
+
+/** Mirrors `DailyInsightResponseDto` — a discriminated union on `available`, same `LlmUnavailableResponseDto` shape (`reason`/`message`) every other real `llm` endpoint in this app can return. */
+export type OverviewInsightDto =
+  | {
+      readonly available: true;
+      readonly summary: string;
+      readonly perAgent: OverviewInsightPerAgentDto;
+    }
+  | { readonly available: false; readonly reason: string; readonly message: string };
+
+export interface OverviewResponseDto {
+  readonly tenantId: string;
+  readonly generatedAt: string;
+  readonly leads?: OverviewLeadsSummaryDto;
+  readonly campaigns?: OverviewCampaignsSummaryDto;
+  readonly objective?: ObjectiveDto;
+  /** Always exactly 3 entries (SAMANTHA/KAI/CLARA) — see this interface's own top docstring. */
+  readonly agentStatus: readonly OverviewAgentScoreDto[];
+  readonly recycling?: OverviewRecyclingSummaryDto;
+  readonly activities: readonly ActivityDto[];
+  readonly heatmap?: HeatmapResponseDto;
+  readonly insight: OverviewInsightDto;
+  /** Real, honest reason per FAILED section — a section not present here either succeeded or (for per-agent `agentStatus` entries) is reported inline via `undefined` score fields. */
+  readonly errors: Readonly<Record<string, string>>;
+}
+
+/**
  * Client-safe mirror of `aaos-api`'s `ClosingResponseDto` (`GET /api/v1/closings`, proxied via
  * this app's own `/api/closings` route) — one test-drive/SPK/cancellation record from the real
  * `closings` Supabase table (`@aos/lead-store`'s `Closing` entity). Powers the Overview page's

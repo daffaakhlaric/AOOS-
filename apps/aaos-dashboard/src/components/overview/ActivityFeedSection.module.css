@@ -1,0 +1,95 @@
+.list {
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--gray-100);
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+}
+
+.row:hover {
+  background: var(--gray-100);
+}
+
+.time {
+  font-size: 10px;
+  color: var(--gray-500);
+  width: 52px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.agentBadge {
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+  color: var(--agent-color, var(--gray-500));
+  border: 1px solid var(--agent-color, var(--gray-300));
+  background: color-mix(in srgb, var(--agent-color, var(--gray-300)) 10%, transparent);
+}
+
+.label {
+  font-size: 11px;
+  color: var(--gray-700);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusBadge {
+  font-size: 9px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.statusSuccess {
+  color: var(--green);
+}
+
+.statusSimulated {
+  color: var(--blue);
+}
+
+.statusError {
+  color: var(--red);
+}
+
+.statusNeedsHuman {
+  color: var(--amber);
+}
+
+.statusRunning {
+  color: var(--gray-500);
+}
+
+.duration {
+  font-size: 10px;
+  color: var(--gray-500);
+  width: 34px;
+  text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  font-size: 12px;
+  color: var(--gray-400);
+  font-style: italic;
+}

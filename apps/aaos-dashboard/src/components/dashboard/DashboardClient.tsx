@@ -9,11 +9,13 @@ import { ClosingsRecent } from "@/components/dashboard/ClosingsRecent";
 import { RecentHotLeads } from "@/components/dashboard/RecentHotLeads";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { SamanthaDigest, type SamanthaDigestTag } from "@/components/dashboard/SamanthaDigest";
+import { OverviewMonitorClient } from "@/components/overview/OverviewMonitorClient";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { readCampaignsCache } from "@/lib/campaignsCache";
 import { formatIdrCompact, formatMonthYearId } from "@/lib/formatters";
 import type { BranchDto, ClosingDto, LeadDto } from "@/types/dashboard.types";
+import type { SettingsDto } from "@/types/tenant.types";
 
 import styles from "./DashboardClient.module.css";
 
@@ -38,8 +40,14 @@ function isSameMonth(iso: string, now: Date): boolean {
  * longer rendered here — the reference screenshot's Overview doesn't include it. The component,
  * its route (`/api/objective`), and its own tests are untouched; a manager can still see/set
  * objectives on the dedicated `/objective` page.
+ *
+ * AAOS Overview Monitor Phase O2: this exact function/content is now ONLY the AUTOMOTIVE branch,
+ * rendered by the new top-level `DashboardClient` wrapper below (renamed to `AutomotiveOverview`,
+ * body otherwise byte-for-byte unchanged — see that wrapper's own docstring for the real
+ * `isProperty` branching this extraction enables). `DashboardClient.test.tsx` asserts AUTOMOTIVE
+ * still renders this exact content unchanged.
  */
-export function DashboardClient(): React.ReactElement {
+function AutomotiveOverview(): React.ReactElement {
   const [leads, setLeads] = useState<readonly LeadDto[] | undefined>(undefined);
   const [closings, setClosings] = useState<readonly ClosingDto[] | undefined>(undefined);
   const [branches, setBranches] = useState<readonly BranchDto[] | undefined>(undefined);
@@ -208,4 +216,49 @@ export function DashboardClient(): React.ReactElement {
       <CalendarWidget />
     </div>
   );
+}
+
+/**
+ * `/dashboard`'s real top-level component (AAOS Overview Monitor Phase O2) — branches on the
+ * caller's real tenant `vertical`, extending the SAME real `/dashboard` route rather than adding a
+ * new one (`docs/PROMPT-AAOS-OVERVIEW-MONITOR.md`'s answered open question 1). PROPERTY tenants get
+ * the new full Overview Monitor layout (`OverviewMonitorClient` — KPI strip, agent status, activity
+ * feed, campaign table, AI score, lead pipeline, recycling, heatmap, insight bar); AUTOMOTIVE
+ * tenants keep today's real `AutomotiveOverview` content, unchanged.
+ *
+ * Vertical resolution reuses `Sidebar.tsx`'s own real, established pattern EXACTLY: a client-side
+ * fetch of `/api/settings` (the same endpoint, no second "who am I" call invented for this one
+ * branch), defaulting to the AUTOMOTIVE view until it resolves (or on a failed lookup) — never a
+ * flash of the PROPERTY layout for the common (AUTOMOTIVE) case, and never a loading gate placed in
+ * front of `AutomotiveOverview`'s own real leads/closings/branches fetches (those still start
+ * immediately on mount, exactly as before this phase).
+ */
+export function DashboardClient(): React.ReactElement {
+  const [settings, setSettings] = useState<SettingsDto | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((res) => (res.ok ? (res.json() as Promise<SettingsDto>) : null))
+      .then((data) => {
+        if (!cancelled && data !== null) {
+          setSettings(data);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — a failed lookup keeps the default AUTOMOTIVE view, same discipline as
+        // `Sidebar.tsx`'s own identical `/api/settings` fetch.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (settings?.tenant.vertical === "PROPERTY") {
+    return (
+      <OverviewMonitorClient tenantId={settings.tenant.tenantId} mode={settings.tenant.mode} />
+    );
+  }
+
+  return <AutomotiveOverview />;
 }

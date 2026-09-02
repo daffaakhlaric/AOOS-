@@ -1,6 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const subscribeToActivityLog = vi.fn();
+
+vi.mock("@/lib/realtime", () => ({
+  subscribeToActivityLog: (...args: unknown[]) => subscribeToActivityLog(...args),
+}));
+
 import { DashboardClient } from "@/components/dashboard/DashboardClient";
 import { CAMPAIGNS_CACHE_KEY } from "@/lib/campaignsCache";
 
@@ -64,6 +70,30 @@ const BRANCHES_BODY = {
   ],
 };
 
+const AUTOMOTIVE_SETTINGS_BODY = {
+  tenant: {
+    tenantId: "dss-motor-demo",
+    name: "DSS Motor",
+    vertical: "AUTOMOTIVE",
+    status: "ACTIVE",
+    mode: "DEV",
+    operatingMode: "APPROVAL",
+  },
+  meta: { apiVersion: "v21.0", hasToken: false, usingEnvDefault: true },
+};
+
+const PROPERTY_SETTINGS_BODY = {
+  tenant: {
+    tenantId: "propertyklik-demo",
+    name: "PropertyKlik",
+    vertical: "PROPERTY",
+    status: "ACTIVE",
+    mode: "LIVE",
+    operatingMode: "APPROVAL",
+  },
+  meta: { apiVersion: "v21.0", hasToken: false, usingEnvDefault: true },
+};
+
 function mockFetchOk(): void {
   global.fetch = vi.fn(async (input: string | URL) => {
     const url = input.toString();
@@ -71,6 +101,7 @@ function mockFetchOk(): void {
     if (url.includes("/api/closings")) return jsonResponse(CLOSINGS_BODY);
     if (url.includes("/api/branches")) return jsonResponse(BRANCHES_BODY);
     if (url.includes("/api/calendar")) return jsonResponse({ events: [] });
+    if (url.includes("/api/settings")) return jsonResponse(AUTOMOTIVE_SETTINGS_BODY);
     throw new Error(`unexpected fetch: ${url}`);
   }) as unknown as typeof fetch;
 }
@@ -78,6 +109,8 @@ function mockFetchOk(): void {
 describe("DashboardClient (FINAL UI REBUILD: KPI strip + Samantha Digest + Hot Leads/Closing Terbaru + Ringkasan per Cabang)", () => {
   beforeEach(() => {
     localStorage.clear();
+    subscribeToActivityLog.mockReset();
+    subscribeToActivityLog.mockReturnValue({ unsubscribe: async () => "ok" });
   });
 
   afterEach(() => {
@@ -197,5 +230,80 @@ describe("DashboardClient (FINAL UI REBUILD: KPI strip + Samantha Digest + Hot L
 
     expect(screen.getByText("Belanja Iklan")).toBeInTheDocument();
     expect(screen.getByText(/1 perlu PAUSE/)).toBeInTheDocument();
+  });
+
+  it("AAOS Overview Monitor Phase O2: renders the exact existing AUTOMOTIVE content (never the PROPERTY Overview Monitor layout) once GET /api/settings resolves vertical=AUTOMOTIVE", async () => {
+    mockFetchOk();
+    render(<DashboardClient />);
+
+    await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
+    expect(screen.getByText("Hot Leads")).toBeInTheDocument();
+    expect(screen.getByText("Xpander Cross AT 2019")).toBeInTheDocument();
+    expect(screen.getByTestId("branch-summary")).toBeInTheDocument();
+    expect(screen.getByTestId("calendar-widget")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview-monitor")).not.toBeInTheDocument();
+  });
+
+  it("AAOS Overview Monitor Phase O2: renders the new PROPERTY Overview Monitor layout (not the AUTOMOTIVE content) once GET /api/settings resolves vertical=PROPERTY", async () => {
+    const OVERVIEW_BODY = {
+      tenantId: "propertyklik-demo",
+      generatedAt: new Date().toISOString(),
+      leads: { hot: 3, warm: 5, cold: 2, hotToday: 2, hotYesterday: 1, hotDeltaVsYesterday: 1 },
+      campaigns: {
+        adAccountId: "act-1",
+        datePreset: "last_7d",
+        activeCampaignsCount: 2,
+        totalCampaignsCount: 3,
+        totalSpend: 1_500_000,
+        campaigns: [],
+      },
+      agentStatus: [
+        {
+          agent: "SAMANTHA",
+          todayAverageOverall: 82,
+          priorSevenDayAverageOverall: 80,
+          delta: 2,
+          todaySampleSize: 4,
+          priorSevenDaySampleSize: 20,
+          actionsToday: 5,
+        },
+        {
+          agent: "KAI",
+          todayAverageOverall: undefined,
+          priorSevenDayAverageOverall: undefined,
+          delta: undefined,
+          todaySampleSize: 0,
+          priorSevenDaySampleSize: 0,
+          actionsToday: 0,
+        },
+        {
+          agent: "CLARA",
+          todayAverageOverall: 70,
+          priorSevenDayAverageOverall: 68,
+          delta: 2,
+          todaySampleSize: 3,
+          priorSevenDaySampleSize: 15,
+          actionsToday: 2,
+        },
+      ],
+      recycling: { sentToday: 4, respondedToday: 1, onCooldown: 2 },
+      activities: [],
+      insight: { available: false, reason: "NO_API_KEY", message: "Aktifkan AI Analysis..." },
+      errors: {},
+    };
+    global.fetch = vi.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (url.includes("/api/settings")) return jsonResponse(PROPERTY_SETTINGS_BODY);
+      if (url.includes("/api/overview")) return jsonResponse(OVERVIEW_BODY);
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as unknown as typeof fetch;
+
+    render(<DashboardClient />);
+
+    await waitFor(() => expect(screen.getByTestId("overview-monitor")).toBeInTheDocument());
+    expect(screen.getByTestId("kpi-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-status-row")).toBeInTheDocument();
+    expect(screen.queryByText("Pak Andi")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("branch-summary")).not.toBeInTheDocument();
   });
 });
