@@ -107,3 +107,162 @@ body {
   background: var(--gray-300);
   border-radius: 2px;
 }
+
+/**
+ * ─── V2 COLORFUL BRAND GUIDELINE TOKENS (Phase B1 — foundation only) ──────────────────────────
+ *
+ * Additive block from `docs/PROMPT-AAOS-BRAND-GUIDELINE-V2.md` / the "COLOR SYSTEM" section of
+ * `docs/PROMPT-EYVRA-COLORFUL-BRAND-GUIDELINE-V2.md`. Every name here is prefixed `--v2-` so it
+ * cannot collide with (or silently override) any existing token above — none of those keep their
+ * current values changed, and nothing in the app consumes `--v2-*` yet. Later phases (B2-B4) are
+ * the ones that actually repoint components at these; this phase only defines them.
+ *
+ * `--v2-live`/`--v2-live-bg` (campaign status) vs. `--v2-live-mode-color`/`--v2-live-mode-bg`
+ * (operating-mode LIVE pill) are kept deliberately distinct — the pasted spec itself defines two
+ * unrelated `--live`/`--live-bg` pairs for these two different concepts, which would collide
+ * under one shared name.
+ */
+:root {
+  /* Page / card surfaces */
+  --v2-page-bg: #f0f4ff;
+  --v2-card-bg: #ffffff;
+  --v2-card-flat: #f8faff;
+
+  /* Primary blue */
+  --v2-blue: #1e6fd9;
+  --v2-blue-dark: #1558b0;
+  --v2-blue-mid: #3b82f6;
+  --v2-blue-light: #dbeafe;
+  --v2-blue-tint: #eff6ff;
+
+  /* Agent colors — Samantha/Kai/Clara are real; Karen has zero live implementation yet
+     (coordinator doc Finding 4) but the token is defined anyway as an inert color constant. */
+  --v2-samantha: #1e6fd9;
+  --v2-samantha-light: #dbeafe;
+  --v2-samantha-tint: #eff6ff;
+
+  --v2-kai: #7c3aed;
+  --v2-kai-light: #ede9fe;
+  --v2-kai-tint: #f5f3ff;
+
+  --v2-clara: #059669;
+  --v2-clara-light: #d1fae5;
+  --v2-clara-tint: #ecfdf5;
+
+  --v2-karen: #d97706;
+  --v2-karen-light: #fde68a;
+  --v2-karen-tint: #fffbeb;
+
+  /* Lead status */
+  --v2-hot: #ef4444;
+  --v2-hot-light: #fee2e2;
+  --v2-hot-tint: #fff5f5;
+
+  --v2-warm: #f59e0b;
+  --v2-warm-light: #fde68a;
+  --v2-warm-tint: #fffbeb;
+
+  --v2-cold: #64748b;
+  --v2-cold-light: #e2e8f0;
+  --v2-cold-tint: #f8fafc;
+
+  /* Campaign status */
+  --v2-live: #10b981;
+  --v2-live-bg: #d1fae5;
+  --v2-paused: #94a3b8;
+  --v2-paused-bg: #f1f5f9;
+  --v2-learning: #6366f1;
+  --v2-learning-bg: #e0e7ff;
+
+  /* Performance (CPL vs benchmark) */
+  --v2-perf-good: #10b981;
+  --v2-perf-good-bg: #ecfdf5;
+  --v2-perf-warn: #f59e0b;
+  --v2-perf-warn-bg: #fffbeb;
+  --v2-perf-bad: #ef4444;
+  --v2-perf-bad-bg: #fef2f2;
+
+  /* Operating mode — named `-mode-` to avoid the naming collision with campaign-status
+     `--v2-live` above (see file header doc). */
+  --v2-dev-color: #6366f1;
+  --v2-dev-bg: #e0e7ff;
+  --v2-live-mode-color: #10b981;
+  --v2-live-mode-bg: #d1fae5;
+
+  /* Sidebar */
+  --v2-sidebar-bg: #1e1b4b;
+  --v2-sidebar-active: #3730a3;
+  --v2-sidebar-text: rgba(255, 255, 255, 0.55);
+  --v2-sidebar-text-active: #ffffff;
+
+  /* Menu item colors (one per real sidebar section) */
+  --v2-menu-overview: #3b82f6;
+  --v2-menu-campaigns: #8b5cf6;
+  --v2-menu-leads: #10b981;
+  --v2-menu-creative: #f59e0b;
+  --v2-menu-analytics: #ec4899;
+  --v2-menu-activity: #6366f1;
+  --v2-menu-improve: #14b8a6;
+  --v2-menu-settings: #94a3b8;
+
+  /* Text (v2 context — old --gray-* text tokens above are untouched) */
+  --v2-text-1: #0f172a;
+  --v2-text-2: #475569;
+  --v2-text-m: #94a3b8;
+
+  /* Border */
+  --v2-border: #e2e8f0;
+  --v2-border-strong: #cbd5e1;
+}
+
+/* ─── V2 GLOBAL UTILITY CLASSES ("GLOBAL CSS TAMBAHAN") ─────────────────────────────────────── */
+
+.card-hover {
+  transition:
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+.card-hover:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+@keyframes pulse-live {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+.pulse-live {
+  animation: pulse-live 2s infinite;
+}
+
+.section-blue {
+  border-left: 3px solid #1e6fd9;
+}
+.section-violet {
+  border-left: 3px solid #7c3aed;
+}
+.section-green {
+  border-left: 3px solid #059669;
+}
+.section-amber {
+  border-left: 3px solid #d97706;
+}
+.section-red {
+  border-left: 3px solid #ef4444;
+}
+.section-indigo {
+  border-left: 3px solid #6366f1;
+}
+
+.activity-row {
+  transition:
+    background 0.1s,
+    border-left-color 0.1s;
+}
