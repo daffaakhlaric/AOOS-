@@ -5,9 +5,21 @@ import { JudgeMemoryService } from "../judge-memory/judge-memory.service.js";
 import { LearningService } from "../learning/learning.service.js";
 import { LlmService } from "../llm/llm.service.js";
 
+import type { IngestSimulationBatchBodyDto } from "./dto/ingest-simulation-batch.dto.js";
 import { JudgeResultRepository } from "./infrastructure/judge-result.repository.js";
 
 const JUDGEABLE_AGENTS = new Set(["SAMANTHA", "KAI", "CLARA"]);
+
+/** A real, honestly-computed average — real inputs only, `results` is always non-empty (`IngestSimulationBatchBodySchema.results` is `.min(1)`), so no `undefined`-guard is needed the way `judge-result.repository.ts`'s own `average()` needs one for a possibly-empty history window. */
+function average(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+/** Real, honest outcome of `AiJudgeService.ingestSimulationBatch` — never a fabricated success. */
+export interface IngestSimulationBatchResult {
+  readonly agentRunId: string;
+  readonly judgeResultId: string;
+}
 
 /**
  * `modules/ai-judge` (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2) — a genuinely NEW, small module
@@ -116,5 +128,135 @@ export class AiJudgeService {
     } catch (caught) {
       this.logger.warn(`AiJudgeService.judgeRun(${agentRunId}) failed: ${String(caught)}`);
     }
+  }
+
+  /**
+   * The real bridge from `apps/aaos-simulator`'s `POST /api/simulate-all` into this app's
+   * Self-Improving pipeline (Self-Learning AI bridge phase). Unlike `judgeRun`, this does NOT call
+   * an LLM to judge anything — `@aos/ai-judge` already computed real, deterministic per-dimension
+   * scores from the real conversation transcript over there; re-judging that with a second LLM
+   * call here would be a fabrication of a "second opinion" nobody asked for and the coordinator
+   * note explicitly forbids ("the simulator already computed real scores, don't call an LLM a
+   * second time"). This method only RECORDS the already-real numbers and then reuses the exact
+   * same downstream pipeline `judgeRun` already triggers.
+   *
+   * DELIBERATELY NOT BEST-EFFORT for its own two writes (unlike every other method in this class):
+   * the caller (`apps/aaos-simulator`) explicitly needs to know whether its batch was honestly
+   * recorded or not, to show a real status on `/report` — swallowing a write failure into a fake
+   * "sent" response would be exactly the fabricated status the coordinator note forbids. A genuine
+   * `agent_runs`/`judge_results` write failure THROWS here, so the controller returns a real
+   * non-2xx status the simulator's own best-effort caller can honestly report as "gagal terkirim".
+   * The downstream `onAgentRunJudged` trigger (proposal generation + auto-apply), however, stays
+   * best-effort exactly like `judgeRun`'s own call to it — that pipeline already documents its own
+   * "never let a proposal-generation failure surface" discipline, unrelated to whether THIS batch
+   * was honestly recorded.
+   *
+   * `runRef`: unlike `028_agent_runs.sql`'s 3 named per-agent pointers (a real `calendar_events.id`/
+   * `creative_packages.id`/`leads.id` row), a simulate-all batch has no real persisted row of its
+   * own anywhere — `apps/aaos-simulator` is confirmed completely stateless (background doc: "nothing
+   * is ever persisted to any database"). `runRef` is therefore an honest SYNTHETIC pointer
+   * (`simulate-all:<judgedAt ISO timestamp>`), documented as such rather than silently reusing one
+   * of the 3 real per-row conventions this table's own header doc establishes for the other 3
+   * real call sites.
+   */
+  async ingestSimulationBatch(
+    tenantId: string,
+    dto: IngestSimulationBatchBodyDto,
+  ): Promise<IngestSimulationBatchResult> {
+    const context = {
+      source: "SIMULATION_BATCH",
+      judgedAt: dto.judgedAt,
+      totalPersonas: dto.totalPersonas,
+      overallVerdict: dto.overallVerdict,
+      avgOverallScore: dto.avgOverallScore,
+      weakestDimensions: dto.weakestDimensions,
+      topPriorities: dto.topPriorities,
+      perPersona: dto.results.map((r) => ({
+        personaId: r.personaId,
+        difficulty: r.personaDifficulty,
+        overallScore: r.overallScore,
+        grade: r.grade,
+        verdict: r.verdict,
+      })),
+    };
+
+    const agentRunId = await this.agentRuns.record(
+      tenantId,
+      "CLARA",
+      `simulate-all:${dto.judgedAt}`,
+      context,
+    );
+    if (agentRunId === undefined) {
+      throw new Error(
+        "AiJudgeService.ingestSimulationBatch: AgentRunsService.record failed — no agent_runs row written (see its own logged warning for the real cause).",
+      );
+    }
+
+    // Real, honest per-dimension averages across every judged persona in this batch — `@aos/ai-judge`'s
+    // own real key vocabulary kept verbatim (see `ingest-simulation-batch.dto.ts`'s own doc for why
+    // this is deliberately NOT forced into CLARA's existing closing-based judge key names).
+    const scores: Record<string, number> = {
+      overall: dto.avgOverallScore,
+      naturalLanguage: average(dto.results.map((r) => r.naturalLanguage)),
+      qualification: average(dto.results.map((r) => r.qualification)),
+      objectionHandling: average(dto.results.map((r) => r.objectionHandling)),
+      closingAttempt: average(dto.results.map((r) => r.closingAttempt)),
+      handoffQuality: average(dto.results.map((r) => r.handoffQuality)),
+      responseLength: average(dto.results.map((r) => r.responseLength)),
+    };
+
+    // Real, LLM-authored-by-the-simulator's-own-judge highlight strings, deduplicated — never
+    // fabricated by this service.
+    const strengths = [...new Set(dto.results.flatMap((r) => r.highlights))].slice(0, 10);
+
+    // Real gap items, built from the real `improvementSuggestions` each persona's judgement already
+    // produced (never invented here) — capped at 20, same "judge-prompt-sized, never a full dump"
+    // discipline `028_agent_runs.sql`'s `context` column doc establishes for this whole table family.
+    const gaps = dto.results
+      .flatMap((r) =>
+        r.improvementSuggestions
+          .filter((s) => s.priority === "HIGH" || s.priority === "MEDIUM")
+          .map((s) => ({
+            dimension: s.dimension,
+            issue: `Persona ${r.personaId} (grade ${r.grade}, verdict ${r.verdict}) — prioritas ${s.priority}`,
+            suggestion: s.suggestion,
+            severity: s.priority,
+          })),
+      )
+      .slice(0, 20);
+
+    const notes =
+      `Batch simulate-all: ${String(dto.totalPersonas)} persona, avgOverallScore=${dto.avgOverallScore.toFixed(1)}, ` +
+      `verdict=${dto.overallVerdict}, approve=${String(dto.approvedCount)}, needsImprovement=${String(dto.needsImprovementCount)}, ` +
+      `fail=${String(dto.failCount)}. Weakest dimensions: ${dto.weakestDimensions.map((w) => `${w.dimension}=${w.avgScore.toFixed(1)}`).join(", ") || "(none)"}.`;
+
+    const judgeResultRow = await this.repository.insert({
+      tenantId,
+      agent: "CLARA",
+      runId: agentRunId,
+      scores,
+      strengths,
+      gaps,
+      notes,
+    });
+
+    // Same trigger point `judgeRun` already establishes (right after a real `judge_results` row is
+    // successfully persisted) — best-effort: `LearningService.onAgentRunJudged` already has its own
+    // outer try/catch, this one is defensive-in-depth, same discipline `ClosingsService.createClosing`'s
+    // own detached `.catch()` around `judgeRun` models. A proposal-generation failure must never
+    // change the real, already-honest "batch recorded" outcome this method returns to its caller.
+    this.learningService
+      .onAgentRunJudged(tenantId, agentRunId, "CLARA", {
+        scores,
+        gaps,
+        trend: "STABLE", // Honest placeholder — see `LearningService.triggerManualCheck`'s own doc for why "STABLE" is the one honest value when no real trend was computed for this run.
+      })
+      .catch((caught: unknown) => {
+        this.logger.warn(
+          `AiJudgeService.ingestSimulationBatch: onAgentRunJudged(${agentRunId}) rejected: ${String(caught)}`,
+        );
+      });
+
+    return { agentRunId, judgeResultId: judgeResultRow.id };
   }
 }

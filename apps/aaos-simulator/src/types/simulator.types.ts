@@ -162,10 +162,28 @@ export interface SimulateAllResultEntry {
   readonly judgementResult: JudgementResultDto;
 }
 
+/**
+ * Self-Learning AI bridge phase — the real, honest outcome of forwarding this run's report to
+ * `apps/aaos-api`'s Self-Improving pipeline (`src/lib/learning-bridge.ts`'s
+ * `reportSimulationBatchToLearningSystem`). Mirrors that function's own `LearningBridgeResult`
+ * union — restated here (not imported) for the same JSON-transport-boundary reason every other DTO
+ * in this file is restated rather than imported.
+ */
+export type LearningBridgeStatusDto =
+  | { readonly status: "SENT"; readonly agentRunId: string; readonly judgeResultId: string }
+  | { readonly status: "SKIPPED"; readonly reason: string }
+  | { readonly status: "FAILED"; readonly reason: string };
+
 /** Success response body for `POST /api/simulate-all` (spec "API Routes"). */
 export interface SimulateAllResponse {
   readonly results: ReadonlyArray<SimulateAllResultEntry>;
   readonly report: AllScenariosReportDto;
+  /**
+   * Self-Learning AI bridge phase — always present (never omitted): a real, honest status for
+   * whether this run's report was forwarded into `apps/aaos-api`'s Self-Improving pipeline. Never
+   * fabricated — see `learning-bridge.ts`'s own doc for the full best-effort contract.
+   */
+  readonly learningBridge: LearningBridgeStatusDto;
 }
 
 /** Shared error envelope both Route Handlers return on failure. */

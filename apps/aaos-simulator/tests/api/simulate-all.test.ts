@@ -45,4 +45,11 @@ describe("POST /api/simulate-all", () => {
     const { approvedCount, needsImprovementCount, failCount, totalPersonas } = body.report;
     expect(approvedCount + needsImprovementCount + failCount).toBe(totalPersonas);
   }, 60_000);
+
+  it("includes an honest learningBridge status (SKIPPED — no real AAOS_API_BASE_URL/AAOS_API_KEY configured in this test env), and never fails the request over it", async () => {
+    const response = await POST();
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as SimulateAllResponse;
+    expect(body.learningBridge.status).toBe("SKIPPED");
+  }, 60_000);
 });

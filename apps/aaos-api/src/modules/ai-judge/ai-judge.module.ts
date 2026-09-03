@@ -7,6 +7,7 @@ import { JudgeMemoryModule } from "../judge-memory/judge-memory.module.js";
 import { LearningModule } from "../learning/learning.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 
+import { AiJudgeController } from "./ai-judge.controller.js";
 import { AiJudgeService } from "./ai-judge.service.js";
 import { JudgeResultRepository } from "./infrastructure/judge-result.repository.js";
 
@@ -28,9 +29,14 @@ import { JudgeResultRepository } from "./infrastructure/judge-result.repository.
  * own doc already documents it deliberately does NOT import `SimulationModule`, its real importer,
  * for exactly this "avoid a circular dependency" reasoning) — `AiJudgeModule` importing
  * `LearningModule` is safe by the same real precedent.
+ *
+ * `AiJudgeController` (Self-Learning AI bridge phase) is this module's FIRST real controller —
+ * every earlier phase's own doc above ("no controller — `judge_results` has no real read caller
+ * yet") predates this one real write caller (`apps/aaos-simulator`'s `POST /api/simulate-all`).
  */
 @Module({
   imports: [AgentRunsModule, LlmModule, LearningModule, JudgeMemoryModule],
+  controllers: [AiJudgeController],
   providers: [
     AiJudgeService,
     {

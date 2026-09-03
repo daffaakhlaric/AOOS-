@@ -12,6 +12,7 @@ import type {
 } from "@/types/simulator.types";
 
 import { AllScenariosTable } from "./AllScenariosTable";
+import { LearningBridgeStatus } from "./LearningBridgeStatus";
 import { OverallVerdictCard } from "./OverallVerdictCard";
 import { WeakestDimensionsChart } from "./WeakestDimensionsChart";
 
@@ -91,6 +92,7 @@ export function ReportClient({ personas }: ReportClientProps): React.ReactElemen
   return (
     <div className="flex flex-col gap-6">
       <OverallVerdictCard report={data.report} />
+      <LearningBridgeStatus status={data.learningBridge} />
       <AllScenariosTable results={data.results} personaNames={personaNames} />
       <WeakestDimensionsChart weakestDimensions={data.report.weakestDimensions} />
 

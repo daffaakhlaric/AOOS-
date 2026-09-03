@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportClient } from "@/components/report/ReportClient";
 import type { ApiErrorResponse, SimulateAllResponse } from "@/types/simulator.types";
 
-import { buildAllScenariosReport, buildSimulateAllResultEntry, TEST_PERSONAS } from "../fixtures";
+import {
+  buildAllScenariosReport,
+  buildLearningBridgeStatus,
+  buildSimulateAllResultEntry,
+  TEST_PERSONAS,
+} from "../fixtures";
 
 function jsonResponse(body: unknown, ok = true): Response {
   return {
@@ -28,7 +33,13 @@ describe("ReportClient", () => {
   });
 
   it("shows a loading spinner immediately, then calls POST /api/simulate-all", async () => {
-    fetchSpy.mockResolvedValue(jsonResponse({ results: [], report: buildAllScenariosReport() }));
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        results: [],
+        report: buildAllScenariosReport(),
+        learningBridge: buildLearningBridgeStatus(),
+      }),
+    );
     render(<ReportClient personas={TEST_PERSONAS} />);
 
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
@@ -42,6 +53,7 @@ describe("ReportClient", () => {
     const body: SimulateAllResponse = {
       results: [buildSimulateAllResultEntry()],
       report: buildAllScenariosReport(),
+      learningBridge: buildLearningBridgeStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(body));
 
@@ -52,10 +64,50 @@ describe("ReportClient", () => {
     expect(screen.getByTestId("weakest-dimensions-chart")).toBeInTheDocument();
   });
 
+  it("shows an honest SENT status when the aaos-api bridge call succeeds", async () => {
+    const body: SimulateAllResponse = {
+      results: [buildSimulateAllResultEntry()],
+      report: buildAllScenariosReport(),
+      learningBridge: buildLearningBridgeStatus({
+        status: "SENT",
+        agentRunId: "run-1",
+        judgeResultId: "judge-1",
+      }),
+    };
+    fetchSpy.mockResolvedValue(jsonResponse(body));
+
+    render(<ReportClient personas={TEST_PERSONAS} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("learning-bridge-status")).toHaveAttribute("data-status", "SENT"),
+    );
+    expect(screen.getByText(/Terkirim ke Self-Improving System/)).toBeInTheDocument();
+  });
+
+  it("shows an honest FAILED status when the aaos-api bridge call fails, without failing the whole report", async () => {
+    const body: SimulateAllResponse = {
+      results: [buildSimulateAllResultEntry()],
+      report: buildAllScenariosReport(),
+      learningBridge: buildLearningBridgeStatus({
+        status: "FAILED",
+        reason: "aaos-api merespons status 500",
+      }),
+    };
+    fetchSpy.mockResolvedValue(jsonResponse(body));
+
+    render(<ReportClient personas={TEST_PERSONAS} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("learning-bridge-status")).toHaveAttribute("data-status", "FAILED"),
+    );
+    expect(screen.getByTestId("overall-verdict-card")).toBeInTheDocument();
+  });
+
   it("renders topPriorities when present", async () => {
     const body: SimulateAllResponse = {
       results: [],
       report: buildAllScenariosReport({ topPriorities: ["Perbaiki objection handling."] }),
+      learningBridge: buildLearningBridgeStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(body));
 
@@ -80,6 +132,7 @@ describe("ReportClient", () => {
     const body: SimulateAllResponse = {
       results: [buildSimulateAllResultEntry()],
       report: buildAllScenariosReport({ overallVerdict: Verdict.APPROVE }),
+      learningBridge: buildLearningBridgeStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(body));
 

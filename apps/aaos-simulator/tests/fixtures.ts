@@ -6,7 +6,9 @@ import type {
   AllScenariosReportDto,
   DimensionScoreDto,
   JudgementResultDto,
+  LearningBridgeStatusDto,
   PersonaSummary,
+  SimulateAllResponse,
   SimulateAllResultEntry,
   SimulationMessageDto,
   SimulationResultDto,
@@ -225,6 +227,28 @@ export function buildSimulateAllResultEntry(
     personaId: PersonaId.READY_BUYER,
     simulationResult: buildSimulationResult(),
     judgementResult: buildJudgementResult(),
+    ...overrides,
+  };
+}
+
+/** Self-Learning AI bridge phase — default `SKIPPED` (the honest real outcome in every test env, which never configures `AAOS_API_BASE_URL`/`AAOS_API_KEY`). */
+export function buildLearningBridgeStatus(
+  overrides: Partial<LearningBridgeStatusDto> = {},
+): LearningBridgeStatusDto {
+  return {
+    status: "SKIPPED",
+    reason: "AAOS_API_BASE_URL/AAOS_API_KEY belum dikonfigurasi di aaos-simulator.",
+    ...overrides,
+  } as LearningBridgeStatusDto;
+}
+
+export function buildSimulateAllResponse(
+  overrides: Partial<SimulateAllResponse> = {},
+): SimulateAllResponse {
+  return {
+    results: [],
+    report: buildAllScenariosReport(),
+    learningBridge: buildLearningBridgeStatus(),
     ...overrides,
   };
 }

@@ -20,6 +20,7 @@ import { PromptOverrideRepository } from "../prompt-override/infrastructure/prom
 import { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
 
 import { AiJudgeService } from "./ai-judge.service.js";
+import type { IngestSimulationBatchBodyDto } from "./dto/ingest-simulation-batch.dto.js";
 import { JudgeResultRepository } from "./infrastructure/judge-result.repository.js";
 
 const TENANT_ID = "dss-motor";
@@ -430,5 +431,177 @@ describe("AiJudgeService.judgeRun", () => {
       await expect(service.judgeRun(TENANT_ID, runId as string)).resolves.toBeUndefined();
       expect(client.rows("judge_results")).toHaveLength(1);
     });
+  });
+});
+
+/** A real, minimal `IngestSimulationBatchBodyDto` — 2 personas, one weak dimension, one HIGH-priority improvement suggestion (so `gaps` isn't empty). */
+function buildBatchDto(
+  overrides: Partial<IngestSimulationBatchBodyDto> = {},
+): IngestSimulationBatchBodyDto {
+  return {
+    judgedAt: "2026-09-01T10:00:00.000Z",
+    totalPersonas: 2,
+    approvedCount: 0,
+    needsImprovementCount: 1,
+    failCount: 1,
+    overallVerdict: "FAIL",
+    avgOverallScore: 51,
+    weakestDimensions: [{ dimension: "responseLength", avgScore: 4 }],
+    topPriorities: ["Perpendek balasan Clara agar terasa lebih natural."],
+    results: [
+      {
+        personaId: "cold-buyer",
+        personaDifficulty: "HARD",
+        grade: "F",
+        verdict: "FAIL",
+        overallScore: 45,
+        naturalLanguage: 6,
+        qualification: 5,
+        objectionHandling: 4,
+        closingAttempt: 3,
+        handoffQuality: 5,
+        responseLength: 3,
+        highlights: [],
+        improvementSuggestions: [
+          {
+            dimension: "responseLength",
+            priority: "HIGH",
+            suggestion: "Balasan Clara terlalu panjang untuk WhatsApp — persingkat.",
+          },
+        ],
+      },
+      {
+        personaId: "complainer-buyer",
+        personaDifficulty: "HARD",
+        grade: "C",
+        verdict: "NEEDS_IMPROVEMENT",
+        overallScore: 57,
+        naturalLanguage: 7,
+        qualification: 6,
+        objectionHandling: 5,
+        closingAttempt: 5,
+        handoffQuality: 6,
+        responseLength: 5,
+        highlights: ["Menangani komplain dengan tenang."],
+        improvementSuggestions: [],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe("AiJudgeService.ingestSimulationBatch", () => {
+  it("records a real agent_runs row for CLARA and a real judge_results row from the already-real simulator scores, without calling the LLM", async () => {
+    const learningService = buildFakeLearningService();
+    const { client, service } = buildService(
+      createFakeSupabaseClient(),
+      buildRealLlmService(""), // no API key configured — proves this method never calls the LLM
+      learningService,
+    );
+
+    const result = await service.ingestSimulationBatch(TENANT_ID, buildBatchDto());
+
+    const runRows = client.rows("agent_runs");
+    expect(runRows).toHaveLength(1);
+    expect(runRows[0]).toMatchObject({ tenant_id: TENANT_ID, agent: "CLARA" });
+    expect(result.agentRunId).toBe(runRows[0]?.id);
+
+    const judgeRows = client.rows("judge_results");
+    expect(judgeRows).toHaveLength(1);
+    expect(judgeRows[0]).toMatchObject({
+      tenant_id: TENANT_ID,
+      agent: "CLARA",
+      run_id: result.agentRunId,
+    });
+    expect(result.judgeResultId).toBe(judgeRows[0]?.id);
+
+    const scores = judgeRows[0]?.scores as Record<string, number>;
+    expect(scores.overall).toBe(51);
+    expect(scores.naturalLanguage).toBeCloseTo(6.5);
+    expect(scores.responseLength).toBeCloseTo(4);
+  });
+
+  it("stores @aos/ai-judge's own real dimension key names, never CLARA's existing closing-based judge keys", async () => {
+    const { client, service } = buildService(
+      createFakeSupabaseClient(),
+      buildRealLlmService(""),
+      buildFakeLearningService(),
+    );
+
+    await service.ingestSimulationBatch(TENANT_ID, buildBatchDto());
+
+    const scores = client.rows("judge_results")[0]?.scores as Record<string, unknown>;
+    for (const key of [
+      "naturalLanguage",
+      "qualification",
+      "objectionHandling",
+      "closingAttempt",
+      "handoffQuality",
+      "responseLength",
+      "overall",
+    ]) {
+      expect(scores).toHaveProperty(key);
+    }
+    for (const closingKey of [
+      "outcome_completeness",
+      "commission_plausibility",
+      "closing_type_consistency",
+      "trend_consistency",
+    ]) {
+      expect(scores).not.toHaveProperty(closingKey);
+    }
+  });
+
+  it("triggers LearningService.onAgentRunJudged with the real recorded scores/gaps, best-effort (never blocks the return)", async () => {
+    const learningService = buildFakeLearningService();
+    const { service } = buildService(
+      createFakeSupabaseClient(),
+      buildRealLlmService(""),
+      learningService,
+    );
+
+    const result = await service.ingestSimulationBatch(TENANT_ID, buildBatchDto());
+
+    expect(learningService.onAgentRunJudgedSpy).toHaveBeenCalledWith(
+      TENANT_ID,
+      result.agentRunId,
+      "CLARA",
+      expect.objectContaining({
+        trend: "STABLE",
+        gaps: expect.arrayContaining([
+          expect.objectContaining({ dimension: "responseLength", severity: "HIGH" }),
+        ]) as unknown,
+      }),
+    );
+  });
+
+  it("a LearningService.onAgentRunJudged failure never rejects ingestSimulationBatch itself — the real recorded rows already stand", async () => {
+    const learningService = {
+      onAgentRunJudged: vi.fn(async () => {
+        throw new Error("boom — proposal generation failed");
+      }),
+    } as unknown as LearningService;
+    const { client, service } = buildService(
+      createFakeSupabaseClient(),
+      buildRealLlmService(""),
+      learningService,
+    );
+
+    const result = await service.ingestSimulationBatch(TENANT_ID, buildBatchDto());
+
+    expect(result.agentRunId).toBeTruthy();
+    expect(client.rows("judge_results")).toHaveLength(1);
+  });
+
+  it("throws (never a fabricated success) when AgentRunsService.record itself fails to write a real row", async () => {
+    const client = createFakeSupabaseClient();
+    // Force a real write failure on `agent_runs` — same failure-injection technique this fake
+    // client's own other consumers already use elsewhere in this test suite.
+    client.forceErrorOnce("agent_runs", "simulated agent_runs insert failure");
+    const { service } = buildService(client, buildRealLlmService(""), buildFakeLearningService());
+
+    await expect(service.ingestSimulationBatch(TENANT_ID, buildBatchDto())).rejects.toThrow(
+      /AgentRunsService\.record failed/,
+    );
   });
 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getJudge, toAllScenariosReportDto, toJudgementResultDto } from "@/lib/judge";
+import { reportSimulationBatchToLearningSystem } from "@/lib/learning-bridge";
 import { DEFAULT_SIMULATOR_CONFIG, getSimulator, toSimulationResultDto } from "@/lib/simulator";
 import type { ApiErrorResponse, SimulateAllResponse } from "@/types/simulator.types";
 
@@ -77,10 +78,19 @@ export async function POST(): Promise<NextResponse<SimulateAllResponse | ApiErro
     };
   });
 
+  const reportDto = toAllScenariosReportDto(reportOutcome.value);
+
+  // Self-Learning AI bridge phase — real, best-effort forward into `apps/aaos-api`'s existing
+  // Self-Improving pipeline. Never throws (see `learning-bridge.ts`'s own doc for the full
+  // contract), so this can never turn the real, already-succeeded simulation above into a failed
+  // response — the caller always gets its real report either way.
+  const learningBridge = await reportSimulationBatchToLearningSystem(reportDto);
+
   return NextResponse.json(
     {
       results,
-      report: toAllScenariosReportDto(reportOutcome.value),
+      report: reportDto,
+      learningBridge,
     },
     { status: 200 },
   );

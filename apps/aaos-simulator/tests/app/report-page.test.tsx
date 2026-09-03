@@ -30,6 +30,7 @@ describe("ReportPage", () => {
               topPriorities: [],
               goldenCandidates: [],
             },
+            learningBridge: { status: "SKIPPED", reason: "not configured in this test" },
           }),
       }),
     );
