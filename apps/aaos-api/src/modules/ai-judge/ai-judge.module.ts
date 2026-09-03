@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
+import { JudgeMemoryModule } from "../judge-memory/judge-memory.module.js";
 import { LearningModule } from "../learning/learning.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 
@@ -29,7 +30,7 @@ import { JudgeResultRepository } from "./infrastructure/judge-result.repository.
  * `LearningModule` is safe by the same real precedent.
  */
 @Module({
-  imports: [AgentRunsModule, LlmModule, LearningModule],
+  imports: [AgentRunsModule, LlmModule, LearningModule, JudgeMemoryModule],
   providers: [
     AiJudgeService,
     {

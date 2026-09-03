@@ -288,5 +288,73 @@ describe("LearningProposalRepository", () => {
         repository.markAutoApplied("row-1", ["pause_cpl_multiplier"], "AUTO_APPLIED"),
       ).rejects.toThrow(LearningProposalRepositoryError);
     });
+
+    describe("AAOS Self-Improving (Phase SI-5) — real sandboxBlockedItems + AUTO_APPLY_BLOCKED_BY_SANDBOX", () => {
+      it("writes sandbox_blocked_items and the new status on the matching row", async () => {
+        const client = createFakeSupabaseClient();
+        seedProposal(client, { id: "row-1" });
+        const repository = new LearningProposalRepository(client);
+        const blocked = [{ agent: "SAMANTHA", target: "analyze", result: { delta: -5 } }];
+        await repository.markAutoApplied("row-1", [], "AUTO_APPLY_BLOCKED_BY_SANDBOX", blocked);
+        const row = await repository.findById("row-1");
+        expect(row?.status).toBe("AUTO_APPLY_BLOCKED_BY_SANDBOX");
+        expect(row?.sandbox_blocked_items).toEqual(blocked);
+      });
+
+      it("defaults sandbox_blocked_items to [] when omitted (backward-compatible 3-arg call)", async () => {
+        const client = createFakeSupabaseClient();
+        seedProposal(client, { id: "row-1" });
+        const repository = new LearningProposalRepository(client);
+        await repository.markAutoApplied("row-1", ["pause_cpl_multiplier"], "AUTO_APPLIED");
+        const row = await repository.findById("row-1");
+        expect(row?.sandbox_blocked_items).toEqual([]);
+      });
+    });
+  });
+
+  describe("listRecentForTenantAgent (AAOS Self-Improving, Phase SI-5)", () => {
+    it("returns only the tenant+agent's own rows, oldest-first, capped at the given limit", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, {
+        id: "row-1",
+        agent: "SAMANTHA",
+        created_at: "2026-08-01T00:00:00.000Z",
+      });
+      seedProposal(client, {
+        id: "row-2",
+        agent: "SAMANTHA",
+        created_at: "2026-08-02T00:00:00.000Z",
+      });
+      seedProposal(client, {
+        id: "row-clara",
+        agent: "CLARA",
+        created_at: "2026-08-03T00:00:00.000Z",
+      });
+      seedProposal(client, {
+        id: "row-other-tenant",
+        tenant_id: "other-tenant",
+        agent: "SAMANTHA",
+        created_at: "2026-08-04T00:00:00.000Z",
+      });
+
+      const repository = new LearningProposalRepository(client);
+      const rows = await repository.listRecentForTenantAgent("dss-motor", "SAMANTHA");
+      expect(rows.map((row) => row.id)).toEqual(["row-1", "row-2"]);
+    });
+
+    it("returns an empty list when the tenant+agent has no proposals", async () => {
+      const client = createFakeSupabaseClient();
+      const repository = new LearningProposalRepository(client);
+      expect(await repository.listRecentForTenantAgent("dss-motor", "SAMANTHA")).toEqual([]);
+    });
+
+    it("throws LearningProposalRepositoryError on a real Supabase error", async () => {
+      const client = createFakeSupabaseClient();
+      client.forceErrorOnce("learning_proposals", "connection reset");
+      const repository = new LearningProposalRepository(client);
+      await expect(repository.listRecentForTenantAgent("dss-motor", "SAMANTHA")).rejects.toThrow(
+        LearningProposalRepositoryError,
+      );
+    });
   });
 });

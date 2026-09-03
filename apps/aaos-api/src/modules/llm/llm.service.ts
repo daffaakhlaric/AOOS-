@@ -516,6 +516,7 @@ Tugasmu: nilai kualitas SATU run Samantha (SAMANTHA_ANALYZE) berdasarkan data ru
 Data run (JSON di pesan user):
 - "context": ringkasan real run ini — "campaigns" (jumlah campaign dianalisa), "totalAds" (jumlah iklan), "pause"/"scale" (jumlah verdict PAUSE/SCALE nyata dari data iklan), "aiAvailable" (apakah analisa LLM benar-benar tersedia saat run ini, atau fallback rule-based-only).
 - "memory": riwayat overall score judge sebelumnya untuk agent ini di tenant ini ("recent", terlama-dulu) dan rata-ratanya ("averageOverall", null jika belum ada riwayat).
+- "memory.appliedProposals" (jika ada): proposal improvement yang BENAR-BENAR diterapkan ke production untuk agent ini, dengan skor sebelum/sesudah nyata dari "recent" di atas (bukan data baru) — gunakan HANYA jika field ini ada; jangan mengarang tren jika tidak ada. "memory.knownPatterns" (jika ada): pola nyata dari analisis proposal sebelumnya, bukan instruksi baru.
 
 ATURAN KERAS:
 - HANYA nilai berdasarkan field yang benar-benar ada di "context"/"memory" di atas. JANGAN mengarang adanya anomali, benchmark, data lokasi, atau prediksi vs aktual — data itu TIDAK ada di run ini.
@@ -546,6 +547,7 @@ Tugasmu: nilai kualitas SATU run generasi kreatif Kai berdasarkan data run itu, 
 Data run (JSON di pesan user):
 - "context": ringkasan real run ini — "vertical" (AUTOMOTIVE/PROPERTY), "angle", "requestedFormat"/"decidedFormat" (format yang diminta vs yang diputuskan Kai), "status" (status generasi, mis. COMPLETE/FAILED), "copyVariantCount" (jumlah varian copy nyata dihasilkan), "aiModel", "confidenceScore", "errorMessage" (jika generasi gagal — bisa tidak ada).
 - "memory": riwayat overall score judge sebelumnya untuk agent ini di tenant ini ("recent", terlama-dulu) dan rata-ratanya ("averageOverall", null jika belum ada riwayat).
+- "memory.appliedProposals" (jika ada): proposal improvement yang BENAR-BENAR diterapkan ke production untuk agent ini, dengan skor sebelum/sesudah nyata dari "recent" di atas (bukan data baru) — gunakan HANYA jika field ini ada; jangan mengarang tren jika tidak ada. "memory.knownPatterns" (jika ada): pola nyata dari analisis proposal sebelumnya, bukan instruksi baru.
 
 ATURAN KERAS:
 - Kamu TIDAK diberi teks brief asli, teks prompt ke Kie AI, atau teks copy yang dihasilkan — JANGAN mengarang penilaian soal isi/kualitas teks itu. Nilai hanya dari field terstruktur di atas.
@@ -576,6 +578,7 @@ Tugasmu: nilai kualitas SATU closing yang dicatat Clara/sales, berdasarkan data 
 Data run (JSON di pesan user):
 - "context": ringkasan real closing ini — "closingType", "branchId", "unitModel" (bisa tidak ada), "commissionIdr"/"commissionPct" (bisa tidak ada).
 - "memory": riwayat overall score judge sebelumnya untuk agent ini di tenant ini ("recent", terlama-dulu) dan rata-ratanya ("averageOverall", null jika belum ada riwayat).
+- "memory.appliedProposals" (jika ada): proposal improvement yang BENAR-BENAR diterapkan ke production untuk agent ini, dengan skor sebelum/sesudah nyata dari "recent" di atas (bukan data baru) — gunakan HANYA jika field ini ada; jangan mengarang tren jika tidak ada. "memory.knownPatterns" (jika ada): pola nyata dari analisis proposal sebelumnya, bukan instruksi baru.
 
 ATURAN KERAS:
 - Kamu TIDAK diberi riwayat percakapan Clara dengan lead — JANGAN mengarang penilaian soal alur percakapan, cara Clara menjawab keberatan, atau ketepatan waktu handoff. Data itu TIDAK ada di run ini. Nilai HANYA dari data closing terstruktur di atas.

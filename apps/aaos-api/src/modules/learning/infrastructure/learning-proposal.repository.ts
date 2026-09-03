@@ -32,6 +32,17 @@ export interface LearningProposalRow {
    */
   readonly auto_applied_config_keys: readonly string[];
   /**
+   * AAOS Self-Improving, Phase SI-5 (`039_learning_proposals_sandbox_gate.sql`) — the real
+   * `PROMPT_UPDATE` items this proposal's `LearningService.persistProposal` step tried to
+   * auto-apply but `SandboxService.testImprovement` honestly found WORSE than baseline (a real,
+   * negative `delta` — see `SandboxService`'s own class doc for exactly what this can and cannot
+   * measure), so no `agent_prompt_overrides` write was made for that item. `[]` when nothing was
+   * ever blocked this way. Each entry carries the real `SandboxTestResult` that caused the block, so
+   * a human reviewing this proposal (or forcing it through `LearningDecisionService.approve`) sees
+   * the real reason, never a bare status flag with no evidence.
+   */
+  readonly sandbox_blocked_items: readonly Record<string, unknown>[];
+  /**
    * AAOS Self-Improving, Phase SI-3 (`037_learning_proposals_self_analysis.sql`) — the real, optional
    * output of a PRIOR, SEPARATE `LlmService.selfAnalyze` call over this SAME gap (`rootCauses`/
    * `patterns`/`confidence` — see `dto/self-analysis.dto.ts`'s own `SelfAnalysisLlmPayloadSchema`,
@@ -209,26 +220,66 @@ export class LearningProposalRepository {
    * place that decides which applier (`configApplier`/`logicApplier`) produced each key.
    *
    * `newStatus` is real, caller-computed: `'AUTO_APPLIED'` ONLY when the caller has confirmed every
-   * improvement item on this proposal was a successfully-applied `CONFIG_UPDATE`/`LOGIC_UPDATE` (no
-   * `PROMPT_UPDATE` item left genuinely pending human review) — see
-   * `035_learning_proposals_auto_applied.sql`'s own header doc for the full reasoning. This
-   * repository method trusts the caller's computed value rather than re-deriving it, same
-   * "service layer decides, repository just persists" convention every other write method on this
-   * class already follows.
+   * improvement item on this proposal was successfully applied (`CONFIG_UPDATE`/`LOGIC_UPDATE`, and
+   * as of Phase SI-5, a sandbox-cleared `PROMPT_UPDATE` too — no item left genuinely pending human
+   * review); `'AUTO_APPLY_BLOCKED_BY_SANDBOX'` (Phase SI-5,
+   * `039_learning_proposals_sandbox_gate.sql`) when every item is either applied or honestly
+   * sandbox-blocked (see `sandboxBlockedItems`'s own field doc) — see
+   * `035_learning_proposals_auto_applied.sql`'s own header doc for the full "why 2 real columns, not
+   * overloading status" reasoning this phase extends rather than replaces. This repository method
+   * trusts the caller's computed value rather than re-deriving it, same "service layer decides,
+   * repository just persists" convention every other write method on this class already follows.
+   *
+   * AAOS Self-Improving, Phase SI-5 — `sandboxBlockedItems` is the real, additive sibling of
+   * `autoAppliedConfigKeys`: every `PROMPT_UPDATE` item this proposal's `persistProposal` step tried
+   * to auto-apply but a real, negative `SandboxService.testImprovement` result blocked (see
+   * `LearningProposalRow.sandbox_blocked_items`'s own doc). `[]` when nothing was blocked.
    */
   async markAutoApplied(
     id: string,
     autoAppliedConfigKeys: readonly string[],
-    newStatus: "PENDING" | "AUTO_APPLIED",
+    newStatus: "PENDING" | "AUTO_APPLIED" | "AUTO_APPLY_BLOCKED_BY_SANDBOX",
+    sandboxBlockedItems: readonly Record<string, unknown>[] = [],
   ): Promise<void> {
     const { error } = await this.client
       .from<LearningProposalRow>(TABLE)
-      .update({ auto_applied_config_keys: [...autoAppliedConfigKeys], status: newStatus })
+      .update({
+        auto_applied_config_keys: [...autoAppliedConfigKeys],
+        sandbox_blocked_items: [...sandboxBlockedItems],
+        status: newStatus,
+      })
       .eq("id", id);
     if (error !== null) {
       throw new LearningProposalRepositoryError(
         `LearningProposalRepository.markAutoApplied failed: ${error.message}`,
       );
     }
+  }
+
+  /**
+   * The tenant's most recent `learning_proposals` rows for ONE real `agent`, oldest-first — AAOS
+   * Self-Improving, Phase SI-5's real read for `JudgeMemoryService.build` (which real proposals
+   * actually applied something for this tenant+agent, so it can honestly compute a real judge-score
+   * trend around each — see that class's own doc). Mirrors `listRecentForTenant`'s exact same shape,
+   * scoped additionally by `agent` (matches `idx_learning_proposals_tenant_agent`).
+   */
+  async listRecentForTenantAgent(
+    tenantId: string,
+    agent: string,
+    limit = 10,
+  ): Promise<readonly LearningProposalRow[]> {
+    const { data, error } = await this.client
+      .from<LearningProposalRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("agent", agent)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error !== null) {
+      throw new LearningProposalRepositoryError(
+        `LearningProposalRepository.listRecentForTenantAgent failed: ${error.message}`,
+      );
+    }
+    return [...(data ?? [])].reverse();
   }
 }

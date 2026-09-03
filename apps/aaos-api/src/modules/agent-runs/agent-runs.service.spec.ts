@@ -101,3 +101,49 @@ describe("AgentRunsService.findById (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2)", (
     expect(row).toBeUndefined();
   });
 });
+
+describe("AgentRunsService.findLatestForTenantAgent (AAOS Self-Improving, Phase SI-5)", () => {
+  it("returns the most recent real row for the given tenant+agent", async () => {
+    const { client, service } = buildService();
+    // Seeded directly with distinct, explicit `created_at` values (never two real `record()` calls
+    // back-to-back, which can land on the SAME millisecond and make ordering non-deterministic —
+    // same precedent `ai-judge.service.spec.ts`'s own "real judge-memory" test already establishes).
+    client.seed("agent_runs", {
+      id: "older-1",
+      tenant_id: "dss-motor",
+      agent: "SAMANTHA",
+      run_ref: "evt-older",
+      context: { campaigns: 1 },
+      created_at: "2026-08-01T00:00:00.000Z",
+    });
+    client.seed("agent_runs", {
+      id: "newer-1",
+      tenant_id: "dss-motor",
+      agent: "SAMANTHA",
+      run_ref: "evt-newer",
+      context: { campaigns: 2 },
+      created_at: "2026-08-02T00:00:00.000Z",
+    });
+
+    const row = await service.findLatestForTenantAgent("dss-motor", "SAMANTHA");
+
+    expect(row?.id).toBe("newer-1");
+    expect(row?.run_ref).toBe("evt-newer");
+  });
+
+  it("never returns a different tenant's or agent's row", async () => {
+    const { service } = buildService();
+    await service.record("dss-motor", "KAI", "pkg-1", { vertical: "AUTOMOTIVE" });
+    await service.record("other-tenant", "SAMANTHA", "evt-1", { campaigns: 1 });
+
+    const row = await service.findLatestForTenantAgent("dss-motor", "SAMANTHA");
+
+    expect(row).toBeUndefined();
+  });
+
+  it("returns undefined (never a fabricated baseline) when no real run exists yet for this tenant+agent", async () => {
+    const { service } = buildService();
+    const row = await service.findLatestForTenantAgent("dss-motor", "SAMANTHA");
+    expect(row).toBeUndefined();
+  });
+});

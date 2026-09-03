@@ -67,4 +67,20 @@ export class AgentRunsService {
   async findById(id: string): Promise<AgentRunRow | undefined> {
     return this.repository.findById(id);
   }
+
+  /**
+   * The single most recent `agent_runs` row for one real tenant+agent, or `undefined` when none
+   * exists — AAOS Self-Improving, Phase SI-5's real fallback baseline for
+   * `SandboxService.testImprovement` (see `AgentRunRepository.findLatestForTenantAgent`'s own doc).
+   * Deliberately NOT best-effort like `record()` — same reasoning `findById`'s own doc gives: no
+   * real agent action is in flight at this read, so a failure propagates to this method's own
+   * caller (`SandboxService.testImprovement`, which already degrades honestly on any thrown error
+   * via its own outer handling in `LearningService.persistProposal`).
+   */
+  async findLatestForTenantAgent(
+    tenantId: string,
+    agent: AgentRunAgent,
+  ): Promise<AgentRunRow | undefined> {
+    return this.repository.findLatestForTenantAgent(tenantId, agent);
+  }
 }

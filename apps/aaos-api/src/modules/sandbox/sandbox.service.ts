@@ -2,13 +2,10 @@ import { Injectable, Logger } from "@nestjs/common";
 
 import { AgentConfigService } from "../agent-config/agent-config.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
-import {
-  JudgeResultRepository,
-  type JudgeResultRow,
-} from "../ai-judge/infrastructure/judge-result.repository.js";
+import { JudgeResultRepository } from "../ai-judge/infrastructure/judge-result.repository.js";
+import { JudgeMemoryService } from "../judge-memory/judge-memory.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import type { ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
-import type { JudgeMemory } from "../llm/dto/judge-agent-run.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 
 /** `agent_configs` bucket/key for the real `min_delta_to_apply` sandbox gate (design doc's own spec: `SANDBOX` bucket, default 3). */
@@ -48,14 +45,6 @@ function degrade(reason: string, minDelta: number): SandboxTestResult {
 function extractOverall(scores: Record<string, unknown>): number | undefined {
   const overall = scores["overall"];
   return typeof overall === "number" ? overall : undefined;
-}
-
-/** A real, honestly-computed average — `null` (never `0`) when `values` is empty. Same shape `AiJudgeService`'s own module-local `average` already establishes. */
-function average(values: readonly number[]): number | null {
-  if (values.length === 0) {
-    return null;
-  }
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 /**
@@ -101,13 +90,23 @@ function average(values: readonly number[]): number | null {
  * NOT wired into any auto-apply flow in this phase (a deliberate, documented scope decision — see
  * this phase's own commit message / final report): `LearningDecisionService.approve`'s existing
  * human-gated `PROMPT_UPDATE` behavior is UNCHANGED. Given finding #2 above, the real signal this
- * sandbox can produce for `analyze` is narrow (mostly "still valid JSON", not "actually better") —
- * wiring an automatic, ungated production write (replacing the codebase's own documented "HARD
- * RULE: an AI-generated improvement must NEVER apply to production without an explicit human
- * Approve action" for PROMPT_UPDATE) on top of that narrow a signal would be building a gate that
- * LOOKS real but tests far less than its name implies — exactly the kind of fabricated-workaround
- * this whole effort's discipline avoids elsewhere. Left for Phase SI-5, where the design doc's own
- * plan already revisits `LearningDecisionService.approve`'s human gate for all 3 types together.
+ * sandbox can produce for `analyze` is narrow (mostly "still valid JSON", not "actually better").
+ *
+ * WIRED, AAOS Self-Improving Phase SI-5 (`LearningService.persistProposal`): given finding #2 above,
+ * this class's real signal is used as a NARROW SAFETY NET, not a full quality gate — a PROMPT_UPDATE
+ * item auto-applies (the user's own "full auto-apply, no human gate" decision) UNLESS this method
+ * returns a real, HONEST NEGATIVE result (`available: true`, `delta < 0` — the candidate prompt
+ * measurably broke something this judge dimension can see). Absence of a usable signal
+ * (`available: false` — CLARA, a non-"analyze" SAMANTHA target, no historical data, LLM down) is
+ * NEVER treated as a reason to block — only a real, honest negative finding blocks. This is a
+ * deliberate, narrower reading than a naive "only auto-apply when sandboxScore - baselineScore >=
+ * min_delta_to_apply for every type" would be: given finding #2, requiring a PASSING sandbox score
+ * before every real auto-apply would silently freeze PROMPT_UPDATE auto-apply for every real case
+ * except SAMANTHA/analyze (the only one honestly testable), which is not what "full auto-apply"
+ * was confirmed to mean — see `LearningService.persistProposal`'s own doc for the full reasoning and
+ * `docs/PROMPT-AAOS-SELF-IMPROVING-FULL.md`'s own Phase SI-5 section for the plan this refines.
+ * `LearningDecisionService.approve`'s human-gated `PROMPT_UPDATE` path is UNCHANGED — a human can
+ * still force-apply a sandbox-blocked item there (see that service's own updated doc).
  */
 @Injectable()
 export class SandboxService {
@@ -117,14 +116,28 @@ export class SandboxService {
     private readonly agentRuns: AgentRunsService,
     private readonly llmService: LlmService,
     private readonly agentConfig: AgentConfigService,
+    // AAOS Self-Improving (Phase SI-5) — real, curated Judge Memory, replacing this class's own
+    // former private `buildMemory` (see `JudgeMemoryService`'s own class doc). `JudgeResultRepository`
+    // stays a direct dependency too — `testImprovement`'s own baseline-score lookup
+    // (`findByRunId`) is a real, DIFFERENT concern from memory-building, per this class's own doc.
     private readonly judgeResults: JudgeResultRepository,
+    private readonly judgeMemory: JudgeMemoryService,
   ) {}
 
+  /**
+   * `baselineAgentRunId` is now OPTIONAL (AAOS Self-Improving, Phase SI-5): a LIVE-run-triggered
+   * `learning_proposals` gap always has a real `agent_runs.id` of its own to pass here
+   * (`LearningService.onAgentRunJudged`'s own `agentRunId`); a SIMULATION-triggered gap does not
+   * (`onSimulationComplete` only ever has a `simulationId`). When omitted, this method falls back to
+   * the tenant+agent's REAL most-recent `agent_runs` row (`AgentRunsService.findLatestForTenantAgent`)
+   * — a real, honest "best available real baseline", never a synthetic one. If no real run exists at
+   * all for this tenant+agent yet, this is an honest degrade (`available: false`), not an error.
+   */
   async testImprovement(
     tenantId: string,
     agent: string,
     item: ImprovementItem,
-    baselineAgentRunId: string,
+    baselineAgentRunId?: string,
   ): Promise<SandboxTestResult> {
     const minDelta = await this.agentConfig.get(
       tenantId,
@@ -135,18 +148,27 @@ export class SandboxService {
 
     if (agent !== "SAMANTHA" || item.type !== "PROMPT_UPDATE" || item.target !== "analyze") {
       return degrade(
-        `SandboxService.testImprovement is honestly scoped to SAMANTHA PROMPT_UPDATE(target="analyze") only in this phase (SI-4) — got agent="${agent}", type="${item.type}", target="${item.target}". See this class's own doc for why CONFIG_UPDATE/LOGIC_UPDATE have no real effect on "analyze" to sandbox-test.`,
+        `SandboxService.testImprovement is honestly scoped to SAMANTHA PROMPT_UPDATE(target="analyze") only in this phase (SI-4/SI-5) — got agent="${agent}", type="${item.type}", target="${item.target}". See this class's own doc for why CONFIG_UPDATE/LOGIC_UPDATE have no real effect on "analyze" to sandbox-test.`,
         minDelta,
       );
     }
 
-    const run = await this.agentRuns.findById(baselineAgentRunId);
-    if (run === undefined) {
-      return degrade(`agent_runs row "${baselineAgentRunId}" not found.`, minDelta);
+    const run =
+      baselineAgentRunId !== undefined
+        ? await this.agentRuns.findById(baselineAgentRunId)
+        : await this.agentRuns.findLatestForTenantAgent(tenantId, "SAMANTHA");
+    const resolvedRunId = baselineAgentRunId ?? run?.id;
+    if (run === undefined || resolvedRunId === undefined) {
+      return degrade(
+        baselineAgentRunId !== undefined
+          ? `agent_runs row "${baselineAgentRunId}" not found.`
+          : `no real agent_runs row exists yet for tenant "${tenantId}" agent "SAMANTHA" to use as a sandbox baseline.`,
+        minDelta,
+      );
     }
     if (run.agent !== "SAMANTHA") {
       return degrade(
-        `agent_runs row "${baselineAgentRunId}" is agent "${run.agent}", not SAMANTHA.`,
+        `agent_runs row "${resolvedRunId}" is agent "${run.agent}", not SAMANTHA.`,
         minDelta,
       );
     }
@@ -155,24 +177,24 @@ export class SandboxService {
     const analyzeCampaigns = context["analyzeCampaigns"];
     if (!Array.isArray(analyzeCampaigns)) {
       return degrade(
-        `agent_runs row "${baselineAgentRunId}" has no real "analyzeCampaigns" in its context — it predates the Phase SI-4 context-capture fix (SchedulerService.runSamanthaAnalyze) and cannot be honestly re-run against the SAME historical data. This is a real, expected degrade for every agent_runs row recorded before that fix shipped, not a bug.`,
+        `agent_runs row "${resolvedRunId}" has no real "analyzeCampaigns" in its context — it predates the Phase SI-4 context-capture fix (SchedulerService.runSamanthaAnalyze) and cannot be honestly re-run against the SAME historical data. This is a real, expected degrade for every agent_runs row recorded before that fix shipped, not a bug.`,
         minDelta,
       );
     }
 
     // Real baseline score — the ALREADY-PERSISTED `judge_results` row for this exact real run,
     // never re-judged (see this class's own doc for why).
-    const baselineRow = await this.judgeResults.findByRunId(baselineAgentRunId);
+    const baselineRow = await this.judgeResults.findByRunId(resolvedRunId);
     if (baselineRow === undefined) {
       return degrade(
-        `agent_runs row "${baselineAgentRunId}" has no real judge_results row — it was never successfully judged (or judging was unavailable when it ran), so there is no real baseline score to compare against.`,
+        `agent_runs row "${resolvedRunId}" has no real judge_results row — it was never successfully judged (or judging was unavailable when it ran), so there is no real baseline score to compare against.`,
         minDelta,
       );
     }
     const baselineScore = extractOverall(baselineRow.scores);
     if (baselineScore === undefined) {
       return degrade(
-        `judge_results row for "${baselineAgentRunId}" has no real numeric "overall" score.`,
+        `judge_results row for "${resolvedRunId}" has no real numeric "overall" score.`,
         minDelta,
       );
     }
@@ -200,7 +222,10 @@ export class SandboxService {
       aiAvailable: sandboxAnalysis.available,
     };
 
-    const memory = await this.buildMemory(tenantId, "SAMANTHA");
+    // AAOS Self-Improving (Phase SI-5) — real, curated Judge Memory (`JudgeMemoryService`'s own
+    // class doc), replacing this class's own former private `buildMemory` (a duplicate of
+    // `AiJudgeService.judgeRun`'s inline logic before this phase).
+    const memory = await this.judgeMemory.build(tenantId, "SAMANTHA");
 
     // Deliberately `LlmService.judgeAgentRun` directly, NOT `AiJudgeService.judgeRun` — that method
     // persists a real `judge_results` row keyed to a real `agent_runs.id`, which this sandbox run
@@ -210,7 +235,7 @@ export class SandboxService {
     const judged = await this.llmService.judgeAgentRun(tenantId, {
       tenantId,
       agent: "SAMANTHA",
-      runRef: `SANDBOX:${item.target}:${baselineAgentRunId}`,
+      runRef: `SANDBOX:${item.target}:${resolvedRunId}`,
       runCreatedAt: run.created_at,
       context: sandboxContext,
       memory,
@@ -228,26 +253,9 @@ export class SandboxService {
     const improved = delta >= minDelta;
 
     this.logger.log(
-      `SandboxService.testImprovement(${tenantId}, ${baselineAgentRunId}): baseline=${String(baselineScore)} sandbox=${String(sandboxScore)} delta=${String(delta)} minDelta=${String(minDelta)} improved=${String(improved)}`,
+      `SandboxService.testImprovement(${tenantId}, ${resolvedRunId}): baseline=${String(baselineScore)} sandbox=${String(sandboxScore)} delta=${String(delta)} minDelta=${String(minDelta)} improved=${String(improved)}`,
     );
 
     return { available: true, improved, baselineScore, sandboxScore, delta, minDelta };
-  }
-
-  /** Same real "last 10 raw overall scores + honest average" memory shape `AiJudgeService.judgeRun` already builds — restated here (not exported from that file) since this class deliberately does not depend on `AiJudgeService` itself (see this class's own doc for why it calls `LlmService.judgeAgentRun` directly). */
-  private async buildMemory(tenantId: string, agent: string): Promise<JudgeMemory> {
-    const recentRows: readonly JudgeResultRow[] = await this.judgeResults.listRecentForTenant(
-      tenantId,
-      agent,
-      10,
-    );
-    const recent = recentRows.map((row) => ({
-      createdAt: row.created_at,
-      overall: extractOverall(row.scores) ?? 0,
-    }));
-    const overallValues = recentRows
-      .map((row) => extractOverall(row.scores))
-      .filter((value): value is number => value !== undefined);
-    return { recent, averageOverall: average(overallValues) };
   }
 }

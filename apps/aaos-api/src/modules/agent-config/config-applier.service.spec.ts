@@ -20,8 +20,12 @@ function buildItem(overrides: Partial<ImprovementItem> = {}): ImprovementItem {
 
 function buildFakeAgentConfigService(
   set: AgentConfigService["set"] = vi.fn(async () => ({}) as never),
+  // Real current live value the bounds check compares `item.after` against — defaults to
+  // `pause_cpl_multiplier`'s real current default (1.5) so the "real successful write" test's
+  // `1.8` stays comfortably in-range.
+  get: AgentConfigService["get"] = vi.fn(async () => 1.5),
 ): AgentConfigService {
-  return { get: vi.fn(), set } as unknown as AgentConfigService;
+  return { get, set } as unknown as AgentConfigService;
 }
 
 describe("ConfigApplierService.applyConfigUpdate", () => {
@@ -95,5 +99,63 @@ describe("ConfigApplierService.applyConfigUpdate", () => {
 
     expect(result.applied).toBe(false);
     expect(result.reason).toContain("write failed");
+  });
+
+  describe("real bounds check (AAOS Self-Improving, Phase SI-5 — never a fabricated sandbox test)", () => {
+    it("blocks a wildly out-of-range value (more than 5x the current real value) and never calls set", async () => {
+      const set = vi.fn(async () => ({}) as never);
+      const get = vi.fn(async () => 1.5);
+      const agentConfig = buildFakeAgentConfigService(set, get);
+      const service = new ConfigApplierService(agentConfig);
+
+      const result = await service.applyConfigUpdate("dss-motor", buildItem({ after: "500" }));
+
+      expect(result.applied).toBe(false);
+      expect(result.reason).toContain("more than");
+      expect(set).not.toHaveBeenCalled();
+      expect(get).toHaveBeenCalledWith("dss-motor", "SAMANTHA", "pause_cpl_multiplier", 1.5);
+    });
+
+    it("blocks a wildly out-of-range value (less than 1/5th the current real value)", async () => {
+      const set = vi.fn(async () => ({}) as never);
+      const agentConfig = buildFakeAgentConfigService(
+        set,
+        vi.fn(async () => 60),
+      );
+      const service = new ConfigApplierService(agentConfig);
+
+      const result = await service.applyConfigUpdate(
+        "dss-motor",
+        buildItem({ target: "live_run_gap_threshold", after: "1" }),
+      );
+
+      expect(result.applied).toBe(false);
+      expect(set).not.toHaveBeenCalled();
+    });
+
+    it("allows a real, in-range change vs the current real value (not the LLM's own possibly-stale 'before' claim)", async () => {
+      const set = vi.fn(async () => ({}) as never);
+      // The item's own `before` claims "1.5", but the REAL current value (from AgentConfigService.get)
+      // is already 3 — a real prior override — so the bounds check must compare against 3, not 1.5.
+      const agentConfig = buildFakeAgentConfigService(
+        set,
+        vi.fn(async () => 3),
+      );
+      const service = new ConfigApplierService(agentConfig);
+
+      const result = await service.applyConfigUpdate(
+        "dss-motor",
+        buildItem({ before: "1.5", after: "4" }),
+      );
+
+      expect(result.applied).toBe(true);
+      expect(set).toHaveBeenCalledWith(
+        "dss-motor",
+        "SAMANTHA",
+        "pause_cpl_multiplier",
+        4,
+        "AI_AUTO_APPLY",
+      );
+    });
   });
 });

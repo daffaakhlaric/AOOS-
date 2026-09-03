@@ -13,6 +13,8 @@ import { AgentConfigRepository } from "../agent-config/infrastructure/agent-conf
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 import { JudgeResultRepository } from "../ai-judge/infrastructure/judge-result.repository.js";
+import { JudgeMemoryService } from "../judge-memory/judge-memory.service.js";
+import { LearningProposalRepository } from "../learning/infrastructure/learning-proposal.repository.js";
 import { ResponseCache } from "../llm/cache/ResponseCache.js";
 import type { ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
 import {
@@ -100,12 +102,13 @@ function buildService(
   const agentRuns = new AgentRunsService(new AgentRunRepository(client));
   const judgeResults = new JudgeResultRepository(client);
   const agentConfig = new AgentConfigService(new AgentConfigRepository(client));
+  const judgeMemory = new JudgeMemoryService(judgeResults, new LearningProposalRepository(client));
   return {
     client,
     agentRuns,
     judgeResults,
     agentConfig,
-    service: new SandboxService(agentRuns, llmService, agentConfig, judgeResults),
+    service: new SandboxService(agentRuns, llmService, agentConfig, judgeResults, judgeMemory),
   };
 }
 
@@ -300,5 +303,29 @@ describe("SandboxService.testImprovement", () => {
     const result = await service.testImprovement(TENANT_ID, "SAMANTHA", logicItem, runId);
     expect(result.available).toBe(false);
     expect(result.reason).toContain("scoped to SAMANTHA PROMPT_UPDATE");
+  });
+
+  // AAOS Self-Improving, Phase SI-5 — `baselineAgentRunId` is now optional (a SIMULATION-triggered
+  // gap has no real `agent_runs.id` of its own to pass).
+  it("falls back to the tenant+agent's real most-recent agent_runs row when baselineAgentRunId is omitted", async () => {
+    const { agentRuns, judgeResults, service } = buildService(
+      undefined,
+      buildRealLlmService("test-openai-key"),
+    );
+    registerAnalyzeVsJudgeHandler(validAnalyzeJson, 90);
+    const runId = await seedBaseline(agentRuns, judgeResults, 70);
+
+    const result = await service.testImprovement(TENANT_ID, "SAMANTHA", PROMPT_UPDATE_ITEM);
+
+    expect(result.available).toBe(true);
+    expect(result.baselineScore).toBe(70);
+    void runId;
+  });
+
+  it("degrades honestly (never fabricates a baseline) when no real agent_runs row exists yet for the tenant+agent and baselineAgentRunId is omitted", async () => {
+    const { service } = buildService(undefined, buildRealLlmService("test-openai-key"));
+    const result = await service.testImprovement(TENANT_ID, "SAMANTHA", PROMPT_UPDATE_ITEM);
+    expect(result.available).toBe(false);
+    expect(result.reason).toContain("no real agent_runs row exists");
   });
 });

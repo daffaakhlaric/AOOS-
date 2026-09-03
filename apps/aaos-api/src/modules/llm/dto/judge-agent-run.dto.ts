@@ -24,11 +24,50 @@ const JudgeMemoryEntrySchema = z.object({
   overall: z.number(),
 });
 
+/**
+ * AAOS Self-Improving, Phase SI-5 — real, additive "Judge Memory" enrichment
+ * (`modules/judge-memory/judge-memory.service.ts`'s own class doc has the full reasoning). One real
+ * `learning_proposals` row that genuinely had SOMETHING applied to production for this tenant+agent
+ * (`status IN ('APPROVED','AUTO_APPLIED')`, or a mixed row with a non-empty
+ * `auto_applied_config_keys`), plus the REAL judge-score trend around it — computed ONLY from the
+ * SAME `recent` (up to 10) `judge_results` rows above, partitioned by this proposal's own
+ * `created_at` (never a separate query, never a fabricated trend). `scoreBefore`/`scoreAfter` are
+ * `null` (never `0`) when that side of the partition has zero real rows within the 10-row window —
+ * an honest "not enough data on this side", not "no change".
+ */
+const JudgeMemoryAppliedProposalSchema = z.object({
+  createdAt: z.string(),
+  /** Real `config_key`/`logic_key`/`prompt_key` targets this proposal actually applied — `learning_proposals.auto_applied_config_keys` plus, for a human-`APPROVED` row, the real `PROMPT_UPDATE` targets from `improvements[]` (see `JudgeMemoryService`'s own doc). Never fabricated — a target only appears here when a real write actually happened. */
+  appliedTargets: z.array(z.string()),
+  scoreBefore: z.number().nullable(),
+  scoreAfter: z.number().nullable(),
+  /** `"UNKNOWN"` (never a guessed direction) when either side of the partition is `null`. */
+  trend: z.enum(["IMPROVED", "DECLINED", "UNCHANGED", "UNKNOWN"]),
+});
+
 const JudgeMemorySchema = z.object({
   /** The tenant+agent's last (up to) 10 real `judge_results` rows, oldest-first — see `JudgeResultRepository.listRecentForTenant`. Empty when this is the tenant's first judged run for this agent. */
   recent: z.array(JudgeMemoryEntrySchema),
   /** Real, honestly-computed average of `recent[].overall` — `null` (never `0` or a fabricated number) when `recent` is empty. */
   averageOverall: z.number().nullable(),
+  /**
+   * AAOS Self-Improving, Phase SI-5 — real, curated "what got applied, and did scores move" memory,
+   * `JudgeMemoryService.build`'s own real output. `.optional()` (never defaulted to `[]` by this
+   * schema itself) so every EXISTING hand-built `JudgeMemory` object in this codebase's specs/fixtures
+   * keeps type-checking unchanged; every real production call site (`AiJudgeService.judgeRun`,
+   * `SandboxService`) always supplies a real (possibly empty) array — never `undefined` — so
+   * `undefined` here only ever means "this particular caller predates Phase SI-5 / a test fixture",
+   * never a real degrade state.
+   */
+  appliedProposals: z.array(JudgeMemoryAppliedProposalSchema).optional(),
+  /**
+   * AAOS Self-Improving, Phase SI-5 — real, deduplicated `learning_proposals.self_analysis.patterns`
+   * text from this tenant+agent's own recent REAL applied proposals (never invented) — capped and
+   * truncated by `JudgeMemoryService.build`. `[]` (never a fabricated "known good" list) when no
+   * applied proposal has real self-analysis on it yet. Same `.optional()` reasoning as
+   * `appliedProposals` above.
+   */
+  knownPatterns: z.array(z.string()).optional(),
 });
 export type JudgeMemory = z.infer<typeof JudgeMemorySchema>;
 

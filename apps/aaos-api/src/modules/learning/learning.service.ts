@@ -12,6 +12,7 @@ import {
   LlmService,
 } from "../llm/llm.service.js";
 import { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
+import { SandboxService } from "../sandbox/sandbox.service.js";
 import { SIMULATION_CRITERIA } from "../simulation/domain/scoring.js";
 import { SimulationRepository } from "../simulation/infrastructure/simulation.repository.js";
 
@@ -158,6 +159,10 @@ export class LearningService {
     // the exact `agent_logic` sibling of `configApplier` above, called from the SAME
     // `persistProposal` step (see `LogicApplierService`'s own class doc for the full reasoning).
     private readonly logicApplier: LogicApplierService,
+    // AAOS Self-Improving (Phase SI-5) — real, AUTOMATIC (no human gate) PROMPT_UPDATE apply path,
+    // gated by `SandboxService.testImprovement`'s narrow, honest safety net (see that class's own
+    // updated doc and `persistProposal`'s own doc below for the full reasoning).
+    private readonly sandboxService: SandboxService,
   ) {}
 
   async onSimulationComplete(simulationId: string): Promise<void> {
@@ -505,27 +510,41 @@ export class LearningService {
   }
 
   /**
-   * Creates the real `learning_proposals` row, THEN (AAOS Self-Improving, Phase SI-1) — for every
-   * real, Zod-validated `CONFIG_UPDATE` item in `plan.improvements` — calls
-   * `ConfigApplierService.applyConfigUpdate` to write `agent_configs` DIRECTLY, AUTOMATICALLY, with
-   * NO human approval step (the user's own explicit, twice-confirmed decision — see
-   * `ConfigApplierService`'s own class doc). The proposal row itself is ALWAYS created first and
-   * kept, real and unmodified in its `improvements`/`gaps`/`analysis` — this is real, honest
-   * audit/visibility, matching this whole codebase's own transparency discipline, never skipped
-   * just because a `CONFIG_UPDATE` item auto-applies.
+   * Creates the real `learning_proposals` row, THEN (AAOS Self-Improving, Phase SI-1/SI-2/SI-5) —
+   * for every real, Zod-validated `CONFIG_UPDATE`/`LOGIC_UPDATE`/`PROMPT_UPDATE` item in
+   * `plan.improvements` — auto-applies it, AUTOMATICALLY, with NO human approval step (the user's
+   * own explicit, twice-confirmed decision — see `ConfigApplierService`'s own class doc). The
+   * proposal row itself is ALWAYS created first and kept, real and unmodified in its
+   * `improvements`/`gaps`/`analysis` — this is real, honest audit/visibility, matching this whole
+   * codebase's own transparency discipline, never skipped just because an item auto-applies.
    *
-   * `auto_applied_config_keys` + `status` are then written via a real, SECOND, best-effort update
-   * (`markAutoApplied`) — see `035_learning_proposals_auto_applied.sql`'s own header doc for the
-   * full "why 2 real columns, not overloading `status`" reasoning. `status` becomes `'AUTO_APPLIED'`
-   * ONLY when EVERY improvement item was a `CONFIG_UPDATE` that was successfully applied (no
-   * `PROMPT_UPDATE` item left genuinely pending human review); a mixed proposal, or one where a
-   * `CONFIG_UPDATE` write genuinely failed, keeps `status = 'PENDING'` — honestly reflecting real
-   * remaining work (or a real failure) a human should still see, while
-   * `auto_applied_config_keys` still tells the Learning Monitor which items, if any, were already
-   * applied.
+   * AAOS Self-Improving, Phase SI-5's real, additive change: a `PROMPT_UPDATE` item is no longer
+   * exclusively human-gated (`LearningDecisionService.approve`). It now ALSO auto-applies here, the
+   * exact same way `CONFIG_UPDATE`/`LOGIC_UPDATE` already do — UNLESS
+   * `SandboxService.testImprovement` returns a real, honest NEGATIVE signal for it (`available:
+   * true`, `delta < 0` — see that class's own updated doc for exactly what this can and cannot
+   * measure). Only SAMANTHA `PROMPT_UPDATE(target="analyze")` is honestly testable; every other
+   * `agent`/`target` combination degrades (`available: false`) and — per the explicit instruction
+   * this phase was built under — an ABSENT signal is never treated as a reason to block, only a real
+   * negative one is. A blocked item is recorded on `sandbox_blocked_items` (with the real
+   * `SandboxTestResult` that caused the block) and left UN-applied — `LearningDecisionService.approve`
+   * still exists, UNCHANGED, as the real human-override route for a blocked item (see that service's
+   * own updated doc for how it avoids double-applying an item this method already applied).
+   *
+   * `auto_applied_config_keys`/`sandbox_blocked_items` + `status` are then written via a real,
+   * SECOND, best-effort update (`markAutoApplied`) — see `035_learning_proposals_auto_applied.sql`'s
+   * own header doc for the full "why additive columns, not overloading `status`" reasoning, extended
+   * by `039_learning_proposals_sandbox_gate.sql`. `status` becomes:
+   *   - `'AUTO_APPLIED'` when EVERY improvement item was successfully applied (no item left
+   *     genuinely pending human review, and nothing was sandbox-blocked);
+   *   - `'AUTO_APPLY_BLOCKED_BY_SANDBOX'` (Phase SI-5) when every item is EITHER successfully
+   *     applied OR honestly sandbox-blocked (no item failed to parse/write for any OTHER real
+   *     reason) — a real, distinct signal from a bare `'PENDING'`;
+   *   - `'PENDING'` otherwise — a malformed item, or a genuine write failure, leaves real,
+   *     undifferentiated work for a human, honestly.
    *
    * BEST-EFFORT DISCIPLINE (same as every other side-effect in this codebase): the WHOLE
-   * auto-apply-and-record step is wrapped in try/catch — a failure here (a `configApplier` write
+   * auto-apply-and-record step is wrapped in try/catch — a failure here (an applier/sandbox write
    * error, or the `markAutoApplied` write itself failing) is logged and swallowed, NEVER thrown —
    * the proposal row created above always stands regardless.
    */
@@ -577,23 +596,31 @@ export class LearningService {
       // applied via `this.logicApplier.applyLogicUpdate` the SAME automatic, no-human-gate,
       // best-effort way (see `LogicApplierService`'s own class doc).
       const logicItems = parsedItems.filter((item) => item.type === "LOGIC_UPDATE");
+      // AAOS Self-Improving (Phase SI-5) — the real, sandbox-gated PROMPT_UPDATE sibling of
+      // `configItems`/`logicItems` above (see this method's own doc for the full reasoning).
+      const promptItems = parsedItems.filter((item) => item.type === "PROMPT_UPDATE");
 
-      if (configItems.length > 0 || logicItems.length > 0) {
+      if (configItems.length > 0 || logicItems.length > 0 || promptItems.length > 0) {
         const appliedKeys: string[] = [];
-        // Real, honest "nothing left pending for a human" check — only true when EVERY parsed
-        // improvement item on this proposal is a CONFIG_UPDATE or LOGIC_UPDATE item (no
-        // PROMPT_UPDATE item at all). Any unparsed/malformed raw item also disqualifies
-        // AUTO_APPLIED, honestly.
-        let everythingAutoApplied =
+        const sandboxBlockedItems: Record<string, unknown>[] = [];
+        // Real, honest "nothing left pending for a human" check — every parsed improvement item on
+        // this proposal must be a real CONFIG_UPDATE/LOGIC_UPDATE/PROMPT_UPDATE item (any
+        // unparsed/malformed raw item disqualifies both real outcomes below).
+        const allItemsParsedAndKnownType =
           parsedItems.length === plan.improvements.length &&
-          configItems.length + logicItems.length === parsedItems.length;
+          configItems.length + logicItems.length + promptItems.length === parsedItems.length;
+        // `true` only while every item so far either applied successfully OR was honestly
+        // sandbox-blocked — a GENUINE write failure (unknown key, malformed logic, a real DB error)
+        // sets this `false` and can never be undone by a later item succeeding.
+        let hadGenuineFailure = !allItemsParsedAndKnownType;
+        let anySandboxBlocked = false;
 
         for (const item of configItems) {
           const result = await this.configApplier.applyConfigUpdate(tenantId, item);
           if (result.applied) {
             appliedKeys.push(item.target);
           } else {
-            everythingAutoApplied = false;
+            hadGenuineFailure = true;
           }
         }
 
@@ -602,15 +629,64 @@ export class LearningService {
           if (result.applied) {
             appliedKeys.push(item.target);
           } else {
-            everythingAutoApplied = false;
+            hadGenuineFailure = true;
           }
         }
 
-        if (appliedKeys.length > 0) {
+        // AAOS Self-Improving (Phase SI-5) — real, sandbox-gated PROMPT_UPDATE auto-apply. A
+        // SIMULATION-triggered gap (`onSimulationComplete`) has no real `agent_runs.id` of its own
+        // — `undefined` here makes `SandboxService.testImprovement` fall back to the tenant+agent's
+        // real most-recent run (see that method's own updated doc); a LIVE-run-triggered gap
+        // (`onAgentRunJudged`) always has one, passed through directly.
+        const baselineAgentRunId = "agentRunId" in source ? source.agentRunId : undefined;
+        for (const item of promptItems) {
+          const sandboxResult = await this.sandboxService.testImprovement(
+            tenantId,
+            item.agent,
+            item,
+            baselineAgentRunId,
+          );
+          const blockedBySandbox =
+            sandboxResult.available && sandboxResult.delta !== null && sandboxResult.delta < 0;
+          if (blockedBySandbox) {
+            anySandboxBlocked = true;
+            sandboxBlockedItems.push({
+              agent: item.agent,
+              target: item.target,
+              result: sandboxResult,
+            });
+            this.logger.warn(
+              `LearningService.${logLabel}: PROMPT_UPDATE ${item.agent}/${item.target} auto-apply BLOCKED by SandboxService (delta=${String(sandboxResult.delta)} < 0) — left un-applied, human can still force via LearningDecisionService.approve.`,
+            );
+            continue;
+          }
+          try {
+            await this.promptOverride.applyApproved(tenantId, item.agent, item.target, item.after);
+            appliedKeys.push(item.target);
+            this.logger.log(
+              `LearningService.${logLabel}: PROMPT_UPDATE ${item.agent}/${item.target} AUTO-APPLIED (sandbox: ${sandboxResult.available ? `delta=${String(sandboxResult.delta)}` : `unavailable (${sandboxResult.reason})`}) — no human approval, per the user's own confirmed decision.`,
+            );
+          } catch (caught) {
+            hadGenuineFailure = true;
+            this.logger.warn(
+              `LearningService.${logLabel}: PROMPT_UPDATE ${item.agent}/${item.target} auto-apply write failed — best-effort, proposal stands: ${String(caught)}`,
+            );
+          }
+        }
+
+        const newStatus: "PENDING" | "AUTO_APPLIED" | "AUTO_APPLY_BLOCKED_BY_SANDBOX" =
+          hadGenuineFailure
+            ? "PENDING"
+            : anySandboxBlocked
+              ? "AUTO_APPLY_BLOCKED_BY_SANDBOX"
+              : "AUTO_APPLIED";
+
+        if (appliedKeys.length > 0 || sandboxBlockedItems.length > 0) {
           await this.proposals.markAutoApplied(
             created.id,
             appliedKeys,
-            everythingAutoApplied ? "AUTO_APPLIED" : "PENDING",
+            newStatus,
+            sandboxBlockedItems,
           );
         }
       }

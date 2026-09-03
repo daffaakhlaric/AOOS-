@@ -12,6 +12,7 @@ import type {
 import type { ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
+import type { SandboxService, SandboxTestResult } from "../sandbox/sandbox.service.js";
 import { SIMULATION_CRITERIA } from "../simulation/domain/scoring.js";
 import type {
   ClaraPersonaRun,
@@ -190,6 +191,32 @@ function buildFakeLogicApplier(
   return { applyLogicUpdate } as unknown as LogicApplierService;
 }
 
+/**
+ * AAOS Self-Improving (Phase SI-5) — a fake `SandboxService` that defaults to a real, honest
+ * `available: false` degrade ("no signal") — same "an ABSENT signal is never a reason to block"
+ * default every pre-existing test in this file that doesn't care about sandbox gating keeps
+ * exercising, so `PROMPT_UPDATE` items in those tests proceed to `PromptOverrideService.applyApproved`
+ * exactly like `CONFIG_UPDATE`/`LOGIC_UPDATE` already do (and, since `buildFakePromptOverride()`
+ * doesn't define `applyApproved`, that call throws — a real, honest write failure caught by
+ * `persistProposal`'s own per-item try/catch, same as any other unconfigured fake write path in this
+ * file).
+ */
+function buildFakeSandboxService(
+  testImprovement: SandboxService["testImprovement"] = vi.fn(
+    async (): Promise<SandboxTestResult> => ({
+      available: false,
+      reason: "no real historical data for this test fixture",
+      improved: false,
+      baselineScore: null,
+      sandboxScore: null,
+      delta: null,
+      minDelta: 3,
+    }),
+  ),
+): SandboxService {
+  return { testImprovement } as unknown as SandboxService;
+}
+
 describe("LearningService", () => {
   describe("onSimulationComplete", () => {
     it("writes no proposal when verdict is GO (no gap)", async () => {
@@ -203,6 +230,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -219,6 +247,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -241,6 +270,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -275,6 +305,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -316,6 +347,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -342,6 +374,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await expect(service.onSimulationComplete("missing-id")).resolves.toBeUndefined();
       expect(proposals.create).not.toHaveBeenCalled();
@@ -366,6 +399,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -386,6 +420,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await expect(service.onSimulationComplete("sim-1")).resolves.toBeUndefined();
       expect(proposals.create).not.toHaveBeenCalled();
@@ -402,6 +437,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).toHaveBeenCalledTimes(1);
@@ -417,6 +453,7 @@ describe("LearningService", () => {
       agentConfig: AgentConfigService = buildFakeAgentConfigService(),
       configApplier: ConfigApplierService = buildFakeConfigApplier(),
       logicApplier: LogicApplierService = buildFakeLogicApplier(),
+      sandboxService: SandboxService = buildFakeSandboxService(),
     ): LearningService {
       return new LearningService(
         buildFakeSimulationRepository(undefined),
@@ -426,6 +463,7 @@ describe("LearningService", () => {
         agentConfig,
         configApplier,
         logicApplier,
+        sandboxService,
       );
     }
 
@@ -623,6 +661,7 @@ describe("LearningService", () => {
           "proposal-1",
           ["pause_cpl_multiplier"],
           "AUTO_APPLIED",
+          [],
         );
       });
 
@@ -688,6 +727,7 @@ describe("LearningService", () => {
           "proposal-1",
           ["pause_cpl_multiplier"],
           "PENDING",
+          [],
         );
       });
 
@@ -779,6 +819,7 @@ describe("LearningService", () => {
           "proposal-1",
           ["verdict_classification"],
           "AUTO_APPLIED",
+          [],
         );
       });
 
@@ -853,6 +894,7 @@ describe("LearningService", () => {
           "proposal-1",
           ["pause_cpl_multiplier", "verdict_classification"],
           "AUTO_APPLIED",
+          [],
         );
       });
 
@@ -875,6 +917,232 @@ describe("LearningService", () => {
         });
 
         expect(applyLogicUpdate).not.toHaveBeenCalled();
+        expect(proposals.markAutoApplied).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("AAOS Self-Improving (Phase SI-5) — real, sandbox-gated PROMPT_UPDATE auto-apply, no human gate", () => {
+      function buildPromptOnlyLlm(): LlmService {
+        return buildFakeLlmService({
+          generateImprovementPlan: vi.fn(async () => ({
+            available: true as const,
+            analysis: "prompt-only plan",
+            improvements: [
+              {
+                agent: "SAMANTHA" as const,
+                type: "PROMPT_UPDATE" as const,
+                target: "analyze",
+                before: "b",
+                after: "a real candidate prompt",
+                reason: "r",
+                severity: "MEDIUM" as const,
+              },
+            ],
+            droppedCount: 0,
+          })),
+        });
+      }
+
+      /** A fake `PromptOverrideService` whose `applyApproved` is a real, working spy (unlike `buildFakePromptOverride()`, which deliberately has no `applyApproved` at all). */
+      function buildFakePromptOverrideWithApply(
+        applyApproved: PromptOverrideService["applyApproved"] = vi.fn(async () => ({}) as never),
+      ): PromptOverrideService {
+        return {
+          resolve: vi.fn(async () => "current"),
+          applyApproved,
+        } as unknown as PromptOverrideService;
+      }
+
+      function sandboxResult(overrides: Partial<SandboxTestResult> = {}): SandboxTestResult {
+        return {
+          available: true,
+          improved: false,
+          baselineScore: 70,
+          sandboxScore: 70,
+          delta: 0,
+          minDelta: 3,
+          ...overrides,
+        };
+      }
+
+      it("real successful apply: sandbox unavailable (no signal) still auto-applies via PromptOverrideService.applyApproved, marks AUTO_APPLIED", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyApproved = vi.fn(async () => ({}) as never);
+        const serviceWithRealApply = new LearningService(
+          buildFakeSimulationRepository(undefined),
+          proposals,
+          buildPromptOnlyLlm(),
+          buildFakePromptOverrideWithApply(applyApproved),
+          buildFakeAgentConfigService(),
+          buildFakeConfigApplier(),
+          buildFakeLogicApplier(),
+          buildFakeSandboxService(),
+        );
+
+        await serviceWithRealApply.onAgentRunJudged("dss-motor", "agent-run-si5-1", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyApproved).toHaveBeenCalledWith(
+          "dss-motor",
+          "SAMANTHA",
+          "analyze",
+          "a real candidate prompt",
+        );
+        expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+          "proposal-1",
+          ["analyze"],
+          "AUTO_APPLIED",
+          [],
+        );
+      });
+
+      it("real successful apply: a neutral-or-better real sandbox result also auto-applies", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyApproved = vi.fn(async () => ({}) as never);
+        const testImprovement = vi.fn(async () => sandboxResult({ delta: 5, improved: true }));
+        const service = new LearningService(
+          buildFakeSimulationRepository(undefined),
+          proposals,
+          buildPromptOnlyLlm(),
+          buildFakePromptOverrideWithApply(applyApproved),
+          buildFakeAgentConfigService(),
+          buildFakeConfigApplier(),
+          buildFakeLogicApplier(),
+          buildFakeSandboxService(testImprovement),
+        );
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-si5-2", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyApproved).toHaveBeenCalledTimes(1);
+        expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+          "proposal-1",
+          ["analyze"],
+          "AUTO_APPLIED",
+          [],
+        );
+      });
+
+      it("real, honest block: a NEGATIVE real sandbox delta (worse than baseline) blocks auto-apply — applyApproved is never called, proposal marked AUTO_APPLY_BLOCKED_BY_SANDBOX with the real sandbox result recorded", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyApproved = vi.fn(async () => ({}) as never);
+        const negativeResult = sandboxResult({ delta: -8, sandboxScore: 62 });
+        const testImprovement = vi.fn(async () => negativeResult);
+        const service = new LearningService(
+          buildFakeSimulationRepository(undefined),
+          proposals,
+          buildPromptOnlyLlm(),
+          buildFakePromptOverrideWithApply(applyApproved),
+          buildFakeAgentConfigService(),
+          buildFakeConfigApplier(),
+          buildFakeLogicApplier(),
+          buildFakeSandboxService(testImprovement),
+        );
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-si5-3", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyApproved).not.toHaveBeenCalled();
+        expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+          "proposal-1",
+          [],
+          "AUTO_APPLY_BLOCKED_BY_SANDBOX",
+          [{ agent: "SAMANTHA", target: "analyze", result: negativeResult }],
+        );
+      });
+
+      it("passes the real LIVE-run agentRunId as the sandbox baseline (never undefined) when the gap is LIVE-run-triggered", async () => {
+        const proposals = buildFakeProposalRepository();
+        const testImprovement = vi.fn(async () => sandboxResult());
+        const service = new LearningService(
+          buildFakeSimulationRepository(undefined),
+          proposals,
+          buildPromptOnlyLlm(),
+          buildFakePromptOverrideWithApply(),
+          buildFakeAgentConfigService(),
+          buildFakeConfigApplier(),
+          buildFakeLogicApplier(),
+          buildFakeSandboxService(testImprovement),
+        );
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-si5-4", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(testImprovement).toHaveBeenCalledWith(
+          "dss-motor",
+          "SAMANTHA",
+          expect.objectContaining({ type: "PROMPT_UPDATE", target: "analyze" }),
+          "agent-run-si5-4",
+        );
+      });
+
+      it("passes undefined as the sandbox baseline (never a fabricated agentRunId) when the gap is SIMULATION-triggered", async () => {
+        const stored = buildStored({
+          scoring: {
+            verdict: "NO-GO",
+            samanthaCoverageScore: SIMULATION_CRITERIA.minSamanthaScore - 1,
+          },
+        });
+        const proposals = buildFakeProposalRepository();
+        const testImprovement = vi.fn(async () => sandboxResult());
+        const service = new LearningService(
+          buildFakeSimulationRepository(stored),
+          proposals,
+          buildPromptOnlyLlm(),
+          buildFakePromptOverrideWithApply(),
+          buildFakeAgentConfigService(),
+          buildFakeConfigApplier(),
+          buildFakeLogicApplier(),
+          buildFakeSandboxService(testImprovement),
+        );
+
+        await service.onSimulationComplete(stored.id);
+
+        expect(testImprovement).toHaveBeenCalledWith(
+          "dss-motor",
+          "SAMANTHA",
+          expect.objectContaining({ type: "PROMPT_UPDATE", target: "analyze" }),
+          undefined,
+        );
+      });
+
+      it("real write-failure best-effort degrade: applyApproved throwing keeps the proposal PENDING, never throws", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyApproved = vi.fn(async () => {
+          throw new Error("boom");
+        });
+        const service = new LearningService(
+          buildFakeSimulationRepository(undefined),
+          proposals,
+          buildPromptOnlyLlm(),
+          buildFakePromptOverrideWithApply(applyApproved),
+          buildFakeAgentConfigService(),
+          buildFakeConfigApplier(),
+          buildFakeLogicApplier(),
+          buildFakeSandboxService(),
+        );
+
+        await expect(
+          service.onAgentRunJudged("dss-motor", "agent-run-si5-5", "SAMANTHA", {
+            scores: { overall: 10 },
+            gaps: [],
+            trend: "STABLE",
+          }),
+        ).resolves.toBeUndefined();
+
+        expect(proposals.create).toHaveBeenCalledTimes(1);
         expect(proposals.markAutoApplied).not.toHaveBeenCalled();
       });
     });
@@ -915,6 +1183,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -965,6 +1234,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -995,6 +1265,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
 
       await expect(service.onSimulationComplete(stored.id)).resolves.toBeUndefined();
@@ -1023,6 +1294,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
 
       await service.onAgentRunJudged("dss-motor", "agent-run-si3-1", "CLARA", {
@@ -1067,6 +1339,7 @@ describe("LearningService", () => {
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
         buildFakeLogicApplier(),
+        buildFakeSandboxService(),
       );
 
       await service.onAgentRunJudged("dss-motor", "agent-run-si3-2", "SAMANTHA", {

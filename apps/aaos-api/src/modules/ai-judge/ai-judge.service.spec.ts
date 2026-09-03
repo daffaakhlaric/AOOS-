@@ -10,6 +10,8 @@ import { buildTestConfig } from "../../test-support/fixtures.js";
 import { mswServer, registerOpenAiChatHandler } from "../../test-support/openai-msw.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
+import { JudgeMemoryService } from "../judge-memory/judge-memory.service.js";
+import { LearningProposalRepository } from "../learning/infrastructure/learning-proposal.repository.js";
 import type { LearningService } from "../learning/learning.service.js";
 import { ResponseCache } from "../llm/cache/ResponseCache.js";
 import { OpenAiClient } from "../llm/infrastructure/OpenAiClient.js";
@@ -65,12 +67,13 @@ function buildService(
 } {
   const agentRuns = new AgentRunsService(new AgentRunRepository(client));
   const repository = new JudgeResultRepository(client);
+  const judgeMemory = new JudgeMemoryService(repository, new LearningProposalRepository(client));
   return {
     client,
     agentRuns,
     repository,
     learningService,
-    service: new AiJudgeService(agentRuns, llmService, repository, learningService),
+    service: new AiJudgeService(agentRuns, llmService, repository, learningService, judgeMemory),
   };
 }
 
@@ -341,6 +344,10 @@ describe("AiJudgeService.judgeRun", () => {
           { createdAt: expect.any(String), overall: 80 },
         ],
         averageOverall: 70,
+        // AAOS Self-Improving, Phase SI-5 — real, honest empty (no real learning_proposals rows
+        // seeded in this test), never fabricated.
+        appliedProposals: [],
+        knownPatterns: [],
       });
     });
   });

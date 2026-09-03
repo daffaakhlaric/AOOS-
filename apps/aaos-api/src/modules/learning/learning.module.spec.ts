@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { PromptOverrideModule } from "../prompt-override/prompt-override.module.js";
+import { SandboxModule } from "../sandbox/sandbox.module.js";
 import { SimulationRepository } from "../simulation/infrastructure/simulation.repository.js";
 
 import { LearningProposalRepository } from "./infrastructure/learning-proposal.repository.js";
@@ -23,6 +24,11 @@ describe("LearningModule", () => {
   it("imports AgentConfigModule (AAOS Self-Improving Phase SI-1 — so LearningService injects the SAME real AgentConfigService/ConfigApplierService SchedulerModule's consumer uses)", () => {
     const metadata = Reflect.getMetadata("imports", LearningModule) as unknown[];
     expect(metadata).toContain(AgentConfigModule);
+  });
+
+  it("imports SandboxModule (AAOS Self-Improving Phase SI-5 — so LearningService injects the SAME real SandboxService for its PROMPT_UPDATE safety net)", () => {
+    const metadata = Reflect.getMetadata("imports", LearningModule) as unknown[];
+    expect(metadata).toContain(SandboxModule);
   });
 
   it("exports LearningService (so SimulationModule can inject it)", () => {

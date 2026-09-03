@@ -1,20 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
 
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
+import { JudgeMemoryService } from "../judge-memory/judge-memory.service.js";
 import { LearningService } from "../learning/learning.service.js";
 import { LlmService } from "../llm/llm.service.js";
 
 import { JudgeResultRepository } from "./infrastructure/judge-result.repository.js";
 
 const JUDGEABLE_AGENTS = new Set(["SAMANTHA", "KAI", "CLARA"]);
-
-/** A real, honestly-computed average of `overall` scores — `null` (never `0`) when `values` is empty. */
-function average(values: readonly number[]): number | null {
-  if (values.length === 0) {
-    return null;
-  }
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
 
 /**
  * `modules/ai-judge` (AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2) — a genuinely NEW, small module
@@ -42,6 +35,9 @@ export class AiJudgeService {
     private readonly llmService: LlmService,
     private readonly repository: JudgeResultRepository,
     private readonly learningService: LearningService,
+    // AAOS Self-Improving (Phase SI-5) — real, curated Judge Memory, replacing this method's own
+    // former inline "last 10 raw overall scores" build (see `JudgeMemoryService`'s own class doc).
+    private readonly judgeMemory: JudgeMemoryService,
   ) {}
 
   /**
@@ -75,14 +71,9 @@ export class AiJudgeService {
       }
       const agent = run.agent as "SAMANTHA" | "KAI" | "CLARA";
 
-      const recentRows = await this.repository.listRecentForTenant(tenantId, agent, 10);
-      const recent = recentRows.map((row) => ({
-        createdAt: row.created_at,
-        overall: extractOverall(row.scores),
-      }));
-      const overallValues = recent
-        .map((entry) => entry.overall)
-        .filter((value): value is number => value !== undefined);
+      // AAOS Self-Improving (Phase SI-5) — real, curated Judge Memory (`JudgeMemoryService`'s own
+      // class doc), replacing this method's former inline "last 10 raw overall scores" build.
+      const memory = await this.judgeMemory.build(tenantId, agent);
 
       const result = await this.llmService.judgeAgentRun(tenantId, {
         tenantId,
@@ -90,13 +81,7 @@ export class AiJudgeService {
         runRef: run.run_ref,
         runCreatedAt: run.created_at,
         context: (run.context ?? {}) as Record<string, unknown>,
-        memory: {
-          recent: recent.map((entry) => ({
-            createdAt: entry.createdAt,
-            overall: entry.overall ?? 0,
-          })),
-          averageOverall: average(overallValues),
-        },
+        memory,
       });
 
       if (!result.available) {
@@ -132,10 +117,4 @@ export class AiJudgeService {
       this.logger.warn(`AiJudgeService.judgeRun(${agentRunId}) failed: ${String(caught)}`);
     }
   }
-}
-
-/** Reads a real, previously-persisted `overall` score out of a `judge_results.scores` JSONB blob — `undefined` (never `0`) when the shape is unexpected. */
-function extractOverall(scores: Record<string, unknown>): number | undefined {
-  const overall = scores["overall"];
-  return typeof overall === "number" ? overall : undefined;
 }

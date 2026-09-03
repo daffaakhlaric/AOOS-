@@ -6,6 +6,7 @@ import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { PromptOverrideModule } from "../prompt-override/prompt-override.module.js";
+import { SandboxModule } from "../sandbox/sandbox.module.js";
 import { SimulationRepository } from "../simulation/infrastructure/simulation.repository.js";
 
 import { LearningProposalRepository } from "./infrastructure/learning-proposal.repository.js";
@@ -41,6 +42,10 @@ import { LearningService } from "./learning.service.js";
     // `SchedulerModule`'s consumer uses — one real config/logic resolver/auto-applier, not a second
     // copy of any of them.
     AgentConfigModule,
+    // AAOS Self-Improving (Phase SI-5) — so LearningService can inject the SAME real SandboxService
+    // as its narrow, honest safety net before auto-applying a PROMPT_UPDATE item (see
+    // `SandboxModule`'s own doc for why this creates no circular-import risk).
+    SandboxModule,
   ],
   controllers: [LearningController],
   providers: [

@@ -220,6 +220,82 @@ describe("LearningDecisionService", () => {
       );
     });
 
+    describe("AAOS Self-Improving (Phase SI-5) — the real human-override route for a sandbox-blocked PROMPT_UPDATE", () => {
+      it("approves a proposal with status AUTO_APPLY_BLOCKED_BY_SANDBOX (a real, additive decidable status)", async () => {
+        const client = createFakeSupabaseClient();
+        seedProposal(client, {
+          status: "AUTO_APPLY_BLOCKED_BY_SANDBOX",
+          auto_applied_config_keys: [],
+          sandbox_blocked_items: [
+            { agent: "SAMANTHA", target: "analyze", result: { available: true, delta: -5 } },
+          ],
+        });
+        const { service } = buildService(client);
+
+        const result = await service.approve(
+          "proposal-1",
+          "manager@dss-motor.id",
+          "Force override",
+        );
+
+        expect(result.status).toBe("APPROVED");
+        const rows = client.rows("agent_prompt_overrides");
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.["content"]).toBe("new, improved prompt");
+      });
+
+      it("rejects a proposal with status AUTO_APPLY_BLOCKED_BY_SANDBOX (also decidable) — never writes agent_prompt_overrides", async () => {
+        const client = createFakeSupabaseClient();
+        seedProposal(client, { status: "AUTO_APPLY_BLOCKED_BY_SANDBOX" });
+        const { service } = buildService(client);
+
+        const result = await service.reject("proposal-1", "manager@dss-motor.id", "Tidak relevan");
+
+        expect(result.status).toBe("REJECTED");
+        expect(client.rows("agent_prompt_overrides")).toHaveLength(0);
+      });
+
+      it("never double-writes a PROMPT_UPDATE target that was already auto-applied at persist time (auto_applied_config_keys already contains it)", async () => {
+        const client = createFakeSupabaseClient();
+        seedProposal(client, {
+          status: "AUTO_APPLY_BLOCKED_BY_SANDBOX",
+          improvements: [
+            {
+              agent: "SAMANTHA",
+              type: "PROMPT_UPDATE",
+              target: "analyze",
+              before: "old",
+              after: "already-applied version",
+              reason: "x",
+              severity: "HIGH",
+            },
+            {
+              agent: "CLARA",
+              type: "PROMPT_UPDATE",
+              target: "clara_system_prompt",
+              before: "old",
+              after: "the real blocked target",
+              reason: "x",
+              severity: "MEDIUM",
+            },
+          ],
+          // "analyze" was already auto-applied at persist time; "clara_system_prompt" was the one
+          // sandbox-blocked (SANDBOX only ever tests SAMANTHA/analyze — a CLARA item always degrades
+          // to unavailable, but this test only cares about the "already applied" skip logic here).
+          auto_applied_config_keys: ["analyze"],
+        });
+        const { service } = buildService(client);
+
+        await service.approve("proposal-1", undefined, undefined);
+
+        const rows = client.rows("agent_prompt_overrides");
+        // Only the NOT-already-applied target ("clara_system_prompt") gets a real write here.
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.["prompt_key"]).toBe("clara_system_prompt");
+        expect(rows[0]?.["content"]).toBe("the real blocked target");
+      });
+    });
+
     it("leaves the proposal PENDING (never marks APPROVED) when applying an improvement fails", async () => {
       const client = createFakeSupabaseClient();
       seedProposal(client);

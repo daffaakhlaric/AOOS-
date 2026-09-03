@@ -65,4 +65,34 @@ export class AgentRunRepository {
     }
     return data ?? undefined;
   }
+
+  /**
+   * The single most recent `agent_runs` row for one real tenant+agent, or `undefined` when none
+   * exists — AAOS Self-Improving, Phase SI-5's real baseline lookup for
+   * `SandboxService.testImprovement` when its caller (`LearningService.persistProposal`, a
+   * SIMULATION-triggered gap) has no real `agent_runs.id` of its own to sandbox-test against (unlike
+   * a LIVE-run-triggered gap, which always has one — see `LearningService`'s own doc). Honest, not
+   * fabricated: this is a real, genuinely-most-recent run for this tenant+agent, the same real
+   * "latest real data available" precedent `SimulationService`'s own historical-data-only re-run
+   * already establishes — never a synthetic/placeholder run.
+   */
+  async findLatestForTenantAgent(
+    tenantId: string,
+    agent: string,
+  ): Promise<AgentRunRow | undefined> {
+    const { data, error } = await this.client
+      .from<AgentRunRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("agent", agent)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error !== null) {
+      throw new AgentRunRepositoryError(
+        `AgentRunRepository.findLatestForTenantAgent failed: ${error.message}`,
+      );
+    }
+    return data ?? undefined;
+  }
 }
