@@ -22,6 +22,7 @@ const PROPOSAL_ROW: LearningProposalRow = {
   decision_notes: null,
   decided_at: null,
   created_at: "2026-08-01T00:00:00.000Z",
+  auto_applied_config_keys: [],
 };
 
 function buildFakeDecisions(): LearningDecisionService {

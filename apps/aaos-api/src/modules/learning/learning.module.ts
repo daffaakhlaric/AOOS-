@@ -2,6 +2,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { PromptOverrideModule } from "../prompt-override/prompt-override.module.js";
@@ -32,7 +33,14 @@ import { LearningService } from "./learning.service.js";
  * stateless guard class" reasoning `GoLiveModule` already documents for the identical guard).
  */
 @Module({
-  imports: [LlmModule, PromptOverrideModule],
+  imports: [
+    LlmModule,
+    PromptOverrideModule,
+    // AAOS Self-Improving (Phase SI-1) — so LearningService can inject the SAME real
+    // AgentConfigService/ConfigApplierService `SchedulerModule`'s consumer uses — one real config
+    // resolver/auto-applier, not a second copy of either.
+    AgentConfigModule,
+  ],
   controllers: [LearningController],
   providers: [
     LearningService,

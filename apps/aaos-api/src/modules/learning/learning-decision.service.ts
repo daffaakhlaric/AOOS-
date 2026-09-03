@@ -58,10 +58,18 @@ export class LearningDecisionService {
    * `type === 'PROMPT_UPDATE'`, calls `PromptOverrideService.applyApproved` — the single real
    * deactivate-then-insert write documented on that method. A `CONFIG_UPDATE` item (or any item
    * that fails re-validation against `ImprovementItemSchema`) is a real, documented no-op here,
-   * never an error: `LlmService.generateImprovementPlan`'s own KNOWN_PROMPT_KEYS check already
-   * drops every `CONFIG_UPDATE` improvement before it's ever persisted to `learning_proposals` in
-   * Phase B (no real `config_key` vocabulary exists yet — see that method's own doc), so this
-   * branch is defensive, not the primary path.
+   * never an error.
+   *
+   * UPDATED, AAOS Self-Improving Phase SI-1: a real `CONFIG_UPDATE` item is no longer inert — but
+   * it is auto-applied to `agent_configs` at PROPOSAL-PERSIST time
+   * (`LearningService.persistProposal` -> `ConfigApplierService.applyConfigUpdate`, immediately,
+   * with NO human approval step — the user's own explicit, twice-confirmed decision, see that
+   * class's own doc), never here at Approve time. By the time a human reaches this method, any
+   * `CONFIG_UPDATE` item on the proposal has already been applied (or already failed, best-effort)
+   * — re-applying it here would be a real, dishonest double-write, so this branch stays a
+   * deliberate no-op for `CONFIG_UPDATE`, now for a DIFFERENT real reason than Phase B's original
+   * "no real config_key vocabulary exists yet" finding (which is now false for exactly the 2 real
+   * `KNOWN_CONFIG_KEYS`).
    *
    * If any `applyApproved` call throws, the error propagates uncaught and `learning_proposals` is
    * NEVER marked `APPROVED` — a proposal whose write failed stays `PENDING`, honestly reflecting
@@ -96,7 +104,7 @@ export class LearningDecisionService {
       const item = parsed.data;
       if (item.type !== "PROMPT_UPDATE") {
         this.logger.warn(
-          `LearningDecisionService.approve(${id}): improvement type "${item.type}" is inert today (no real config_key vocabulary — see LlmService's own doc) — no-op.`,
+          `LearningDecisionService.approve(${id}): improvement type "${item.type}" is applied elsewhere (CONFIG_UPDATE auto-applies at proposal-persist time, see LearningService.persistProposal's own doc) — no-op here, never a double-write.`,
         );
         continue;
       }

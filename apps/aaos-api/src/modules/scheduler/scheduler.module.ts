@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
+import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
@@ -87,6 +88,9 @@ import { SchedulerService } from "./scheduler.service.js";
     // PendingActionsService for its own real enqueue() write path when a tenant's
     // operating_mode is APPROVAL (see that module's own doc).
     PendingActionsModule,
+    // AAOS Self-Improving (Phase SI-1) — so SchedulerService can inject the real
+    // AgentConfigService for `pause_cpl_multiplier` (see runPropertyCampaignTriggerCheck's own doc).
+    AgentConfigModule,
   ],
   controllers: [SchedulerController],
   providers: [

@@ -40,6 +40,7 @@ import {
 } from "../../di-tokens.js";
 import { AbTestingService } from "../abtesting/abtesting.service.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { AgentConfigService } from "../agent-config/agent-config.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
@@ -62,6 +63,7 @@ import { TenantRepository } from "../superadmin/infrastructure/tenant.repository
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import { isSupportedCalendarEventType } from "./domain/calendar-event.js";
 import {
+  HIGH_CPL_MULTIPLIER,
   shouldCreateNewCampaign,
   type CampaignTriggerDecision,
 } from "./domain/campaign-trigger.js";
@@ -146,6 +148,14 @@ export class SchedulerService {
      * tenant's real `operating_mode` is `APPROVAL`.
      */
     private readonly pendingActions: PendingActionsService,
+    /**
+     * AAOS Self-Improving (Phase SI-1) — real, DB-backed `pause_cpl_multiplier` config, resolved
+     * once per `runPropertyCampaignTriggerCheck` call and threaded into `shouldCreateNewCampaign`'s
+     * real, optional 3rd parameter (see that pure function's own doc for why it stays synchronous).
+     * Injected the same way `pendingActions` above already is (`AgentConfigModule`, imported
+     * directly by `SchedulerModule`).
+     */
+    private readonly agentConfigService: AgentConfigService,
   ) {}
 
   /**
@@ -803,6 +813,19 @@ export class SchedulerService {
     const { listings } = await this.listingsService.list(tenantId, { status: "AKTIF" });
     const now = new Date();
 
+    // AAOS Self-Improving (Phase SI-1) — real, DB-backed override for `HIGH_CPL_MULTIPLIER`,
+    // resolved ONCE for this whole pull (not per listing — the value doesn't vary within a single
+    // check) and threaded into `shouldCreateNewCampaign`'s real, optional 3rd parameter. Falls back
+    // to the exact same hardcoded `HIGH_CPL_MULTIPLIER` (1.5) when no tenant override row exists —
+    // zero behavior change until a real `agent_configs` row is customized (`AgentConfigService.get`'s
+    // own doc).
+    const cplMultiplier = await this.agentConfigService.get(
+      tenantId,
+      "SAMANTHA",
+      "pause_cpl_multiplier",
+      HIGH_CPL_MULTIPLIER,
+    );
+
     const perListing = listings.map((listing) => ({
       listing,
       matched: matchActiveCampaignForListing(listing, adAccounts),
@@ -828,6 +851,7 @@ export class SchedulerService {
           ...(benchmarkCplIDR !== undefined ? { benchmarkCplIDR } : {}),
         },
         now,
+        cplMultiplier,
       );
       if (!decision.shouldCreate) {
         continue;

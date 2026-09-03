@@ -270,6 +270,19 @@ describe("AAOS EPIC S Phase S6 — real end-to-end: cron tick -> SchedulerServic
       activityLogger,
       campaignsService,
       { record: vi.fn(async () => undefined) } as never, // agentRunsService — AAOS-AI-JUDGE-SELF-IMPROVING Phase J1, unrelated to this real flow's own assertions
+      { judgeRun: vi.fn(async () => undefined) } as never, // aiJudgeService — AAOS-AI-JUDGE-SELF-IMPROVING Phase J2, unrelated to this real flow's own assertions
+      {
+        enqueue: vi.fn(),
+        listPending: vi.fn(async () => []),
+        approve: vi.fn(),
+        reject: vi.fn(),
+      } as never, // pendingActions — AAOS-OPERATING-MODE-APPROVAL-GATE, unrelated (tenant fixture is FULL_CONTROL)
+      // AAOS Self-Improving (Phase SI-1) — real fallback-passthrough fake, same
+      // "no override row exists yet" behavior `AgentConfigService.get` documents on itself, so
+      // this real end-to-end flow's HIGH_CPL threshold stays byte-identical to before this phase.
+      {
+        get: vi.fn(async (_t: string, _a: string, _k: string, fallback: number) => fallback),
+      } as never,
     );
 
     await service.executeEvent(buildEvent());

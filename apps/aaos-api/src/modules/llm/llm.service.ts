@@ -106,6 +106,20 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
 ];
 
 /**
+ * AAOS Self-Improving, Phase SI-1's real, additive sibling of `KNOWN_PROMPT_KEYS` — the real
+ * `agent_configs.config_key` vocabulary this phase wires up (`034_agent_configs.sql`'s own header
+ * doc), so a `CONFIG_UPDATE` improvement item targeting one of these 2 real keys is no longer
+ * silently dropped by `generateImprovementPlan`'s own known-key check below (see that method's own
+ * doc — this REPLACES the previous "every CONFIG_UPDATE is dropped, no real config_key vocabulary
+ * exists yet" finding for exactly these 2 keys; every other `CONFIG_UPDATE` target still gets
+ * dropped, same discipline as an unknown `PROMPT_UPDATE` target).
+ */
+export const KNOWN_CONFIG_KEYS: readonly string[] = [
+  "pause_cpl_multiplier",
+  "live_run_gap_threshold",
+];
+
+/**
  * Verbatim system prompt from the spec's `POST /api/v1/llm/analyze` section. Exported (AAOS
  * Self-Learning AI, Phase B) so `LearningService` can pass the SAME real fallback constant into
  * `PromptOverrideService.resolve(tenantId, "SAMANTHA", "analyze", ANALYZE_SYSTEM_PROMPT)` when
@@ -1037,19 +1051,21 @@ export class LlmService {
    * one extra, load-bearing step mirroring `selectTargeting`'s candidate-id intersection /
    * `campaignStrategy`'s angle-membership check:
    *
-   * **Every `improvements[].target` is checked against `KNOWN_PROMPT_KEYS`, the real Phase A
-   * `prompt_key` vocabulary.** Any improvement whose `target` isn't in that list is DROPPED (not
-   * kept, not failing the whole response) — an LLM is not trusted to only propose a change to a
-   * prompt key that actually exists, no matter what the prompt says. `droppedCount` on the
+   * **Every `improvements[].target` is checked against `KNOWN_PROMPT_KEYS` ∪ `KNOWN_CONFIG_KEYS`
+   * (the real Phase A `prompt_key` vocabulary plus Phase SI-1's real `agent_configs.config_key`
+   * vocabulary).** Any improvement whose `target` isn't in that combined set is DROPPED (not kept,
+   * not failing the whole response) — an LLM is not trusted to only propose a change to a
+   * prompt/config key that actually exists, no matter what the prompt says. `droppedCount` on the
    * response tells the caller how many were dropped, so `LearningService` can document it on the
    * stored proposal row rather than silently losing the information.
    *
-   * REAL FINDING: `023_agent_config_overrides.sql`'s `config_key` column is INERT (no real Kai
-   * config key is wired to anything yet — see that migration's own header doc). There is therefore
-   * no real `config_key` vocabulary to validate a `CONFIG_UPDATE` improvement's `target` against
-   * today, so every `CONFIG_UPDATE` improvement is dropped by the same `KNOWN_PROMPT_KEYS` check
-   * above (it will never match a prompt_key) — honest given the current state of the codebase,
-   * never a fabricated config-key allowlist.
+   * REAL FINDING, UPDATED (AAOS Self-Improving, Phase SI-1): `023_agent_config_overrides.sql`'s own
+   * `config_key` column is still INERT (no real Kai config key is wired to anything — see that
+   * migration's own header doc, unchanged), but a SEPARATE, real `agent_configs` table
+   * (`034_agent_configs.sql`) now backs exactly 2 real config keys (`KNOWN_CONFIG_KEYS`,
+   * `pause_cpl_multiplier`/`live_run_gap_threshold`) — a `CONFIG_UPDATE` improvement targeting
+   * either of those 2 real keys is no longer dropped; every other `CONFIG_UPDATE` target still is,
+   * honestly matching the real, current state of the codebase rather than a fabricated allowlist.
    */
   async generateImprovementPlan(
     tenantId: string,
@@ -1090,7 +1106,7 @@ export class LlmService {
       return { ...unavailable("INVALID_RESPONSE"), droppedCount: 0 };
     }
 
-    const knownKeys = new Set(KNOWN_PROMPT_KEYS);
+    const knownKeys = new Set([...KNOWN_PROMPT_KEYS, ...KNOWN_CONFIG_KEYS]);
     const improvements: ImprovementItem[] = validated.data.improvements.filter((item) =>
       knownKeys.has(item.target),
     );

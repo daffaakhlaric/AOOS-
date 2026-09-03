@@ -21,6 +21,7 @@ import {
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import type { AgentConfigService } from "../agent-config/agent-config.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
@@ -178,6 +179,18 @@ function buildFakePendingActionsService(
     approve: vi.fn(),
     reject: vi.fn(),
   } as unknown as PendingActionsService;
+}
+
+/** AAOS Self-Improving (Phase SI-1) — a fake `AgentConfigService` that always resolves to the caller's own `fallback` (the exact real default-passthrough behavior `AgentConfigService.get` documents on itself for "no override row exists yet"), so every test that doesn't care about `pause_cpl_multiplier` keeps exercising `HIGH_CPL_MULTIPLIER`'s real default value unchanged. */
+function buildFakeAgentConfigService(
+  get: AgentConfigService["get"] = vi.fn(
+    async (_tenantId: string, _agent: string, _key: string, fallback: number) => fallback,
+  ),
+): AgentConfigService {
+  return {
+    get,
+    set: vi.fn(async () => ({}) as never),
+  } as unknown as AgentConfigService;
 }
 
 function buildFakeModeGuardService(mode: "DEV" | "LIVE" = "LIVE"): ModeGuardService {
@@ -376,6 +389,7 @@ function buildService(
     agentRunsService?: AgentRunsService;
     aiJudgeService?: AiJudgeService;
     pendingActions?: PendingActionsService;
+    agentConfigService?: AgentConfigService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -413,6 +427,7 @@ function buildService(
     options.agentRunsService ?? buildRealAgentRunsService().agentRunsService,
     options.aiJudgeService ?? buildFakeAiJudgeService(),
     options.pendingActions ?? buildFakePendingActionsService(),
+    options.agentConfigService ?? buildFakeAgentConfigService(),
   );
 }
 
@@ -617,6 +632,39 @@ describe("SchedulerService.executeEvent", () => {
         "dss-motor",
         { listingId: "listing-1" },
         expect.any(String),
+      );
+    });
+
+    it("AAOS Self-Improving (Phase SI-1): resolves pause_cpl_multiplier via AgentConfigService.get with the real (tenantId, 'SAMANTHA', 'pause_cpl_multiplier', HIGH_CPL_MULTIPLIER) args, and a real PROPERTY trigger still fires byte-identically when no override row exists (zero behavior change)", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const campaignsService = buildFakeCampaignsService();
+      const get = vi.fn(async (_t: string, _a: string, _k: string, fallback: number) => fallback);
+      const agentConfigService = buildFakeAgentConfigService(get);
+      const service = buildService({
+        repository,
+        listingsService,
+        campaignsService,
+        agentConfigService,
+        tenants: buildFakeTenantRepository(propertyTenants),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(get).toHaveBeenCalledWith("dss-motor", "SAMANTHA", "pause_cpl_multiplier", 1.5);
+      expect(campaignsService.createPropertyCampaign).toHaveBeenCalledWith(
+        "dss-motor",
+        { listingId: "listing-1" },
+        expect.any(String),
+      );
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({
+          propertyCampaignTriggersChecked: 1,
+          propertyCampaignTriggersFired: 1,
+        }),
       );
     });
 

@@ -49,7 +49,7 @@ export const NEW_LISTING_WINDOW_MS = 48 * 60 * 60 * 1000;
 /** Reused verbatim from `@aos/meta-ads-agent`'s real, already-established `FATIGUE_FREQUENCY_THRESHOLD`/`FREQUENCY_HIGH_MEDIUM_THRESHOLD` constant (`HistoricalLearningService.ts`/`AnomalyDetector.ts`) — not a fresh, independently-chosen number. */
 export const HIGH_FREQUENCY_THRESHOLD = 3.5;
 
-/** CPL more than 50% above this tenant's own benchmark counts as "high" — a documented judgment call (no external CPL-anomaly threshold exists anywhere in this codebase to reuse), deliberately conservative (not 10-20%) so ordinary day-to-day CPL noise doesn't fire a trigger every pull. */
+/** CPL more than 50% above this tenant's own benchmark counts as "high" — a documented judgment call (no external CPL-anomaly threshold exists anywhere in this codebase to reuse), deliberately conservative (not 10-20%) so ordinary day-to-day CPL noise doesn't fire a trigger every pull. AAOS Self-Improving, Phase SI-1: this is now only the real, honest DEFAULT — `AgentConfigService.get(tenantId, "SAMANTHA", "pause_cpl_multiplier", HIGH_CPL_MULTIPLIER)`'s own fallback and this constant's `034_agent_configs.sql` seed value, both kept identical to this literal by that migration's own zero-behavior-change discipline. */
 export const HIGH_CPL_MULTIPLIER = 1.5;
 
 /**
@@ -57,10 +57,22 @@ export const HIGH_CPL_MULTIPLIER = 1.5;
  * by listing age against `NEW_LISTING_WINDOW_MS`) so each is independently, deterministically
  * testable. Conditions 3/4 are independent of 1/2 and of each other — any subset (including none)
  * may fire together.
+ *
+ * AAOS Self-Improving, Phase SI-1 — real, LEAST-INVASIVE config rewiring: this function stays pure
+ * and synchronous (its own real callers, `SchedulerService.runPropertyCampaignTriggerCheck`'s
+ * per-listing loop and `campaign-trigger.spec.ts`'s whole suite, both depend on that — making it
+ * `async` to reach a DB-backed config value would force every real call site to change shape for no
+ * real benefit). `cplMultiplier` is instead a real, OPTIONAL 3rd parameter, defaulting to the exact
+ * same `HIGH_CPL_MULTIPLIER` constant this function always used — so every existing call site
+ * (including this file's own full spec suite) keeps behaving byte-identically with zero change.
+ * `SchedulerService`'s real caller resolves the tenant's real `agent_configs` value ONCE per pull
+ * (`AgentConfigService.get`) and passes it in explicitly — the one real, honest place a DB-backed
+ * override can reach this pure decision function without making it impure.
  */
 export function shouldCreateNewCampaign(
   signals: ListingCampaignSignals,
   now: Date,
+  cplMultiplier: number = HIGH_CPL_MULTIPLIER,
 ): CampaignTriggerDecision {
   const reasons: CampaignTriggerReason[] = [];
 
@@ -79,7 +91,7 @@ export function shouldCreateNewCampaign(
     signals.cplIDR !== undefined &&
     signals.benchmarkCplIDR !== undefined &&
     signals.benchmarkCplIDR > 0 &&
-    signals.cplIDR > signals.benchmarkCplIDR * HIGH_CPL_MULTIPLIER
+    signals.cplIDR > signals.benchmarkCplIDR * cplMultiplier
   ) {
     reasons.push("HIGH_CPL");
   }

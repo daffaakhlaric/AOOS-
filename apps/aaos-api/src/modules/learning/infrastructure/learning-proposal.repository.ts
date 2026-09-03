@@ -22,6 +22,15 @@ export interface LearningProposalRow {
   readonly decision_notes: string | null;
   readonly decided_at: string | null;
   readonly created_at: string;
+  /**
+   * AAOS Self-Improving, Phase SI-1 (`035_learning_proposals_auto_applied.sql`) — the real
+   * `config_key` targets that were auto-applied (`ConfigApplierService.applyConfigUpdate`, no human
+   * approval) for this proposal, if any. `[]` when this proposal has no `CONFIG_UPDATE` items or
+   * none of them were successfully applied — see that migration's own header doc for the full
+   * "why not just overload `status`" reasoning, and `LearningService.persistProposal`'s doc for the
+   * real write sequencing.
+   */
+  readonly auto_applied_config_keys: readonly string[];
 }
 
 /**
@@ -168,6 +177,37 @@ export class LearningProposalRepository {
     if (error !== null) {
       throw new LearningProposalRepositoryError(
         `LearningProposalRepository.updateDecision failed: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-1 — real write for `ConfigApplierService.applyConfigUpdate`'s
+   * auto-apply results, called from `LearningService.persistProposal` immediately after `create`
+   * (never before — the proposal row must exist first). `void` return, same "update returns void,
+   * caller re-reads if needed" convention `updateDecision`/`PromptOverrideRepository.deactivate`
+   * already establish.
+   *
+   * `newStatus` is real, caller-computed: `'AUTO_APPLIED'` ONLY when the caller has confirmed every
+   * improvement item on this proposal was a successfully-applied `CONFIG_UPDATE` (no
+   * `PROMPT_UPDATE` item left genuinely pending human review) — see
+   * `035_learning_proposals_auto_applied.sql`'s own header doc for the full reasoning. This
+   * repository method trusts the caller's computed value rather than re-deriving it, same
+   * "service layer decides, repository just persists" convention every other write method on this
+   * class already follows.
+   */
+  async markAutoApplied(
+    id: string,
+    autoAppliedConfigKeys: readonly string[],
+    newStatus: "PENDING" | "AUTO_APPLIED",
+  ): Promise<void> {
+    const { error } = await this.client
+      .from<LearningProposalRow>(TABLE)
+      .update({ auto_applied_config_keys: [...autoAppliedConfigKeys], status: newStatus })
+      .eq("id", id);
+    if (error !== null) {
+      throw new LearningProposalRepositoryError(
+        `LearningProposalRepository.markAutoApplied failed: ${error.message}`,
       );
     }
   }

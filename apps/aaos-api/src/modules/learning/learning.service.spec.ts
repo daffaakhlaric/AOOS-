@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { AgentConfigService } from "../agent-config/agent-config.service.js";
+import type {
+  ApplyConfigUpdateResult,
+  ConfigApplierService,
+} from "../agent-config/config-applier.service.js";
+import type { ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
 import { SIMULATION_CRITERIA } from "../simulation/domain/scoring.js";
@@ -96,9 +102,11 @@ function buildFakeProposalRepository(
         decision_notes: null,
         decided_at: null,
         created_at: "2026-08-13T00:00:00.000Z",
+        auto_applied_config_keys: [],
       } satisfies LearningProposalRow;
     }),
     listRecentForTenant: vi.fn(async () => recent),
+    markAutoApplied: vi.fn(async () => undefined),
   } as unknown as LearningProposalRepository & {
     readonly createCalls: CreateLearningProposalInput[];
   };
@@ -132,6 +140,27 @@ function buildFakePromptOverride(content = "current active prompt"): PromptOverr
   } as unknown as PromptOverrideService;
 }
 
+/** AAOS Self-Improving (Phase SI-1) — a fake `AgentConfigService` that always resolves to the caller's own `fallback` (the exact real default-passthrough behavior `AgentConfigService.get` documents on itself), so every existing test keeps exercising `LIVE_RUN_GAP_THRESHOLD`'s real default value (60) unchanged. */
+function buildFakeAgentConfigService(
+  get: AgentConfigService["get"] = vi.fn(
+    async (_tenantId: string, _agent: string, _key: string, fallback: number) => fallback,
+  ),
+): AgentConfigService {
+  return { get, set: vi.fn(async () => ({}) as never) } as unknown as AgentConfigService;
+}
+
+/** A fake `ConfigApplierService` — defaults to a real, honest no-op ("not a CONFIG_UPDATE item") since every existing test's fake LLM plan only ever proposes a PROMPT_UPDATE item. */
+function buildFakeConfigApplier(
+  applyConfigUpdate: ConfigApplierService["applyConfigUpdate"] = vi.fn(
+    async (_tenantId: string, item: ImprovementItem): Promise<ApplyConfigUpdateResult> => ({
+      applied: false,
+      reason: `type "${item.type}" is not CONFIG_UPDATE`,
+    }),
+  ),
+): ConfigApplierService {
+  return { applyConfigUpdate } as unknown as ConfigApplierService;
+}
+
 describe("LearningService", () => {
   describe("onSimulationComplete", () => {
     it("writes no proposal when verdict is GO (no gap)", async () => {
@@ -142,6 +171,8 @@ describe("LearningService", () => {
         proposals,
         buildFakeLlmService(),
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -155,6 +186,8 @@ describe("LearningService", () => {
         proposals,
         buildFakeLlmService(),
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -174,6 +207,8 @@ describe("LearningService", () => {
         proposals,
         llm,
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -205,6 +240,8 @@ describe("LearningService", () => {
         proposals,
         llm,
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -232,6 +269,7 @@ describe("LearningService", () => {
           decision_notes: null,
           decided_at: null,
           created_at: "2026-08-01T00:00:00.000Z",
+          auto_applied_config_keys: [],
         },
       ];
       const proposals = buildFakeProposalRepository(recent);
@@ -241,6 +279,8 @@ describe("LearningService", () => {
         proposals,
         llm,
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -264,6 +304,8 @@ describe("LearningService", () => {
         proposals,
         buildFakeLlmService(),
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await expect(service.onSimulationComplete("missing-id")).resolves.toBeUndefined();
       expect(proposals.create).not.toHaveBeenCalled();
@@ -285,6 +327,8 @@ describe("LearningService", () => {
         proposals,
         llm,
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -302,6 +346,8 @@ describe("LearningService", () => {
         proposals,
         buildFakeLlmService(),
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await expect(service.onSimulationComplete("sim-1")).resolves.toBeUndefined();
       expect(proposals.create).not.toHaveBeenCalled();
@@ -315,6 +361,8 @@ describe("LearningService", () => {
         proposals,
         buildFakeLlmService(),
         buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).toHaveBeenCalledTimes(1);
@@ -327,12 +375,16 @@ describe("LearningService", () => {
     function buildService(
       proposals: LearningProposalRepository,
       llm: LlmService = buildFakeLlmService(),
+      agentConfig: AgentConfigService = buildFakeAgentConfigService(),
+      configApplier: ConfigApplierService = buildFakeConfigApplier(),
     ): LearningService {
       return new LearningService(
         buildFakeSimulationRepository(undefined),
         proposals,
         llm,
         buildFakePromptOverride(),
+        agentConfig,
+        configApplier,
       );
     }
 
@@ -447,6 +499,191 @@ describe("LearningService", () => {
         }),
       ).resolves.toBeUndefined();
       expect(failingProposals.create).not.toHaveBeenCalled();
+    });
+
+    describe("AAOS Self-Improving (Phase SI-1) — real, DB-backed live_run_gap_threshold", () => {
+      it("resolves the threshold via AgentConfigService.get with the real (tenantId, 'GLOBAL', 'live_run_gap_threshold', 60) args — zero behavior change when no override row exists", async () => {
+        const proposals = buildFakeProposalRepository();
+        const get = vi.fn(async (_t: string, _a: string, _k: string, fallback: number) => fallback);
+        const service = buildService(
+          proposals,
+          buildFakeLlmService(),
+          buildFakeAgentConfigService(get),
+        );
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-6", "SAMANTHA", {
+          scores: { overall: 45 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(get).toHaveBeenCalledWith("dss-motor", "GLOBAL", "live_run_gap_threshold", 60);
+        expect(proposals.create).toHaveBeenCalledTimes(1);
+      });
+
+      it("a real, DIFFERENT (higher) configured threshold genuinely changes the gap boundary — a run that would NOT trigger under the hardcoded default (60) now DOES", async () => {
+        const proposals = buildFakeProposalRepository();
+        const llm = buildFakeLlmService();
+        const agentConfig = buildFakeAgentConfigService(vi.fn(async () => 70));
+        const service = buildService(proposals, llm, agentConfig);
+
+        // overall=65 is >= the hardcoded default (60), so under zero-override behavior this would
+        // NOT trigger a proposal (see the sibling "does NOT write..." test above) — but with a
+        // real, custom agent_configs row raising the threshold to 70, it now genuinely does.
+        await service.onAgentRunJudged("dss-motor", "agent-run-7", "SAMANTHA", {
+          scores: { overall: 65 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(proposals.create).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("AAOS Self-Improving (Phase SI-1) — real CONFIG_UPDATE auto-apply, no human gate", () => {
+      function buildConfigOnlyLlm(): LlmService {
+        return buildFakeLlmService({
+          generateImprovementPlan: vi.fn(async () => ({
+            available: true as const,
+            analysis: "config-only plan",
+            improvements: [
+              {
+                agent: "SAMANTHA" as const,
+                type: "CONFIG_UPDATE" as const,
+                target: "pause_cpl_multiplier",
+                before: "1.5",
+                after: "1.8",
+                reason: "r",
+                severity: "MEDIUM" as const,
+              },
+            ],
+            droppedCount: 0,
+          })),
+        });
+      }
+
+      it("real successful apply: calls ConfigApplierService.applyConfigUpdate and marks the proposal AUTO_APPLIED when every item is a successfully-applied CONFIG_UPDATE", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyConfigUpdate = vi.fn(async () => ({ applied: true }));
+        const configApplier = buildFakeConfigApplier(applyConfigUpdate);
+        const service = buildService(proposals, buildConfigOnlyLlm(), undefined, configApplier);
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-8", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyConfigUpdate).toHaveBeenCalledWith(
+          "dss-motor",
+          expect.objectContaining({ type: "CONFIG_UPDATE", target: "pause_cpl_multiplier" }),
+        );
+        expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+          "proposal-1",
+          ["pause_cpl_multiplier"],
+          "AUTO_APPLIED",
+        );
+      });
+
+      it("real write-failure best-effort degrade: never throws, and keeps the proposal PENDING (never records a failed key as auto-applied)", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyConfigUpdate = vi.fn(async () => ({ applied: false, reason: "write failed" }));
+        const configApplier = buildFakeConfigApplier(applyConfigUpdate);
+        const service = buildService(proposals, buildConfigOnlyLlm(), undefined, configApplier);
+
+        await expect(
+          service.onAgentRunJudged("dss-motor", "agent-run-9", "SAMANTHA", {
+            scores: { overall: 10 },
+            gaps: [],
+            trend: "STABLE",
+          }),
+        ).resolves.toBeUndefined();
+
+        expect(proposals.create).toHaveBeenCalledTimes(1);
+        expect(proposals.markAutoApplied).not.toHaveBeenCalled();
+      });
+
+      it("mixed proposal (one CONFIG_UPDATE auto-applied + one PROMPT_UPDATE still pending) keeps status PENDING while still recording the applied key", async () => {
+        const proposals = buildFakeProposalRepository();
+        const llm = buildFakeLlmService({
+          generateImprovementPlan: vi.fn(async () => ({
+            available: true as const,
+            analysis: "mixed plan",
+            improvements: [
+              {
+                agent: "SAMANTHA" as const,
+                type: "CONFIG_UPDATE" as const,
+                target: "pause_cpl_multiplier",
+                before: "1.5",
+                after: "1.8",
+                reason: "r",
+                severity: "MEDIUM" as const,
+              },
+              {
+                agent: "SAMANTHA" as const,
+                type: "PROMPT_UPDATE" as const,
+                target: "analyze",
+                before: "b",
+                after: "a",
+                reason: "r",
+                severity: "MEDIUM" as const,
+              },
+            ],
+            droppedCount: 0,
+          })),
+        });
+        const applyConfigUpdate = vi.fn(async () => ({ applied: true }));
+        const configApplier = buildFakeConfigApplier(applyConfigUpdate);
+        const service = buildService(proposals, llm, undefined, configApplier);
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-10", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyConfigUpdate).toHaveBeenCalledTimes(1);
+        expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+          "proposal-1",
+          ["pause_cpl_multiplier"],
+          "PENDING",
+        );
+      });
+
+      it("never calls applyConfigUpdate for a plan with no CONFIG_UPDATE items (e.g. the default fake PROMPT_UPDATE-only plan)", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyConfigUpdate = vi.fn(async () => ({ applied: true }));
+        const configApplier = buildFakeConfigApplier(applyConfigUpdate);
+        const service = buildService(proposals, buildFakeLlmService(), undefined, configApplier);
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-11", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyConfigUpdate).not.toHaveBeenCalled();
+        expect(proposals.markAutoApplied).not.toHaveBeenCalled();
+      });
+
+      it("real best-effort discipline: the whole auto-apply step never fails onAgentRunJudged even if markAutoApplied itself throws", async () => {
+        const proposals = buildFakeProposalRepository();
+        (proposals.markAutoApplied as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+          new Error("boom"),
+        );
+        const applyConfigUpdate = vi.fn(async () => ({ applied: true }));
+        const configApplier = buildFakeConfigApplier(applyConfigUpdate);
+        const service = buildService(proposals, buildConfigOnlyLlm(), undefined, configApplier);
+
+        await expect(
+          service.onAgentRunJudged("dss-motor", "agent-run-12", "SAMANTHA", {
+            scores: { overall: 10 },
+            gaps: [],
+            trend: "STABLE",
+          }),
+        ).resolves.toBeUndefined();
+        expect(proposals.create).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

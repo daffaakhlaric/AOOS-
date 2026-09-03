@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AbTestingModule } from "../abtesting/abtesting.module.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
+import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
@@ -29,7 +30,7 @@ type FactoryProvider = {
 };
 
 describe("SchedulerModule", () => {
-  it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule/IntelligenceModule/ListingsModule/ModeGuardModule/ActivityLogModule/CampaignsModule/AgentRunsModule/AiJudgeModule/PendingActionsModule so SchedulerService can inject every real dependency (Phase C: PROPERTY campaign-trigger wiring; AAOS EPIC S Phase S5: real CampaignsService.createPropertyCampaign wiring, LocationResolverModule no longer imported directly here — see scheduler.module.ts's own doc; AAOS-AI-JUDGE-SELF-IMPROVING Phase J2: AiJudgeModule added for the real SAMANTHA_ANALYZE judging wiring; AAOS-OPERATING-MODE-APPROVAL-GATE: PendingActionsModule added for the real APPROVAL-mode enqueue wiring)", () => {
+  it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule/IntelligenceModule/ListingsModule/ModeGuardModule/ActivityLogModule/CampaignsModule/AgentRunsModule/AiJudgeModule/PendingActionsModule/AgentConfigModule so SchedulerService can inject every real dependency (Phase C: PROPERTY campaign-trigger wiring; AAOS EPIC S Phase S5: real CampaignsService.createPropertyCampaign wiring, LocationResolverModule no longer imported directly here — see scheduler.module.ts's own doc; AAOS-AI-JUDGE-SELF-IMPROVING Phase J2: AiJudgeModule added for the real SAMANTHA_ANALYZE judging wiring; AAOS-OPERATING-MODE-APPROVAL-GATE: PendingActionsModule added for the real APPROVAL-mode enqueue wiring; AAOS Self-Improving Phase SI-1: AgentConfigModule added for the real pause_cpl_multiplier config wiring)", () => {
     const metadata = Reflect.getMetadata("imports", SchedulerModule) as unknown[];
     expect(metadata).toEqual([
       LlmModule,
@@ -44,6 +45,7 @@ describe("SchedulerModule", () => {
       AgentRunsModule,
       AiJudgeModule,
       PendingActionsModule,
+      AgentConfigModule,
     ]);
   });
 

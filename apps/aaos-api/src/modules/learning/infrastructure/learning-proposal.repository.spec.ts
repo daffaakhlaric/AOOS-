@@ -257,4 +257,36 @@ describe("LearningProposalRepository", () => {
       ).rejects.toThrow(LearningProposalRepositoryError);
     });
   });
+
+  describe("markAutoApplied (AAOS Self-Improving, Phase SI-1)", () => {
+    it("writes auto_applied_config_keys and status on the matching row", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, { id: "row-1" });
+      const repository = new LearningProposalRepository(client);
+      await repository.markAutoApplied("row-1", ["pause_cpl_multiplier"], "AUTO_APPLIED");
+      const row = await repository.findById("row-1");
+      expect(row?.status).toBe("AUTO_APPLIED");
+      expect(row?.auto_applied_config_keys).toEqual(["pause_cpl_multiplier"]);
+    });
+
+    it("can keep status PENDING while still recording partial auto-applied keys (mixed proposal)", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, { id: "row-1" });
+      const repository = new LearningProposalRepository(client);
+      await repository.markAutoApplied("row-1", ["live_run_gap_threshold"], "PENDING");
+      const row = await repository.findById("row-1");
+      expect(row?.status).toBe("PENDING");
+      expect(row?.auto_applied_config_keys).toEqual(["live_run_gap_threshold"]);
+    });
+
+    it("throws LearningProposalRepositoryError on a real Supabase error", async () => {
+      const client = createFakeSupabaseClient();
+      seedProposal(client, { id: "row-1" });
+      client.forceErrorOnce("learning_proposals", "connection reset");
+      const repository = new LearningProposalRepository(client);
+      await expect(
+        repository.markAutoApplied("row-1", ["pause_cpl_multiplier"], "AUTO_APPLIED"),
+      ).rejects.toThrow(LearningProposalRepositoryError);
+    });
+  });
 });

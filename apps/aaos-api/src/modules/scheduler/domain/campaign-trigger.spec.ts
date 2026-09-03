@@ -138,6 +138,50 @@ describe("shouldCreateNewCampaign", () => {
     expect(decision.reasons).toEqual(["HIGH_FREQUENCY", "HIGH_CPL"]);
   });
 
+  it("AAOS Self-Improving (Phase SI-1): a 3rd, real, OPTIONAL cplMultiplier param defaults to the exact HIGH_CPL_MULTIPLIER constant — zero behavior change for every existing call site that omits it", () => {
+    const benchmarkCplIDR = 40_000;
+    const withoutExplicitArg = shouldCreateNewCampaign(
+      baseSignals({
+        hasActiveCampaign: true,
+        cplIDR: benchmarkCplIDR * HIGH_CPL_MULTIPLIER + 1,
+        benchmarkCplIDR,
+      }),
+      NOW,
+    );
+    const withExplicitDefaultArg = shouldCreateNewCampaign(
+      baseSignals({
+        hasActiveCampaign: true,
+        cplIDR: benchmarkCplIDR * HIGH_CPL_MULTIPLIER + 1,
+        benchmarkCplIDR,
+      }),
+      NOW,
+      HIGH_CPL_MULTIPLIER,
+    );
+    expect(withoutExplicitArg).toEqual(withExplicitDefaultArg);
+    expect(withoutExplicitArg.shouldCreate).toBe(true);
+  });
+
+  it("a real, DIFFERENT cplMultiplier genuinely changes HIGH_CPL's real firing boundary", () => {
+    const benchmarkCplIDR = 40_000;
+    const cplIDR = benchmarkCplIDR * HIGH_CPL_MULTIPLIER + 1; // just above the DEFAULT boundary
+
+    // With the default multiplier, this fires.
+    const withDefault = shouldCreateNewCampaign(
+      baseSignals({ hasActiveCampaign: true, cplIDR, benchmarkCplIDR }),
+      NOW,
+    );
+    expect(withDefault.shouldCreate).toBe(true);
+
+    // With a real, stricter custom multiplier (e.g. a tenant's own agent_configs override), the
+    // SAME cplIDR no longer counts as HIGH_CPL.
+    const withCustomMultiplier = shouldCreateNewCampaign(
+      baseSignals({ hasActiveCampaign: true, cplIDR, benchmarkCplIDR }),
+      NOW,
+      3.0,
+    );
+    expect(withCustomMultiplier.shouldCreate).toBe(false);
+  });
+
   it("never implements a 5th 'opportunity score' condition — CampaignTriggerReason has exactly the 4 real reasons", () => {
     const decision = shouldCreateNewCampaign(
       baseSignals({

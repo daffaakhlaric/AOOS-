@@ -1,6 +1,14 @@
 import { Injectable, Logger } from "@nestjs/common";
 
-import { ANALYZE_SYSTEM_PROMPT, KNOWN_PROMPT_KEYS, LlmService } from "../llm/llm.service.js";
+import { AgentConfigService } from "../agent-config/agent-config.service.js";
+import { ConfigApplierService } from "../agent-config/config-applier.service.js";
+import { ImprovementItemSchema, type ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
+import {
+  ANALYZE_SYSTEM_PROMPT,
+  KNOWN_CONFIG_KEYS,
+  KNOWN_PROMPT_KEYS,
+  LlmService,
+} from "../llm/llm.service.js";
 import { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
 import { SIMULATION_CRITERIA } from "../simulation/domain/scoring.js";
 import { SimulationRepository } from "../simulation/infrastructure/simulation.repository.js";
@@ -25,8 +33,19 @@ const CLARA_PROMPT_KEY = "clara_system_prompt";
  * `SIMULATION_CRITERIA.minOverallScore` (70) — a real, separate, stricter judgment call for a
  * trigger that fires on every real Samantha/Kai/Clara run, not just a manually-triggered
  * simulation.
+ *
+ * AAOS Self-Improving, Phase SI-1: this literal is now only the real, honest DEFAULT —
+ * `onAgentRunJudged` resolves the real value via `AgentConfigService.get(tenantId, "GLOBAL",
+ * "live_run_gap_threshold", LIVE_RUN_GAP_THRESHOLD)`. `"GLOBAL"`, not `"SAMANTHA"`/`"CLARA"`, is
+ * the real, deliberate bucket choice — this ONE threshold gates BOTH agents' live-run trigger (see
+ * this method's own KAI-exclusion doc for why only 2 agents reach it), so no single per-agent
+ * bucket would be honest; `034_agent_configs.sql`'s own seed row uses the exact same `"GLOBAL"`
+ * bucket and this exact literal value (60) — zero behavior change until a real override row exists.
  */
 const LIVE_RUN_GAP_THRESHOLD = 60;
+
+/** The real `agent_configs.agent` bucket for `live_run_gap_threshold` — see that constant's own doc for why no single per-agent bucket is honest here. */
+const LIVE_RUN_GAP_THRESHOLD_AGENT_BUCKET = "GLOBAL";
 
 /**
  * REAL FINDING: `aaos-api` (this app) has no dependency on `packages/sales-agent` — Clara's real
@@ -126,6 +145,13 @@ export class LearningService {
     private readonly proposals: LearningProposalRepository,
     private readonly llmService: LlmService,
     private readonly promptOverride: PromptOverrideService,
+    // AAOS Self-Improving (Phase SI-1) — real, DB-backed `live_run_gap_threshold` config, resolved
+    // in `onAgentRunJudged` (see `LIVE_RUN_GAP_THRESHOLD`'s own doc).
+    private readonly agentConfig: AgentConfigService,
+    // AAOS Self-Improving (Phase SI-1) — real, AUTOMATIC (no human gate) CONFIG_UPDATE apply path,
+    // called from `persistProposal` right after a proposal row is created (see that method's own
+    // doc and `ConfigApplierService`'s own class doc for the full reasoning).
+    private readonly configApplier: ConfigApplierService,
   ) {}
 
   async onSimulationComplete(simulationId: string): Promise<void> {
@@ -288,7 +314,17 @@ export class LearningService {
         );
         return;
       }
-      if (overallRaw >= LIVE_RUN_GAP_THRESHOLD) {
+      // AAOS Self-Improving (Phase SI-1) — real, DB-backed override, falling back to the exact same
+      // hardcoded `LIVE_RUN_GAP_THRESHOLD` (60) when no tenant override row exists yet — zero
+      // behavior change until a real `agent_configs` row is customized (`AgentConfigService.get`'s
+      // own doc; `LIVE_RUN_GAP_THRESHOLD`'s own doc for why the "GLOBAL" bucket is used).
+      const gapThreshold = await this.agentConfig.get(
+        tenantId,
+        LIVE_RUN_GAP_THRESHOLD_AGENT_BUCKET,
+        "live_run_gap_threshold",
+        LIVE_RUN_GAP_THRESHOLD,
+      );
+      if (overallRaw >= gapThreshold) {
         // No gap — see this method's own doc for why 60 (not SIMULATION_CRITERIA's 70) is the real
         // chosen bar for a high-frequency LIVE-run trigger.
         return;
@@ -383,6 +419,31 @@ export class LearningService {
     }
   }
 
+  /**
+   * Creates the real `learning_proposals` row, THEN (AAOS Self-Improving, Phase SI-1) — for every
+   * real, Zod-validated `CONFIG_UPDATE` item in `plan.improvements` — calls
+   * `ConfigApplierService.applyConfigUpdate` to write `agent_configs` DIRECTLY, AUTOMATICALLY, with
+   * NO human approval step (the user's own explicit, twice-confirmed decision — see
+   * `ConfigApplierService`'s own class doc). The proposal row itself is ALWAYS created first and
+   * kept, real and unmodified in its `improvements`/`gaps`/`analysis` — this is real, honest
+   * audit/visibility, matching this whole codebase's own transparency discipline, never skipped
+   * just because a `CONFIG_UPDATE` item auto-applies.
+   *
+   * `auto_applied_config_keys` + `status` are then written via a real, SECOND, best-effort update
+   * (`markAutoApplied`) — see `035_learning_proposals_auto_applied.sql`'s own header doc for the
+   * full "why 2 real columns, not overloading `status`" reasoning. `status` becomes `'AUTO_APPLIED'`
+   * ONLY when EVERY improvement item was a `CONFIG_UPDATE` that was successfully applied (no
+   * `PROMPT_UPDATE` item left genuinely pending human review); a mixed proposal, or one where a
+   * `CONFIG_UPDATE` write genuinely failed, keeps `status = 'PENDING'` — honestly reflecting real
+   * remaining work (or a real failure) a human should still see, while
+   * `auto_applied_config_keys` still tells the Learning Monitor which items, if any, were already
+   * applied.
+   *
+   * BEST-EFFORT DISCIPLINE (same as every other side-effect in this codebase): the WHOLE
+   * auto-apply-and-record step is wrapped in try/catch — a failure here (a `configApplier` write
+   * error, or the `markAutoApplied` write itself failing) is logged and swallowed, NEVER thrown —
+   * the proposal row created above always stands regardless.
+   */
   private async persistProposal(
     tenantId: string,
     logLabel: string,
@@ -397,10 +458,10 @@ export class LearningService {
   ): Promise<LearningProposalRow> {
     if (plan.droppedCount > 0) {
       this.logger.warn(
-        `LearningService.${logLabel}: dropped ${plan.droppedCount} improvement(s) whose target wasn't a known prompt_key (${KNOWN_PROMPT_KEYS.join(", ")}).`,
+        `LearningService.${logLabel}: dropped ${plan.droppedCount} improvement(s) whose target wasn't a known prompt_key (${KNOWN_PROMPT_KEYS.join(", ")}) or config_key (${KNOWN_CONFIG_KEYS.join(", ")}).`,
       );
     }
-    return this.proposals.create({
+    const created = await this.proposals.create({
       tenantId,
       agent,
       analysis: plan.analysis,
@@ -408,5 +469,52 @@ export class LearningService {
       improvements: plan.improvements,
       ...source,
     });
+
+    try {
+      const parsedItems: ImprovementItem[] = [];
+      for (const raw of plan.improvements) {
+        const parsed = ImprovementItemSchema.safeParse(raw);
+        if (parsed.success) {
+          parsedItems.push(parsed.data);
+        }
+      }
+      const configItems = parsedItems.filter((item) => item.type === "CONFIG_UPDATE");
+
+      if (configItems.length > 0) {
+        const appliedKeys: string[] = [];
+        // Real, honest "nothing left pending for a human" check — only true when EVERY parsed
+        // improvement item on this proposal is a CONFIG_UPDATE item (no PROMPT_UPDATE item at
+        // all). Any unparsed/malformed raw item also disqualifies AUTO_APPLIED, honestly.
+        let everythingIsConfigUpdate =
+          parsedItems.length === plan.improvements.length &&
+          configItems.length === parsedItems.length;
+
+        for (const item of configItems) {
+          const result = await this.configApplier.applyConfigUpdate(tenantId, item);
+          if (result.applied) {
+            appliedKeys.push(item.target);
+          } else {
+            everythingIsConfigUpdate = false;
+          }
+        }
+
+        if (appliedKeys.length > 0) {
+          await this.proposals.markAutoApplied(
+            created.id,
+            appliedKeys,
+            everythingIsConfigUpdate ? "AUTO_APPLIED" : "PENDING",
+          );
+        }
+      }
+    } catch (caught) {
+      // Best-effort — a CONFIG_UPDATE auto-apply/record failure must NEVER undo or fail the
+      // proposal that was already created above (same discipline every other side-effect in this
+      // codebase follows).
+      this.logger.warn(
+        `LearningService.${logLabel}: auto-apply CONFIG_UPDATE step failed for proposal ${created.id} — best-effort, proposal itself stands: ${String(caught)}`,
+      );
+    }
+
+    return created;
   }
 }

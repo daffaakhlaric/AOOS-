@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import { describe, expect, it } from "vitest";
 
+import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { PromptOverrideModule } from "../prompt-override/prompt-override.module.js";
 import { SimulationRepository } from "../simulation/infrastructure/simulation.repository.js";
@@ -17,6 +18,11 @@ describe("LearningModule", () => {
     const metadata = Reflect.getMetadata("imports", LearningModule) as unknown[];
     expect(metadata).toContain(LlmModule);
     expect(metadata).toContain(PromptOverrideModule);
+  });
+
+  it("imports AgentConfigModule (AAOS Self-Improving Phase SI-1 — so LearningService injects the SAME real AgentConfigService/ConfigApplierService SchedulerModule's consumer uses)", () => {
+    const metadata = Reflect.getMetadata("imports", LearningModule) as unknown[];
+    expect(metadata).toContain(AgentConfigModule);
   });
 
   it("exports LearningService (so SimulationModule can inject it)", () => {
