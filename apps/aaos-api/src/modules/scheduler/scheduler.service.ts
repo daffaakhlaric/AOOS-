@@ -451,6 +451,21 @@ export class SchedulerService {
       pause,
       scale,
       aiAvailable: analysis?.available ?? false,
+      // AAOS Self-Improving (Phase SI-4) — real, ADDITIVE capture of the EXACT `AnalyzeRequestDto`
+      // body just sent to `LlmService.analyze` above, so `SandboxService.testImprovement` can
+      // honestly re-run `analyze` against the SAME real historical data later. Deliberately NEW keys
+      // (`analyzeCampaigns`/`analyzeTotals`), never overwriting/renaming the existing `campaigns`
+      // key above — that key is a plain COUNT the real SAMANTHA judge prompt already reads as
+      // `context.campaigns` (see `SAMANTHA_JUDGE_SYSTEM_PROMPT`'s own doc); reusing it here for a
+      // full array would silently corrupt judge scoring. Zero behavior change to the real judge
+      // call — an additive field it never reads. REAL, HONEST GAP this phase's own investigation
+      // found and fixes: before this change, `agent_runs.context` for SAMANTHA held only summary
+      // counts, never the actual `campaigns`/`totals` fed to `analyze` — not enough to honestly
+      // re-run it. Every `agent_runs` row written BEFORE this migration/deploy still lacks these 2
+      // keys; `SandboxService.testImprovement` detects that and degrades honestly rather than
+      // fabricating a re-run for those older rows.
+      analyzeCampaigns: analyzePayload.campaigns,
+      analyzeTotals: analyzePayload.totals ?? null,
     });
     // AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — detached, fire-and-forget, the SAME real
     // `.catch()`-without-await pattern `checkAndRunDueEvents` already uses for `executeEvent` below

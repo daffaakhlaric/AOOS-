@@ -648,8 +648,27 @@ export class LlmService {
     private readonly promptOverride: PromptOverrideService,
   ) {}
 
-  async analyze(tenantId: string, body: AnalyzeRequestDto): Promise<AnalyzeResponseDto> {
-    const cached = this.cache.get("analyze", body) as AnalyzeResponseDto | undefined;
+  /**
+   * `systemPromptOverride` (AAOS Self-Improving, Phase SI-4) — real, in-memory-only override used
+   * ONLY by `SandboxService.testImprovement`'s real, historical-data-only candidate-prompt re-run.
+   * When provided, this ONE call skips `PromptOverrideService.resolve` entirely (the candidate
+   * content is used verbatim) AND skips both the cache READ and WRITE below — `ResponseCache` keys
+   * on `(endpoint, body)` only (Phase A's own documented real finding: no prompt/override-version
+   * component to the cache key), so serving/writing a cached entry here would either return a STALE
+   * response from a DIFFERENT (non-override) prompt against the same historical `body`, or poison
+   * the real cache with a sandbox-only response a later REAL call with the same `body` could
+   * wrongly receive. Every existing caller (no 3rd argument) is completely unaffected — same
+   * cache/gate/resolve/call/validate/cache behavior as before this phase.
+   */
+  async analyze(
+    tenantId: string,
+    body: AnalyzeRequestDto,
+    systemPromptOverride?: string,
+  ): Promise<AnalyzeResponseDto> {
+    const bypassCache = systemPromptOverride !== undefined;
+    const cached = bypassCache
+      ? undefined
+      : (this.cache.get("analyze", body) as AnalyzeResponseDto | undefined);
     if (cached !== undefined) {
       return cached;
     }
@@ -659,12 +678,14 @@ export class LlmService {
       return gate;
     }
 
-    const systemPrompt = await this.promptOverride.resolve(
-      tenantId,
-      SAMANTHA_AGENT,
-      "analyze",
-      ANALYZE_SYSTEM_PROMPT,
-    );
+    const systemPrompt =
+      systemPromptOverride ??
+      (await this.promptOverride.resolve(
+        tenantId,
+        SAMANTHA_AGENT,
+        "analyze",
+        ANALYZE_SYSTEM_PROMPT,
+      ));
     const completion = await this.client.createChatCompletion({
       messages: [
         { role: "system", content: systemPrompt },
@@ -683,7 +704,9 @@ export class LlmService {
     }
 
     const response: AnalyzeResponseDto = { available: true, ...validated.data };
-    this.cache.set("analyze", body, response);
+    if (!bypassCache) {
+      this.cache.set("analyze", body, response);
+    }
     return response;
   }
 

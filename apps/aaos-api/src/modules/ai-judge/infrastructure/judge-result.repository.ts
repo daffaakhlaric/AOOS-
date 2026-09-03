@@ -123,6 +123,29 @@ export class JudgeResultRepository {
     return [...(data ?? [])].reverse();
   }
 
+  /**
+   * A single real `judge_results` row for one real `agent_runs.id` — `undefined` when this run was
+   * never successfully judged (`AiJudgeService.judgeRun`'s own doc: no row is written when judging
+   * was unavailable). `SandboxService.testImprovement`'s real baseline-score lookup (AAOS
+   * Self-Improving, Phase SI-4) — reuses the SAME real, already-computed score rather than
+   * re-judging the baseline a second time (a second LLM judgment of the SAME real baseline run
+   * would be a needless extra call, and a real source of drift a fresh re-judgment could introduce
+   * for no honest benefit).
+   */
+  async findByRunId(runId: string): Promise<JudgeResultRow | undefined> {
+    const { data, error } = await this.client
+      .from<JudgeResultRow>(TABLE)
+      .select("*")
+      .eq("run_id", runId)
+      .maybeSingle();
+    if (error !== null) {
+      throw new JudgeResultRepositoryError(
+        `JudgeResultRepository.findByRunId failed: ${error.message}`,
+      );
+    }
+    return data ?? undefined;
+  }
+
   /** Every real `judge_results` row for one tenant+agent with `created_at >= sinceISO`, oldest-first — the raw feed `getTodayScoreSummary` partitions into "today" vs "the 7 days before today". */
   async listForTenantSince(
     tenantId: string,
