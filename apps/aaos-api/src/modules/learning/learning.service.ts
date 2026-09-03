@@ -2,10 +2,12 @@ import { Injectable, Logger } from "@nestjs/common";
 
 import { AgentConfigService } from "../agent-config/agent-config.service.js";
 import { ConfigApplierService } from "../agent-config/config-applier.service.js";
+import { LogicApplierService } from "../agent-config/logic-applier.service.js";
 import { ImprovementItemSchema, type ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
 import {
   ANALYZE_SYSTEM_PROMPT,
   KNOWN_CONFIG_KEYS,
+  KNOWN_LOGIC_KEYS,
   KNOWN_PROMPT_KEYS,
   LlmService,
 } from "../llm/llm.service.js";
@@ -152,6 +154,10 @@ export class LearningService {
     // called from `persistProposal` right after a proposal row is created (see that method's own
     // doc and `ConfigApplierService`'s own class doc for the full reasoning).
     private readonly configApplier: ConfigApplierService,
+    // AAOS Self-Improving (Phase SI-2) — real, AUTOMATIC (no human gate) LOGIC_UPDATE apply path,
+    // the exact `agent_logic` sibling of `configApplier` above, called from the SAME
+    // `persistProposal` step (see `LogicApplierService`'s own class doc for the full reasoning).
+    private readonly logicApplier: LogicApplierService,
   ) {}
 
   async onSimulationComplete(simulationId: string): Promise<void> {
@@ -458,7 +464,7 @@ export class LearningService {
   ): Promise<LearningProposalRow> {
     if (plan.droppedCount > 0) {
       this.logger.warn(
-        `LearningService.${logLabel}: dropped ${plan.droppedCount} improvement(s) whose target wasn't a known prompt_key (${KNOWN_PROMPT_KEYS.join(", ")}) or config_key (${KNOWN_CONFIG_KEYS.join(", ")}).`,
+        `LearningService.${logLabel}: dropped ${plan.droppedCount} improvement(s) whose target wasn't a known prompt_key (${KNOWN_PROMPT_KEYS.join(", ")}), config_key (${KNOWN_CONFIG_KEYS.join(", ")}), or logic_key (${KNOWN_LOGIC_KEYS.join(", ")}).`,
       );
     }
     const created = await this.proposals.create({
@@ -479,22 +485,36 @@ export class LearningService {
         }
       }
       const configItems = parsedItems.filter((item) => item.type === "CONFIG_UPDATE");
+      // AAOS Self-Improving (Phase SI-2) — the exact LOGIC_UPDATE sibling of `configItems` above,
+      // applied via `this.logicApplier.applyLogicUpdate` the SAME automatic, no-human-gate,
+      // best-effort way (see `LogicApplierService`'s own class doc).
+      const logicItems = parsedItems.filter((item) => item.type === "LOGIC_UPDATE");
 
-      if (configItems.length > 0) {
+      if (configItems.length > 0 || logicItems.length > 0) {
         const appliedKeys: string[] = [];
         // Real, honest "nothing left pending for a human" check — only true when EVERY parsed
-        // improvement item on this proposal is a CONFIG_UPDATE item (no PROMPT_UPDATE item at
-        // all). Any unparsed/malformed raw item also disqualifies AUTO_APPLIED, honestly.
-        let everythingIsConfigUpdate =
+        // improvement item on this proposal is a CONFIG_UPDATE or LOGIC_UPDATE item (no
+        // PROMPT_UPDATE item at all). Any unparsed/malformed raw item also disqualifies
+        // AUTO_APPLIED, honestly.
+        let everythingAutoApplied =
           parsedItems.length === plan.improvements.length &&
-          configItems.length === parsedItems.length;
+          configItems.length + logicItems.length === parsedItems.length;
 
         for (const item of configItems) {
           const result = await this.configApplier.applyConfigUpdate(tenantId, item);
           if (result.applied) {
             appliedKeys.push(item.target);
           } else {
-            everythingIsConfigUpdate = false;
+            everythingAutoApplied = false;
+          }
+        }
+
+        for (const item of logicItems) {
+          const result = await this.logicApplier.applyLogicUpdate(tenantId, item);
+          if (result.applied) {
+            appliedKeys.push(item.target);
+          } else {
+            everythingAutoApplied = false;
           }
         }
 
@@ -502,16 +522,16 @@ export class LearningService {
           await this.proposals.markAutoApplied(
             created.id,
             appliedKeys,
-            everythingIsConfigUpdate ? "AUTO_APPLIED" : "PENDING",
+            everythingAutoApplied ? "AUTO_APPLIED" : "PENDING",
           );
         }
       }
     } catch (caught) {
-      // Best-effort — a CONFIG_UPDATE auto-apply/record failure must NEVER undo or fail the
-      // proposal that was already created above (same discipline every other side-effect in this
-      // codebase follows).
+      // Best-effort — a CONFIG_UPDATE/LOGIC_UPDATE auto-apply/record failure must NEVER undo or
+      // fail the proposal that was already created above (same discipline every other side-effect
+      // in this codebase follows).
       this.logger.warn(
-        `LearningService.${logLabel}: auto-apply CONFIG_UPDATE step failed for proposal ${created.id} — best-effort, proposal itself stands: ${String(caught)}`,
+        `LearningService.${logLabel}: auto-apply CONFIG_UPDATE/LOGIC_UPDATE step failed for proposal ${created.id} — best-effort, proposal itself stands: ${String(caught)}`,
       );
     }
 

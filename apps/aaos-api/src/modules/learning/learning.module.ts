@@ -36,9 +36,10 @@ import { LearningService } from "./learning.service.js";
   imports: [
     LlmModule,
     PromptOverrideModule,
-    // AAOS Self-Improving (Phase SI-1) — so LearningService can inject the SAME real
-    // AgentConfigService/ConfigApplierService `SchedulerModule`'s consumer uses — one real config
-    // resolver/auto-applier, not a second copy of either.
+    // AAOS Self-Improving (Phase SI-1, extended Phase SI-2) — so LearningService can inject the
+    // SAME real AgentConfigService/ConfigApplierService/AgentLogicService/LogicApplierService
+    // `SchedulerModule`'s consumer uses — one real config/logic resolver/auto-applier, not a second
+    // copy of any of them.
     AgentConfigModule,
   ],
   controllers: [LearningController],

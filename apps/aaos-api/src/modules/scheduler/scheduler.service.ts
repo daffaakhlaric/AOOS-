@@ -41,6 +41,8 @@ import {
 import { AbTestingService } from "../abtesting/abtesting.service.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { AgentConfigService } from "../agent-config/agent-config.service.js";
+import { AgentLogicService } from "../agent-config/agent-logic.service.js";
+import { evaluateLogicRules, type LogicRuleSet } from "../agent-config/logic-interpreter.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
@@ -156,6 +158,15 @@ export class SchedulerService {
      * directly by `SchedulerModule`).
      */
     private readonly agentConfigService: AgentConfigService,
+    /**
+     * AAOS Self-Improving (Phase SI-2) — real, DB-backed, OPTIONAL `verdict_classification`
+     * `agent_logic` override, resolved once per `runSamanthaAnalyze` call and used ONLY to
+     * reclassify the real PAUSE/SCALE digest counts that method already computes from each ad's
+     * `verdict` (see `resolveVerdictOverride`'s own doc for the full "why this one, why it's safe"
+     * reasoning). Injected the same way `agentConfigService` above already is (same
+     * `AgentConfigModule`).
+     */
+    private readonly agentLogicService: AgentLogicService,
   ) {}
 
   /**
@@ -402,8 +413,22 @@ export class SchedulerService {
     const adAccounts = await this.pullAdAccounts(tenantId, correlationId);
     const allAds = adAccounts.flatMap((account) => flattenAds(account));
     const campaigns = adAccounts.reduce((sum, account) => sum + account.campaigns.length, 0);
-    const pause = allAds.filter((ad) => ad.verdict === Verdict.PAUSE).length;
-    const scale = allAds.filter((ad) => ad.verdict === Verdict.SCALE).length;
+
+    // AAOS Self-Improving (Phase SI-2) — real, OPTIONAL `agent_logic` override of the real
+    // PAUSE/SCALE digest classification below (see `resolveVerdictOverride`'s own doc for the full
+    // "why this one, why it's safe" reasoning). Resolved once per real tenant pull and passed in
+    // explicitly, the same "resolve once, pass in explicitly" discipline Phase SI-1's own
+    // `cplMultiplier` resolution (`runPropertyCampaignTriggerCheck`) already establishes.
+    // `undefined` (no row, or a malformed row — `AgentLogicService.get` never throws) means every
+    // ad keeps its real, unmodified `verdict` — zero behavior change until a real ruleset exists.
+    const verdictLogicRules = await this.agentLogicService.get(
+      tenantId,
+      "SAMANTHA",
+      "verdict_classification",
+    );
+    const classifiedVerdicts = allAds.map((ad) => resolveVerdictOverride(ad, verdictLogicRules));
+    const pause = classifiedVerdicts.filter((verdict) => verdict === Verdict.PAUSE).length;
+    const scale = classifiedVerdicts.filter((verdict) => verdict === Verdict.SCALE).length;
 
     const analyzePayload: AnalyzeRequestDto = { campaigns: toAnalyzeCampaigns(adAccounts) };
     const analysis =
@@ -1191,6 +1216,65 @@ function flattenAds(account: AdAccount): Ad[] {
 
 function countAds(account: AdAccount): number {
   return flattenAds(account).length;
+}
+
+/** The exact 4 real numeric fields `resolveVerdictOverride` allowlists — mirrors `VerdictEngineInput`'s own real vocabulary (`packages/meta-ads-connector`'s `evaluateVerdict`) minus `objective` (categorical, not representable by this numeric-only rule model — see `resolveVerdictOverride`'s own doc). */
+const VERDICT_LOGIC_FIELDS = ["rphChatIDR", "conversations", "spendAmount", "frequency"] as const;
+
+/**
+ * AAOS Self-Improving (Phase SI-2) — real, OPTIONAL, declarative reclassification of ONE ad's
+ * already-computed `verdict` (`@aos/meta-ads-connector`'s own real `evaluateVerdict`), used ONLY by
+ * `runSamanthaAnalyze`'s real PAUSE/SCALE digest classification. Per this class's own doc ("Every
+ * handler here is read-only with respect to real Meta campaigns... none of them calls
+ * ExecuteVerdict, creates/activates/pauses a campaign"), this can only ever change a DISPLAY
+ * count/summary string and an API response field — it can NEVER trigger a real Meta spend change.
+ * That is the real, deliberate reason this is the phase's chosen "safe first candidate" (see
+ * `036_agent_logic.sql`'s own header doc for the fuller investigation this rewiring target is based
+ * on — the 2 genuinely multi-condition engines this codebase actually has,
+ * `VerdictEngine.evaluateVerdict`/`VerdictDecisionEngine.decidePause`, both live in separate
+ * workspace packages with no single clean, low-risk "one optional parameter" rewiring seam reaching
+ * them from `apps/aaos-api`).
+ *
+ * `rules` is the tenant's real, optional `agent_logic` `"verdict_classification"` ruleset
+ * (`AgentLogicService.get`) — `undefined` (no row, or a malformed row) means "keep `ad.verdict`
+ * unchanged", the exact same zero-behavior-change default `campaign-trigger.ts`'s own optional
+ * `cplMultiplier` parameter establishes (Phase SI-1).
+ *
+ * Two REAL, deliberate guards keep this override strictly additive, never able to silently
+ * fabricate a wrong classification:
+ *  - `ad.verdict === Verdict.FIX` is left untouched — a FIX verdict comes from `evaluateVerdict`'s
+ *    real, UNCONDITIONAL, highest-priority objective check (a non-numeric field this interpreter's
+ *    numeric-only rule model cannot represent), so a FIX ad is never eligible for override.
+ *  - `ad.metrics.rphChat.value === null` (spec: `Rph` has no rate when spend/count is 0 — see that
+ *    class's own doc) is left untouched — there is no honest numeric Rp/chat to evaluate rules
+ *    against.
+ * `evaluateLogicRules`'s `result` is only ever trusted when it is a real member of the `Verdict`
+ * enum — a rule naming any other string is a real, honest no-op (falls back to `ad.verdict`), never
+ * silently accepted as a fabricated new verdict.
+ */
+function resolveVerdictOverride(ad: Ad, rules: LogicRuleSet | undefined): Verdict {
+  if (rules === undefined || ad.verdict === Verdict.FIX) {
+    return ad.verdict;
+  }
+  const rphChatIDR = ad.metrics.rphChat.value;
+  if (rphChatIDR === null) {
+    return ad.verdict;
+  }
+  const override = evaluateLogicRules(
+    rules,
+    {
+      rphChatIDR,
+      conversations: ad.metrics.conversations,
+      spendAmount: ad.metrics.spend.toNumber(),
+      frequency: ad.metrics.frequency,
+    },
+    VERDICT_LOGIC_FIELDS,
+  );
+  if (override === undefined) {
+    return ad.verdict;
+  }
+  const realVerdictValues: readonly string[] = Object.values(Verdict);
+  return realVerdictValues.includes(override) ? (override as Verdict) : ad.verdict;
 }
 
 /** One listing's real, active-campaign-matched signals (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4). See `runPropertyCampaignTriggerCheck`'s doc for the matching heuristic's honest limitation. */

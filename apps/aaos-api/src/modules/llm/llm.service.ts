@@ -120,6 +120,19 @@ export const KNOWN_CONFIG_KEYS: readonly string[] = [
 ];
 
 /**
+ * AAOS Self-Improving, Phase SI-2's real, additive sibling of `KNOWN_CONFIG_KEYS` — the real
+ * `agent_logic.logic_key` vocabulary this phase wires up (`035_agent_logic.sql`'s own header doc),
+ * so a `LOGIC_UPDATE` improvement item targeting this one real key is no longer silently dropped by
+ * `generateImprovementPlan`'s own known-key check below. `LOGIC_UPDATE` is a NEW real improvement
+ * `type` as of this phase (it did not exist in `ImprovementItemSchema.type` before — see that
+ * schema's own doc); `"verdict_classification"` is the one real, safe, DISPLAY-only decision point
+ * this phase wires an optional rule-based override into (`SchedulerService.runSamanthaAnalyze`'s
+ * real PAUSE/SCALE digest classification — see that method's own doc for the full "why this one,
+ * why it's safe" reasoning).
+ */
+export const KNOWN_LOGIC_KEYS: readonly string[] = ["verdict_classification"];
+
+/**
  * Verbatim system prompt from the spec's `POST /api/v1/llm/analyze` section. Exported (AAOS
  * Self-Learning AI, Phase B) so `LearningService` can pass the SAME real fallback constant into
  * `PromptOverrideService.resolve(tenantId, "SAMANTHA", "analyze", ANALYZE_SYSTEM_PROMPT)` when
@@ -384,7 +397,7 @@ Format response JSON:
   "improvements": [
     {
       "agent": "SAMANTHA" | "CLARA",
-      "type": "PROMPT_UPDATE" | "CONFIG_UPDATE",
+      "type": "PROMPT_UPDATE" | "CONFIG_UPDATE" | "LOGIC_UPDATE",
       "target": "salah satu prompt_key di atas",
       "before": "kutipan/ringkasan jujur dari prompt aktif",
       "after": "usulan teks prompt baru",
@@ -1051,8 +1064,9 @@ export class LlmService {
    * one extra, load-bearing step mirroring `selectTargeting`'s candidate-id intersection /
    * `campaignStrategy`'s angle-membership check:
    *
-   * **Every `improvements[].target` is checked against `KNOWN_PROMPT_KEYS` ∪ `KNOWN_CONFIG_KEYS`
-   * (the real Phase A `prompt_key` vocabulary plus Phase SI-1's real `agent_configs.config_key`
+   * **Every `improvements[].target` is checked against `KNOWN_PROMPT_KEYS` ∪ `KNOWN_CONFIG_KEYS` ∪
+   * `KNOWN_LOGIC_KEYS` (the real Phase A `prompt_key` vocabulary, Phase SI-1's real
+   * `agent_configs.config_key` vocabulary, and Phase SI-2's real `agent_logic.logic_key`
    * vocabulary).** Any improvement whose `target` isn't in that combined set is DROPPED (not kept,
    * not failing the whole response) — an LLM is not trusted to only propose a change to a
    * prompt/config key that actually exists, no matter what the prompt says. `droppedCount` on the
@@ -1106,7 +1120,7 @@ export class LlmService {
       return { ...unavailable("INVALID_RESPONSE"), droppedCount: 0 };
     }
 
-    const knownKeys = new Set([...KNOWN_PROMPT_KEYS, ...KNOWN_CONFIG_KEYS]);
+    const knownKeys = new Set([...KNOWN_PROMPT_KEYS, ...KNOWN_CONFIG_KEYS, ...KNOWN_LOGIC_KEYS]);
     const improvements: ImprovementItem[] = validated.data.improvements.filter((item) =>
       knownKeys.has(item.target),
     );

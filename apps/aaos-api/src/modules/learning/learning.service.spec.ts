@@ -5,6 +5,10 @@ import type {
   ApplyConfigUpdateResult,
   ConfigApplierService,
 } from "../agent-config/config-applier.service.js";
+import type {
+  ApplyLogicUpdateResult,
+  LogicApplierService,
+} from "../agent-config/logic-applier.service.js";
 import type { ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
@@ -161,6 +165,18 @@ function buildFakeConfigApplier(
   return { applyConfigUpdate } as unknown as ConfigApplierService;
 }
 
+/** AAOS Self-Improving (Phase SI-2) — the exact `LogicApplierService` sibling of `buildFakeConfigApplier` above, same default-no-op reasoning ("not a LOGIC_UPDATE item"). */
+function buildFakeLogicApplier(
+  applyLogicUpdate: LogicApplierService["applyLogicUpdate"] = vi.fn(
+    async (_tenantId: string, item: ImprovementItem): Promise<ApplyLogicUpdateResult> => ({
+      applied: false,
+      reason: `type "${item.type}" is not LOGIC_UPDATE`,
+    }),
+  ),
+): LogicApplierService {
+  return { applyLogicUpdate } as unknown as LogicApplierService;
+}
+
 describe("LearningService", () => {
   describe("onSimulationComplete", () => {
     it("writes no proposal when verdict is GO (no gap)", async () => {
@@ -173,6 +189,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -188,6 +205,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -209,6 +227,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -242,6 +261,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -281,6 +301,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await service.onSimulationComplete(stored.id);
 
@@ -306,6 +327,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await expect(service.onSimulationComplete("missing-id")).resolves.toBeUndefined();
       expect(proposals.create).not.toHaveBeenCalled();
@@ -329,6 +351,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).not.toHaveBeenCalled();
@@ -348,6 +371,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await expect(service.onSimulationComplete("sim-1")).resolves.toBeUndefined();
       expect(proposals.create).not.toHaveBeenCalled();
@@ -363,6 +387,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         buildFakeAgentConfigService(),
         buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
       );
       await service.onSimulationComplete(stored.id);
       expect(proposals.create).toHaveBeenCalledTimes(1);
@@ -377,6 +402,7 @@ describe("LearningService", () => {
       llm: LlmService = buildFakeLlmService(),
       agentConfig: AgentConfigService = buildFakeAgentConfigService(),
       configApplier: ConfigApplierService = buildFakeConfigApplier(),
+      logicApplier: LogicApplierService = buildFakeLogicApplier(),
     ): LearningService {
       return new LearningService(
         buildFakeSimulationRepository(undefined),
@@ -385,6 +411,7 @@ describe("LearningService", () => {
         buildFakePromptOverride(),
         agentConfig,
         configApplier,
+        logicApplier,
       );
     }
 
@@ -683,6 +710,158 @@ describe("LearningService", () => {
           }),
         ).resolves.toBeUndefined();
         expect(proposals.create).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("AAOS Self-Improving (Phase SI-2) — real LOGIC_UPDATE auto-apply, no human gate", () => {
+      const LOGIC_DEFINITION_JSON = JSON.stringify([
+        { conditions: [{ field: "frequency", operator: "gte", value: 4 }], result: "REFRESH" },
+      ]);
+
+      function buildLogicOnlyLlm(): LlmService {
+        return buildFakeLlmService({
+          generateImprovementPlan: vi.fn(async () => ({
+            available: true as const,
+            analysis: "logic-only plan",
+            improvements: [
+              {
+                agent: "SAMANTHA" as const,
+                type: "LOGIC_UPDATE" as const,
+                target: "verdict_classification",
+                before: "[]",
+                after: LOGIC_DEFINITION_JSON,
+                reason: "r",
+                severity: "MEDIUM" as const,
+              },
+            ],
+            droppedCount: 0,
+          })),
+        });
+      }
+
+      it("real successful apply: calls LogicApplierService.applyLogicUpdate and marks the proposal AUTO_APPLIED when every item is a successfully-applied LOGIC_UPDATE", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyLogicUpdate = vi.fn(async () => ({ applied: true }));
+        const logicApplier = buildFakeLogicApplier(applyLogicUpdate);
+        const service = buildService(
+          proposals,
+          buildLogicOnlyLlm(),
+          undefined,
+          undefined,
+          logicApplier,
+        );
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-13", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyLogicUpdate).toHaveBeenCalledWith(
+          "dss-motor",
+          expect.objectContaining({ type: "LOGIC_UPDATE", target: "verdict_classification" }),
+        );
+        expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+          "proposal-1",
+          ["verdict_classification"],
+          "AUTO_APPLIED",
+        );
+      });
+
+      it("real write-failure best-effort degrade: never throws, and keeps the proposal PENDING (never records a failed key as auto-applied)", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyLogicUpdate = vi.fn(async () => ({ applied: false, reason: "write failed" }));
+        const logicApplier = buildFakeLogicApplier(applyLogicUpdate);
+        const service = buildService(
+          proposals,
+          buildLogicOnlyLlm(),
+          undefined,
+          undefined,
+          logicApplier,
+        );
+
+        await expect(
+          service.onAgentRunJudged("dss-motor", "agent-run-14", "SAMANTHA", {
+            scores: { overall: 10 },
+            gaps: [],
+            trend: "STABLE",
+          }),
+        ).resolves.toBeUndefined();
+
+        expect(proposals.create).toHaveBeenCalledTimes(1);
+        expect(proposals.markAutoApplied).not.toHaveBeenCalled();
+      });
+
+      it("mixed proposal (one CONFIG_UPDATE + one LOGIC_UPDATE, both auto-applied) marks AUTO_APPLIED and records both keys", async () => {
+        const proposals = buildFakeProposalRepository();
+        const llm = buildFakeLlmService({
+          generateImprovementPlan: vi.fn(async () => ({
+            available: true as const,
+            analysis: "mixed config+logic plan",
+            improvements: [
+              {
+                agent: "SAMANTHA" as const,
+                type: "CONFIG_UPDATE" as const,
+                target: "pause_cpl_multiplier",
+                before: "1.5",
+                after: "1.8",
+                reason: "r",
+                severity: "MEDIUM" as const,
+              },
+              {
+                agent: "SAMANTHA" as const,
+                type: "LOGIC_UPDATE" as const,
+                target: "verdict_classification",
+                before: "[]",
+                after: LOGIC_DEFINITION_JSON,
+                reason: "r",
+                severity: "MEDIUM" as const,
+              },
+            ],
+            droppedCount: 0,
+          })),
+        });
+        const applyConfigUpdate = vi.fn(async () => ({ applied: true }));
+        const applyLogicUpdate = vi.fn(async () => ({ applied: true }));
+        const configApplier = buildFakeConfigApplier(applyConfigUpdate);
+        const logicApplier = buildFakeLogicApplier(applyLogicUpdate);
+        const service = buildService(proposals, llm, undefined, configApplier, logicApplier);
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-15", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyConfigUpdate).toHaveBeenCalledTimes(1);
+        expect(applyLogicUpdate).toHaveBeenCalledTimes(1);
+        expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+          "proposal-1",
+          ["pause_cpl_multiplier", "verdict_classification"],
+          "AUTO_APPLIED",
+        );
+      });
+
+      it("never calls applyLogicUpdate for a plan with no LOGIC_UPDATE items (e.g. the default fake PROMPT_UPDATE-only plan)", async () => {
+        const proposals = buildFakeProposalRepository();
+        const applyLogicUpdate = vi.fn(async () => ({ applied: true }));
+        const logicApplier = buildFakeLogicApplier(applyLogicUpdate);
+        const service = buildService(
+          proposals,
+          buildFakeLlmService(),
+          undefined,
+          undefined,
+          logicApplier,
+        );
+
+        await service.onAgentRunJudged("dss-motor", "agent-run-16", "SAMANTHA", {
+          scores: { overall: 10 },
+          gaps: [],
+          trend: "STABLE",
+        });
+
+        expect(applyLogicUpdate).not.toHaveBeenCalled();
+        expect(proposals.markAutoApplied).not.toHaveBeenCalled();
       });
     });
   });

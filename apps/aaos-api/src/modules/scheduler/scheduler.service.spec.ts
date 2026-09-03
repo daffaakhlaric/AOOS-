@@ -4,8 +4,10 @@ import { NotFoundError } from "@aos/errors";
 import type { LeadStore } from "@aos/lead-store";
 import {
   AdBuilder,
+  AdMetrics,
   AdSetBuilder,
   CampaignBuilder,
+  Spend,
   Verdict,
   type AdAccount,
   type MetaAdsConnector,
@@ -22,6 +24,7 @@ import { buildTestConfig } from "../../test-support/fixtures.js";
 import type { AbTestingService } from "../abtesting/abtesting.service.js";
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import type { AgentConfigService } from "../agent-config/agent-config.service.js";
+import type { AgentLogicService } from "../agent-config/agent-logic.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
@@ -191,6 +194,16 @@ function buildFakeAgentConfigService(
     get,
     set: vi.fn(async () => ({}) as never),
   } as unknown as AgentConfigService;
+}
+
+/** AAOS Self-Improving (Phase SI-2) — a fake `AgentLogicService` that always resolves `undefined` by default (the exact real "no override row exists yet" behavior `AgentLogicService.get` documents on itself), so every existing test that doesn't care about `verdict_classification` keeps exercising `resolveVerdictOverride`'s real zero-behavior-change default (every ad keeps its real, unmodified `verdict`). */
+function buildFakeAgentLogicService(
+  get: AgentLogicService["get"] = vi.fn(async () => undefined),
+): AgentLogicService {
+  return {
+    get,
+    set: vi.fn(async () => ({}) as never),
+  } as unknown as AgentLogicService;
 }
 
 function buildFakeModeGuardService(mode: "DEV" | "LIVE" = "LIVE"): ModeGuardService {
@@ -390,6 +403,7 @@ function buildService(
     aiJudgeService?: AiJudgeService;
     pendingActions?: PendingActionsService;
     agentConfigService?: AgentConfigService;
+    agentLogicService?: AgentLogicService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -428,6 +442,7 @@ function buildService(
     options.aiJudgeService ?? buildFakeAiJudgeService(),
     options.pendingActions ?? buildFakePendingActionsService(),
     options.agentConfigService ?? buildFakeAgentConfigService(),
+    options.agentLogicService ?? buildFakeAgentLogicService(),
   );
 }
 
@@ -528,6 +543,149 @@ describe("SchedulerService.executeEvent", () => {
       expect.any(Number),
       expect.objectContaining({ pause: 1, scale: 0, totalAds: 1 }),
     );
+  });
+
+  describe("SAMANTHA_ANALYZE PAUSE/SCALE digest — AAOS Self-Improving (Phase SI-2) real, optional agent_logic override", () => {
+    function buildPauseAdAccount(rphChatIDR: number, conversations: number): AdAccount {
+      const metrics = unwrap(
+        AdMetrics.create({
+          spend: unwrap(Spend.create(rphChatIDR * conversations)),
+          impressions: 0,
+          reach: 0,
+          clicks: 0,
+          conversations,
+          d2: 0,
+          d3: 0,
+          d5: 0,
+          leadForm: 0,
+        }),
+      );
+      const ad = unwrap(new AdBuilder().withVerdict(Verdict.PAUSE).withMetrics(metrics).build());
+      const adSet = unwrap(new AdSetBuilder().withAds([ad]).build());
+      const campaign = unwrap(new CampaignBuilder().withAdSets([adSet]).build());
+      return {
+        id: campaign.adSets[0]?.adAccountId,
+        name: "Acc",
+        businessManagerId: "bm",
+        currency: "IDR",
+        timezone: "Asia/Jakarta",
+        campaigns: [campaign],
+        syncedAt: new Date(),
+      } as unknown as AdAccount;
+    }
+
+    it("zero behavior change by default: no agent_logic row means the real PAUSE count stays exactly ad.verdict-derived", async () => {
+      const adAccount = buildPauseAdAccount(30_000, 2);
+      const repository = buildFakeRepository();
+      const service = buildService({ repository, connector: buildFakeConnector(adAccount) });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({ pause: 1, scale: 0 }),
+      );
+    });
+
+    it("a real agent_logic ruleset genuinely reclassifies the digest count (PAUSE -> KEEP) when its condition matches", async () => {
+      const adAccount = buildPauseAdAccount(3_000, 2); // rphChatIDR = 3_000 — low
+      const repository = buildFakeRepository();
+      const agentLogicService = buildFakeAgentLogicService(
+        vi.fn(async (_tenantId: string, _agent: string, logicKey: string) =>
+          logicKey === "verdict_classification"
+            ? [
+                {
+                  conditions: [{ field: "rphChatIDR", operator: "lte", value: 9_000 }],
+                  result: "KEEP",
+                },
+              ]
+            : undefined,
+        ),
+      );
+      const service = buildService({
+        repository,
+        connector: buildFakeConnector(adAccount),
+        agentLogicService,
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({ pause: 0, scale: 0 }),
+      );
+    });
+
+    it("an agent_logic rule naming a real but non-matching condition leaves the real PAUSE count unchanged (honest no-match fallback)", async () => {
+      const adAccount = buildPauseAdAccount(30_000, 2); // rphChatIDR = 30_000 — high, doesn't match "<= 9000"
+      const repository = buildFakeRepository();
+      const agentLogicService = buildFakeAgentLogicService(
+        vi.fn(async () => [
+          { conditions: [{ field: "rphChatIDR", operator: "lte", value: 9_000 }], result: "KEEP" },
+        ]),
+      );
+      const service = buildService({
+        repository,
+        connector: buildFakeConnector(adAccount),
+        agentLogicService,
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({ pause: 1, scale: 0 }),
+      );
+    });
+
+    it("a rule naming a result string outside the real Verdict enum is a real, honest no-op — never fabricates a new verdict", async () => {
+      const adAccount = buildPauseAdAccount(3_000, 2);
+      const repository = buildFakeRepository();
+      const agentLogicService = buildFakeAgentLogicService(
+        vi.fn(async () => [
+          {
+            conditions: [{ field: "rphChatIDR", operator: "lte", value: 9_000 }],
+            result: "NOT_A_REAL_VERDICT",
+          },
+        ]),
+      );
+      const service = buildService({
+        repository,
+        connector: buildFakeConnector(adAccount),
+        agentLogicService,
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(repository.markDone).toHaveBeenCalledWith(
+        "evt-1",
+        expect.any(String),
+        expect.any(Number),
+        expect.objectContaining({ pause: 1, scale: 0 }),
+      );
+    });
+
+    it("resolves the tenant's real agent_logic ruleset via AgentLogicService.get with the real (tenantId, 'SAMANTHA', 'verdict_classification') args", async () => {
+      const adAccount = buildPauseAdAccount(30_000, 2);
+      const repository = buildFakeRepository();
+      const get = vi.fn(async () => undefined);
+      const agentLogicService = buildFakeAgentLogicService(get);
+      const service = buildService({
+        repository,
+        connector: buildFakeConnector(adAccount),
+        agentLogicService,
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(get).toHaveBeenCalledWith("dss-motor", "SAMANTHA", "verdict_classification");
+    });
   });
 
   it("KAI_REFRESH_CHECK counts REFRESH decisions from the real VerdictDecisionEngine", async () => {

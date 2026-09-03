@@ -188,8 +188,15 @@ export class LearningProposalRepository {
    * caller re-reads if needed" convention `updateDecision`/`PromptOverrideRepository.deactivate`
    * already establish.
    *
+   * AAOS Self-Improving, Phase SI-2: `autoAppliedConfigKeys` now also carries any successfully
+   * auto-applied `LOGIC_UPDATE` `target` (`logic_key`), via the exact same real column — a
+   * deliberate reuse (not a new column) since both are "which key(s) this proposal auto-applied,
+   * regardless of whether the underlying table was `agent_configs` or `agent_logic`", the same real
+   * fact for a Learning Monitor UI either way; `LearningService.persistProposal` is the one real
+   * place that decides which applier (`configApplier`/`logicApplier`) produced each key.
+   *
    * `newStatus` is real, caller-computed: `'AUTO_APPLIED'` ONLY when the caller has confirmed every
-   * improvement item on this proposal was a successfully-applied `CONFIG_UPDATE` (no
+   * improvement item on this proposal was a successfully-applied `CONFIG_UPDATE`/`LOGIC_UPDATE` (no
    * `PROMPT_UPDATE` item left genuinely pending human review) — see
    * `035_learning_proposals_auto_applied.sql`'s own header doc for the full reasoning. This
    * repository method trusts the caller's computed value rather than re-deriving it, same

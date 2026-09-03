@@ -102,8 +102,15 @@ export type ImprovementPlanRequestDto = z.infer<typeof ImprovementPlanRequestSch
  */
 export const ImprovementItemSchema = z.object({
   agent: z.enum(["SAMANTHA", "CLARA"]),
-  type: z.enum(["PROMPT_UPDATE", "CONFIG_UPDATE"]),
-  /** MUST be a real `prompt_key`/`config_key` — validated server-side by `LlmService.generateImprovementPlan`, never trusted from the LLM alone (belt-and-braces, same discipline `selectTargeting`'s candidate-id intersection / `campaignStrategy`'s angle-membership check already establish). */
+  /**
+   * `"LOGIC_UPDATE"` (AAOS Self-Improving, Phase SI-2) — real, additive 3rd member, the
+   * `agent_logic`/`KNOWN_LOGIC_KEYS` sibling of `"CONFIG_UPDATE"`. For a `LOGIC_UPDATE` item,
+   * `before`/`after` carry the current/proposed `agent_logic.definition` as JSON TEXT (never a
+   * live object) — `LogicApplierService.applyLogicUpdate` is the real, safe JSON.parse + structural
+   * validation boundary (see that class's own doc), never `eval`/`new Function`.
+   */
+  type: z.enum(["PROMPT_UPDATE", "CONFIG_UPDATE", "LOGIC_UPDATE"]),
+  /** MUST be a real `prompt_key`/`config_key`/`logic_key` — validated server-side by `LlmService.generateImprovementPlan`, never trusted from the LLM alone (belt-and-braces, same discipline `selectTargeting`'s candidate-id intersection / `campaignStrategy`'s angle-membership check already establish). */
   target: z.string().min(1),
   before: z.string(),
   after: z.string(),

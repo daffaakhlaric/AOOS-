@@ -283,6 +283,10 @@ describe("AAOS EPIC S Phase S6 — real end-to-end: cron tick -> SchedulerServic
       {
         get: vi.fn(async (_t: string, _a: string, _k: string, fallback: number) => fallback),
       } as never,
+      // AAOS Self-Improving (Phase SI-2) — real "no override row exists yet" fake, same
+      // zero-behavior-change discipline as `agentConfigService` above — this real end-to-end
+      // flow's PAUSE/SCALE digest classification stays byte-identical to before this phase.
+      { get: vi.fn(async () => undefined) } as never,
     );
 
     await service.executeEvent(buildEvent());
