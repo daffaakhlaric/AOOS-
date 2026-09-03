@@ -31,6 +31,10 @@ export const CreateListingBodySchema = z.object({
   address: z.string().min(1).optional(),
   city: z.string().min(1).optional(),
   province: z.string().min(1).optional(),
+  /** AAOS-GEO-TARGETING-AND-REGION-PICKER Part B — the Listing form's real cascading picker's
+   * chosen kecamatan display name (`nama`). Additive, optional — mirrors `city`/`province`'s own
+   * shape, never required (older listings never set this). */
+  kecamatan: z.string().min(1).optional(),
   postalCode: z.string().min(1).optional(),
 
   description: z.string().optional(),
@@ -104,6 +108,7 @@ export interface ListingResponseDto {
   readonly address?: string;
   readonly city?: string;
   readonly province?: string;
+  readonly kecamatan?: string;
   readonly postalCode?: string;
 
   readonly description?: string;

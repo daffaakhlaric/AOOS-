@@ -51,6 +51,10 @@ export interface ListingRow {
   readonly address: string | null;
   readonly city: string | null;
   readonly province: string | null;
+  /** AAOS-GEO-TARGETING-AND-REGION-PICKER Part B (`033_listings_kecamatan.sql`) — additive,
+   * nullable. Populated by the Listing form's real cascading picker's chosen kecamatan `nama`
+   * display string; `undefined`/`null` for every listing created before this column existed. */
+  readonly kecamatan: string | null;
   readonly postal_code: string | null;
   readonly description: string | null;
   readonly highlights: readonly string[];

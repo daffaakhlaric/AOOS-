@@ -38,9 +38,12 @@ describe("ListingModal", () => {
     const fetchMock = vi.fn();
     global.fetch = fetchMock as unknown as typeof fetch;
     render(<ListingModal onClose={vi.fn()} onSaved={vi.fn()} />);
+    // Mount itself fires a real GET /api/region/provinces fetch for the cascading picker — record
+    // the call count here rather than asserting zero calls overall.
+    const callsBeforeClick = fetchMock.mock.calls.length;
     await userEvent.click(screen.getByText("✓ Publish Listing"));
     expect(screen.getByText("Judul wajib diisi.")).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls).toHaveLength(callsBeforeClick);
   });
 
   it("Add mode: POSTs the form and calls onSaved, unlocking the photo section", async () => {
@@ -63,7 +66,15 @@ describe("ListingModal", () => {
     expect(screen.getByDisplayValue("Rumah Bintaro 88m²")).toBeInTheDocument();
     await userEvent.click(screen.getByText("✓ Publish Listing"));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [url, init] = fetchMock.mock.calls[0]!;
+    // The mount also fires a real GET /api/region/provinces fetch for the cascading picker (see
+    // ListingModal.tsx's region-cascading useEffect) — find the real PUT call among all calls
+    // rather than assuming index 0, same real "fetch is called more than once now" adjustment
+    // every other index-0-assuming test in this file needed after the region picker landed.
+    const putCall = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit)?.method === "PUT",
+    );
+    expect(putCall).toBeDefined();
+    const [url, init] = putCall!;
     expect(url).toBe("/api/listings/listing-1");
     expect((init as RequestInit).method).toBe("PUT");
   });
@@ -126,7 +137,12 @@ describe("ListingModal", () => {
     render(<ListingModal editing={withDocuments} onClose={vi.fn()} onSaved={vi.fn()} />);
     await userEvent.click(screen.getByLabelText("Hapus dokumen"));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [url, init] = fetchMock.mock.calls[0]!;
+    // Same "mount also fires a region-provinces GET" adjustment as the PUT test above.
+    const deleteCall = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit)?.method === "DELETE",
+    );
+    expect(deleteCall).toBeDefined();
+    const [url, init] = deleteCall!;
     expect(url).toBe("/api/listings/listing-1/documents/d1");
     expect((init as RequestInit).method).toBe("DELETE");
   });
@@ -136,5 +152,87 @@ describe("ListingModal", () => {
     render(<ListingModal onClose={onClose} onSaved={vi.fn()} />);
     await userEvent.click(screen.getByText("Batal"));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("real cascading province -> kota/kabupaten -> kecamatan picker", () => {
+    function regionFetchMock(): ReturnType<typeof vi.fn> {
+      return vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/region/provinces")) {
+          return jsonResponse({ items: [{ id: "11", nama: "Aceh" }] });
+        }
+        if (url.includes("/api/region/regencies/11")) {
+          return jsonResponse({ items: [{ id: "1101", nama: "Kabupaten Aceh Selatan" }] });
+        }
+        if (url.includes("/api/region/districts/1101")) {
+          return jsonResponse({ items: [{ id: "110101", nama: "Bakongan" }] });
+        }
+        return jsonResponse({ listing: LISTING });
+      });
+    }
+
+    it("populates the province select on mount; picking a province enables and populates the city select; picking a city enables and populates the kecamatan select", async () => {
+      global.fetch = regionFetchMock() as unknown as typeof fetch;
+      render(<ListingModal onClose={vi.fn()} onSaved={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByRole("option", { name: "Aceh" })).toBeInTheDocument());
+
+      const citySelect = screen.getByLabelText("Kota/Kab") as HTMLSelectElement;
+      const kecamatanSelect = screen.getByLabelText("Kecamatan") as HTMLSelectElement;
+      expect(citySelect.disabled).toBe(true);
+      expect(kecamatanSelect.disabled).toBe(true);
+
+      await userEvent.selectOptions(screen.getByLabelText("Provinsi"), "11");
+      await waitFor(() => expect(citySelect.disabled).toBe(false));
+      await waitFor(() =>
+        expect(screen.getByRole("option", { name: "Kabupaten Aceh Selatan" })).toBeInTheDocument(),
+      );
+
+      await userEvent.selectOptions(citySelect, "1101");
+      await waitFor(() => expect(kecamatanSelect.disabled).toBe(false));
+      await waitFor(() =>
+        expect(screen.getByRole("option", { name: "Bakongan" })).toBeInTheDocument(),
+      );
+
+      await userEvent.selectOptions(kecamatanSelect, "110101");
+      expect(kecamatanSelect.value).toBe("110101");
+    });
+
+    it("an existing listing whose free-text city/province don't match any real wilayah option still loads and edits fine — the selects stay unset with an informational hint, never a crash", async () => {
+      const legacyListing: ListingDto = {
+        ...LISTING,
+        province: "Provinsi Buatan Sendiri",
+        city: "Kota Bebas Teks",
+      };
+      global.fetch = regionFetchMock() as unknown as typeof fetch;
+      render(<ListingModal editing={legacyListing} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+      // The listing renders immediately (edit mode), unaffected by the region fetch outcome.
+      expect(screen.getByText("Edit Listing")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Rumah Bintaro 88m²")).toBeInTheDocument();
+
+      await waitFor(() => expect(screen.getByRole("option", { name: "Aceh" })).toBeInTheDocument());
+
+      const provinceSelect = screen.getByLabelText("Provinsi") as HTMLSelectElement;
+      expect(provinceSelect.value).toBe(""); // no real province named "Provinsi Buatan Sendiri"
+      expect(
+        screen.getByText(
+          'Nilai saat ini: "Provinsi Buatan Sendiri" (tidak cocok data wilayah, pilih ulang jika perlu)',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("real, honest degrade: a region fetch failure never blocks editing the rest of the form", async () => {
+      global.fetch = vi.fn(async () => {
+        throw new Error("network down");
+      }) as unknown as typeof fetch;
+      render(<ListingModal editing={LISTING} onClose={vi.fn()} onSaved={vi.fn()} />);
+      await waitFor(() =>
+        expect(
+          screen.getByText("Gagal memuat data wilayah — provinsi bisa diisi ulang nanti."),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.getByDisplayValue("Rumah Bintaro 88m²")).toBeInTheDocument();
+    });
   });
 });

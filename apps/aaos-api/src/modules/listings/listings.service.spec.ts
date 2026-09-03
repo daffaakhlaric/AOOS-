@@ -31,6 +31,7 @@ function makeRow(overrides: Partial<ListingRow> = {}): ListingRow {
     address: null,
     city: "Tangerang Selatan",
     province: "Banten",
+    kecamatan: "Ciputat",
     postal_code: null,
     description: null,
     highlights: [],
@@ -116,6 +117,37 @@ describe("ListingsService", () => {
     );
     expect(result.title).toBe("Rumah Baru");
     expect(result.listingStatus).toBe("DRAFT");
+  });
+
+  it("create maps a real cascading-picker kecamatan into the snake_case insert and back out", async () => {
+    repository.insert = vi.fn(async (values) => makeRow(values as Partial<ListingRow>));
+    const service = new ListingsService(repository, undefined);
+    const result = await service.create(TENANT, {
+      title: "Rumah Baru",
+      propertyType: "RUMAH",
+      price: 1_000_000_000,
+      province: "Banten",
+      city: "Kabupaten Tangerang",
+      kecamatan: "Ciputat",
+    });
+    expect(repository.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        province: "Banten",
+        city: "Kabupaten Tangerang",
+        kecamatan: "Ciputat",
+      }),
+    );
+    expect(result.kecamatan).toBe("Ciputat");
+  });
+
+  it("getById on a legacy row (kecamatan=null, pre-dating 033_listings_kecamatan.sql) still maps fine, with no kecamatan field in the response DTO", async () => {
+    repository.findById = vi.fn(async () =>
+      makeRow({ kecamatan: null, city: "Tangerang Selatan" }),
+    );
+    const service = new ListingsService(repository, undefined);
+    const result = await service.getById(TENANT, "listing-1");
+    expect(result.kecamatan).toBeUndefined();
+    expect(result.city).toBe("Tangerang Selatan");
   });
 
   it("update patches only the provided fields", async () => {

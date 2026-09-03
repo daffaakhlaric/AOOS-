@@ -90,6 +90,7 @@ import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { OverviewModule } from "./modules/overview/overview.module.js";
 import { PropertyObjectiveModule } from "./modules/property-objective/property-objective.module.js";
 import { RecyclingModule } from "./modules/recycling/recycling.module.js";
+import { RegionModule } from "./modules/region/region.module.js";
 import { SalesModule } from "./modules/sales/sales.module.js";
 import { SchedulerModule } from "./modules/scheduler/scheduler.module.js";
 import { ScraperModule } from "./modules/scraper/scraper.module.js";
@@ -421,6 +422,11 @@ export class AppModule {
         // generalization of `packages/objective-engine`'s AUTOMOTIVE-specific domain model).
         // Additive — ObjectiveModule itself is untouched.
         PropertyObjectiveModule,
+        // AAOS-GEO-TARGETING-AND-REGION-PICKER Part B — new `region` module, a real read-only
+        // proxy over the public wilayah (province/kabupaten/kecamatan) catalog backing the
+        // Listing form's cascading picker. No new global provider — `RegionService` composes its
+        // own in-memory cache and calls the public API directly, no `SUPABASE_CLIENT` involved.
+        RegionModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

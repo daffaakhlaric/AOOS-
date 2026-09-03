@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   LISTING_STATUSES,
@@ -13,6 +13,7 @@ import {
   type PropertyType,
   type UpdateListingInput,
 } from "@/types/listing.types";
+import type { RegionListDto, RegionOptionDto } from "@/types/region.types";
 
 import styles from "./ListingModal.module.css";
 
@@ -67,9 +68,142 @@ export function ListingModal({ editing, onClose, onSaved }: ListingModalProps): 
   const [facing, setFacing] = useState(editing?.facing ?? "");
 
   const [address, setAddress] = useState(editing?.address ?? "");
-  const [city, setCity] = useState(editing?.city ?? "");
-  const [province, setProvince] = useState(editing?.province ?? "");
   const [postalCode, setPostalCode] = useState(editing?.postalCode ?? "");
+
+  // Real cascading province -> kabupaten/kota -> kecamatan picker
+  // (docs/PROMPT-AAOS-GEO-TARGETING-AND-REGION-PICKER.md Part B). `province`/`city`/`kecamatan`
+  // hold the real chosen display NAME strings — what actually gets submitted to
+  // `POST/PUT /api/listings` (LocationResolverService/SearchAdLocations both consume real city
+  // NAMES, never this API's internal numeric ids, verified directly against those call sites).
+  // `provinceId`/`regencyId`/`districtId` are purely local UI-selection state driving which
+  // downstream `<select>` is fetched/enabled — never submitted.
+  //
+  // REAL UX DECISION for an existing listing whose free-text `city`/`province` (or absent
+  // `kecamatan`) doesn't match any real option from this API: the matching select is simply left
+  // unset (no destructive/forced "Lainnya" mode) and a small hint below it shows the existing
+  // value verbatim, so the user can see what's stored and can either leave it as-is (untouched
+  // fields are still submitted with their original string on save) or actively re-pick from the
+  // dropdown, which then overwrites that field with the freshly chosen real `nama`.
+  const [province, setProvince] = useState(editing?.province ?? "");
+  const [city, setCity] = useState(editing?.city ?? "");
+  const [kecamatan, setKecamatan] = useState(editing?.kecamatan ?? "");
+  const [provinceId, setProvinceId] = useState("");
+  const [regencyId, setRegencyId] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [provinces, setProvinces] = useState<readonly RegionOptionDto[]>([]);
+  const [regencies, setRegencies] = useState<readonly RegionOptionDto[]>([]);
+  const [districts, setDistricts] = useState<readonly RegionOptionDto[]>([]);
+  const [regionError, setRegionError] = useState<string | undefined>(undefined);
+
+  // Every fetch below is wrapped in a real try/catch around an `async` IIFE (never a `.then`
+  // chain) so a genuinely broken/mocked `fetch` (throws synchronously, or resolves to a
+  // non-Response value) degrades exactly like a real network failure — it never crashes the
+  // component. Same "preview/nicety, never a hard gate" discipline as the rest of this codebase's
+  // best-effort fetches (e.g. `PropertyObjectiveForm.tsx`'s budget-suggestion fetch).
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/region/provinces");
+        if (!res.ok) throw new Error("Gagal memuat daftar provinsi.");
+        const body = (await res.json()) as RegionListDto;
+        if (!active) return;
+        const items = Array.isArray(body.items) ? body.items : [];
+        setProvinces(items);
+        if (province.length > 0) {
+          const match = items.find((p) => p.nama === province);
+          if (match !== undefined) setProvinceId(match.id);
+        }
+      } catch {
+        // Real, honest degrade — never blocks the form. The free-text province value (if any)
+        // stays exactly as it was; the select just has no options to show.
+        if (active) setRegionError("Gagal memuat data wilayah — provinsi bisa diisi ulang nanti.");
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only fetch; `province` is only read to try an initial match, not a live dependency.
+  }, []);
+
+  useEffect(() => {
+    if (provinceId.length === 0) {
+      setRegencies([]);
+      return;
+    }
+    let active = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/region/regencies/${encodeURIComponent(provinceId)}`);
+        if (!res.ok) throw new Error("Gagal memuat daftar kota/kabupaten.");
+        const body = (await res.json()) as RegionListDto;
+        if (!active) return;
+        const items = Array.isArray(body.items) ? body.items : [];
+        setRegencies(items);
+        if (city.length > 0) {
+          const match = items.find((r) => r.nama === city);
+          if (match !== undefined) setRegencyId(match.id);
+        }
+      } catch {
+        if (active) {
+          setRegionError("Gagal memuat data wilayah — kota/kabupaten bisa diisi ulang nanti.");
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `city` is only read to try an initial match for this provinceId, not a live dependency (province change resets it explicitly in handleProvinceChange).
+  }, [provinceId]);
+
+  useEffect(() => {
+    if (regencyId.length === 0) {
+      setDistricts([]);
+      return;
+    }
+    let active = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/region/districts/${encodeURIComponent(regencyId)}`);
+        if (!res.ok) throw new Error("Gagal memuat daftar kecamatan.");
+        const body = (await res.json()) as RegionListDto;
+        if (!active) return;
+        const items = Array.isArray(body.items) ? body.items : [];
+        setDistricts(items);
+        if (kecamatan.length > 0) {
+          const match = items.find((d) => d.nama === kecamatan);
+          if (match !== undefined) setDistrictId(match.id);
+        }
+      } catch {
+        if (active) setRegionError("Gagal memuat data wilayah — kecamatan bisa diisi ulang nanti.");
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `kecamatan` is only read to try an initial match for this regencyId, not a live dependency.
+  }, [regencyId]);
+
+  function handleProvinceChange(id: string): void {
+    setProvinceId(id);
+    setProvince(provinces.find((p) => p.id === id)?.nama ?? "");
+    setRegencyId("");
+    setCity("");
+    setDistrictId("");
+    setKecamatan("");
+  }
+
+  function handleRegencyChange(id: string): void {
+    setRegencyId(id);
+    setCity(regencies.find((r) => r.id === id)?.nama ?? "");
+    setDistrictId("");
+    setKecamatan("");
+  }
+
+  function handleDistrictChange(id: string): void {
+    setDistrictId(id);
+    setKecamatan(districts.find((d) => d.id === id)?.nama ?? "");
+  }
 
   const [description, setDescription] = useState(editing?.description ?? "");
   const [highlightsText, setHighlightsText] = useState((editing?.highlights ?? []).join("\n"));
@@ -103,6 +237,7 @@ export function ListingModal({ editing, onClose, onSaved }: ListingModalProps): 
       ...(address.length > 0 ? { address } : {}),
       ...(city.length > 0 ? { city } : {}),
       ...(province.length > 0 ? { province } : {}),
+      ...(kecamatan.length > 0 ? { kecamatan } : {}),
       ...(postalCode.length > 0 ? { postalCode } : {}),
       ...(description.length > 0 ? { description } : {}),
       highlights: highlightsText
@@ -457,29 +592,82 @@ export function ListingModal({ editing, onClose, onSaved }: ListingModalProps): 
               onChange={(e) => setAddress(e.target.value)}
             />
           </div>
+          {regionError !== undefined ? <p className={styles.hint}>{regionError}</p> : null}
           <div className={styles.row}>
-            <div className={styles.formGroup}>
-              <label htmlFor="listing-city" className={styles.formLabel}>
-                Kota/Kab
-              </label>
-              <input
-                id="listing-city"
-                className={styles.formInput}
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-              />
-            </div>
             <div className={styles.formGroup}>
               <label htmlFor="listing-province" className={styles.formLabel}>
                 Provinsi
               </label>
-              <input
+              <select
                 id="listing-province"
                 className={styles.formInput}
-                value={province}
-                onChange={(e) => setProvince(e.target.value)}
-              />
+                value={provinceId}
+                onChange={(e) => handleProvinceChange(e.target.value)}
+              >
+                <option value="">-- Pilih Provinsi --</option>
+                {provinces.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nama}
+                  </option>
+                ))}
+              </select>
+              {provinceId === "" && province.length > 0 ? (
+                <p className={styles.hint}>
+                  Nilai saat ini: &quot;{province}&quot; (tidak cocok data wilayah, pilih ulang jika
+                  perlu)
+                </p>
+              ) : null}
             </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="listing-city" className={styles.formLabel}>
+                Kota/Kab
+              </label>
+              <select
+                id="listing-city"
+                className={styles.formInput}
+                value={regencyId}
+                disabled={provinceId === ""}
+                onChange={(e) => handleRegencyChange(e.target.value)}
+              >
+                <option value="">-- Pilih Kota/Kabupaten --</option>
+                {regencies.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nama}
+                  </option>
+                ))}
+              </select>
+              {regencyId === "" && city.length > 0 ? (
+                <p className={styles.hint}>
+                  Nilai saat ini: &quot;{city}&quot; (tidak cocok data wilayah, pilih ulang jika
+                  perlu)
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className={styles.formGroup}>
+            <label htmlFor="listing-kecamatan" className={styles.formLabel}>
+              Kecamatan
+            </label>
+            <select
+              id="listing-kecamatan"
+              className={styles.formInput}
+              value={districtId}
+              disabled={regencyId === ""}
+              onChange={(e) => handleDistrictChange(e.target.value)}
+            >
+              <option value="">-- Pilih Kecamatan --</option>
+              {districts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.nama}
+                </option>
+              ))}
+            </select>
+            {districtId === "" && kecamatan.length > 0 ? (
+              <p className={styles.hint}>
+                Nilai saat ini: &quot;{kecamatan}&quot; (tidak cocok data wilayah, pilih ulang jika
+                perlu)
+              </p>
+            ) : null}
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="listing-postal" className={styles.formLabel}>

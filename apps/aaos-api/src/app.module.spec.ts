@@ -126,7 +126,11 @@ describe("AppModule.forRoot", () => {
     // existing SUPABASE_CLIENT, same pattern OverviewModule/PendingActionsModule already
     // establish; reuses MetaAdsModule's already-exported MetaAdsService in-process, not a new
     // global provider here). ObjectiveModule itself is untouched.
-    expect(dynamicModule.imports).toHaveLength(30);
+    // AAOS-GEO-TARGETING-AND-REGION-PICKER Part B: +1 import (RegionModule, the new
+    // `GET /api/v1/region/provinces|regencies/:provinceId|districts/:regencyId` real proxy over
+    // the public wilayah catalog) — no new global provider (composes its own in-memory
+    // `ResponseCache` locally, no `SUPABASE_CLIENT`/tenant dependency at all).
+    expect(dynamicModule.imports).toHaveLength(31);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

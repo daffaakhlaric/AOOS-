@@ -52,6 +52,9 @@ export interface ListingDto {
   readonly address?: string;
   readonly city?: string;
   readonly province?: string;
+  /** AAOS-GEO-TARGETING-AND-REGION-PICKER Part B — the cascading picker's chosen kecamatan
+   * display name. Additive, optional — older listings never have this. */
+  readonly kecamatan?: string;
   readonly postalCode?: string;
 
   readonly description?: string;
@@ -91,6 +94,7 @@ export interface CreateListingInput {
   readonly address?: string;
   readonly city?: string;
   readonly province?: string;
+  readonly kecamatan?: string;
   readonly postalCode?: string;
   readonly description?: string;
   readonly highlights?: readonly string[];
