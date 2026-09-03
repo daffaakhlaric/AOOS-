@@ -1,10 +1,32 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 
 import { TenantId } from "../../common/tenant-context.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
+import { AgentConfigService } from "../agent-config/agent-config.service.js";
+import { JudgeResultRepository } from "../ai-judge/infrastructure/judge-result.repository.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
+import {
+  SetAgentConfigBodySchema,
+  toAgentConfigResponseDto,
+  type AgentConfigResponseDto,
+  type SetAgentConfigBodyDto,
+} from "./dto/agent-config-response.dto.js";
 import { DecideProposalBodySchema, type DecideProposalBodyDto } from "./dto/decide-proposal.dto.js";
+import {
+  toJudgeHistoryPointDto,
+  type JudgeHistoryPointDto,
+} from "./dto/judge-history-point.dto.js";
 import {
   toLearningProposalResponseDto,
   type LearningProposalResponseDto,
@@ -13,7 +35,9 @@ import {
   toPromptOverrideResponseDto,
   type PromptOverrideResponseDto,
 } from "./dto/prompt-override-response.dto.js";
+import { TriggerCheckBodySchema, type TriggerCheckBodyDto } from "./dto/trigger-check.dto.js";
 import { LearningDecisionService } from "./learning-decision.service.js";
+import { LearningService } from "./learning.service.js";
 
 /**
  * `api/v1/learning*` (AAOS Self-Learning AI, Phase C — the human-approval gate). `x-api-key`
@@ -34,7 +58,16 @@ import { LearningDecisionService } from "./learning-decision.service.js";
 @Controller("api/v1/learning")
 @UseGuards(ApiKeyGuard)
 export class LearningController {
-  constructor(private readonly decisions: LearningDecisionService) {}
+  constructor(
+    private readonly decisions: LearningDecisionService,
+    // AAOS Self-Improving (Phase SI-6) — real "Improve sekarang" manual trigger
+    // (`LearningService.triggerManualCheck`), real Config editor (`AgentConfigService`), and real
+    // Score Trend chart data (`JudgeResultRepository`, composed by `LearningModule` the same way
+    // every other real repository dependency in this module already is).
+    private readonly learning: LearningService,
+    private readonly agentConfig: AgentConfigService,
+    private readonly judgeResults: JudgeResultRepository,
+  ) {}
 
   @Get("proposals")
   async listProposals(
@@ -89,5 +122,75 @@ export class LearningController {
     @Param("promptKey") promptKey: string,
   ): Promise<{ readonly rolledBackToVersion: number | null }> {
     return this.decisions.rollback(tenantId, agent, promptKey);
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-6 — the Learning Monitor's real "Improve sekarang" manual-trigger
+   * button. Delegates entirely to `LearningService.triggerManualCheck` (see that method's own doc
+   * for exactly what real data this checks and why it never fabricates a forced proposal).
+   */
+  @Post("trigger")
+  @HttpCode(200)
+  async trigger(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(TriggerCheckBodySchema)) body: TriggerCheckBodyDto,
+  ): Promise<{ readonly triggered: boolean; readonly reason?: string }> {
+    return this.learning.triggerManualCheck(tenantId, body.agent);
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-6 — the Learning Monitor's real Config editor "view current
+   * values" read (`AgentConfigService.listForTenant`, real `agent_configs` rows for the caller's own
+   * tenant — never a client-supplied tenant id, same `@TenantId()` convention `listProposals` above
+   * already establishes).
+   */
+  @Get("configs")
+  async listConfigs(@TenantId() tenantId: string): Promise<readonly AgentConfigResponseDto[]> {
+    const rows = await this.agentConfig.listForTenant(tenantId);
+    return rows.map(toAgentConfigResponseDto);
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-6 — the Learning Monitor's real Config editor WRITE
+   * (`AgentConfigService.set`, the SAME real upsert path `ConfigApplierService.applyConfigUpdate`'s
+   * auto-apply already uses). `PUT`, not `POST`: this is a real idempotent "set this key to this
+   * value" action, matching this table's own real upsert-by-`(tenantId, agent, configKey)` semantics
+   * exactly.
+   */
+  @Put("configs")
+  async setConfig(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(SetAgentConfigBodySchema)) body: SetAgentConfigBodyDto,
+  ): Promise<AgentConfigResponseDto> {
+    const row = await this.agentConfig.set(
+      tenantId,
+      body.agent,
+      body.configKey,
+      body.value,
+      body.updatedBy,
+    );
+    return toAgentConfigResponseDto(row);
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-6 — the Learning Monitor's real Score Trend chart data source: the
+   * caller's own tenant's real `judge_results` history for one real `agent`, over the last real
+   * `days` (default 30, matching the phase's own "30-day, real judge_results history" spec),
+   * oldest-first. Reuses `JudgeResultRepository.listForTenantSince` directly — the SAME real query
+   * `getTodayScoreSummary`/`AccuracyCheckService` already use, never a second, parallel history
+   * query. A real, honest EMPTY array (never fabricated points) for a tenant+agent with no judged
+   * runs in the window yet.
+   */
+  @Get("judge-history")
+  async judgeHistory(
+    @TenantId() tenantId: string,
+    @Query("agent") agent: string,
+    @Query("days") daysRaw?: string,
+  ): Promise<readonly JudgeHistoryPointDto[]> {
+    const parsedDays = daysRaw !== undefined ? Number(daysRaw) : NaN;
+    const days = Number.isFinite(parsedDays) && parsedDays > 0 ? Math.min(parsedDays, 90) : 30;
+    const sinceISO = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const rows = await this.judgeResults.listForTenantSince(tenantId, agent, sinceISO);
+    return rows.map(toJudgeHistoryPointDto);
   }
 }

@@ -1,26 +1,56 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { LineChart } from "@tremor/react";
 
 import { TopBar } from "@/components/layout/TopBar";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import type { LearningProposalDto, PromptOverrideDto } from "@/types/learning.types";
+import type {
+  AgentConfigDto,
+  JudgeHistoryPointDto,
+  LearningProposalDto,
+  PromptOverrideDto,
+  TriggerCheckResultDto,
+} from "@/types/learning.types";
 import type { PendingActionDto } from "@/types/pending-actions.types";
 
 import styles from "./LearningMonitorClient.module.css";
 
-const STATUS_OPTIONS = ["PENDING", "APPROVED", "REJECTED"] as const;
+const STATUS_OPTIONS = [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "AUTO_APPLIED",
+  "AUTO_APPLY_BLOCKED_BY_SANDBOX",
+] as const;
 
+/** AAOS Self-Improving, Phase SI-6 — real, honest status badge for EVERY real proposal status a `learning_proposals` row can carry today (PENDING/APPROVED/REJECTED from Phase C, AUTO_APPLIED/AUTO_APPLY_BLOCKED_BY_SANDBOX from Phase SI-1/SI-5). There is no real `ROLLED_BACK` status anywhere in this codebase (see `JudgeMemoryService`'s own doc for why, and `AccuracyCheckService`'s own doc for why a REGRESSED accuracy verdict is a passive flag, not this) — never fabricated a case for one. */
 function statusBadgeClass(status: string): string {
-  if (status === "APPROVED") {
+  if (status === "APPROVED" || status === "AUTO_APPLIED") {
     return styles.statusApproved ?? "";
   }
   if (status === "REJECTED") {
     return styles.statusRejected ?? "";
   }
+  if (status === "AUTO_APPLY_BLOCKED_BY_SANDBOX") {
+    return styles.statusBlocked ?? "";
+  }
   return styles.statusPending ?? "";
 }
+
+/** AAOS Self-Improving, Phase SI-6 — the real accuracy-check verdict badge (a SEPARATE concept from `status` above — see `LearningProposalDto.accuracyVerdict`'s own doc). */
+function accuracyBadgeClass(verdict: "IMPROVED" | "REGRESSED" | "INCONCLUSIVE"): string {
+  if (verdict === "IMPROVED") {
+    return styles.statusApproved ?? "";
+  }
+  if (verdict === "REGRESSED") {
+    return styles.statusRejected ?? "";
+  }
+  return styles.statusPending ?? "";
+}
+
+const HISTORY_AGENTS = ["SAMANTHA", "CLARA"] as const;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("id-ID");
@@ -77,6 +107,25 @@ export function LearningMonitorClient(): React.ReactElement {
   const [pendingBusyId, setPendingBusyId] = useState<string | undefined>(undefined);
   const [pendingActionError, setPendingActionError] = useState<string | undefined>(undefined);
 
+  // AAOS Self-Improving, Phase SI-6 — real Score Trend chart state (real `judge_results` history,
+  // never fake data) + the real "Improve sekarang" manual-trigger state, both scoped to the SAME
+  // selected agent (SAMANTHA/CLARA) since the trigger checks that agent's own latest real judged run.
+  const [historyAgent, setHistoryAgent] = useState<(typeof HISTORY_AGENTS)[number]>("SAMANTHA");
+  const [judgeHistory, setJudgeHistory] = useState<readonly JudgeHistoryPointDto[] | undefined>(
+    undefined,
+  );
+  const [historyError, setHistoryError] = useState<string | undefined>(undefined);
+  const [triggerBusy, setTriggerBusy] = useState(false);
+  const [triggerResult, setTriggerResult] = useState<TriggerCheckResultDto | undefined>(undefined);
+
+  // AAOS Self-Improving, Phase SI-6 — real `agent_configs` Config editor state.
+  const [configs, setConfigs] = useState<readonly AgentConfigDto[] | undefined>(undefined);
+  const [configError, setConfigError] = useState<string | undefined>(undefined);
+  const [configDraft, setConfigDraft] = useState<Record<string, string>>({});
+  const [configBusyKey, setConfigBusyKey] = useState<string | undefined>(undefined);
+  const [newConfig, setNewConfig] = useState({ agent: "GLOBAL", configKey: "", value: "" });
+  const [newConfigBusy, setNewConfigBusy] = useState(false);
+
   const loadProposals = useCallback(() => {
     const qs = statusFilter.length > 0 ? `?status=${encodeURIComponent(statusFilter)}` : "";
     fetch(`/api/learning/proposals${qs}`)
@@ -125,6 +174,37 @@ export function LearningMonitorClient(): React.ReactElement {
       });
   }, [pendingStatusFilter]);
 
+  const loadJudgeHistory = useCallback(() => {
+    setHistoryError(undefined);
+    fetch(`/api/learning/judge-history?agent=${encodeURIComponent(historyAgent)}&days=30`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+          throw new Error(body.error?.message ?? "Gagal memuat riwayat skor.");
+        }
+        return (await res.json()) as readonly JudgeHistoryPointDto[];
+      })
+      .then(setJudgeHistory)
+      .catch((caught: unknown) => {
+        setHistoryError(caught instanceof Error ? caught.message : "Gagal memuat riwayat skor.");
+      });
+  }, [historyAgent]);
+
+  const loadConfigs = useCallback(() => {
+    fetch("/api/learning/configs")
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+          throw new Error(body.error?.message ?? "Gagal memuat agent configs.");
+        }
+        return (await res.json()) as readonly AgentConfigDto[];
+      })
+      .then(setConfigs)
+      .catch((caught: unknown) => {
+        setConfigError(caught instanceof Error ? caught.message : "Gagal memuat agent configs.");
+      });
+  }, []);
+
   useEffect(() => {
     loadProposals();
   }, [loadProposals]);
@@ -136,6 +216,14 @@ export function LearningMonitorClient(): React.ReactElement {
   useEffect(() => {
     loadPendingActions();
   }, [loadPendingActions]);
+
+  useEffect(() => {
+    loadJudgeHistory();
+  }, [loadJudgeHistory]);
+
+  useEffect(() => {
+    loadConfigs();
+  }, [loadConfigs]);
 
   async function handleDecide(id: string, action: "approve" | "reject"): Promise<void> {
     setBusyId(id);
@@ -180,6 +268,99 @@ export function LearningMonitorClient(): React.ReactElement {
     }
   }
 
+  /** AAOS Self-Improving, Phase SI-6 — real "Improve sekarang" manual trigger for `historyAgent`. Refreshes proposals afterward regardless of `triggered` (an honest `false` result is still worth surfacing, not silently discarded). */
+  async function handleTrigger(): Promise<void> {
+    setTriggerBusy(true);
+    setTriggerResult(undefined);
+    try {
+      const res = await fetch("/api/learning/trigger", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agent: historyAgent }),
+      });
+      const body = (await res.json().catch(() => ({}))) as TriggerCheckResultDto & {
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        throw new Error(body.error?.message ?? "Gagal menjalankan Improve sekarang.");
+      }
+      setTriggerResult(body);
+      loadProposals();
+    } catch (caught) {
+      setTriggerResult({
+        triggered: false,
+        reason: caught instanceof Error ? caught.message : "Gagal menjalankan Improve sekarang.",
+      });
+    } finally {
+      setTriggerBusy(false);
+    }
+  }
+
+  /** AAOS Self-Improving, Phase SI-6 — real `agent_configs` Config editor write (existing row). */
+  async function handleSaveConfig(config: AgentConfigDto): Promise<void> {
+    const key = `${config.agent}:${config.configKey}`;
+    const draftValue = configDraft[key] ?? config.value;
+    const parsed = Number(draftValue);
+    if (!Number.isFinite(parsed)) {
+      setConfigError(`Nilai untuk ${key} bukan angka yang valid.`);
+      return;
+    }
+    setConfigBusyKey(key);
+    setConfigError(undefined);
+    try {
+      const res = await fetch("/api/learning/configs", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agent: config.agent, configKey: config.configKey, value: parsed }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? "Gagal menyimpan config.");
+      }
+      loadConfigs();
+    } catch (caught) {
+      setConfigError(caught instanceof Error ? caught.message : "Gagal menyimpan config.");
+    } finally {
+      setConfigBusyKey(undefined);
+    }
+  }
+
+  /** AAOS Self-Improving, Phase SI-6 — real `agent_configs` Config editor write (new row, same real upsert path as `handleSaveConfig`). */
+  async function handleCreateConfig(): Promise<void> {
+    const parsed = Number(newConfig.value);
+    if (newConfig.agent.trim().length === 0 || newConfig.configKey.trim().length === 0) {
+      setConfigError("Agent dan config key wajib diisi.");
+      return;
+    }
+    if (!Number.isFinite(parsed)) {
+      setConfigError("Value harus berupa angka.");
+      return;
+    }
+    setNewConfigBusy(true);
+    setConfigError(undefined);
+    try {
+      const res = await fetch("/api/learning/configs", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          agent: newConfig.agent.trim(),
+          configKey: newConfig.configKey.trim(),
+          value: parsed,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? "Gagal menambah config.");
+      }
+      setNewConfig({ agent: "GLOBAL", configKey: "", value: "" });
+      loadConfigs();
+    } catch (caught) {
+      setConfigError(caught instanceof Error ? caught.message : "Gagal menambah config.");
+    } finally {
+      setNewConfigBusy(false);
+    }
+  }
+
   /** AAOS-OPERATING-MODE-APPROVAL-GATE — mirrors `handleDecide` above exactly, against `/api/pending-actions/:id/*` instead of `/api/learning/proposals/:id/*`. */
   async function handleDecidePendingAction(
     id: string,
@@ -219,6 +400,154 @@ export function LearningMonitorClient(): React.ReactElement {
       <TopBar title="Learning Monitor" accentColor="var(--v2-menu-improve)" />
       <div className={styles.page}>
         {actionError !== undefined ? <p className={styles.errorText}>{actionError}</p> : null}
+
+        <div className={styles.section} data-testid="score-trend-section">
+          <div className={styles.toolbar}>
+            <span className={styles.sectionTitle}>Score Trend (30 hari)</span>
+            <select
+              className={styles.filterSelect}
+              value={historyAgent}
+              onChange={(e) => setHistoryAgent(e.target.value as (typeof HISTORY_AGENTS)[number])}
+            >
+              {HISTORY_AGENTS.map((agent) => (
+                <option key={agent} value={agent}>
+                  {agent}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={styles.approveButton}
+              disabled={triggerBusy}
+              onClick={() => void handleTrigger()}
+            >
+              {triggerBusy ? "Memeriksa…" : "Improve sekarang"}
+            </button>
+          </div>
+
+          {triggerResult !== undefined ? (
+            <p className={triggerResult.triggered ? styles.decidedInfo : styles.errorText}>
+              {triggerResult.triggered
+                ? "Proposal baru sedang diproses (lihat daftar Improvement Proposals di atas)."
+                : (triggerResult.reason ?? "Tidak ada perubahan.")}
+            </p>
+          ) : null}
+
+          {historyError !== undefined ? <p className={styles.errorText}>{historyError}</p> : null}
+
+          {judgeHistory === undefined ? (
+            <LoadingSpinner />
+          ) : judgeHistory.length === 0 ? (
+            <p className={styles.emptyState}>
+              Belum ada real judge_results untuk {historyAgent} dalam 30 hari terakhir.
+            </p>
+          ) : (
+            <div className={styles.chartCard}>
+              <LineChart
+                data={judgeHistory.map((point) => ({
+                  tanggal: formatDate(point.createdAt),
+                  "Overall Score": point.overall ?? undefined,
+                }))}
+                index="tanggal"
+                categories={["Overall Score"]}
+                colors={["blue"]}
+                minValue={0}
+                maxValue={100}
+                className={styles.chart}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className={styles.section} data-testid="config-editor-section">
+          <span className={styles.sectionTitle}>Config Editor (agent_configs)</span>
+          {configError !== undefined ? <p className={styles.errorText}>{configError}</p> : null}
+
+          {configs === undefined ? (
+            <LoadingSpinner />
+          ) : configs.length === 0 ? (
+            <p className={styles.emptyState}>
+              Belum ada agent_configs untuk tenant ini — setiap threshold masih memakai default
+              hardcoded-nya.
+            </p>
+          ) : (
+            <table className={styles.overrideTable}>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Config Key</th>
+                  <th>Value</th>
+                  <th>Updated</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {configs.map((config) => {
+                  const key = `${config.agent}:${config.configKey}`;
+                  return (
+                    <tr key={config.id}>
+                      <td>{config.agent}</td>
+                      <td>{config.configKey}</td>
+                      <td>
+                        <input
+                          type="text"
+                          className={styles.notesInput}
+                          value={configDraft[key] ?? config.value}
+                          onChange={(e) =>
+                            setConfigDraft((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                        />
+                      </td>
+                      <td>{formatDate(config.updatedAt)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className={styles.rollbackButton}
+                          disabled={configBusyKey === key}
+                          onClick={() => void handleSaveConfig(config)}
+                        >
+                          Save
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          <div className={styles.actions}>
+            <input
+              type="text"
+              placeholder="Agent (mis. GLOBAL, SAMANTHA)"
+              className={styles.notesInput}
+              value={newConfig.agent}
+              onChange={(e) => setNewConfig((prev) => ({ ...prev, agent: e.target.value }))}
+            />
+            <input
+              type="text"
+              placeholder="Config key"
+              className={styles.notesInput}
+              value={newConfig.configKey}
+              onChange={(e) => setNewConfig((prev) => ({ ...prev, configKey: e.target.value }))}
+            />
+            <input
+              type="text"
+              placeholder="Value (angka)"
+              className={styles.notesInput}
+              value={newConfig.value}
+              onChange={(e) => setNewConfig((prev) => ({ ...prev, value: e.target.value }))}
+            />
+            <button
+              type="button"
+              className={styles.approveButton}
+              disabled={newConfigBusy}
+              onClick={() => void handleCreateConfig()}
+            >
+              Tambah / Set
+            </button>
+          </div>
+        </div>
 
         <div className={styles.section}>
           <div className={styles.toolbar}>
@@ -332,7 +661,30 @@ export function LearningMonitorClient(): React.ReactElement {
                           </div>
                         ))}
 
-                        {proposal.status === "PENDING" ? (
+                        {proposal.accuracyVerdict !== null ? (
+                          <div className={styles.accuracyBlock}>
+                            <span
+                              className={`${styles.statusBadge} ${accuracyBadgeClass(proposal.accuracyVerdict)}`}
+                            >
+                              ACCURACY: {proposal.accuracyVerdict}
+                            </span>
+                            {proposal.accuracyScoreBefore !== null &&
+                            proposal.accuracyScoreAfter !== null ? (
+                              <span className={styles.accuracyScores}>
+                                {proposal.accuracyScoreBefore.toFixed(1)} →{" "}
+                                {proposal.accuracyScoreAfter.toFixed(1)} (n=
+                                {proposal.accuracySampleBefore ?? 0}/
+                                {proposal.accuracySampleAfter ?? 0})
+                              </span>
+                            ) : null}
+                            {proposal.accuracyReason !== null ? (
+                              <p className={styles.accuracyReason}>{proposal.accuracyReason}</p>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {proposal.status === "PENDING" ||
+                        proposal.status === "AUTO_APPLY_BLOCKED_BY_SANDBOX" ? (
                           <div className={styles.actions}>
                             <input
                               type="text"
@@ -360,6 +712,11 @@ export function LearningMonitorClient(): React.ReactElement {
                               Reject
                             </button>
                           </div>
+                        ) : proposal.status === "AUTO_APPLIED" ? (
+                          <p className={styles.decidedInfo}>
+                            Diterapkan otomatis (AUTO_APPLIED) — tidak memerlukan persetujuan
+                            manusia, sesuai kebijakan full auto-apply.
+                          </p>
                         ) : (
                           <p className={styles.decidedInfo}>
                             {proposal.status} oleh {proposal.decidedBy ?? "(tidak diketahui)"} pada{" "}

@@ -113,4 +113,26 @@ export class AgentConfigRepository {
     }
     return data;
   }
+
+  /**
+   * AAOS Self-Improving, Phase SI-6 — every real `agent_configs` row for one tenant, across every
+   * agent/key, ordered by `agent` then `config_key` — the Learning Monitor's real Config editor
+   * "view current values" read (`AgentConfigService.listForTenant`'s own thin delegation, its real
+   * caller). A real, honest EMPTY array (never fabricated rows) for a tenant that has never had a
+   * config row written — every threshold this table backs simply falls back to its own hardcoded
+   * default (`AgentConfigService.get`'s own doc) until a row is written.
+   */
+  async listForTenant(tenantId: string): Promise<readonly AgentConfigRow[]> {
+    const { data, error } = await this.client
+      .from<AgentConfigRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("agent", { ascending: true });
+    if (error !== null) {
+      throw new AgentConfigRepositoryError(
+        `AgentConfigRepository.listForTenant failed: ${error.message}`,
+      );
+    }
+    return data ?? [];
+  }
 }

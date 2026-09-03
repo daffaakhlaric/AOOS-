@@ -120,6 +120,38 @@
   color: #991b1b;
 }
 
+/* AAOS Self-Improving, Phase SI-6 — real, distinct badge for AUTO_APPLY_BLOCKED_BY_SANDBOX (Phase
+   SI-5's real sandbox-gated status) — an amber "needs a human look" tone, distinct from both the
+   green AUTO_APPLIED/APPROVED case and the red REJECTED case, since a sandbox-blocked proposal is
+   neither "done" nor "rejected" — it is real, undecided work still open to a human override. */
+.statusBlocked {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+/* AAOS Self-Improving, Phase SI-6 — real accuracy-check verdict block (a SEPARATE concept from the
+   proposal `status` badges above). */
+.accuracyBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--gray-50);
+}
+
+.accuracyScores {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.accuracyReason {
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
 .gapSummary {
   font-size: 12px;
   color: var(--gray-700);
@@ -282,4 +314,16 @@
 .errorText {
   font-size: 12px;
   color: #991b1b;
+}
+
+/* AAOS Self-Improving, Phase SI-6 — real Score Trend chart card, same `chartCard`/`chart` shape `ClaraAnalyticsClient.module.css`'s own real Tremor chart precedent already establishes. */
+.chartCard {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px;
+}
+
+.chart {
+  height: 220px;
 }

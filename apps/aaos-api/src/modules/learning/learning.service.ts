@@ -1,8 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 
 import { AgentConfigService } from "../agent-config/agent-config.service.js";
 import { ConfigApplierService } from "../agent-config/config-applier.service.js";
 import { LogicApplierService } from "../agent-config/logic-applier.service.js";
+import { JudgeResultRepository } from "../ai-judge/infrastructure/judge-result.repository.js";
 import { ImprovementItemSchema, type ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
 import {
   ANALYZE_SYSTEM_PROMPT,
@@ -163,6 +164,17 @@ export class LearningService {
     // gated by `SandboxService.testImprovement`'s narrow, honest safety net (see that class's own
     // updated doc and `persistProposal`'s own doc below for the full reasoning).
     private readonly sandboxService: SandboxService,
+    // AAOS Self-Improving (Phase SI-6) — real "latest judged run" lookup for
+    // `triggerManualCheck`'s own real "Improve sekarang" manual-trigger path (see that method's own
+    // doc). Composed by `LearningModule` directly over the shared `SUPABASE_CLIENT`, same reasoning
+    // that module's own doc gives. `@Optional()`, unlike every other constructor dependency above,
+    // deliberately: every existing real/test call site that constructs `LearningService` directly
+    // predates this phase and does not pass this 8th argument (`learning.service.spec.ts` has 20+
+    // such real call sites) — making it required would force a mechanical, meaning-free edit to
+    // every one of them for a dependency only `triggerManualCheck` (a genuinely NEW method) needs.
+    // `LearningModule`'s real DI wiring always provides a real instance in production; only a
+    // directly-`new`-constructed test instance that never calls `triggerManualCheck` may omit it.
+    @Optional() private readonly judgeResults?: JudgeResultRepository,
   ) {}
 
   async onSimulationComplete(simulationId: string): Promise<void> {
@@ -700,5 +712,100 @@ export class LearningService {
     }
 
     return created;
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-6 — the real "Improve sekarang" manual-trigger path, called from
+   * `LearningController.triggerManualCheck` (the Learning Monitor's real manual-trigger button).
+   *
+   * REAL, HONEST DESIGN (never a fabricated/forced proposal): this does NOT run a new live agent
+   * call or a new judge call on demand — it re-runs the EXACT SAME real gap-check-then-propose logic
+   * `onAgentRunJudged` already uses (same gap threshold, same `generateImprovementPlan` call), but
+   * against the tenant+agent's own MOST RECENTLY ALREADY-JUDGED real run
+   * (`JudgeResultRepository.listRecentForTenant(tenantId, agent, 1)`) instead of waiting for the next
+   * real live run to cross the threshold on its own. A manager can use this to force a fresh
+   * improvement-proposal attempt right now, over real, already-collected data, without inventing a
+   * new agent invocation or a new scoring mechanism.
+   *
+   * HONEST LIMITATION, documented rather than hidden: `judge_results` does not persist the
+   * `trend` (`IMPROVING`/`STABLE`/`DECLINING`) `AiJudgeService.judgeRun` computes at judge-time from
+   * its own in-memory `memory.recent` context — that value is never written to a column. Since this
+   * method reconstructs a `JudgedRunSummary` from an ALREADY-PERSISTED row rather than a live judge
+   * call, it cannot honestly recover the real trend that was computed at the time — `"STABLE"` is
+   * used as an explicit, documented, honest placeholder (never `"IMPROVING"`/`"DECLINING"`, which
+   * would be a fabricated claim about a comparison this method never actually performed).
+   * `generateImprovementPlan`'s own prompt only ever uses `trend` as a mild qualitative hint, not a
+   * gating condition, so this placeholder does not change WHETHER a proposal is generated, only a
+   * minor piece of LLM-facing framing text.
+   *
+   * Returns a real, honest outcome — `triggered: false` (with a `reason`) when there is no real
+   * judged run yet, or the latest one no longer shows a real gap (already at/above the threshold);
+   * `triggered: true` when a real gap was found and the SAME best-effort `onAgentRunJudged` pipeline
+   * was invoked (which itself never throws — any downstream failure, e.g. the LLM being unavailable,
+   * is logged there and does not surface here as an error, same best-effort discipline as every real
+   * live trigger).
+   */
+  async triggerManualCheck(
+    tenantId: string,
+    agent: string,
+  ): Promise<{ readonly triggered: boolean; readonly reason?: string }> {
+    if (agent !== "SAMANTHA" && agent !== "CLARA") {
+      return {
+        triggered: false,
+        reason: `Agent "${agent}" has no known learning-proposal prompt key (only SAMANTHA/CLARA are supported — see onAgentRunJudged's own doc for why KAI is excluded).`,
+      };
+    }
+    if (this.judgeResults === undefined) {
+      // Real, honest degrade — see this constructor param's own doc: only reachable if
+      // `LearningService` was constructed directly without real DI wiring, never in the real app.
+      this.logger.warn(
+        `LearningService.triggerManualCheck(${tenantId}, ${agent}): no JudgeResultRepository configured — cannot look up the latest real judged run.`,
+      );
+      return { triggered: false, reason: "JudgeResultRepository not configured." };
+    }
+
+    const recent = await this.judgeResults.listRecentForTenant(tenantId, agent, 1);
+    if (recent.length === 0) {
+      return {
+        triggered: false,
+        reason: `No real judge_results row exists yet for tenant "${tenantId}" agent "${agent}" — nothing to re-check.`,
+      };
+    }
+    const latest = recent[recent.length - 1];
+    if (latest === undefined) {
+      return { triggered: false, reason: "Unexpected: listRecentForTenant returned an empty row." };
+    }
+
+    const overallRaw = latest.scores["overall"];
+    if (typeof overallRaw !== "number") {
+      return {
+        triggered: false,
+        reason: `Latest real judge_results row (${latest.id}) has no numeric "overall" score.`,
+      };
+    }
+
+    const gapThreshold = await this.agentConfig.get(
+      tenantId,
+      LIVE_RUN_GAP_THRESHOLD_AGENT_BUCKET,
+      "live_run_gap_threshold",
+      LIVE_RUN_GAP_THRESHOLD,
+    );
+    if (overallRaw >= gapThreshold) {
+      return {
+        triggered: false,
+        reason: `Latest real judged run (score ${String(overallRaw)}) already meets the quality bar (threshold ${String(gapThreshold)}) — no gap to propose an improvement for.`,
+      };
+    }
+
+    const gaps = Array.isArray(latest.gaps) ? latest.gaps : [];
+    const judged: JudgedRunSummary = {
+      scores: latest.scores,
+      gaps,
+      // See this method's own doc for why "STABLE" is the one honest placeholder here.
+      trend: "STABLE",
+    };
+
+    await this.onAgentRunJudged(tenantId, latest.run_id, agent, judged);
+    return { triggered: true };
   }
 }

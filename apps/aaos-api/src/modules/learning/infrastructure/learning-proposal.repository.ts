@@ -52,6 +52,27 @@ export interface LearningProposalRow {
    * `LearningService`'s own doc for the full best-effort reasoning).
    */
   readonly self_analysis: Record<string, unknown> | null;
+  /**
+   * AAOS Self-Improving, Phase SI-6 (`040_learning_proposals_accuracy_check.sql`) — the real,
+   * honest verdict of `AccuracyCheckService`'s weekly real-world accuracy check, comparing real
+   * `judge_results.scores.overall` averages for this proposal's tenant+agent BEFORE vs AFTER this
+   * row's own `created_at`. `null` until the first real weekly check reaches this row. See that
+   * migration's own header doc for the full "why a separate column, not overloading `status`"
+   * reasoning and the real meaning of each value.
+   */
+  readonly accuracy_verdict: "IMPROVED" | "REGRESSED" | "INCONCLUSIVE" | null;
+  /** Real, human-readable explanation of `accuracy_verdict` (sample sizes / real delta / real threshold) — `null` until checked. */
+  readonly accuracy_reason: string | null;
+  /** Real average `judge_results.scores.overall` for this tenant+agent BEFORE this proposal's `created_at` — `null` when the before-side sample size was 0. */
+  readonly accuracy_score_before: number | null;
+  /** Real average `judge_results.scores.overall` for this tenant+agent AFTER (inclusive) this proposal's `created_at` — `null` when the after-side sample size was 0. */
+  readonly accuracy_score_after: number | null;
+  /** Real COUNT of judge_results rows `accuracy_score_before` was computed over — `null` only until the first real check runs, `0` is a valid, honest value afterward. */
+  readonly accuracy_sample_before: number | null;
+  /** Real COUNT of judge_results rows `accuracy_score_after` was computed over — same "null only pre-check, 0 is honest afterward" convention as `accuracy_sample_before`. */
+  readonly accuracy_sample_after: number | null;
+  /** When this row was last real-checked by `AccuracyCheckService` — `null` until the first real weekly run reaches it. */
+  readonly accuracy_checked_at: string | null;
 }
 
 /**
@@ -281,5 +302,86 @@ export class LearningProposalRepository {
       );
     }
     return [...(data ?? [])].reverse();
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-6 — the real, bounded read `AccuracyCheckService.
+   * runWeeklyAccuracyCheck` scans every real run: every proposal that genuinely applied something
+   * (`status IN ('AUTO_APPLIED', 'AUTO_APPLY_BLOCKED_BY_SANDBOX')`) whose `accuracy_verdict` has
+   * never been computed (`NULL`) OR was last computed as `'INCONCLUSIVE'` (real, honest "insufficient
+   * data at the time" — worth re-checking as more real judge_results accumulate). A row whose verdict
+   * is already `'IMPROVED'`/`'REGRESSED'` is a real, stable, already-computed answer and is not
+   * re-scanned. Oldest-first (`created_at` ascending) so the longest-waiting real proposals are
+   * checked first when `limit` is reached — mirrors `idx_learning_proposals_accuracy_pending`
+   * (`040_learning_proposals_accuracy_check.sql`) exactly.
+   *
+   * REAL PORT CONSTRAINT: the shared `SupabaseClientLike` port (`@aos/lead-store`'s
+   * `SupabaseTypes.ts`) exposes only `eq`/`gte`/`lte` filters — no `.in()`/`.or()` (same real
+   * constraint `AgentConfigRepository.upsert`'s own doc documents for `.upsert()`). So this method
+   * issues one real `eq("status", ...)` query PER status value (there are only 2, a small, bounded
+   * real fan-out) and does the `accuracy_verdict IS NULL OR = 'INCONCLUSIVE'` filter, the merge, and
+   * the final `limit` truncation in-app — never a single unsupported compound query.
+   */
+  async listNeedingAccuracyCheck(limit = 200): Promise<readonly LearningProposalRow[]> {
+    const [autoApplied, sandboxBlocked] = await Promise.all([
+      this.listByStatusForAccuracyScan("AUTO_APPLIED"),
+      this.listByStatusForAccuracyScan("AUTO_APPLY_BLOCKED_BY_SANDBOX"),
+    ]);
+    const merged = [...autoApplied, ...sandboxBlocked]
+      .filter((row) => row.accuracy_verdict === null || row.accuracy_verdict === "INCONCLUSIVE")
+      .sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0));
+    return merged.slice(0, limit);
+  }
+
+  private async listByStatusForAccuracyScan(
+    status: string,
+  ): Promise<readonly LearningProposalRow[]> {
+    const { data, error } = await this.client
+      .from<LearningProposalRow>(TABLE)
+      .select("*")
+      .eq("status", status)
+      .order("created_at", { ascending: true });
+    if (error !== null) {
+      throw new LearningProposalRepositoryError(
+        `LearningProposalRepository.listNeedingAccuracyCheck (status=${status}) failed: ${error.message}`,
+      );
+    }
+    return data ?? [];
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-6 — the real write for one `AccuracyCheckService.checkOne` result.
+   * `void` return, same "update returns void, caller re-reads if needed" convention every other
+   * write method on this class already establishes (`updateDecision`/`markAutoApplied`).
+   */
+  async recordAccuracyCheck(
+    id: string,
+    result: {
+      readonly verdict: "IMPROVED" | "REGRESSED" | "INCONCLUSIVE";
+      readonly reason: string;
+      readonly scoreBefore: number | null;
+      readonly scoreAfter: number | null;
+      readonly sampleBefore: number;
+      readonly sampleAfter: number;
+      readonly checkedAt: string;
+    },
+  ): Promise<void> {
+    const { error } = await this.client
+      .from<LearningProposalRow>(TABLE)
+      .update({
+        accuracy_verdict: result.verdict,
+        accuracy_reason: result.reason,
+        accuracy_score_before: result.scoreBefore,
+        accuracy_score_after: result.scoreAfter,
+        accuracy_sample_before: result.sampleBefore,
+        accuracy_sample_after: result.sampleAfter,
+        accuracy_checked_at: result.checkedAt,
+      })
+      .eq("id", id);
+    if (error !== null) {
+      throw new LearningProposalRepositoryError(
+        `LearningProposalRepository.recordAccuracyCheck failed: ${error.message}`,
+      );
+    }
   }
 }

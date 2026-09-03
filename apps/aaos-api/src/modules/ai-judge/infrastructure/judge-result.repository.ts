@@ -168,6 +168,45 @@ export class JudgeResultRepository {
   }
 
   /**
+   * AAOS Self-Improving, Phase SI-6 — the real "before" side of `AccuracyCheckService.checkOne`'s
+   * before/after partition: up to `limit` of the tenant+agent's most recent real `judge_results`
+   * rows with `created_at` strictly BEFORE `beforeISO` (a proposal's own `created_at`), returned
+   * oldest-first (same convention `listRecentForTenant` already establishes).
+   *
+   * REAL PORT CONSTRAINT: the shared `SupabaseClientLike` port exposes `lte` (<=), not a strict
+   * `lt` (<) — so this method queries `lte("created_at", beforeISO)` (descending, capped at
+   * `limit`) and then filters to a strict `row.created_at < beforeISO` in-app before reversing to
+   * oldest-first. In practice this excludes at most a real row that shares the EXACT SAME
+   * millisecond-precision ISO timestamp as `beforeISO` — astronomically unlikely for two real,
+   * independently-`new Date().toISOString()`-stamped inserts from different tables
+   * (`judge_results.created_at` vs `learning_proposals.created_at`), and even if it happened this
+   * method's own "before" partition would correctly still exclude it (the SAME real
+   * `JudgeMemoryService.build`'s own `r.created_at < row.created_at` convention this mirrors).
+   */
+  async listBeforeTimestamp(
+    tenantId: string,
+    agent: string,
+    beforeISO: string,
+    limit = 30,
+  ): Promise<readonly JudgeResultRow[]> {
+    const { data, error } = await this.client
+      .from<JudgeResultRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("agent", agent)
+      .lte("created_at", beforeISO)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error !== null) {
+      throw new JudgeResultRepositoryError(
+        `JudgeResultRepository.listBeforeTimestamp failed: ${error.message}`,
+      );
+    }
+    const strictlyBefore = (data ?? []).filter((row) => row.created_at < beforeISO);
+    return [...strictlyBefore].reverse();
+  }
+
+  /**
    * AAOS Overview Monitor Phase O1, Finding 4 item 1 — "AI score per agent, today", real (never
    * fabricated). Window definition (UTC calendar days, `startOfTodayUtc` above):
    *

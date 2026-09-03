@@ -16,6 +16,14 @@ export interface LearningProposalResponseDto {
   readonly decisionNotes: string | null;
   readonly decidedAt: string | null;
   readonly createdAt: string;
+  /** AAOS Self-Improving, Phase SI-6 — the real, honest weekly accuracy-check verdict (see `LearningProposalRow.accuracy_verdict`'s own doc). `null` until the first real weekly check reaches this row. */
+  readonly accuracyVerdict: "IMPROVED" | "REGRESSED" | "INCONCLUSIVE" | null;
+  readonly accuracyReason: string | null;
+  readonly accuracyScoreBefore: number | null;
+  readonly accuracyScoreAfter: number | null;
+  readonly accuracySampleBefore: number | null;
+  readonly accuracySampleAfter: number | null;
+  readonly accuracyCheckedAt: string | null;
 }
 
 export function toLearningProposalResponseDto(
@@ -35,5 +43,12 @@ export function toLearningProposalResponseDto(
     decisionNotes: row.decision_notes,
     decidedAt: row.decided_at,
     createdAt: row.created_at,
+    accuracyVerdict: row.accuracy_verdict,
+    accuracyReason: row.accuracy_reason,
+    accuracyScoreBefore: row.accuracy_score_before,
+    accuracyScoreAfter: row.accuracy_score_after,
+    accuracySampleBefore: row.accuracy_sample_before,
+    accuracySampleAfter: row.accuracy_sample_after,
+    accuracyCheckedAt: row.accuracy_checked_at,
   };
 }

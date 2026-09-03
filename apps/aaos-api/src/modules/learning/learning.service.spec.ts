@@ -9,6 +9,7 @@ import type {
   ApplyLogicUpdateResult,
   LogicApplierService,
 } from "../agent-config/logic-applier.service.js";
+import type { JudgeResultRepository } from "../ai-judge/infrastructure/judge-result.repository.js";
 import type { ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
@@ -1352,6 +1353,141 @@ describe("LearningService", () => {
       expect(proposals.create).toHaveBeenCalledWith(
         expect.objectContaining({ selfAnalysis: undefined }),
       );
+    });
+  });
+
+  describe("triggerManualCheck (AAOS Self-Improving, Phase SI-6 — the real 'Improve sekarang' manual-trigger path)", () => {
+    function buildFakeJudgeResults(
+      listRecentForTenant: JudgeResultRepository["listRecentForTenant"],
+    ): JudgeResultRepository {
+      return { listRecentForTenant } as unknown as JudgeResultRepository;
+    }
+
+    it("returns triggered:false when the agent is not SAMANTHA/CLARA", async () => {
+      const proposals = buildFakeProposalRepository();
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        buildFakeLlmService(),
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(),
+        buildFakeJudgeResults(vi.fn(async () => [])),
+      );
+      const result = await service.triggerManualCheck("dss-motor", "KAI");
+      expect(result.triggered).toBe(false);
+      expect(proposals.create).not.toHaveBeenCalled();
+    });
+
+    it("returns triggered:false, honestly, when no real judge_results row exists yet for this tenant+agent", async () => {
+      const proposals = buildFakeProposalRepository();
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        buildFakeLlmService(),
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(),
+        buildFakeJudgeResults(vi.fn(async () => [])),
+      );
+      const result = await service.triggerManualCheck("dss-motor", "SAMANTHA");
+      expect(result.triggered).toBe(false);
+      expect(result.reason).toMatch(/No real judge_results row exists yet/);
+      expect(proposals.create).not.toHaveBeenCalled();
+    });
+
+    it("returns triggered:false when the latest real judged run already meets the quality bar (no gap)", async () => {
+      const proposals = buildFakeProposalRepository();
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        buildFakeLlmService(),
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(),
+        buildFakeJudgeResults(
+          vi.fn(async () => [
+            {
+              id: "jr-1",
+              tenant_id: "dss-motor",
+              agent: "SAMANTHA",
+              run_id: "run-1",
+              scores: { overall: 90 },
+              strengths: [],
+              gaps: [],
+              notes: null,
+              created_at: "2026-08-01T00:00:00.000Z",
+            },
+          ]),
+        ),
+      );
+      const result = await service.triggerManualCheck("dss-motor", "SAMANTHA");
+      expect(result.triggered).toBe(false);
+      expect(result.reason).toMatch(/already meets the quality bar/);
+      expect(proposals.create).not.toHaveBeenCalled();
+    });
+
+    it("triggers the real gap-check-then-propose pipeline (onAgentRunJudged) when the latest real judged run is below the gap threshold", async () => {
+      const proposals = buildFakeProposalRepository();
+      const llm = buildFakeLlmService();
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        llm,
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(),
+        buildFakeJudgeResults(
+          vi.fn(async () => [
+            {
+              id: "jr-2",
+              tenant_id: "dss-motor",
+              agent: "SAMANTHA",
+              run_id: "run-2",
+              scores: { overall: 20 },
+              strengths: [],
+              gaps: [{ dimension: "accuracy", issue: "salah data" }],
+              notes: null,
+              created_at: "2026-08-01T00:00:00.000Z",
+            },
+          ]),
+        ),
+      );
+      const result = await service.triggerManualCheck("dss-motor", "SAMANTHA");
+      expect(result.triggered).toBe(true);
+      expect(llm.generateImprovementPlan).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({ agent: "SAMANTHA" }),
+      );
+      expect(proposals.create).toHaveBeenCalledWith(
+        expect.objectContaining({ tenantId: "dss-motor", agent: "SAMANTHA", agentRunId: "run-2" }),
+      );
+    });
+
+    it("returns triggered:false, honestly, when constructed without a real JudgeResultRepository (never throws)", async () => {
+      const proposals = buildFakeProposalRepository();
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        buildFakeLlmService(),
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(),
+        // no 9th arg — matches every other pre-existing real call site in this file
+      );
+      const result = await service.triggerManualCheck("dss-motor", "SAMANTHA");
+      expect(result.triggered).toBe(false);
+      expect(result.reason).toMatch(/not configured/);
     });
   });
 });

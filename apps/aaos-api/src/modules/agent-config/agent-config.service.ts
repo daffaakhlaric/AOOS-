@@ -34,6 +34,19 @@ export class AgentConfigService {
     @Optional() private readonly now: () => Date = () => new Date(),
   ) {}
 
+  /**
+   * AAOS Self-Improving, Phase SI-6 — real, thin delegation to
+   * `AgentConfigRepository.listForTenant`, the Learning Monitor's real Config editor "view current
+   * values" read. Deliberately does NOT catch/degrade to `[]` on a repository error (unlike `get`'s
+   * own fail-open discipline) — `get`'s fail-open exists so a transient read failure never breaks an
+   * unrelated real threshold lookup mid-request; this method is a direct, human-facing "show me the
+   * real config table" read where a real error should surface honestly to the caller (the Learning
+   * Monitor UI), not be silently swallowed into a misleading empty list.
+   */
+  async listForTenant(tenantId: string): Promise<readonly AgentConfigRow[]> {
+    return this.repository.listForTenant(tenantId);
+  }
+
   async get(tenantId: string, agent: string, key: string, fallback: number): Promise<number> {
     try {
       const row = await this.repository.findByKey(tenantId, agent, key);

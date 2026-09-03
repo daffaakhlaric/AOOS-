@@ -50,11 +50,20 @@ export interface LearningProposalDto {
   readonly analysis: string | null;
   readonly gaps: LearningGapDto;
   readonly improvements: readonly LearningImprovementDto[];
-  readonly status: "PENDING" | "APPROVED" | "REJECTED" | string;
+  readonly status:
+    "PENDING" | "APPROVED" | "REJECTED" | "AUTO_APPLIED" | "AUTO_APPLY_BLOCKED_BY_SANDBOX" | string;
   readonly decidedBy: string | null;
   readonly decisionNotes: string | null;
   readonly decidedAt: string | null;
   readonly createdAt: string;
+  /** AAOS Self-Improving, Phase SI-6 — the real, honest weekly accuracy-check verdict. `null` until the first real weekly check reaches this proposal. */
+  readonly accuracyVerdict: "IMPROVED" | "REGRESSED" | "INCONCLUSIVE" | null;
+  readonly accuracyReason: string | null;
+  readonly accuracyScoreBefore: number | null;
+  readonly accuracyScoreAfter: number | null;
+  readonly accuracySampleBefore: number | null;
+  readonly accuracySampleAfter: number | null;
+  readonly accuracyCheckedAt: string | null;
 }
 
 export interface PromptOverrideDto {
@@ -77,4 +86,35 @@ export interface DecideProposalInput {
 
 export interface RollbackResultDto {
   readonly rolledBackToVersion: number | null;
+}
+
+/** AAOS Self-Improving, Phase SI-6 — real `agent_configs` row (Config editor). */
+export interface AgentConfigDto {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly agent: string;
+  readonly configKey: string;
+  readonly value: string;
+  readonly dataType: string;
+  readonly description: string | null;
+  readonly updatedAt: string;
+  readonly updatedBy: string | null;
+}
+
+export interface SetAgentConfigInput {
+  readonly agent: string;
+  readonly configKey: string;
+  readonly value: number;
+}
+
+/** AAOS Self-Improving, Phase SI-6 — one real `judge_results` point for the Score Trend chart. */
+export interface JudgeHistoryPointDto {
+  readonly createdAt: string;
+  readonly overall: number | null;
+}
+
+/** AAOS Self-Improving, Phase SI-6 — the real "Improve sekarang" manual-trigger result. */
+export interface TriggerCheckResultDto {
+  readonly triggered: boolean;
+  readonly reason?: string;
 }
