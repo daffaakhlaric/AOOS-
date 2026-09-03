@@ -107,6 +107,7 @@ function buildFakeProposalRepository(
         decided_at: null,
         created_at: "2026-08-13T00:00:00.000Z",
         auto_applied_config_keys: [],
+        self_analysis: input.selfAnalysis ?? null,
       } satisfies LearningProposalRow;
     }),
     listRecentForTenant: vi.fn(async () => recent),
@@ -116,6 +117,13 @@ function buildFakeProposalRepository(
   };
 }
 
+/**
+ * AAOS Self-Improving (Phase SI-3) — default fake `selfAnalyze` returns a real, honest
+ * `available: false` (`PROVIDER_ERROR`), exactly the shape a real degrade takes — so every
+ * PRE-EXISTING test in this file (none of which asserts anything about `selfAnalyze`/
+ * `selfAnalysis`) keeps exercising the real best-effort "no self-analysis available — proceed
+ * exactly as before this phase" path unchanged.
+ */
 function buildFakeLlmService(overrides: Partial<LlmService> = {}): LlmService {
   return {
     generateImprovementPlan: vi.fn(async () => ({
@@ -133,6 +141,11 @@ function buildFakeLlmService(overrides: Partial<LlmService> = {}): LlmService {
         },
       ],
       droppedCount: 0,
+    })),
+    selfAnalyze: vi.fn(async () => ({
+      available: false as const,
+      reason: "PROVIDER_ERROR" as const,
+      message: "unavailable",
     })),
     ...overrides,
   } as unknown as LlmService;
@@ -290,6 +303,7 @@ describe("LearningService", () => {
           decided_at: null,
           created_at: "2026-08-01T00:00:00.000Z",
           auto_applied_config_keys: [],
+          self_analysis: null,
         },
       ];
       const proposals = buildFakeProposalRepository(recent);
@@ -863,6 +877,208 @@ describe("LearningService", () => {
         expect(applyLogicUpdate).not.toHaveBeenCalled();
         expect(proposals.markAutoApplied).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe("AAOS Self-Improving (Phase SI-3) — real Self-Analyzer wiring, best-effort", () => {
+    function buildLlmWithSelfAnalysis(
+      selfAnalyze: LlmService["selfAnalyze"] = vi.fn(async () => ({
+        available: true as const,
+        rootCauses: ["Ringkasan sering kosong"],
+        patterns: "Ini proposal pertama untuk tenant ini.",
+        confidence: 0.6,
+      })),
+    ): LlmService {
+      return buildFakeLlmService({ selfAnalyze });
+    }
+
+    it("onSimulationComplete: calls selfAnalyze BEFORE generateImprovementPlan with the SAME real gap/prompt/history context, then feeds its real output into generateImprovementPlan's body.selfAnalysis and persists it on the proposal row", async () => {
+      const stored = buildStored({
+        scoring: {
+          verdict: "NO-GO",
+          samanthaCoverageScore: SIMULATION_CRITERIA.minSamanthaScore - 1,
+        },
+      });
+      const proposals = buildFakeProposalRepository();
+      const selfAnalyze = vi.fn(async () => ({
+        available: true as const,
+        rootCauses: ["Ringkasan sering kosong pada respons Samantha"],
+        patterns: "Ini proposal pertama untuk tenant ini.",
+        confidence: 0.6,
+      }));
+      const llm = buildLlmWithSelfAnalysis(selfAnalyze);
+      const service = new LearningService(
+        buildFakeSimulationRepository(stored),
+        proposals,
+        llm,
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+      );
+      await service.onSimulationComplete(stored.id);
+
+      expect(selfAnalyze).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({ tenantId: "dss-motor", currentPromptKey: "analyze" }),
+      );
+      // Real call ORDER: selfAnalyze must be invoked before generateImprovementPlan for this to be
+      // a genuine "ask why, then ask what to change" sequence, not a fire-and-forget side call.
+      const selfAnalyzeOrder = (
+        selfAnalyze as unknown as { mock: { invocationCallOrder: number[] } }
+      ).mock.invocationCallOrder[0];
+      const planOrder = (
+        llm.generateImprovementPlan as unknown as { mock: { invocationCallOrder: number[] } }
+      ).mock.invocationCallOrder[0];
+      expect(selfAnalyzeOrder).toBeLessThan(planOrder as number);
+
+      expect(llm.generateImprovementPlan).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({
+          selfAnalysis: {
+            rootCauses: ["Ringkasan sering kosong pada respons Samantha"],
+            patterns: "Ini proposal pertama untuk tenant ini.",
+            confidence: 0.6,
+          },
+        }),
+      );
+      expect(proposals.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          selfAnalysis: {
+            rootCauses: ["Ringkasan sering kosong pada respons Samantha"],
+            patterns: "Ini proposal pertama untuk tenant ini.",
+            confidence: 0.6,
+          },
+        }),
+      );
+    });
+
+    it("onSimulationComplete: real degrade — a selfAnalyze available:false response never blocks proposal generation, body.selfAnalysis is simply omitted", async () => {
+      const stored = buildStored({ scoring: { verdict: "NO-GO" } });
+      const proposals = buildFakeProposalRepository();
+      const llm = buildFakeLlmService(); // default fake selfAnalyze already returns available:false
+      const service = new LearningService(
+        buildFakeSimulationRepository(stored),
+        proposals,
+        llm,
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+      );
+      await service.onSimulationComplete(stored.id);
+
+      expect(llm.generateImprovementPlan).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({ selfAnalysis: undefined }),
+      );
+      expect(proposals.create).toHaveBeenCalledWith(
+        expect.objectContaining({ selfAnalysis: undefined }),
+      );
+      // The proposal itself still gets created — self-analysis unavailability is never a gate.
+      expect(proposals.create).toHaveBeenCalledTimes(1);
+    });
+
+    it("onSimulationComplete: real degrade — selfAnalyze THROWING never blocks proposal generation (caught, logged, swallowed, proposal still created)", async () => {
+      const stored = buildStored({ scoring: { verdict: "NO-GO" } });
+      const proposals = buildFakeProposalRepository();
+      const llm = buildFakeLlmService({
+        selfAnalyze: vi.fn(async () => {
+          throw new Error("boom");
+        }),
+      });
+      const service = new LearningService(
+        buildFakeSimulationRepository(stored),
+        proposals,
+        llm,
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+      );
+
+      await expect(service.onSimulationComplete(stored.id)).resolves.toBeUndefined();
+
+      expect(llm.generateImprovementPlan).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({ selfAnalysis: undefined }),
+      );
+      expect(proposals.create).toHaveBeenCalledTimes(1);
+    });
+
+    it("onAgentRunJudged: real successful self-analysis flows into generateImprovementPlan's body.selfAnalysis and the persisted proposal row", async () => {
+      const proposals = buildFakeProposalRepository();
+      const selfAnalyze = vi.fn(async () => ({
+        available: true as const,
+        rootCauses: ["Trend menurun pada dimensi outcome_completeness"],
+        patterns: "Belum ada proposal sebelumnya untuk tenant ini.",
+        confidence: 0.5,
+      }));
+      const llm = buildLlmWithSelfAnalysis(selfAnalyze);
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        llm,
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+      );
+
+      await service.onAgentRunJudged("dss-motor", "agent-run-si3-1", "CLARA", {
+        scores: { overall: 40 },
+        gaps: [],
+        trend: "DECLINING",
+      });
+
+      expect(selfAnalyze).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({ agent: "CLARA", currentPromptKey: "clara_system_prompt" }),
+      );
+      expect(llm.generateImprovementPlan).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({
+          selfAnalysis: {
+            rootCauses: ["Trend menurun pada dimensi outcome_completeness"],
+            patterns: "Belum ada proposal sebelumnya untuk tenant ini.",
+            confidence: 0.5,
+          },
+        }),
+      );
+      expect(proposals.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          selfAnalysis: {
+            rootCauses: ["Trend menurun pada dimensi outcome_completeness"],
+            patterns: "Belum ada proposal sebelumnya untuk tenant ini.",
+            confidence: 0.5,
+          },
+        }),
+      );
+    });
+
+    it("onAgentRunJudged: real degrade — selfAnalyze unavailable never blocks proposal generation", async () => {
+      const proposals = buildFakeProposalRepository();
+      const llm = buildFakeLlmService(); // default fake selfAnalyze returns available:false
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        llm,
+        buildFakePromptOverride(),
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+      );
+
+      await service.onAgentRunJudged("dss-motor", "agent-run-si3-2", "SAMANTHA", {
+        scores: { overall: 20 },
+        gaps: [],
+        trend: "STABLE",
+      });
+
+      expect(proposals.create).toHaveBeenCalledTimes(1);
+      expect(proposals.create).toHaveBeenCalledWith(
+        expect.objectContaining({ selfAnalysis: undefined }),
+      );
     });
   });
 });

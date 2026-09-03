@@ -71,6 +71,11 @@ import {
   type SelectTargetingRequestDto,
   type SelectTargetingResponseDto,
 } from "./dto/select-targeting.dto.js";
+import {
+  SelfAnalysisLlmPayloadSchema,
+  type SelfAnalysisRequestDto,
+  type SelfAnalysisResponseDto,
+} from "./dto/self-analysis.dto.js";
 import type { OpenAiChatMessage, OpenAiClient } from "./infrastructure/OpenAiClient.js";
 
 /** Every `LlmService` method resolves its system prompt against this agent — SAMANTHA is the only
@@ -103,6 +108,8 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
   "generate_improvement_plan",
   // AAOS Overview Monitor Phase O1 — `LlmService.generateDailyInsight`'s prompt key.
   "generate_daily_insight",
+  // AAOS Self-Improving, Phase SI-3 — `LlmService.selfAnalyze`'s prompt key.
+  "self_analyze_gap",
 ];
 
 /**
@@ -405,6 +412,41 @@ Format response JSON:
       "severity": "LOW" | "MEDIUM" | "HIGH"
     }
   ]
+}`;
+
+/**
+ * AAOS Self-Improving, Phase SI-3 — `LlmService.selfAnalyze`'s system prompt. A real, SEPARATE LLM
+ * call from `generateImprovementPlan`, asking "why" (root causes) BEFORE that call asks "what to
+ * change". Fed the SAME real per-request data `generateImprovementPlan` receives (gap scores/
+ * verdict/judge `feedbackItems`, the current active prompt content, and the tenant's last 3 real
+ * `learning_proposals`) as the user message's `JSON.stringify(body)` — see
+ * `dto/self-analysis.dto.ts`'s own doc for why no separate, parallel data-fetching path exists.
+ * `LearningService` calls this method FIRST (best-effort — see `LearningService`'s own doc for why
+ * a `selfAnalyze` failure never blocks proposal generation), then feeds its real output back into
+ * the SAME gap's `generateImprovementPlan` call as `body.selfAnalysis`.
+ */
+const SELF_ANALYZE_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk tenant AAOS. Kamu sedang melakukan ANALISA AKAR MASALAH (root cause analysis) atas hasil SIMULASI atau RUN LIVE (agent sungguhan) yang skornya di bawah standar — SEBELUM tim lain mengusulkan perbaikan konkret. Tugasmu HANYA menjawab KENAPA, bukan mengusulkan perbaikan.
+
+Kamu diberi (semua data JSON di pesan user):
+- "gap": data gap nyata, field "source" menentukan bentuknya —
+  - "source": "SIMULATION" → skor simulasi nyata (samanthaCoverageScore, kaiScore, claraScore, overallScore, grade, verdict) dan catatan asli dari AI Judge simulasi (feedbackItems, tiap item punya "dimension" dan "message").
+  - "source": "LIVE_RUN" → hasil AI Judge nyata dari SATU run agent sungguhan (agent, overallScore, scores per-dimensi, trend) dan catatan gap nyata (feedbackItems, tiap item punya "dimension" dan "message"). JANGAN sebut ini "simulasi" dalam analisamu — ini run sungguhan dari agent yang sedang berjalan.
+- "currentPromptKey"/"currentPromptContent": prompt AKTIF tenant ini sekarang untuk agent yang relevan.
+- "recentProposals": maksimal 3 proposal improvement terakhir untuk tenant ini (agar kamu bisa melihat pola/tren nyata dari riwayat, bukan cuma satu titik data).
+
+TUGASMU: identifikasi 1-5 kemungkinan AKAR MASALAH nyata (rootCauses) yang menjelaskan KENAPA skor/verdict ini terjadi — rujuk feedbackItems nyata, jangan mengarang alasan. Lalu tulis SATU pengamatan (patterns) tentang pola/tren nyata dari "recentProposals" (mis. apakah masalah yang sama berulang, apakah proposal sebelumnya sudah pernah menyentuh isu ini). Terakhir, beri "confidence" (0.0-1.0) yang JUJUR seberapa yakin kamu terhadap analisa akar masalah ini berdasarkan data yang benar-benar tersedia — confidence rendah jika data/feedbackItems sedikit, confidence tinggi hanya jika polanya jelas dan berulang.
+
+ATURAN KERAS:
+- JANGAN mengusulkan perbaikan prompt/config/logic di sini — itu bukan tugasmu di langkah ini (langkah berikutnya yang akan melakukannya, dengan hasil analisamu sebagai konteks tambahan).
+- "rootCauses" ditulis dalam Bahasa Indonesia, tiap item singkat dan konkret, merujuk data gap yang nyata.
+- "patterns" ditulis dalam Bahasa Indonesia, satu atau dua kalimat. Jika "recentProposals" kosong, katakan jujur bahwa ini proposal pertama untuk tenant ini, tanpa mengarang pola yang tidak ada.
+- "confidence" adalah angka nyata 0.0-1.0, JANGAN selalu 1.0 — sinyal kejujuran seberapa kuat data mendukung analisamu.
+
+Format response JSON:
+{
+  "rootCauses": ["akar masalah 1 dalam Bahasa Indonesia", "akar masalah 2"],
+  "patterns": "satu atau dua kalimat pengamatan pola/tren dalam Bahasa Indonesia",
+  "confidence": 0.7
 }`;
 
 /**
@@ -1133,6 +1175,65 @@ export class LlmService {
       droppedCount,
     };
     this.cache.set("generate-improvement-plan", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-3 — `LearningService.onSimulationComplete`/`.onAgentRunJudged`'s
+   * real root-cause call, made BEFORE `generateImprovementPlan` for the SAME gap. IN-PROCESS ONLY
+   * (no HTTP endpoint), same "in-process only" precedent `selectTargeting`/`generateImprovementPlan`
+   * already establish. Same cache/gate/call/validate/cache shape as every other method on this
+   * service — including resolving its system prompt via `PromptOverrideService` (unlike
+   * `judgeAgentRun`, this is an ordinary content-generation prompt, not a judge prompt policing the
+   * loop, so no circularity concern applies — see `KNOWN_PROMPT_KEYS`'s own `self_analyze_gap`
+   * entry).
+   *
+   * BEST-EFFORT DISCIPLINE (this method's own doc, mirrored on `LearningService`'s call sites): a
+   * `selfAnalyze` failure/unavailability (any `available: false` branch below, or the caller's own
+   * try/catch around this call) must NEVER block or fail `generateImprovementPlan` — self-analysis
+   * is an ENHANCEMENT to plan quality (its real output, when available, is passed into
+   * `generateImprovementPlan`'s `body.selfAnalysis`), never a new gate.
+   */
+  async selfAnalyze(
+    tenantId: string,
+    body: SelfAnalysisRequestDto,
+  ): Promise<SelfAnalysisResponseDto> {
+    const cached = this.cache.get("self-analyze", body) as SelfAnalysisResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "self_analyze_gap",
+      SELF_ANALYZE_SYSTEM_PROMPT,
+    );
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : SelfAnalysisLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: SelfAnalysisResponseDto = { available: true, ...validated.data };
+    this.cache.set("self-analyze", body, response);
     return response;
   }
 

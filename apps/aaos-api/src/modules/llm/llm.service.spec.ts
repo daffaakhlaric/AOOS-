@@ -1174,6 +1174,126 @@ describe("LlmService", () => {
     });
   });
 
+  describe("selfAnalyze (AAOS Self-Improving, Phase SI-3)", () => {
+    const validGapBody: ImprovementPlanRequestDto = {
+      tenantId: TENANT_ID,
+      agent: "SAMANTHA",
+      gap: {
+        samanthaCoverageScore: 40,
+        kaiScore: 100,
+        claraScore: 60,
+        overallScore: 55,
+        grade: "D",
+        verdict: "NO-GO",
+        feedbackItems: [{ dimension: "clarity", message: "Balasan Clara kurang jelas soal DP." }],
+      },
+      currentPromptKey: "analyze",
+      currentPromptContent: ANALYZE_SYSTEM_PROMPT,
+      recentProposals: [],
+    };
+    const validSelfAnalysisLlmJson = JSON.stringify({
+      rootCauses: ["Ringkasan (ringkasan) sering kosong pada respons Samantha"],
+      patterns: "Ini proposal pertama untuk tenant ini, belum ada pola dari riwayat sebelumnya.",
+      confidence: 0.6,
+    });
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.selfAnalyze(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns a validated available:true payload and caches it", async () => {
+      registerOpenAiChatHandler(validSelfAnalysisLlmJson);
+      const cache = new ResponseCache<unknown>();
+      const service = buildService({ cache });
+      const first = await service.selfAnalyze(TENANT_ID, validGapBody);
+      expect(first).toEqual({ available: true, ...JSON.parse(validSelfAnalysisLlmJson) });
+
+      mswServer.resetHandlers();
+      const second = await service.selfAnalyze(TENANT_ID, validGapBody);
+      expect(second).toEqual(first);
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns text that isn't valid JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.selfAnalyze(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when the JSON is well-formed but doesn't match the schema (e.g. confidence out of 0-1 range)", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          rootCauses: ["akar masalah"],
+          patterns: "pola",
+          confidence: 15,
+        }),
+      );
+      const service = buildService();
+      const result = await service.selfAnalyze(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.selfAnalyze(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.selfAnalyze(TENANT_ID, validGapBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("is a genuinely SEPARATE cache/call from generateImprovementPlan for the exact same gap body", async () => {
+      registerOpenAiChatHandler(validSelfAnalysisLlmJson);
+      const cache = new ResponseCache<unknown>();
+      const service = buildService({ cache });
+      const selfAnalysisResult = await service.selfAnalyze(TENANT_ID, validGapBody);
+      expect(selfAnalysisResult.available).toBe(true);
+
+      // No handler registered now — if generateImprovementPlan wrongly served the selfAnalyze cache
+      // entry, this would return the self-analysis shape (no `analysis`/`improvements`) instead of
+      // failing on the network. Register a distinct, valid improvement-plan response instead.
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          analysis: "analisa nyata",
+          improvements: [],
+        }),
+      );
+      const planResult = await service.generateImprovementPlan(TENANT_ID, validGapBody);
+      expect(planResult).toEqual({
+        available: true,
+        analysis: "analisa nyata",
+        improvements: [],
+        droppedCount: 0,
+      });
+    });
+  });
+
   describe("generateDailyInsight", () => {
     const validDailyInsightBody: DailyInsightRequestDto = {
       tenantId: TENANT_ID,

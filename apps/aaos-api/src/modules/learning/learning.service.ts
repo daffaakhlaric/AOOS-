@@ -210,6 +210,16 @@ export class LearningService {
         status: row.status,
       }));
 
+      const selfAnalysis = await this.runSelfAnalysis(
+        `onSimulationComplete(${simulationId})`,
+        simulation.tenantId,
+        agent,
+        gap,
+        promptKey,
+        currentPromptContent,
+        recentProposals,
+      );
+
       const plan = await this.llmService.generateImprovementPlan(simulation.tenantId, {
         tenantId: simulation.tenantId,
         agent,
@@ -217,6 +227,7 @@ export class LearningService {
         currentPromptKey: promptKey,
         currentPromptContent,
         recentProposals,
+        selfAnalysis,
       });
 
       if (!plan.available) {
@@ -233,6 +244,7 @@ export class LearningService {
         gap,
         plan,
         { simulationId },
+        selfAnalysis,
       );
     } catch (caught) {
       // Best-effort — a learning-proposal-generation failure must NEVER fail or roll back the
@@ -392,6 +404,16 @@ export class LearningService {
         status: row.status,
       }));
 
+      const selfAnalysis = await this.runSelfAnalysis(
+        `onAgentRunJudged(${agentRunId})`,
+        tenantId,
+        knownAgent,
+        gap,
+        promptKey,
+        currentPromptContent,
+        recentProposals,
+      );
+
       const plan = await this.llmService.generateImprovementPlan(tenantId, {
         tenantId,
         agent: knownAgent,
@@ -399,6 +421,7 @@ export class LearningService {
         currentPromptKey: promptKey,
         currentPromptContent,
         recentProposals,
+        selfAnalysis,
       });
 
       if (!plan.available) {
@@ -415,6 +438,7 @@ export class LearningService {
         gap,
         plan,
         { agentRunId },
+        selfAnalysis,
       );
     } catch (caught) {
       // Best-effort — same discipline `onSimulationComplete`/`AgentRunsService.record`/
@@ -422,6 +446,61 @@ export class LearningService {
       // this trigger point must NEVER be the reason `judgeRun` (or the real underlying Samantha/
       // Kai/Clara action several layers up) fails.
       this.logger.warn(`LearningService.onAgentRunJudged(${agentRunId}) failed: ${String(caught)}`);
+    }
+  }
+
+  /**
+   * AAOS Self-Improving, Phase SI-3 — real, BEST-EFFORT wrapper around `LlmService.selfAnalyze`,
+   * called from both `onSimulationComplete`/`onAgentRunJudged` FIRST, BEFORE `generateImprovementPlan`,
+   * over the SAME real gap/prompt/history context those methods already assembled (no second,
+   * parallel data-fetching path — see `LlmService.selfAnalyze`'s own doc). Returns `undefined`
+   * (NEVER throws) whenever self-analysis is unavailable or degraded in any way — a real `available:
+   * false` response, OR the call itself throwing — so `generateImprovementPlan` always proceeds
+   * exactly as it did before this phase in that case. Self-analysis is a real ENHANCEMENT to plan
+   * quality (its output, when present, is passed into `generateImprovementPlan`'s
+   * `body.selfAnalysis`), never a new gate that could block proposal generation.
+   */
+  private async runSelfAnalysis(
+    logLabel: string,
+    tenantId: string,
+    agent: "SAMANTHA" | "CLARA",
+    gap: DetectedGap | DetectedLiveRunGap,
+    promptKey: string,
+    currentPromptContent: string,
+    recentProposals: {
+      createdAt: string;
+      agent: string;
+      analysis: string | null;
+      status: string;
+    }[],
+  ): Promise<{ rootCauses: string[]; patterns: string; confidence: number } | undefined> {
+    try {
+      const analysis = await this.llmService.selfAnalyze(tenantId, {
+        tenantId,
+        agent,
+        gap,
+        currentPromptKey: promptKey,
+        currentPromptContent,
+        recentProposals,
+      });
+      if (!analysis.available) {
+        this.logger.warn(
+          `LearningService.${logLabel}: selfAnalyze unavailable (${analysis.reason}) — proceeding without self-analysis context (best-effort, never blocks proposal generation).`,
+        );
+        return undefined;
+      }
+      return {
+        rootCauses: [...analysis.rootCauses],
+        patterns: analysis.patterns,
+        confidence: analysis.confidence,
+      };
+    } catch (caught) {
+      // Best-effort — same discipline every other side-effect in this codebase follows: a
+      // self-analysis failure must NEVER be the reason a proposal fails to generate.
+      this.logger.warn(
+        `LearningService.${logLabel}: selfAnalyze failed — proceeding without self-analysis context (best-effort, never blocks proposal generation): ${String(caught)}`,
+      );
+      return undefined;
     }
   }
 
@@ -461,6 +540,14 @@ export class LearningService {
       readonly droppedCount: number;
     },
     source: { readonly simulationId: string } | { readonly agentRunId: string },
+    // AAOS Self-Improving (Phase SI-3) — real, optional output of the SAME gap's PRIOR
+    // `LlmService.selfAnalyze` call (see `runSelfAnalysis`'s own doc). `undefined` when
+    // self-analysis wasn't run or was unavailable — persisted as `null`, never fabricated.
+    selfAnalysis?: {
+      readonly rootCauses: string[];
+      readonly patterns: string;
+      readonly confidence: number;
+    },
   ): Promise<LearningProposalRow> {
     if (plan.droppedCount > 0) {
       this.logger.warn(
@@ -470,6 +557,7 @@ export class LearningService {
     const created = await this.proposals.create({
       tenantId,
       agent,
+      selfAnalysis,
       analysis: plan.analysis,
       gaps: { ...gap },
       improvements: plan.improvements,

@@ -72,6 +72,22 @@ const ImprovementPlanPriorProposalSchema = z.object({
   status: z.string(),
 });
 
+/**
+ * AAOS Self-Improving, Phase SI-3 — the real, additive shape of `LlmService.selfAnalyze`'s
+ * SUCCESSFUL output (see `dto/self-analysis.dto.ts`'s own `SelfAnalysisLlmPayloadSchema`, the
+ * single source of truth this schema mirrors field-for-field rather than re-declaring a second,
+ * possibly-drifting copy). `optional()`, never required — `LearningService` calls `selfAnalyze`
+ * BEST-EFFORT, strictly BEFORE `generateImprovementPlan`; when self-analysis is unavailable/
+ * degraded, this field is simply omitted and `generateImprovementPlan` proceeds exactly as it did
+ * before this phase (see that method's own doc for why self-analysis is an ENHANCEMENT, never a
+ * new gate).
+ */
+const ImprovementPlanSelfAnalysisSchema = z.object({
+  rootCauses: z.array(z.string()),
+  patterns: z.string(),
+  confidence: z.number(),
+});
+
 export const ImprovementPlanRequestSchema = z.object({
   tenantId: z.string().min(1),
   /** Which real agent this proposal concerns — SAMANTHA or CLARA (see `LearningService`'s doc for why Kai never reaches this method). */
@@ -82,6 +98,8 @@ export const ImprovementPlanRequestSchema = z.object({
   currentPromptContent: z.string(),
   /** Last 3 `learning_proposals` rows for this tenant (any agent), oldest-first — real history, so the LLM doesn't re-propose something already tried. Empty when this is the tenant's first proposal. */
   recentProposals: z.array(ImprovementPlanPriorProposalSchema),
+  /** AAOS Self-Improving, Phase SI-3 — real, optional root-cause context from a SEPARATE, PRIOR `LlmService.selfAnalyze` call over this SAME gap. See `ImprovementPlanSelfAnalysisSchema`'s own doc. */
+  selfAnalysis: ImprovementPlanSelfAnalysisSchema.optional(),
 });
 export type ImprovementPlanRequestDto = z.infer<typeof ImprovementPlanRequestSchema>;
 

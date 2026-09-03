@@ -31,6 +31,16 @@ export interface LearningProposalRow {
    * real write sequencing.
    */
   readonly auto_applied_config_keys: readonly string[];
+  /**
+   * AAOS Self-Improving, Phase SI-3 (`037_learning_proposals_self_analysis.sql`) — the real, optional
+   * output of a PRIOR, SEPARATE `LlmService.selfAnalyze` call over this SAME gap (`rootCauses`/
+   * `patterns`/`confidence` — see `dto/self-analysis.dto.ts`'s own `SelfAnalysisLlmPayloadSchema`,
+   * the shape this JSONB column mirrors). `null` when self-analysis wasn't run or was unavailable/
+   * degraded when this proposal was created — an honest "no self-analysis for this row", never a
+   * fabricated empty object. Additive, nullable — never blocks proposal creation (see
+   * `LearningService`'s own doc for the full best-effort reasoning).
+   */
+  readonly self_analysis: Record<string, unknown> | null;
 }
 
 /**
@@ -48,6 +58,8 @@ export interface CreateLearningProposalInput {
   readonly analysis: string;
   readonly gaps: Record<string, unknown>;
   readonly improvements: readonly Record<string, unknown>[];
+  /** AAOS Self-Improving, Phase SI-3 — real, optional `LlmService.selfAnalyze` output for this SAME gap, persisted alongside the proposal (see `LearningProposalRow.self_analysis`'s own doc). `undefined` when self-analysis wasn't run or was unavailable — `create` stores it as `null`, never a fabricated value. */
+  readonly selfAnalysis?: Record<string, unknown>;
 }
 
 export class LearningProposalRepositoryError extends Error {}
@@ -89,6 +101,7 @@ export class LearningProposalRepository {
         gaps: input.gaps,
         improvements: input.improvements,
         status: "PENDING",
+        self_analysis: input.selfAnalysis ?? null,
       })
       .select("*")
       .single();

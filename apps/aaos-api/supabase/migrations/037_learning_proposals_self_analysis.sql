@@ -1,0 +1,32 @@
+-- AAOS-SELF-IMPROVING (Phase SI-3) -- 037_learning_proposals_self_analysis.sql
+-- Extends `learning_proposals` (024_learning_proposals.sql) with a real, additive, nullable column
+-- for `LlmService.selfAnalyze`'s output (`docs/PROMPT-AAOS-SELF-IMPROVING-FULL.md`'s own Phase
+-- SI-3 section: "New SelfAnalyzerService/LlmService.selfAnalyze -- a real, SEPARATE LLM call
+-- producing root causes ... called BEFORE generateImprovementPlan when a gap is detected").
+--
+-- Real next migration number verified directly against this folder's actual latest
+-- (036_agent_logic.sql) before choosing 037 -- no other 037 exists.
+--
+-- REAL, DELIBERATE DECISION: `self_analysis` is additive and NULLABLE, mirroring the exact real
+-- "best-effort, never a gate" discipline `LearningService.runSelfAnalysis`'s own doc documents --
+-- `selfAnalyze` is called BEST-EFFORT before `generateImprovementPlan` for the same gap; when it is
+-- unavailable/degraded (LLM down, malformed response, or the call itself throwing),
+-- `generateImprovementPlan` proceeds exactly as it did before this phase and this column is simply
+-- left NULL for that row -- an honest "no self-analysis for this proposal", never a fabricated
+-- empty object. No CHECK constraint / NOT NULL -- same "Zod/service validates, DB just stores it"
+-- convention `agent_configs.value`/`agent_logic.definition` each document on themselves;
+-- `SelfAnalysisLlmPayloadSchema` (`dto/self-analysis.dto.ts`) is the real structural-validation
+-- boundary, already enforced before this column is ever written (`LlmService.selfAnalyze`'s own
+-- Zod-validate step).
+--
+-- Real shape stored (JSONB, when present): `{ rootCauses: string[], patterns: string, confidence:
+-- number }` -- see `dto/self-analysis.dto.ts`'s own `SelfAnalysisLlmPayloadSchema` for the single
+-- source of truth this column's shape mirrors. Lets a human reviewing a PENDING PROMPT_UPDATE
+-- proposal (or auditing an AUTO_APPLIED CONFIG_UPDATE/LOGIC_UPDATE one) see the real "why" (this
+-- column) alongside the real "what" (`improvements`) that was already visible before this phase.
+--
+-- NOT auto-applied by this repo's tooling -- run this against the real Supabase project before
+-- `LearningProposalRepository.create`'s new `selfAnalysis` field can persist a real value.
+
+ALTER TABLE learning_proposals
+  ADD COLUMN self_analysis JSONB;
