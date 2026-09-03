@@ -211,42 +211,64 @@ export class SimulationService {
       await this.repository.updateStep(id, "KAI");
       await this.log(id, "KAI", "INFO", "Samantha brief Kai untuk creative refresh…");
       const kaiStart = Date.now();
-      const briefResult = await this.llmService.creativeBrief(tenantId, {
-        ad: body.kaiAd,
-        angle: body.kaiAngle,
-        branch: body.kaiBranch,
-      });
-      const kai: KaiStageResult = briefResult.available
-        ? {
-            available: true,
-            brief: {
-              unit: briefResult.unit,
-              angle: briefResult.angle,
-              branch: briefResult.branch,
-              primaryMessage: briefResult.primaryMessage,
-              tone: briefResult.tone,
-              formats: briefResult.formats,
-              avoid: briefResult.avoid,
-              urgency: briefResult.urgency,
-            },
-            elapsedMs: Date.now() - kaiStart,
-            videoGenerated: false,
-            note: "Brief nyata dari Samantha. Generate video/gambar Kie AI belum dijalankan pada simulasi ini.",
-            promptDetail: await this.resolveKaiPromptDetail(
+      // Real user-reported bug fix: for PROPERTY with a real selected listing, the brief used to
+      // ALWAYS go through `llmService.creativeBrief` — a generic, AUTOMOTIVE-shaped LLM call
+      // (`ad`/`angle`/`branch`, no `propertyType` anywhere in its prompt) that has no way to know
+      // the real listing is a "RUMAH", not an "APARTEMEN" — it was free to hallucinate a property
+      // type, and did. Fixed by reusing the SAME real, deterministic, no-LLM-call machinery
+      // `resolveKaiPromptDetail`'s PROPERTY branch already builds (`PropertyCopyBuilder` over the
+      // real listing row) for the top-level `kai.brief` too, not just its detail panel — one real
+      // mechanism, not two. AUTOMOTIVE's real `llmService.creativeBrief` path below is completely
+      // untouched.
+      const kai: KaiStageResult =
+        vertical === "PROPERTY" &&
+        body.listingId !== undefined &&
+        body.kaiPropertyAngle !== undefined
+          ? await this.buildPropertyKaiBrief(
               id,
-              briefResult,
-              vertical,
               tenantId,
-              body,
-            ),
-          }
-        : {
-            available: false,
-            reason: briefResult.reason,
-            elapsedMs: Date.now() - kaiStart,
-            videoGenerated: false,
-            note: "Brief tidak tersedia — AI unavailable.",
-          };
+              body.listingId,
+              body.kaiPropertyAngle,
+              kaiStart,
+            )
+          : await (async (): Promise<KaiStageResult> => {
+              const briefResult = await this.llmService.creativeBrief(tenantId, {
+                ad: body.kaiAd,
+                angle: body.kaiAngle,
+                branch: body.kaiBranch,
+              });
+              return briefResult.available
+                ? {
+                    available: true,
+                    brief: {
+                      unit: briefResult.unit,
+                      angle: briefResult.angle,
+                      branch: briefResult.branch,
+                      primaryMessage: briefResult.primaryMessage,
+                      tone: briefResult.tone,
+                      formats: briefResult.formats,
+                      avoid: briefResult.avoid,
+                      urgency: briefResult.urgency,
+                    },
+                    elapsedMs: Date.now() - kaiStart,
+                    videoGenerated: false,
+                    note: "Brief nyata dari Samantha. Generate video/gambar Kie AI belum dijalankan pada simulasi ini.",
+                    promptDetail: await this.resolveKaiPromptDetail(
+                      id,
+                      briefResult,
+                      vertical,
+                      tenantId,
+                      body,
+                    ),
+                  }
+                : {
+                    available: false,
+                    reason: briefResult.reason,
+                    elapsedMs: Date.now() - kaiStart,
+                    videoGenerated: false,
+                    note: "Brief tidak tersedia — AI unavailable.",
+                  };
+            })();
       await this.log(
         id,
         "KAI",
@@ -580,6 +602,102 @@ export class SimulationService {
    * NEVER FAILS THE RUN: an unknown/foreign-tenant `listingId` (`NotFoundError`) or any other thrown
    * error degrades to `undefined` with an honest log line, same discipline as `buildKaiPromptDetail`.
    */
+  /**
+   * Real user-reported bug fix: the top-level `kai.brief` shown in Step 3's card used to always
+   * come from `llmService.creativeBrief` — a generic LLM call with no `propertyType` signal in its
+   * prompt — for BOTH verticals. A PROPERTY tenant's real "RUMAH" listing could come back as
+   * "Dapatkan apartemen impian Anda..." purely because the LLM was never told the real type and
+   * had to guess. This method builds `kai.brief` deterministically instead, from the real listing
+   * row + the SAME `PropertyCopyBuilder`/`computePropertyKaiPromptDetail` machinery
+   * `buildPropertyKaiPromptDetail` (below) already uses for the detail panel — one real mechanism
+   * computed once, not a second LLM call and a second deterministic path drifting independently.
+   *
+   * `primaryMessage` is Variant A's real `primaryText` (`PropertyCopyBuilder`'s own real templates,
+   * which DO interpolate `brief.propertyType` honestly — see that class's own real template
+   * strings). `tone`/`urgency`/`avoid` have no real per-listing PROPERTY equivalent in
+   * `PropertyCreativeBrief` (unlike AUTOMOTIVE's `CreativeBrief`) — set to real, documented,
+   * non-per-listing constants rather than fabricating a per-listing value with no real basis.
+   *
+   * NEVER FAILS THE RUN: any error (listing not found, tenant mismatch, zero real copy variants)
+   * degrades to `available: false` with an honest reason, same discipline as every other real
+   * degrade path in this class.
+   */
+  private async buildPropertyKaiBrief(
+    id: string,
+    tenantId: string,
+    listingId: string,
+    angle: PropertyAdAngle,
+    kaiStart: number,
+  ): Promise<KaiStageResult> {
+    try {
+      const listing = await this.listings.getById(tenantId, listingId);
+      const brief: PropertyCreativeBrief = {
+        listingId: listing.id,
+        listingTitle: listing.title,
+        propertyType: listing.propertyType,
+        angle,
+        ...(listing.branchId !== undefined ? { branch: listing.branchId } : {}),
+        ...(listing.waNumber !== undefined ? { waNumber: listing.waNumber } : {}),
+        ...(listing.highlights.length > 0 ? { highlights: listing.highlights } : {}),
+      };
+      const sourcePhotoUrls = listing.photos.map((photo) => photo.url);
+      const promptDetail = computePropertyKaiPromptDetail(brief, sourcePhotoUrls);
+      const primaryText = promptDetail.copyVariants[0]?.primaryText;
+      if (primaryText === undefined) {
+        await this.log(
+          id,
+          "KAI",
+          "WARN",
+          `Copy variant tidak tersedia untuk listing "${listing.title}" (${promptDetail.copyVariantsUnavailableReason ?? "unknown"}) — brief Kai disembunyikan.`,
+        );
+        return {
+          available: false,
+          reason:
+            promptDetail.copyVariantsUnavailableReason ??
+            "Copy variant tidak tersedia untuk listing ini.",
+          elapsedMs: Date.now() - kaiStart,
+          videoGenerated: false,
+          note: "Brief tidak tersedia — copy generator gagal.",
+        };
+      }
+      return {
+        available: true,
+        brief: {
+          unit: listing.title,
+          angle,
+          branch: listing.branchId ?? "UMUM",
+          primaryMessage: primaryText,
+          // Real, documented constants — `PropertyCreativeBrief` has no real per-listing tone/
+          // urgency concept (unlike AUTOMOTIVE's `CreativeBrief`), never fabricated per-listing.
+          tone: "santai, informatif",
+          formats: [promptDetail.format],
+          avoid: [],
+          urgency: "MEDIUM",
+        },
+        elapsedMs: Date.now() - kaiStart,
+        videoGenerated: false,
+        note: "Brief nyata dari listing (PropertyCopyBuilder, deterministik). Generate video/gambar Kie AI belum dijalankan pada simulasi ini.",
+        promptDetail,
+      };
+    } catch (caught) {
+      const message =
+        caught instanceof NotFoundError
+          ? caught.message
+          : caught instanceof Error
+            ? caught.message
+            : String(caught);
+      this.logger.warn(`SimulationService.buildPropertyKaiBrief(${id}) failed: ${message}`);
+      await this.log(id, "KAI", "WARN", `Brief PROPERTY gagal dihitung: ${message}.`);
+      return {
+        available: false,
+        reason: message,
+        elapsedMs: Date.now() - kaiStart,
+        videoGenerated: false,
+        note: "Brief tidak tersedia — listing gagal dimuat.",
+      };
+    }
+  }
+
   private async buildPropertyKaiPromptDetail(
     id: string,
     tenantId: string,

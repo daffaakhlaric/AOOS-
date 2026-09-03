@@ -659,6 +659,38 @@ describe("SimulationService", () => {
       ]);
     });
 
+    it("real bug fix: kai.brief.primaryMessage/unit come from the real listing (never the automotive LLM path, never 'apartemen' for a real RUMAH)", async () => {
+      const repository = buildFakeRepository(buildStored());
+      const llmService = buildFakeLlmService();
+      const service = new SimulationService(
+        buildTestConfig(),
+        undefined,
+        repository,
+        llmService,
+        buildFakeInterestRepository(),
+        buildFakeTenantRepository("PROPERTY"),
+        buildFakeListingsService(buildFakeListing()),
+        buildFakeLearningService(),
+        buildFakeLocationResolver(),
+      );
+      await service.start(PROPERTY_BODY, "dss-motor");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { kai: { brief?: { unit: string; primaryMessage: string } } },
+      ];
+
+      expect(result.kai.brief).toBeDefined();
+      expect(result.kai.brief?.unit).toBe("Rumah Bintaro 88m²");
+      expect(result.kai.brief?.primaryMessage).toBeDefined();
+      expect(result.kai.brief?.primaryMessage.toLowerCase()).not.toContain("apartemen");
+      // `creativeBrief` is the AUTOMOTIVE-shaped LLM call that had no `propertyType` signal and
+      // could hallucinate one — the real fix never calls it at all for a PROPERTY tenant with a
+      // real selected listing.
+      expect(llmService.creativeBrief).not.toHaveBeenCalled();
+    });
+
     it("degrades to promptDetail undefined (never fails the run) when Step 1 selected no listing", async () => {
       const { repository, kai } = await runPropertyPipeline({
         ...BODY,
