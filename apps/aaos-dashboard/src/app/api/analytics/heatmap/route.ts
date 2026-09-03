@@ -28,7 +28,11 @@ export const dynamic = "force-dynamic";
  * fix `/api/campaigns/route.ts` needed for the identical reason.
  */
 
-const CACHE_TTL_MS = 300_000; // 5 minutes
+// Meta rate-limit UX mitigation (docs/PROMPT-AAOS-GEO-TARGETING-AND-REGION-PICKER.md Part C) — same
+// 5→15-minute bump as `/api/campaigns/route.ts`'s own `CACHE_TTL_MS`, same reasoning: see that
+// file's docstring above for why (the Meta Ads Tenant-Scoping Fix's real, accepted tradeoff, not a
+// new bug).
+const CACHE_TTL_MS = 900_000; // 15 minutes
 
 interface CacheEntry {
   readonly body: HeatmapResponseDto;

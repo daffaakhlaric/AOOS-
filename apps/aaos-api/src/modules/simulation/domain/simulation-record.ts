@@ -63,6 +63,23 @@ export interface AudienceTargetingPreview {
   readonly ageMax: number;
   /** Verbatim "⚠ Perkiraan awal, perlu direview…" caveat — the UI must show it. */
   readonly geoNote: string;
+  /**
+   * Simulasi geo-per-listing preview — PROPERTY only (`undefined` for AUTOMOTIVE, which never runs
+   * the per-listing `LocationResolverService` path). Machine-readable honesty on WHERE `geo`/
+   * `radiusKm`/`ageMin`/`ageMax`/`geoNote` above actually came from, mirroring
+   * `ResolvedLocation.source`/its own internal fallback semantics exactly:
+   *  - `"LLM"` — a real, validated `LocationResolverService`/`LlmService.resolveLocation` answer
+   *    for the real selected listing ("resolved via AI").
+   *  - `"FALLBACK"` — the listing was found, but `LocationResolverService.resolve` itself degraded
+   *    (no API key / rate-limited / provider error / invalid response) and used
+   *    `propertyBranchAudienceDefault` internally — still per-listing-aware (real `branchId` from
+   *    the listing row), just not LLM-resolved.
+   *  - `"LISTING_UNAVAILABLE"` — no `listingId` on the request, the listing wasn't found, or the
+   *    listing lookup itself threw; this preview fell all the way back to today's pre-existing
+   *    `propertyBranchAudienceDefault(branch)` call using the AUTOMOTIVE-picker's leftover branch
+   *    state ("perkiraan awal, perlu direview").
+   */
+  readonly geoSource?: "LLM" | "FALLBACK" | "LISTING_UNAVAILABLE";
   /** How many real candidates were queried out of `meta_interests` and shown to Samantha. */
   readonly candidateCount: number;
   readonly interests: readonly SelectedAudienceInterest[];

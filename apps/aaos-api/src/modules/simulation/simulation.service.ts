@@ -10,6 +10,7 @@ import {
   HOUSING_POLICY_WARNING,
   HOUSING_SPECIAL_AD_CATEGORY,
   propertyBranchAudienceDefault,
+  type BranchAudienceDefault,
 } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
@@ -19,6 +20,7 @@ import { LearningService } from "../learning/learning.service.js";
 import { ListingsService } from "../listings/listings.service.js";
 import type { TargetingCandidateDto } from "../llm/dto/select-targeting.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import { LocationResolverService } from "../location-resolver/location-resolver.service.js";
 import { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -88,6 +90,7 @@ export class SimulationService {
     private readonly tenants: TenantRepository,
     private readonly listings: ListingsService,
     private readonly learning: LearningService,
+    private readonly locationResolver: LocationResolverService,
   ) {}
 
   /**
@@ -328,9 +331,17 @@ export class SimulationService {
     // `housingWarning` are the real Meta-mandatory HOUSING category this preview must carry once
     // `vertical === "PROPERTY"` — see `AudienceTargetingPreview`'s class doc for the display-only
     // hard scope boundary.
-    const geoDefault =
+    //
+    // Simulasi geo-per-listing preview — PROPERTY now resolves the SAME real
+    // `LocationResolverService.resolve` the real campaign-creation path uses, fed from the real
+    // SELECTED LISTING (`body.listingId`), instead of a crude direct
+    // `propertyBranchAudienceDefault(branch)` call. AUTOMOTIVE's `branchAudienceDefault(branch)`
+    // call is untouched — this is a PROPERTY-only fix.
+    const geoDefault: BranchAudienceDefault & {
+      readonly source?: "LLM" | "FALLBACK" | "LISTING_UNAVAILABLE";
+    } =
       vertical === "PROPERTY"
-        ? propertyBranchAudienceDefault(branch)
+        ? await this.resolvePropertyGeoDefault(id, tenantId, branch, body.listingId)
         : branchAudienceDefault(branch);
     const base = {
       branch,
@@ -339,6 +350,7 @@ export class SimulationService {
       ageMin: geoDefault.ageMin,
       ageMax: geoDefault.ageMax,
       geoNote: geoDefault.note,
+      ...(geoDefault.source !== undefined ? { geoSource: geoDefault.source } : {}),
       specialAdCategories:
         vertical === "PROPERTY" ? ([HOUSING_SPECIAL_AD_CATEGORY] as readonly string[]) : [],
       ...(vertical === "PROPERTY" ? { housingWarning: HOUSING_POLICY_WARNING } : {}),
@@ -445,6 +457,82 @@ export class SimulationService {
         interests: [],
         interestsUnavailableReason: "TARGETING_ERROR",
       };
+    }
+  }
+
+  /**
+   * Simulasi geo-per-listing preview — PROPERTY-only real geo resolution for
+   * `computeAudienceTargeting`'s audience block, mirroring the SAME real
+   * `LocationResolverService.resolve(tenantId, input)` call + field mapping
+   * `CampaignsService.createPropertyCampaign` already uses (`listingTitle`/`propertyType`/`price`/
+   * `city`/`province`/`address`/`branchId` from the real, tenant-scoped listing row).
+   *
+   * Real degrade discipline (two DISTINCT layers, only one of which is this method's job):
+   *  1. `LocationResolverService.resolve` already owns its own real fallback to
+   *     `propertyBranchAudienceDefault(branchId)` internally when its LLM call degrades
+   *     (`source: "FALLBACK"`) — that is NOT a failure from this method's point of view, it is a
+   *     real, honest, already-resolved answer this method returns as-is.
+   *  2. This method's OWN fallback to `propertyBranchAudienceDefault(branch)` fires ONLY when the
+   *     listing itself can't be fetched at all — no `listingId` on the request, the listing wasn't
+   *     found (foreign tenant / bad id), or the repository call itself throws. Never a hard
+   *     failure of the run — same "preview is a display nicety, never a gate" discipline this
+   *     class's own doc establishes elsewhere.
+   */
+  private async resolvePropertyGeoDefault(
+    id: string,
+    tenantId: string,
+    branch: string | undefined,
+    listingId: string | undefined,
+  ): Promise<
+    BranchAudienceDefault & { readonly source: "LLM" | "FALLBACK" | "LISTING_UNAVAILABLE" }
+  > {
+    if (listingId === undefined) {
+      await this.log(
+        id,
+        "SAMANTHA",
+        "WARN",
+        "Simulasi PROPERTY tanpa listing terpilih (Step 1) — audience preview pakai default cabang, bukan resolusi geo per-listing.",
+      );
+      return { ...propertyBranchAudienceDefault(branch), source: "LISTING_UNAVAILABLE" };
+    }
+
+    try {
+      const listing = await this.listings.getById(tenantId, listingId);
+      const resolved = await this.locationResolver.resolve(tenantId, {
+        listingTitle: listing.title,
+        propertyType: listing.propertyType,
+        price: listing.price,
+        ...(listing.city !== undefined ? { city: listing.city } : {}),
+        ...(listing.province !== undefined ? { province: listing.province } : {}),
+        ...(listing.address !== undefined ? { address: listing.address } : {}),
+        ...(listing.branchId !== undefined ? { branchId: listing.branchId } : {}),
+      });
+      await this.log(
+        id,
+        "SAMANTHA",
+        resolved.source === "LLM" ? "INFO" : "WARN",
+        resolved.source === "LLM"
+          ? `Geo audience preview di-resolve dari listing "${listing.title}" via AI: ${resolved.reasoning}`
+          : `Geo audience preview untuk listing "${listing.title}" pakai fallback: ${resolved.reasoning}`,
+      );
+      return {
+        cities: resolved.cities,
+        radiusKm: resolved.radiusKm,
+        ageMin: resolved.ageMin,
+        ageMax: resolved.ageMax,
+        note: resolved.reasoning,
+        source: resolved.source,
+      };
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      this.logger.warn(`SimulationService.resolvePropertyGeoDefault(${id}) failed: ${message}`);
+      await this.log(
+        id,
+        "SAMANTHA",
+        "WARN",
+        `Listing "${listingId}" tidak bisa dimuat untuk resolusi geo (${message}) — audience preview pakai default cabang.`,
+      );
+      return { ...propertyBranchAudienceDefault(branch), source: "LISTING_UNAVAILABLE" };
     }
   }
 

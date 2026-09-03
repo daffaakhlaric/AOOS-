@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { friendlyApiErrorMessage } from "@/lib/apiErrorMessage";
 import {
   CAMPAIGNS_CACHE_UPDATED_EVENT,
   readCampaignsCache,
@@ -79,7 +80,7 @@ export function useCampaignsSnapshot(): CampaignsSnapshotState {
       const params = new URLSearchParams({ datePreset: resolvedPreset, refresh: "1" });
       const res = await fetch(`/api/campaigns?${params.toString()}`);
       if (!res.ok) {
-        throw new Error("Gagal menarik data iklan.");
+        throw new Error(await friendlyApiErrorMessage(res, "Gagal menarik data iklan."));
       }
       const body = (await res.json()) as AdAccountSummaryDto;
       if (mountedRef.current) {

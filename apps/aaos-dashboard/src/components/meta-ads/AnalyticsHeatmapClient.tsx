@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { friendlyApiErrorMessage } from "@/lib/apiErrorMessage";
 import type { HeatmapResponseDto } from "@/types/dashboard.types";
 
 import { HeatmapGrid } from "./HeatmapGrid";
@@ -15,7 +16,7 @@ const DEFAULT_DATE_PRESET = "last_30d";
  * `/meta-ads/analytics/heatmap` page body (AAOS Analytics Platform Phase 3). Auto-fetches
  * `/api/analytics/heatmap` on mount (unlike `useCampaignsSnapshot`'s deliberate manual-fetch-only
  * house style for the shared campaigns snapshot — this page has its own dedicated endpoint with
- * its own 5-minute server-side cache, so a plain auto-fetch-on-mount is the simplest honest
+ * its own 15-minute server-side cache, so a plain auto-fetch-on-mount is the simplest honest
  * behavior for a standalone analytics report page, not a second convention competing with the
  * shared snapshot).
  */
@@ -33,7 +34,9 @@ export function AnalyticsHeatmapClient(): React.ReactElement {
         const params = new URLSearchParams({ datePreset: DEFAULT_DATE_PRESET });
         const res = await fetch(`/api/analytics/heatmap?${params.toString()}`);
         if (!res.ok) {
-          throw new Error("Gagal memuat heatmap audiens × kreatif.");
+          throw new Error(
+            await friendlyApiErrorMessage(res, "Gagal memuat heatmap audiens × kreatif."),
+          );
         }
         const body = (await res.json()) as HeatmapResponseDto;
         if (!cancelled) {

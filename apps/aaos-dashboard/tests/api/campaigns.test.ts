@@ -188,7 +188,7 @@ describe("GET /api/campaigns", () => {
   });
 
   describe("caching (real bug fix: unbounded aaos-api calls were tripping Meta's rate limit)", () => {
-    it("caches a successful response for 5 minutes — a second call with the same adAccountId/datePreset does not call aaos-api again", async () => {
+    it("caches a successful response for 15 minutes — a second call with the same adAccountId/datePreset does not call aaos-api again", async () => {
       const fetchMock = vi.fn(
         async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
       );
@@ -201,7 +201,11 @@ describe("GET /api/campaigns", () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it("re-fetches once the 5-minute TTL has elapsed", async () => {
+    // Meta rate-limit UX mitigation (docs/PROMPT-AAOS-GEO-TARGETING-AND-REGION-PICKER.md Part C):
+    // `CACHE_TTL_MS` was bumped from 5 to 15 minutes (300_000 -> 900_000) — a real, direct
+    // mitigation for the Meta Ads Tenant-Scoping Fix's (`c8d739c`) real, accepted tradeoff of
+    // increased Meta call volume now that every tenant gets its own real cache key.
+    it("re-fetches once the 15-minute TTL has elapsed", async () => {
       vi.useFakeTimers();
       try {
         const fetchMock = vi.fn(
@@ -211,7 +215,7 @@ describe("GET /api/campaigns", () => {
 
         const params = { adAccountId: "act_cache_2", datePreset: "last_30d" };
         await GET(requestWith(params));
-        vi.advanceTimersByTime(300_001);
+        vi.advanceTimersByTime(900_001);
         await GET(requestWith(params));
 
         expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -220,7 +224,7 @@ describe("GET /api/campaigns", () => {
       }
     });
 
-    it("bypasses the cache when refresh=1 is passed, even within the 5-minute window (manual 'Tarik Data' / post-Execute re-fetch)", async () => {
+    it("bypasses the cache when refresh=1 is passed, even within the 15-minute window (manual 'Tarik Data' / post-Execute re-fetch)", async () => {
       const fetchMock = vi.fn(
         async () => new Response(JSON.stringify(AD_ACCOUNT_RESPONSE), { status: 200 }),
       );

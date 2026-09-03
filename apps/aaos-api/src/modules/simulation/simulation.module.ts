@@ -5,6 +5,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { LearningModule } from "../learning/learning.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { LlmModule } from "../llm/llm.module.js";
+import { LocationResolverModule } from "../location-resolver/location-resolver.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { MetaInterestsModule } from "../meta-interests/meta-interests.module.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
@@ -38,9 +39,15 @@ import { SimulationService } from "./simulation.service.js";
  * `onSimulationComplete(id)` BEST-EFFORT once a run reaches its real terminal state
  * (`repository.complete`) — see `runPipeline`'s own call site for why this can never fail or roll
  * back the simulation itself.
+ *
+ * `LocationResolverModule` (Simulasi geo-per-listing preview) is imported (not re-provided, same
+ * reasoning as `LlmModule`/`MetaInterestsModule`/`ListingsModule`) so `SimulationService` can
+ * inject the SAME real `LocationResolverService` `CampaignsService.createPropertyCampaign` already
+ * uses for the real PROPERTY campaign-creation path — one LLM-backed geo resolver, never a second
+ * one composed here.
  */
 @Module({
-  imports: [LlmModule, MetaInterestsModule, ListingsModule, LearningModule],
+  imports: [LlmModule, MetaInterestsModule, ListingsModule, LearningModule, LocationResolverModule],
   controllers: [SimulationController],
   providers: [
     SimulationService,

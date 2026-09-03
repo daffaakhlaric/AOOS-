@@ -8,6 +8,10 @@ import type { LearningService } from "../learning/learning.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type { LlmService } from "../llm/llm.service.js";
+import type {
+  LocationResolverService,
+  ResolvedLocation,
+} from "../location-resolver/location-resolver.service.js";
 import type { StoredMetaInterest } from "../meta-interests/domain/meta-interest.js";
 import type { MetaInterestRepository } from "../meta-interests/infrastructure/meta-interest.repository.js";
 import type {
@@ -208,6 +212,26 @@ function buildFakeLearningService(): LearningService {
   } as unknown as LearningService;
 }
 
+/**
+ * Simulasi geo-per-listing preview — the fake for `SimulationService`'s new
+ * `LocationResolverService` dependency. Defaults to a real, LLM-resolved answer (`source: "LLM"`)
+ * so a test can assert `resolve` was actually called with the real listing's fields without also
+ * having to stub a plausible-looking fallback every time.
+ */
+function buildFakeLocationResolver(resolved?: Partial<ResolvedLocation>): LocationResolverService {
+  return {
+    resolve: vi.fn(async (): Promise<ResolvedLocation> => ({
+      cities: ["Bintaro"],
+      radiusKm: 20,
+      ageMin: 27,
+      ageMax: 55,
+      source: "LLM",
+      reasoning: "AI: Bintaro dipilih karena listing berada di area tersebut.",
+      ...resolved,
+    })),
+  } as unknown as LocationResolverService;
+}
+
 const BODY: StartSimulationBodyDto = {
   objective: { targetHotLeads: 10 },
   campaignDataSource: "cache",
@@ -234,6 +258,7 @@ describe("SimulationService", () => {
       buildFakeTenantRepository(),
       buildFakeListingsService(),
       buildFakeLearningService(),
+      buildFakeLocationResolver(),
     );
 
     const result = await service.start(BODY, "dss-motor");
@@ -265,6 +290,7 @@ describe("SimulationService", () => {
       buildFakeTenantRepository(),
       buildFakeListingsService(),
       buildFakeLearningService(),
+      buildFakeLocationResolver(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -304,6 +330,7 @@ describe("SimulationService", () => {
       buildFakeTenantRepository(),
       buildFakeListingsService(),
       buildFakeLearningService(),
+      buildFakeLocationResolver(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -332,6 +359,7 @@ describe("SimulationService", () => {
       buildFakeTenantRepository(),
       buildFakeListingsService(),
       buildFakeLearningService(),
+      buildFakeLocationResolver(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -362,6 +390,7 @@ describe("SimulationService", () => {
       buildFakeTenantRepository(),
       buildFakeListingsService(),
       buildFakeLearningService(),
+      buildFakeLocationResolver(),
     );
 
     await service.start(BODY, "dss-motor");
@@ -382,6 +411,7 @@ describe("SimulationService", () => {
       buildFakeTenantRepository(),
       buildFakeListingsService(),
       buildFakeLearningService(),
+      buildFakeLocationResolver(),
     );
     await expect(service.getStatus("missing")).rejects.toThrow(NotFoundError);
   });
@@ -398,6 +428,7 @@ describe("SimulationService", () => {
       buildFakeTenantRepository(),
       buildFakeListingsService(),
       buildFakeLearningService(),
+      buildFakeLocationResolver(),
     );
 
     await service.approve("sim-1", { decidedBy: "manager-1", notes: "looks good" });
@@ -434,6 +465,7 @@ describe("SimulationService", () => {
         buildFakeTenantRepository(),
         buildFakeListingsService(),
         buildFakeLearningService(),
+        buildFakeLocationResolver(),
       );
       await service.start(BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -533,6 +565,7 @@ describe("SimulationService", () => {
         buildFakeTenantRepository(),
         buildFakeListingsService(),
         buildFakeLearningService(),
+        buildFakeLocationResolver(),
       );
       await service.start(BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -565,6 +598,7 @@ describe("SimulationService", () => {
       buildFakeTenantRepository(),
       buildFakeListingsService(),
       buildFakeLearningService(),
+      buildFakeLocationResolver(),
     );
     const history = await service.history();
     expect(history).toHaveLength(1);
@@ -592,6 +626,7 @@ describe("SimulationService", () => {
         buildFakeTenantRepository("PROPERTY"),
         listingsService,
         buildFakeLearningService(),
+        buildFakeLocationResolver(),
       );
       await service.start(body, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -658,6 +693,7 @@ describe("SimulationService", () => {
         buildFakeTenantRepository("AUTOMOTIVE"),
         throwingListings,
         buildFakeLearningService(),
+        buildFakeLocationResolver(),
       );
       await service.start(PROPERTY_BODY, "dss-motor");
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -665,6 +701,159 @@ describe("SimulationService", () => {
 
       expect(throwingListings.getById).not.toHaveBeenCalled();
       expect(repository.complete).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Simulasi geo-per-listing preview: computeAudienceTargeting PROPERTY path uses the real LocationResolverService", () => {
+    const PROPERTY_BODY: StartSimulationBodyDto = {
+      ...BODY,
+      listingId: "listing-1",
+      kaiPropertyAngle: "READY_HUNI" as never,
+    };
+
+    async function runPropertyAudiencePipeline(
+      body: StartSimulationBodyDto,
+      listingsService: ListingsService = buildFakeListingsService(buildFakeListing()),
+      locationResolver: LocationResolverService = buildFakeLocationResolver(),
+    ) {
+      const repository = buildFakeRepository(buildStored());
+      const service = new SimulationService(
+        buildTestConfig(),
+        undefined,
+        repository,
+        buildFakeLlmService(),
+        buildFakeInterestRepository(),
+        buildFakeTenantRepository("PROPERTY"),
+        listingsService,
+        buildFakeLearningService(),
+        locationResolver,
+      );
+      await service.start(body, "dss-motor");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { samantha: { audienceTargeting?: Record<string, unknown> } },
+      ];
+      return { repository, locationResolver, targeting: result.samantha.audienceTargeting };
+    }
+
+    it("fetches the real selected listing and calls LocationResolverService.resolve with its real fields", async () => {
+      const locationResolver = buildFakeLocationResolver();
+      const { targeting } = await runPropertyAudiencePipeline(
+        PROPERTY_BODY,
+        buildFakeListingsService(buildFakeListing()),
+        locationResolver,
+      );
+
+      expect(locationResolver.resolve).toHaveBeenCalledWith("dss-motor", {
+        listingTitle: "Rumah Bintaro 88m²",
+        propertyType: "RUMAH",
+        price: 1_800_000_000,
+        branchId: "BINTARO",
+      });
+      expect(targeting?.geo).toEqual(["Bintaro"]);
+      expect(targeting?.radiusKm).toBe(20);
+      expect(targeting?.ageMin).toBe(27);
+      expect(targeting?.ageMax).toBe(55);
+      expect(targeting?.geoSource).toBe("LLM");
+      expect(String(targeting?.geoNote)).toContain("AI: Bintaro");
+    });
+
+    it("passes the real listing's city/province/address through when present", async () => {
+      const locationResolver = buildFakeLocationResolver();
+      await runPropertyAudiencePipeline(
+        PROPERTY_BODY,
+        buildFakeListingsService(
+          buildFakeListing({ city: "Bintaro", province: "Banten", address: "Jl. Boulevard 1" }),
+        ),
+        locationResolver,
+      );
+
+      expect(locationResolver.resolve).toHaveBeenCalledWith(
+        "dss-motor",
+        expect.objectContaining({
+          city: "Bintaro",
+          province: "Banten",
+          address: "Jl. Boulevard 1",
+        }),
+      );
+    });
+
+    it("does NOT add a second fallback layer when LocationResolverService itself degrades (source: FALLBACK) — its answer is used as-is", async () => {
+      const locationResolver = buildFakeLocationResolver({
+        source: "FALLBACK",
+        cities: ["Jakarta Selatan"],
+        radiusKm: 15,
+        ageMin: 27,
+        ageMax: 55,
+        reasoning:
+          'AI resolve-location tidak tersedia (RATE_LIMITED) — pakai default cabang "BINTARO".',
+      });
+      const { targeting } = await runPropertyAudiencePipeline(
+        PROPERTY_BODY,
+        buildFakeListingsService(buildFakeListing()),
+        locationResolver,
+      );
+
+      expect(locationResolver.resolve).toHaveBeenCalledTimes(1);
+      expect(targeting?.geoSource).toBe("FALLBACK");
+      expect(targeting?.geo).toEqual(["Jakarta Selatan"]);
+      expect(String(targeting?.geoNote)).toContain("RATE_LIMITED");
+    });
+
+    it("falls back to propertyBranchAudienceDefault (today's behavior) when no listingId is on the request — never calls LocationResolverService", async () => {
+      const locationResolver = buildFakeLocationResolver();
+      const { targeting } = await runPropertyAudiencePipeline(
+        { ...BODY, kaiPropertyAngle: "READY_HUNI" as never },
+        buildFakeListingsService(buildFakeListing()),
+        locationResolver,
+      );
+
+      expect(locationResolver.resolve).not.toHaveBeenCalled();
+      expect(targeting?.geoSource).toBe("LISTING_UNAVAILABLE");
+      // BINTARO branch is the real BODY.kaiBranch's sibling default — same as before this feature.
+      expect(String(targeting?.geoNote)).toContain("Perkiraan awal");
+    });
+
+    it("falls back to propertyBranchAudienceDefault when the listing lookup fails (unknown id) — never fails the run", async () => {
+      const locationResolver = buildFakeLocationResolver();
+      const { repository, targeting } = await runPropertyAudiencePipeline(
+        PROPERTY_BODY,
+        buildFakeListingsService(), // no listing configured -> real NotFoundError
+        locationResolver,
+      );
+
+      expect(locationResolver.resolve).not.toHaveBeenCalled();
+      expect(targeting?.geoSource).toBe("LISTING_UNAVAILABLE");
+      expect(repository.fail).not.toHaveBeenCalled();
+    });
+
+    it("AUTOMOTIVE tenants never touch LocationResolverService, even with a listingId on the body", async () => {
+      const locationResolver = buildFakeLocationResolver();
+      const repository = buildFakeRepository(buildStored());
+      const service = new SimulationService(
+        buildTestConfig(),
+        undefined,
+        repository,
+        buildFakeLlmService(),
+        buildFakeInterestRepository(),
+        buildFakeTenantRepository("AUTOMOTIVE"),
+        buildFakeListingsService(buildFakeListing()),
+        buildFakeLearningService(),
+        locationResolver,
+      );
+      await service.start(PROPERTY_BODY, "dss-motor");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(locationResolver.resolve).not.toHaveBeenCalled();
+      const [, result] = (repository.complete as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { samantha: { audienceTargeting?: Record<string, unknown> } },
+      ];
+      // AUTOMOTIVE never carries a `geoSource` — that field only exists on the PROPERTY path.
+      expect(result.samantha.audienceTargeting?.geoSource).toBeUndefined();
     });
   });
 
@@ -690,6 +879,7 @@ describe("SimulationService", () => {
         buildFakeTenantRepository("PROPERTY"),
         buildFakeListingsService(buildFakeListing()),
         buildFakeLearningService(),
+        buildFakeLocationResolver(),
       );
 
       await service.start({ ...BODY, listingId: "listing-1" }, "dss-motor");
@@ -725,6 +915,7 @@ describe("SimulationService", () => {
         buildFakeTenantRepository("AUTOMOTIVE"),
         buildFakeListingsService(),
         buildFakeLearningService(),
+        buildFakeLocationResolver(),
       );
 
       await service.start(BODY, "dss-motor");

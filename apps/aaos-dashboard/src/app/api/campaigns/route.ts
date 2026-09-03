@@ -172,7 +172,13 @@ function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
   };
 }
 
-const CACHE_TTL_MS = 300_000; // 5 minutes
+// Meta rate-limit UX mitigation (docs/PROMPT-AAOS-GEO-TARGETING-AND-REGION-PICKER.md Part C):
+// bumped from 5 to 15 minutes. Real, honest cause of increased Meta rate-limit hits: the Meta Ads
+// Tenant-Scoping Fix (`c8d739c`) gave each tenant its own real per-tenant `cacheKey` — correct, but
+// it also means tenants no longer accidentally share one cache entry, which had incidentally kept
+// real Meta call volume down. This is a real, scoped lever on that increased volume (not a fix for
+// a new bug) — see this file's own `cache` docstring below for the two-layer cache this sits under.
+const CACHE_TTL_MS = 900_000; // 15 minutes
 
 interface CacheEntry {
   readonly body: AdAccountSummaryDto;
