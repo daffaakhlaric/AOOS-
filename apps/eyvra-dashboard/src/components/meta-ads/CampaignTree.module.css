@@ -5,11 +5,18 @@
   gap: 6px;
 }
 
+/* AAOS UI standardization Phase B — real top-level campaign card, migrated onto the real v2 card
+   recipe (14px radius + `var(--v2-border, #e2e8f0)` + `var(--v2-card-bg, var(--white))` + the
+   0.06 shadow), same real recipe `LearningMonitorClient`'s proposal `.card` /
+   `StrategiClient`'s verdict `.card` already use — was the older pre-v2
+   `--radius-lg`/`--border`/`--white` recipe with no resting shadow. Existing hover-elevate
+   behavior kept, just the resting/base state is now the real v2 card look. */
 .card {
   position: relative;
-  background: var(--white);
-  border: var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--v2-card-bg, var(--white));
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   transition: box-shadow 150ms;
 }

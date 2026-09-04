@@ -31,10 +31,14 @@
   box-shadow: var(--shadow);
 }
 
+/* AAOS UI standardization Phase B — real top-level table card, migrated onto the real v2 card
+   recipe. */
 .scrollContainer {
   overflow-x: auto;
-  border: var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .grid {

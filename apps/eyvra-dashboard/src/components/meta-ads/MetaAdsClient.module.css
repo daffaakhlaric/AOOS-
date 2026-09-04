@@ -106,18 +106,23 @@
   flex: 1;
 }
 
-/* "Tarik Data Baru" — Vercel-style black button. */
+/* "Tarik Data Baru" — real page toolbar primary action button. AAOS UI standardization Phase B —
+   migrated onto the real canonical header-action-button recipe (`CampaignsHubClient`'s
+   `.runLoopButton`, see that file's own doc comment): 8px radius, `padding: 8px 14px`,
+   font-weight 600, `inline-flex`, no border, white text — same shape unification `d4eff42`
+   already applied to self-improve's `.triggerHeaderButton`. Own Vercel-style black background
+   identity kept, only shape/weight/padding unified. */
 .pullButton {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  padding: 8px 14px;
   background: var(--black);
   color: var(--white);
   border: none;
-  border-radius: var(--radius);
+  border-radius: 8px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: background 100ms;
 }

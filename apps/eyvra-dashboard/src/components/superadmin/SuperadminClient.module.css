@@ -34,10 +34,13 @@
   gap: 12px;
 }
 
+/* AAOS UI standardization Phase B — real top-level KPI cards, migrated onto the real v2 card
+   recipe (same as `KpiStrip.module.css`'s own `.cell`). */
 .kpiCard {
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--white);
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 14px 16px;
 }
 
@@ -65,13 +68,20 @@
   color: var(--gray-900);
 }
 
+/* AAOS UI standardization Phase B — this page's primary section action button, migrated onto the
+   real canonical header-action-button recipe (8px radius, `inline-flex`, font-weight 600, no
+   border, white text — see `CampaignsHubClient.module.css`'s `.runLoopButton` doc comment). Own
+   gray-900 background identity kept. */
 .createButton {
+  display: inline-flex;
+  align-items: center;
   font-size: 13px;
-  padding: 7px 14px;
+  font-weight: 600;
+  padding: 8px 14px;
   background: var(--gray-900);
   color: var(--white);
   border: none;
-  border-radius: var(--radius);
+  border-radius: 8px;
   cursor: pointer;
 }
 
@@ -81,10 +91,13 @@
   gap: 10px;
 }
 
+/* AAOS UI standardization Phase B — real top-level tenant list card, migrated onto the real v2
+   card recipe. */
 .tenantCard {
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--white);
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;

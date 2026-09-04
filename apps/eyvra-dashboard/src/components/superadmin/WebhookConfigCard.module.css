@@ -1,7 +1,10 @@
+/* AAOS UI standardization Phase B — real top-level card (embedded in `SuperadminClient`),
+   migrated onto the real v2 card recipe. */
 .card {
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--white);
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 16px 18px;
   display: flex;
   flex-direction: column;

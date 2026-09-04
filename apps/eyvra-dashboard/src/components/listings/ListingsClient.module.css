@@ -11,10 +11,13 @@
   gap: 12px;
 }
 
+/* AAOS UI standardization Phase B — real top-level KPI cards, migrated onto the real v2 card
+   recipe (same as `KpiStrip.module.css`'s own `.cell`). */
 .kpi {
-  border-radius: var(--radius-lg);
-  border: var(--border);
-  background: var(--white);
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -40,13 +43,20 @@
   gap: 10px;
 }
 
+/* AAOS UI standardization Phase B — this page's primary toolbar action button, migrated onto the
+   real canonical header-action-button recipe (8px radius, `padding: 8px 14px`, font-weight 600,
+   `inline-flex`, no border, white text — see `CampaignsHubClient.module.css`'s `.runLoopButton`
+   doc comment). Own gray-900 background identity kept. */
 .primaryButton {
+  display: inline-flex;
+  align-items: center;
   font-size: 13px;
+  font-weight: 600;
   padding: 8px 14px;
   background: var(--gray-900);
   color: var(--white);
   border: none;
-  border-radius: var(--radius);
+  border-radius: 8px;
   cursor: pointer;
 }
 
