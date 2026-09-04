@@ -257,20 +257,29 @@ importers:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@20.19.43)(jsdom@24.1.3)(msw@2.15.0(@types/node@20.19.43)(typescript@5.9.3))(terser@5.49.2)
 
-  apps/aaos-dashboard:
+  apps/aaos-simulator:
     dependencies:
-      '@supabase/ssr':
-        specifier: ^0.5.1
-        version: 0.5.2(@supabase/supabase-js@2.112.2(@opentelemetry/api@1.9.1))
-      '@supabase/supabase-js':
-        specifier: ^2.45.0
-        version: 2.112.2(@opentelemetry/api@1.9.1)
-      '@tanstack/react-virtual':
-        specifier: ^3.14.10
-        version: 3.14.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@tremor/react':
-        specifier: ^3.18.7
-        version: 3.18.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@aos/ai-judge':
+        specifier: workspace:*
+        version: link:../../packages/ai-judge
+      '@aos/branch-manager':
+        specifier: workspace:*
+        version: link:../../packages/branch-manager
+      '@aos/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@aos/conversation-simulator':
+        specifier: workspace:*
+        version: link:../../packages/conversation-simulator
+      '@aos/dss-inventory-connector':
+        specifier: workspace:*
+        version: link:../../packages/dss-inventory-connector
+      '@aos/errors':
+        specifier: workspace:*
+        version: link:../../packages/errors
+      '@aos/sales-agent':
+        specifier: workspace:*
+        version: link:../../packages/sales-agent
       next:
         specifier: ^14.2.0
         version: 14.2.35(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -345,29 +354,20 @@ importers:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@20.19.43)(jsdom@24.1.3)(msw@2.15.0(@types/node@20.19.43)(typescript@5.9.3))(terser@5.49.2)
 
-  apps/aaos-simulator:
+  apps/eyvra-dashboard:
     dependencies:
-      '@aos/ai-judge':
-        specifier: workspace:*
-        version: link:../../packages/ai-judge
-      '@aos/branch-manager':
-        specifier: workspace:*
-        version: link:../../packages/branch-manager
-      '@aos/common':
-        specifier: workspace:*
-        version: link:../../packages/common
-      '@aos/conversation-simulator':
-        specifier: workspace:*
-        version: link:../../packages/conversation-simulator
-      '@aos/dss-inventory-connector':
-        specifier: workspace:*
-        version: link:../../packages/dss-inventory-connector
-      '@aos/errors':
-        specifier: workspace:*
-        version: link:../../packages/errors
-      '@aos/sales-agent':
-        specifier: workspace:*
-        version: link:../../packages/sales-agent
+      '@supabase/ssr':
+        specifier: ^0.5.1
+        version: 0.5.2(@supabase/supabase-js@2.112.2(@opentelemetry/api@1.9.1))
+      '@supabase/supabase-js':
+        specifier: ^2.45.0
+        version: 2.112.2(@opentelemetry/api@1.9.1)
+      '@tanstack/react-virtual':
+        specifier: ^3.14.10
+        version: 3.14.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@tremor/react':
+        specifier: ^3.18.7
+        version: 3.18.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next:
         specifier: ^14.2.0
         version: 14.2.35(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

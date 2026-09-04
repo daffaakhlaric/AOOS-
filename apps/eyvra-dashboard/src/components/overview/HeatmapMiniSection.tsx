@@ -16,7 +16,7 @@ import type { HeatmapResponseDto } from "@/types/dashboard.types";
  * `.module.css` file (no CSS Module import here at all). There is nothing in THIS file to
  * recolor. The spec's `CREATIVE_THUMB_COLORS`/`CELL_STYLES` cell treatment belongs to
  * `HeatmapGrid.tsx` (`src/components/meta-ads/HeatmapGrid.tsx`) — that file is outside this
- * phase's explicit file list (`apps/aaos-dashboard/src/components/overview/*` + `CampaignTable.tsx`
+ * phase's explicit file list (`apps/eyvra-dashboard/src/components/overview/*` + `CampaignTable.tsx`
  * only) and is a real, separate recoloring target for a later phase (it already has its own real
  * benchmark-CPL cell shading from Analytics Platform Phase 3, independently of this v2 pass).
  * Left untouched here rather than reached into out-of-scope territory.

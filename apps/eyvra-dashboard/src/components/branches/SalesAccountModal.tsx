@@ -16,7 +16,7 @@ export interface SalesAccountModalProps {
 
 const MIN_PASSWORD_LENGTH = 8;
 
-/** Add/Edit Sales Human modal (spec Part 1) — real `POST`/`PUT /api/v1/sales-humans` via `apps/aaos-dashboard`'s own proxy routes, never a client-side bcrypt/JWT call (coordinator note #1). */
+/** Add/Edit Sales Human modal (spec Part 1) — real `POST`/`PUT /api/v1/sales-humans` via `apps/eyvra-dashboard`'s own proxy routes, never a client-side bcrypt/JWT call (coordinator note #1). */
 export function SalesAccountModal({
   branchId,
   editing,
