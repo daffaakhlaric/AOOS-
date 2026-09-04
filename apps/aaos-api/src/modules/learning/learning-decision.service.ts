@@ -28,12 +28,28 @@ import {
  * `learning_proposals` (status/decided_by/decision_notes/decided_at), matching the design doc's
  * own "Reject writes ... changes nothing else" framing exactly.
  *
- * Both `approve()` and `reject()` guard on `status === 'PENDING' || status ===
- * 'AUTO_APPLY_BLOCKED_BY_SANDBOX'` before doing anything (Phase SI-5's real, additive widening —
- * see each method's own doc for why), throwing a real `ConflictError` (409,
- * `AaosExceptionFilter`'s existing mapping) for any OTHER already-decided/already-fully-applied
- * proposal — never a silent re-decide, per the design doc's Phase C section.
+ * Both `approve()` and `reject()` guard on `DECIDABLE_STATUSES` before doing anything (Phase SI-5's
+ * real, additive widening, extended by the real production-incident fix's own
+ * `AUTO_APPLY_BLOCKED_MISSING_SLOTS` status — see `PromptSlotGuardService`'s own class doc and each
+ * method's own doc for why), throwing a real `ConflictError` (409, `AaosExceptionFilter`'s existing
+ * mapping) for any OTHER already-decided/already-fully-applied proposal — never a silent re-decide,
+ * per the design doc's Phase C section.
  */
+/**
+ * Real `learning_proposals.status` values a human decision (`approve`/`reject`) can still act on —
+ * `'PENDING'` (genuine, undifferentiated work), `'AUTO_APPLY_BLOCKED_BY_SANDBOX'` (Phase SI-5), and
+ * `'AUTO_APPLY_BLOCKED_MISSING_SLOTS'` (real production-incident fix — see
+ * `PromptSlotGuardService`'s own class doc). A human can still force any of these through `approve()`
+ * — this is NOT a new human-approval gate, only the real, additional automated safety nets both
+ * blocked statuses represent (this whole effort's own standing "no human gate" decision is
+ * unchanged).
+ */
+const DECIDABLE_STATUSES: readonly string[] = [
+  "PENDING",
+  "AUTO_APPLY_BLOCKED_BY_SANDBOX",
+  "AUTO_APPLY_BLOCKED_MISSING_SLOTS",
+];
+
 @Injectable()
 export class LearningDecisionService {
   private readonly logger = new Logger(LearningDecisionService.name);
@@ -98,9 +114,9 @@ export class LearningDecisionService {
     decisionNotes: string | undefined,
   ): Promise<LearningProposalRow> {
     const proposal = await this.getProposal(id);
-    if (proposal.status !== "PENDING" && proposal.status !== "AUTO_APPLY_BLOCKED_BY_SANDBOX") {
+    if (!DECIDABLE_STATUSES.includes(proposal.status)) {
       throw new ConflictError(
-        `learning_proposals "${id}" has status "${proposal.status}" — only a PENDING or AUTO_APPLY_BLOCKED_BY_SANDBOX proposal can be approved`,
+        `learning_proposals "${id}" has status "${proposal.status}" — only a ${DECIDABLE_STATUSES.join("/")} proposal can be approved`,
       );
     }
 
@@ -162,9 +178,9 @@ export class LearningDecisionService {
     decisionNotes: string | undefined,
   ): Promise<LearningProposalRow> {
     const proposal = await this.getProposal(id);
-    if (proposal.status !== "PENDING" && proposal.status !== "AUTO_APPLY_BLOCKED_BY_SANDBOX") {
+    if (!DECIDABLE_STATUSES.includes(proposal.status)) {
       throw new ConflictError(
-        `learning_proposals "${id}" has status "${proposal.status}" — only a PENDING or AUTO_APPLY_BLOCKED_BY_SANDBOX proposal can be rejected`,
+        `learning_proposals "${id}" has status "${proposal.status}" — only a ${DECIDABLE_STATUSES.join("/")} proposal can be rejected`,
       );
     }
     await this.proposals.updateDecision(

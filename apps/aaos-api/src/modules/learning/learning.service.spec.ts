@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
 import type { AgentConfigService } from "../agent-config/agent-config.service.js";
 import type {
   ApplyConfigUpdateResult,
@@ -12,7 +13,9 @@ import type {
 import type { JudgeResultRepository } from "../ai-judge/infrastructure/judge-result.repository.js";
 import type { ImprovementItem } from "../llm/dto/improvement-plan.dto.js";
 import type { LlmService } from "../llm/llm.service.js";
-import type { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
+import { PromptOverrideRepository } from "../prompt-override/infrastructure/prompt-override.repository.js";
+import { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
+import { PromptSlotGuardService } from "../prompt-override/prompt-slot-guard.service.js";
 import type { SandboxService, SandboxTestResult } from "../sandbox/sandbox.service.js";
 import { SIMULATION_CRITERIA } from "../simulation/domain/scoring.js";
 import type {
@@ -663,6 +666,7 @@ describe("LearningService", () => {
           ["pause_cpl_multiplier"],
           "AUTO_APPLIED",
           [],
+          [],
         );
       });
 
@@ -728,6 +732,7 @@ describe("LearningService", () => {
           "proposal-1",
           ["pause_cpl_multiplier"],
           "PENDING",
+          [],
           [],
         );
       });
@@ -821,6 +826,7 @@ describe("LearningService", () => {
           ["verdict_classification"],
           "AUTO_APPLIED",
           [],
+          [],
         );
       });
 
@@ -895,6 +901,7 @@ describe("LearningService", () => {
           "proposal-1",
           ["pause_cpl_multiplier", "verdict_classification"],
           "AUTO_APPLIED",
+          [],
           [],
         );
       });
@@ -997,6 +1004,7 @@ describe("LearningService", () => {
           ["analyze"],
           "AUTO_APPLIED",
           [],
+          [],
         );
       });
 
@@ -1026,6 +1034,7 @@ describe("LearningService", () => {
           "proposal-1",
           ["analyze"],
           "AUTO_APPLIED",
+          [],
           [],
         );
       });
@@ -1058,6 +1067,7 @@ describe("LearningService", () => {
           [],
           "AUTO_APPLY_BLOCKED_BY_SANDBOX",
           [{ agent: "SAMANTHA", target: "analyze", result: negativeResult }],
+          [],
         );
       });
 
@@ -1146,6 +1156,243 @@ describe("LearningService", () => {
         expect(proposals.create).toHaveBeenCalledTimes(1);
         expect(proposals.markAutoApplied).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  /**
+   * Real production-incident fix — `PromptSlotGuardService` wired into
+   * `LearningService.persistProposal`, checked BEFORE `SandboxService.testImprovement` for every
+   * `PROMPT_UPDATE` item. Uses the REAL `PromptOverrideService`/`PromptOverrideRepository`/
+   * `PromptSlotGuardService` classes over a real fake Supabase client (not further-mocked fakes) so
+   * this suite can prove the exact real production claim this fix makes: a proposal missing required
+   * `{slot}` placeholders never reaches `agent_prompt_overrides` at all, and the currently active row
+   * is provably byte-for-byte unchanged when read back afterward — the exact repeated-corruption
+   * incident this whole fix exists to prevent.
+   */
+  describe("Real production-incident fix — PromptSlotGuardService blocks a slot-dropping PROMPT_UPDATE auto-apply", () => {
+    const FULL_CLARA_TEMPLATE =
+      "Branch: {branch}\nScore: {score}\nStage: {stage}\nProfile: {lead_profile}\nUnits: {available_units}\nTask: {stage_instruction}";
+    const CORRUPTED_ONE_LINER =
+      "Ajukan pertanyaan yang lebih mendalam untuk menggali kebutuhan pengguna, dorong mereka untuk membagikan detail lebih lanjut, dan buat penutupan yang lebih meyakinkan dengan memberikan opsi tindakan selanjutnya.";
+    const WELL_FORMED_REWRITE =
+      "Kamu Clara yang lebih tegas. Cabang: {branch}. Skor: {score}. Tahap: {stage}. Profil: {lead_profile}. Unit: {available_units}. Tugas: {stage_instruction}.";
+
+    function buildRealPromptOverrideStack(): {
+      readonly client: ReturnType<typeof createFakeSupabaseClient>;
+      readonly promptOverride: PromptOverrideService;
+      readonly promptSlotGuard: PromptSlotGuardService;
+    } {
+      const client = createFakeSupabaseClient();
+      client.seed("agent_prompt_overrides", {
+        id: "override-row-1",
+        tenant_id: "agen-pintar-indonesia",
+        agent: "CLARA",
+        prompt_key: "clara_system_prompt",
+        content: FULL_CLARA_TEMPLATE,
+        version: 13,
+        is_active: true,
+        created_at: "2026-08-01T00:00:00.000Z",
+        activated_at: "2026-08-01T00:00:00.000Z",
+        deactivated_at: null,
+      });
+      const repository = new PromptOverrideRepository(client);
+      return {
+        client,
+        promptOverride: new PromptOverrideService(repository),
+        promptSlotGuard: new PromptSlotGuardService(repository),
+      };
+    }
+
+    function buildLlmWithProposedAfter(after: string): LlmService {
+      return buildFakeLlmService({
+        generateImprovementPlan: vi.fn(async () => ({
+          available: true as const,
+          analysis: "analisa nyata dari LLM",
+          improvements: [
+            {
+              agent: "CLARA" as const,
+              type: "PROMPT_UPDATE" as const,
+              target: "clara_system_prompt",
+              before: FULL_CLARA_TEMPLATE,
+              after,
+              reason: "r",
+              severity: "MEDIUM" as const,
+            },
+          ],
+          droppedCount: 0,
+        })),
+      });
+    }
+
+    it("BLOCKS the real corrupted-one-liner shape, marks AUTO_APPLY_BLOCKED_MISSING_SLOTS with the real missing slots recorded, and the live override is provably untouched", async () => {
+      const { client, promptOverride, promptSlotGuard } = buildRealPromptOverrideStack();
+      const proposals = buildFakeProposalRepository();
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        buildLlmWithProposedAfter(CORRUPTED_ONE_LINER),
+        promptOverride,
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(),
+        undefined,
+        promptSlotGuard,
+      );
+
+      await service.onAgentRunJudged("agen-pintar-indonesia", "agent-run-slot-1", "CLARA", {
+        scores: { overall: 10 },
+        gaps: [],
+        trend: "STABLE",
+      });
+
+      expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+        "proposal-1",
+        [],
+        "AUTO_APPLY_BLOCKED_MISSING_SLOTS",
+        [],
+        [
+          expect.objectContaining({
+            agent: "CLARA",
+            target: "clara_system_prompt",
+            missingSlots: [
+              "branch",
+              "score",
+              "stage",
+              "lead_profile",
+              "available_units",
+              "stage_instruction",
+            ],
+          }),
+        ],
+      );
+
+      // Real, provable "active override untouched" assertion — read the row back through the SAME
+      // real repository, never assumed.
+      const stillActive = await new PromptOverrideRepository(client).findActive(
+        "agen-pintar-indonesia",
+        "CLARA",
+        "clara_system_prompt",
+      );
+      expect(stillActive?.content).toBe(FULL_CLARA_TEMPLATE);
+      expect(stillActive?.version).toBe(13);
+      expect(stillActive?.id).toBe("override-row-1");
+    });
+
+    it("BLOCKS a proposal missing even ONE required slot ({available_units}) — not just the all-slots-gone corrupted case", async () => {
+      const { client, promptOverride, promptSlotGuard } = buildRealPromptOverrideStack();
+      const proposals = buildFakeProposalRepository();
+      const partiallyMissing = WELL_FORMED_REWRITE.replace("Unit: {available_units}. ", "");
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        buildLlmWithProposedAfter(partiallyMissing),
+        promptOverride,
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(),
+        undefined,
+        promptSlotGuard,
+      );
+
+      await service.onAgentRunJudged("agen-pintar-indonesia", "agent-run-slot-2", "CLARA", {
+        scores: { overall: 10 },
+        gaps: [],
+        trend: "STABLE",
+      });
+
+      expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+        "proposal-1",
+        [],
+        "AUTO_APPLY_BLOCKED_MISSING_SLOTS",
+        [],
+        [expect.objectContaining({ missingSlots: ["available_units"] })],
+      );
+
+      const stillActive = await new PromptOverrideRepository(client).findActive(
+        "agen-pintar-indonesia",
+        "CLARA",
+        "clara_system_prompt",
+      );
+      expect(stillActive?.content).toBe(FULL_CLARA_TEMPLATE);
+    });
+
+    it("ALLOWS a genuinely well-formed proposal preserving every real slot to auto-apply exactly as before (no regression)", async () => {
+      const { promptOverride, promptSlotGuard } = buildRealPromptOverrideStack();
+      const proposals = buildFakeProposalRepository();
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        buildLlmWithProposedAfter(WELL_FORMED_REWRITE),
+        promptOverride,
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(),
+        undefined,
+        promptSlotGuard,
+      );
+
+      await service.onAgentRunJudged("agen-pintar-indonesia", "agent-run-slot-3", "CLARA", {
+        scores: { overall: 10 },
+        gaps: [],
+        trend: "STABLE",
+      });
+
+      expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+        "proposal-1",
+        ["clara_system_prompt"],
+        "AUTO_APPLIED",
+        [],
+        [],
+      );
+
+      const stillActive = await promptOverride.listActiveForTenant("agen-pintar-indonesia");
+      const activeClara = stillActive.find((row) => row.prompt_key === "clara_system_prompt");
+      expect(activeClara?.content).toBe(WELL_FORMED_REWRITE);
+      expect(activeClara?.version).toBe(14);
+    });
+
+    it("real, honest CLARA-specific finding: SandboxService is unconditionally unavailable for CLARA, so WITHOUT this fix a slot-dropping CLARA proposal would have sailed through — this test pins that a slot-guard block happens BEFORE the sandbox call is even attempted", async () => {
+      const { promptOverride, promptSlotGuard } = buildRealPromptOverrideStack();
+      const proposals = buildFakeProposalRepository();
+      const testImprovement = vi.fn(async () => ({
+        available: false as const,
+        reason: "CLARA is not sandbox-testable (see SandboxService's own doc)",
+        improved: false,
+        baselineScore: null,
+        sandboxScore: null,
+        delta: null,
+        minDelta: 3,
+      }));
+      const service = new LearningService(
+        buildFakeSimulationRepository(undefined),
+        proposals,
+        buildLlmWithProposedAfter(CORRUPTED_ONE_LINER),
+        promptOverride,
+        buildFakeAgentConfigService(),
+        buildFakeConfigApplier(),
+        buildFakeLogicApplier(),
+        buildFakeSandboxService(testImprovement),
+        undefined,
+        promptSlotGuard,
+      );
+
+      await service.onAgentRunJudged("agen-pintar-indonesia", "agent-run-slot-4", "CLARA", {
+        scores: { overall: 10 },
+        gaps: [],
+        trend: "STABLE",
+      });
+
+      expect(testImprovement).not.toHaveBeenCalled();
+      expect(proposals.markAutoApplied).toHaveBeenCalledWith(
+        "proposal-1",
+        [],
+        "AUTO_APPLY_BLOCKED_MISSING_SLOTS",
+        [],
+        [expect.objectContaining({ target: "clara_system_prompt" })],
+      );
     });
   });
 

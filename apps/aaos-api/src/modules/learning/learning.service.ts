@@ -13,6 +13,7 @@ import {
   LlmService,
 } from "../llm/llm.service.js";
 import { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
+import { PromptSlotGuardService } from "../prompt-override/prompt-slot-guard.service.js";
 import { SandboxService } from "../sandbox/sandbox.service.js";
 import { SIMULATION_CRITERIA } from "../simulation/domain/scoring.js";
 import { SimulationRepository } from "../simulation/infrastructure/simulation.repository.js";
@@ -175,6 +176,17 @@ export class LearningService {
     // `LearningModule`'s real DI wiring always provides a real instance in production; only a
     // directly-`new`-constructed test instance that never calls `triggerManualCheck` may omit it.
     @Optional() private readonly judgeResults?: JudgeResultRepository,
+    // Real production-incident fix — real, honest "prompt slot integrity" guard
+    // (`PromptSlotGuardService`'s own class doc has the full incident writeup), called from
+    // `persistProposal` immediately before EVERY `PROMPT_UPDATE` auto-apply (SAMANTHA and CLARA
+    // alike — the honest general safety net this class's own doc describes, not a CLARA-only patch).
+    // `@Optional()`, same reasoning `judgeResults` above documents on itself: every existing
+    // real/test call site that constructs `LearningService` directly predates this fix and does not
+    // pass this 10th argument. When omitted (only ever true for a directly-`new`-constructed test
+    // instance — `LearningModule`'s real DI wiring always provides a real instance), the slot check
+    // is skipped entirely for that instance — a real, honest degrade, never a silent block or a
+    // silent unsafe pass-through in the real, DI-wired app.
+    @Optional() private readonly promptSlotGuard?: PromptSlotGuardService,
   ) {}
 
   async onSimulationComplete(simulationId: string): Promise<void> {
@@ -615,6 +627,9 @@ export class LearningService {
       if (configItems.length > 0 || logicItems.length > 0 || promptItems.length > 0) {
         const appliedKeys: string[] = [];
         const sandboxBlockedItems: Record<string, unknown>[] = [];
+        // Real production-incident fix — the real `PromptSlotGuardService`-blocked sibling of
+        // `sandboxBlockedItems` above (see `LearningProposalRow.slot_guard_blocked_items`'s own doc).
+        const slotGuardBlockedItems: Record<string, unknown>[] = [];
         // Real, honest "nothing left pending for a human" check — every parsed improvement item on
         // this proposal must be a real CONFIG_UPDATE/LOGIC_UPDATE/PROMPT_UPDATE item (any
         // unparsed/malformed raw item disqualifies both real outcomes below).
@@ -626,6 +641,11 @@ export class LearningService {
         // sets this `false` and can never be undone by a later item succeeding.
         let hadGenuineFailure = !allItemsParsedAndKnownType;
         let anySandboxBlocked = false;
+        // Real production-incident fix — `true` once any `PROMPT_UPDATE` item was blocked by
+        // `PromptSlotGuardService.check` (a real, structural integrity failure — the exact class of
+        // bug that repeatedly corrupted the live `clara_system_prompt` override, see that class's
+        // own doc for the full incident writeup).
+        let anySlotGuardBlocked = false;
 
         for (const item of configItems) {
           const result = await this.configApplier.applyConfigUpdate(tenantId, item);
@@ -652,6 +672,33 @@ export class LearningService {
         // (`onAgentRunJudged`) always has one, passed through directly.
         const baselineAgentRunId = "agentRunId" in source ? source.agentRunId : undefined;
         for (const item of promptItems) {
+          // Real production-incident fix — checked FIRST, before the sandbox's own real LLM re-run
+          // (`SandboxService.testImprovement`, which for CLARA is unconditionally `available: false`
+          // anyway — see that class's own doc): a missing-slot proposal is a structural integrity
+          // problem this codebase can catch cheaply and honestly, with no LLM call at all, for EVERY
+          // agent/prompt_key that has a real slot contract (see `PromptSlotGuardService`'s own doc).
+          if (this.promptSlotGuard !== undefined) {
+            const slotCheck = await this.promptSlotGuard.check(
+              tenantId,
+              item.agent,
+              item.target,
+              item.after,
+            );
+            if (!slotCheck.allowed) {
+              anySlotGuardBlocked = true;
+              slotGuardBlockedItems.push({
+                agent: item.agent,
+                target: item.target,
+                missingSlots: slotCheck.missingSlots,
+                requiredSlots: slotCheck.requiredSlots,
+              });
+              this.logger.warn(
+                `LearningService.${logLabel}: PROMPT_UPDATE ${item.agent}/${item.target} auto-apply BLOCKED by PromptSlotGuardService (missing: ${slotCheck.missingSlots.join(", ")}) — left un-applied, real active override untouched, human can still force via LearningDecisionService.approve.`,
+              );
+              continue;
+            }
+          }
+
           const sandboxResult = await this.sandboxService.testImprovement(
             tenantId,
             item.agent,
@@ -686,19 +733,34 @@ export class LearningService {
           }
         }
 
-        const newStatus: "PENDING" | "AUTO_APPLIED" | "AUTO_APPLY_BLOCKED_BY_SANDBOX" =
-          hadGenuineFailure
-            ? "PENDING"
+        // Real production-incident fix — status priority, most-severe-first: a genuine write/parse
+        // failure always wins ('PENDING', undifferentiated human review); otherwise a slot-guard
+        // block wins over a sandbox block, since it is checked FIRST per item above and represents
+        // the more fundamental of the two real reasons a `PROMPT_UPDATE` item was held back (see
+        // `041_learning_proposals_slot_guard.sql`'s own header doc for the full reasoning).
+        const newStatus:
+          | "PENDING"
+          | "AUTO_APPLIED"
+          | "AUTO_APPLY_BLOCKED_BY_SANDBOX"
+          | "AUTO_APPLY_BLOCKED_MISSING_SLOTS" = hadGenuineFailure
+          ? "PENDING"
+          : anySlotGuardBlocked
+            ? "AUTO_APPLY_BLOCKED_MISSING_SLOTS"
             : anySandboxBlocked
               ? "AUTO_APPLY_BLOCKED_BY_SANDBOX"
               : "AUTO_APPLIED";
 
-        if (appliedKeys.length > 0 || sandboxBlockedItems.length > 0) {
+        if (
+          appliedKeys.length > 0 ||
+          sandboxBlockedItems.length > 0 ||
+          slotGuardBlockedItems.length > 0
+        ) {
           await this.proposals.markAutoApplied(
             created.id,
             appliedKeys,
             newStatus,
             sandboxBlockedItems,
+            slotGuardBlockedItems,
           );
         }
       }

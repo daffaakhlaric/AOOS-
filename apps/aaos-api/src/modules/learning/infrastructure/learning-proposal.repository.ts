@@ -43,6 +43,16 @@ export interface LearningProposalRow {
    */
   readonly sandbox_blocked_items: readonly Record<string, unknown>[];
   /**
+   * Real production-incident fix (`041_learning_proposals_slot_guard.sql`) — the real `PROMPT_UPDATE`
+   * items this proposal's `LearningService.persistProposal` step tried to auto-apply but
+   * `PromptSlotGuardService.check` found were missing one or more real `{slot}` placeholders the
+   * current active override (or, absent one, the base template) requires — see that migration's own
+   * header doc for the full incident writeup and why this is a SEPARATE column from
+   * `sandbox_blocked_items`. `[]` when nothing was ever blocked this way. Each entry carries the real
+   * `{ agent, target, missingSlots, requiredSlots }` that caused the block.
+   */
+  readonly slot_guard_blocked_items: readonly Record<string, unknown>[];
+  /**
    * AAOS Self-Improving, Phase SI-3 (`037_learning_proposals_self_analysis.sql`) — the real, optional
    * output of a PRIOR, SEPARATE `LlmService.selfAnalyze` call over this SAME gap (`rootCauses`/
    * `patterns`/`confidence` — see `dto/self-analysis.dto.ts`'s own `SelfAnalysisLlmPayloadSchema`,
@@ -259,14 +269,23 @@ export class LearningProposalRepository {
   async markAutoApplied(
     id: string,
     autoAppliedConfigKeys: readonly string[],
-    newStatus: "PENDING" | "AUTO_APPLIED" | "AUTO_APPLY_BLOCKED_BY_SANDBOX",
+    newStatus:
+      | "PENDING"
+      | "AUTO_APPLIED"
+      | "AUTO_APPLY_BLOCKED_BY_SANDBOX"
+      | "AUTO_APPLY_BLOCKED_MISSING_SLOTS",
     sandboxBlockedItems: readonly Record<string, unknown>[] = [],
+    // Real production-incident fix (`041_learning_proposals_slot_guard.sql`) — the real
+    // `PromptSlotGuardService`-blocked sibling of `sandboxBlockedItems` above (see
+    // `LearningProposalRow.slot_guard_blocked_items`'s own doc). `[]` when nothing was blocked.
+    slotGuardBlockedItems: readonly Record<string, unknown>[] = [],
   ): Promise<void> {
     const { error } = await this.client
       .from<LearningProposalRow>(TABLE)
       .update({
         auto_applied_config_keys: [...autoAppliedConfigKeys],
         sandbox_blocked_items: [...sandboxBlockedItems],
+        slot_guard_blocked_items: [...slotGuardBlockedItems],
         status: newStatus,
       })
       .eq("id", id);

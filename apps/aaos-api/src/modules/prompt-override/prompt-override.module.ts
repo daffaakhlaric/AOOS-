@@ -5,6 +5,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 
 import { PromptOverrideRepository } from "./infrastructure/prompt-override.repository.js";
 import { PromptOverrideService } from "./prompt-override.service.js";
+import { PromptSlotGuardService } from "./prompt-slot-guard.service.js";
 
 /**
  * `modules/prompt-override` (AAOS Self-Learning AI, Phase A) — deliberately a SMALL, STANDALONE
@@ -18,6 +19,10 @@ import { PromptOverrideService } from "./prompt-override.service.js";
 @Module({
   providers: [
     PromptOverrideService,
+    // Real production-incident fix — see `PromptSlotGuardService`'s own class doc. Exported
+    // alongside `PromptOverrideService` so `LearningModule` (already importing this module) can
+    // inject it into `LearningService.persistProposal` with no new module import.
+    PromptSlotGuardService,
     {
       provide: PromptOverrideRepository,
       useFactory: (client: SupabaseClientLike): PromptOverrideRepository =>
@@ -25,6 +30,6 @@ import { PromptOverrideService } from "./prompt-override.service.js";
       inject: [SUPABASE_CLIENT],
     },
   ],
-  exports: [PromptOverrideService],
+  exports: [PromptOverrideService, PromptSlotGuardService],
 })
 export class PromptOverrideModule {}
