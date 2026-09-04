@@ -105,6 +105,11 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
   "generate_caption",
   "generate_hashtags",
   "clara_system_prompt",
+  // AAOS Self-Learning AI — PROPERTY LLM wiring: `packages/sales-agent`'s real PROPERTY-vertical
+  // sibling to `clara_system_prompt` (`buildClaraPropertyPrompt.ts`'s `buildPropertySystemPrompt`),
+  // resolved by `apps/aaos-simulator`'s vertical-aware `fetchActiveClaraPromptOverride` for
+  // `vertical === "PROPERTY"`.
+  "clara_property_system_prompt",
   "generate_improvement_plan",
   // AAOS Overview Monitor Phase O1 — `LlmService.generateDailyInsight`'s prompt key.
   "generate_daily_insight",

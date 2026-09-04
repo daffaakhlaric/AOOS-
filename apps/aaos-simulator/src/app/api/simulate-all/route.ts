@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   fetchActiveClaraPromptOverride,
   fetchListingById,
+  resolveClaraPromptKeyForVertical,
   type ClaraPromptOverrideFetchResult,
 } from "@/lib/aaos-api-client";
 import { getJudge, toAllScenariosReportDto, toJudgementResultDto } from "@/lib/judge";
@@ -102,14 +103,17 @@ export async function POST(
   //
   // Tenant resolution (this task — real tenant selector): the REQUEST's own `tenantId` now takes
   // priority; `AAOS_SIMULATOR_TENANT_ID` is kept ONLY as the fallback for a caller that sends none
-  // — see that route's identical comment for the full reasoning. AUTOMOTIVE-only (no LLM prompt
-  // path for PROPERTY), same rule `POST /api/simulate` already applies.
+  // — see that route's identical comment for the full reasoning.
+  //
+  // PROPERTY LLM wiring: vertical-aware, same as `POST /api/simulate` — the previous AUTOMOTIVE-only
+  // short-circuit ("no LLM prompt path for PROPERTY") is OUTDATED and removed; see that route's
+  // identical comment for the full reasoning.
   const promptOverrideTenantId =
     requestTenantId ?? process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
-  const promptOverrideFetch: ClaraPromptOverrideFetchResult =
-    vertical === "AUTOMOTIVE"
-      ? await fetchActiveClaraPromptOverride(promptOverrideTenantId)
-      : { found: false, reason: "PROPERTY vertical has no LLM prompt path." };
+  const promptOverrideFetch: ClaraPromptOverrideFetchResult = await fetchActiveClaraPromptOverride(
+    promptOverrideTenantId,
+    resolveClaraPromptKeyForVertical(vertical),
+  );
 
   // AAOS Self-Learning AI, Phase C wiring (2nd half) — see `src/app/api/simulate/route.ts`'s
   // identical wiring for the full reasoning.
@@ -124,7 +128,14 @@ export async function POST(
     vertical,
     ...(listingId !== undefined ? { listingId } : {}),
     ...(listing !== undefined ? { listings: [listing] } : {}),
-    ...(promptOverrideFetch.found ? { claraPromptOverride: promptOverrideFetch.content } : {}),
+    // PROPERTY LLM wiring: route the fetched override into the field the matching
+    // `ClaraSimulationComposer` branch actually reads — see `POST /api/simulate`'s identical
+    // wiring for the full reasoning.
+    ...(promptOverrideFetch.found
+      ? vertical === "PROPERTY"
+        ? { claraPropertyPromptOverride: promptOverrideFetch.content }
+        : { claraPromptOverride: promptOverrideFetch.content }
+      : {}),
     ...(llmReplyEnabled ? { llmReplyEnabled } : {}),
     ...(openaiApiKey !== undefined && openaiApiKey.length > 0 ? { openaiApiKey } : {}),
   };

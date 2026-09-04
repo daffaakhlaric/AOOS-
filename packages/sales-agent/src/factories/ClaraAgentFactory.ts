@@ -24,6 +24,7 @@ import { SendFollowUp } from "../application/use-cases/SendFollowUp.js";
 import { TriggerHandoff } from "../application/use-cases/TriggerHandoff.js";
 import type { SalesAgentConfig } from "../config/SalesAgentConfig.js";
 import type { IListingQueryService } from "../contracts/IListingQueryService.js";
+import type { IPropertyResponseGenerator } from "../contracts/IPropertyResponseGenerator.js";
 import type { IResponseGenerator } from "../contracts/IResponseGenerator.js";
 import { ConversationEngine } from "../conversation/ConversationEngine.js";
 import { ConversationPipeline } from "../conversation/ConversationPipeline.js";
@@ -37,6 +38,7 @@ import type { BranchId } from "../domain/value-objects/BranchId.js";
 import { ClaraKnowledgeBase } from "../intelligence/ClaraKnowledgeBase.js";
 import { InventoryQuerier } from "../intelligence/InventoryQuerier.js";
 import { ListingQuerier } from "../intelligence/ListingQuerier.js";
+import { LlmPropertyResponseGenerator } from "../llm/LlmPropertyResponseGenerator.js";
 import { LlmResponseGenerator } from "../llm/LlmResponseGenerator.js";
 import { OpenAiChatClient } from "../llm/OpenAiChatClient.js";
 import { LeadScorer } from "../scoring/LeadScorer.js";
@@ -65,15 +67,16 @@ export interface ClaraAgentFactoryOptions {
    * AAOS Self-Learning AI, Phase C wiring — the real, first live caller of `buildClaraPrompt.ts`'s
    * pre-existing `promptOverride` parameter. Threaded straight through to
    * `createResponseGenerator`'s composed `LlmResponseGenerator` (see that class's own doc for why
-   * "once per composed agent" is the real, honest granularity here). Deliberately AUTOMOTIVE-path
-   * only (`create()`, not `createPropertyAgent()`/`createPropertyConversationEngine()` below):
-   * confirmed by direct read that the PROPERTY-vertical response path
-   * (`createPropertyConversationEngine` always composes a plain, rule-based
-   * `PropertyResponseGenerator` — never `LlmResponseGenerator`, never gated by
-   * `config.llmReplyEnabled` the way `create()`'s automotive path is) has no LLM call site at all
-   * today, so a `promptOverride` would have nowhere real to apply. Not added to
-   * `PropertyClaraAgentFactoryOptions` — a dead, unused option there would be misleading, not
-   * additive. `undefined` (the default) reproduces today's exact unchanged behavior.
+   * "once per composed agent" is the real, honest granularity here). AUTOMOTIVE-path only
+   * (`create()`) — the PROPERTY-vertical sibling of this same parameter now lives on
+   * `PropertyClaraAgentFactoryOptions`/`PropertyConversationEngineFactoryOptions` below.
+   *
+   * UPDATE (PROPERTY LLM wiring): this doc previously said PROPERTY had "no LLM call site at all"
+   * and that adding a `promptOverride` there "would be misleading, not additive" — that finding is
+   * now OUTDATED. Confirmed by direct read: `createPropertyConversationEngine` now conditionally
+   * composes the real `LlmPropertyResponseGenerator` (mirroring this method's own
+   * `createResponseGenerator` gate exactly), so PROPERTY has its own real, first-class
+   * `promptOverride` option now — see `PropertyConversationEngineFactoryOptions.promptOverride`.
    */
   readonly promptOverride?: string;
 }
@@ -95,6 +98,26 @@ export interface PropertyConversationEngineFactoryOptions {
   /** Defaults to `PROPERTY_WARM_THRESHOLD`/`PROPERTY_HOT_THRESHOLD` (spec Part 6). */
   readonly warmThreshold?: number;
   readonly hotThreshold?: number;
+  /**
+   * AAOS Self-Learning AI — PROPERTY LLM wiring: the exact same config-driven gate
+   * `createResponseGenerator` (AUTOMOTIVE) uses, mirrored here — `LlmPropertyResponseGenerator`
+   * (wrapping the real, unmodified `PropertyResponseGenerator` as its own on-failure fallback) is
+   * composed only when `llmReplyEnabled` is `true` AND a non-empty `openaiApiKey` is present; the
+   * pure rule-based `PropertyResponseGenerator` otherwise (today's unchanged default — every
+   * existing caller that never sets these fields keeps its exact current behavior).
+   */
+  readonly llmReplyEnabled?: boolean;
+  readonly openaiApiKey?: string;
+  readonly openaiModel?: string;
+  readonly openaiTimeoutMs?: number;
+  /**
+   * The real, first live PROPERTY consumer of the `promptOverride` pattern
+   * `LlmResponseGenerator.promptOverride`'s own doc establishes for AUTOMOTIVE — see
+   * `buildClaraPropertyPrompt.ts`'s own doc for PROPERTY's real, structurally different slot set.
+   * Same "once per composed agent" granularity, same `undefined`-by-default no-op.
+   */
+  readonly promptOverride?: string;
+  readonly logger?: Logger;
 }
 
 export interface ClaraAgent {
@@ -136,6 +159,15 @@ export interface PropertyClaraAgentFactoryOptions {
   readonly tracer?: Tracer;
   /** Injectable clock — defaults to the real wall clock only here. */
   readonly now?: () => Date;
+  /**
+   * AAOS Self-Learning AI — PROPERTY LLM wiring: the real PROPERTY-vertical sibling to
+   * `ClaraAgentFactoryOptions.promptOverride`. Threaded straight through to
+   * `createPropertyConversationEngine`'s composed `LlmPropertyResponseGenerator` (this method
+   * already carries `config.llmReplyEnabled`/`openaiApiKey`/`openaiModel`/`openaiTimeoutMs` via
+   * `propertyConfig`, so only this new option was missing to fully mirror `create()`'s automotive
+   * gate).
+   */
+  readonly promptOverride?: string;
 }
 
 /** The full PROPERTY-vertical composition `createPropertyAgent` returns — the sibling to `ClaraAgent`. */
@@ -226,7 +258,8 @@ export class ClaraAgentFactory {
     options: PropertyConversationEngineFactoryOptions,
   ): PropertyConversationEngine {
     const listingQuerier = new ListingQuerier(options.listingQueryService);
-    const responseGenerator = new PropertyResponseGenerator();
+    const logger = options.logger ?? createLogger({ serviceName: "sales-agent" });
+    const responseGenerator = ClaraAgentFactory.createPropertyResponseGenerator(options, logger);
     return new PropertyConversationEngine(
       listingQuerier,
       {
@@ -248,6 +281,7 @@ export class ClaraAgentFactory {
    * automotive-typed via direct read, not vertical-generic as originally assumed).
    */
   static createPropertyAgent(options: PropertyClaraAgentFactoryOptions): PropertyClaraAgent {
+    const logger = options.logger ?? createLogger({ serviceName: "sales-agent" });
     const tracer: Tracer = options.tracer ?? getTracer("sales-agent");
     const now = options.now ?? (() => new Date());
 
@@ -263,6 +297,17 @@ export class ClaraAgentFactory {
       listingQueryService: options.listingQueryService,
       warmThreshold,
       hotThreshold,
+      // AAOS Self-Learning AI — PROPERTY LLM wiring: `propertyConfig` already carries
+      // `llmReplyEnabled`/`openaiApiKey`/`openaiModel`/`openaiTimeoutMs` (spread from
+      // `options.config`, a full `SalesAgentConfig`) — thread them down to the same real gate
+      // `createPropertyConversationEngine` now applies, plus this call's own `promptOverride`/
+      // `logger`.
+      llmReplyEnabled: propertyConfig.llmReplyEnabled,
+      openaiApiKey: propertyConfig.openaiApiKey,
+      openaiModel: propertyConfig.openaiModel,
+      openaiTimeoutMs: propertyConfig.openaiTimeoutMs,
+      promptOverride: options.promptOverride,
+      logger,
     });
     const leadScorer = new PropertyLeadScorer();
     const pipeline = new PropertyConversationPipeline(leadScorer, conversationEngine);
@@ -329,6 +374,35 @@ export class ClaraAgentFactory {
       fallback: ruleBasedGenerator,
       logger,
       promptOverride,
+    });
+  }
+
+  /**
+   * The PROPERTY-vertical sibling to `createResponseGenerator` — exact same gate:
+   * `LlmPropertyResponseGenerator` (wrapping the real, unmodified `PropertyResponseGenerator` as
+   * its own on-failure fallback) only when `options.llmReplyEnabled` is `true` AND a non-empty
+   * `options.openaiApiKey` is present; pure rule-based `PropertyResponseGenerator` otherwise —
+   * today's exact unchanged default for every caller that never sets these fields.
+   */
+  private static createPropertyResponseGenerator(
+    options: PropertyConversationEngineFactoryOptions,
+    logger: Logger,
+  ): IPropertyResponseGenerator {
+    const ruleBasedGenerator = new PropertyResponseGenerator();
+    const apiKey = options.openaiApiKey;
+    if (!options.llmReplyEnabled || apiKey === undefined || apiKey.trim().length === 0) {
+      return ruleBasedGenerator;
+    }
+
+    return new LlmPropertyResponseGenerator({
+      client: new OpenAiChatClient({
+        apiKey,
+        model: options.openaiModel,
+        timeoutMs: options.openaiTimeoutMs,
+      }),
+      fallback: ruleBasedGenerator,
+      logger,
+      promptOverride: options.promptOverride,
     });
   }
 }

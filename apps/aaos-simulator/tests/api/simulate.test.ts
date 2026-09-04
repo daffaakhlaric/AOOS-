@@ -142,7 +142,11 @@ describe("POST /api/simulate (vertical: PROPERTY)", () => {
       requestWith({ personaId: "ready_buyer", vertical: "PROPERTY", listingId: "listing-1" }),
     );
     expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // PROPERTY LLM wiring: 2 real aaos-api calls now happen for PROPERTY — the listing fetch
+    // (`fetchListingById`) AND the prompt-override fetch (`fetchActiveClaraPromptOverride`,
+    // filtered to `clara_property_system_prompt`) — previously only the listing fetch happened
+    // since PROPERTY short-circuited the prompt-override fetch entirely.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const body = (await response.json()) as SimulateResponse;
     expect(body.simulationResult.messages.length).toBeGreaterThan(0);
@@ -227,7 +231,7 @@ describe("POST /api/simulate — promptOverride status", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   }, 20_000);
 
-  it("PROPERTY vertical never fetches a prompt override (no LLM path there)", async () => {
+  it("PROPERTY vertical (PROPERTY LLM wiring): applied: false with a reason when creds are unset, same as AUTOMOTIVE", async () => {
     delete process.env["AAOS_API_BASE_URL"];
     delete process.env["AAOS_API_KEY"];
 
@@ -236,5 +240,56 @@ describe("POST /api/simulate — promptOverride status", () => {
     );
     const body = (await response.json()) as SimulateResponse;
     expect(body.promptOverride.applied).toBe(false);
+    expect(body.promptOverride.reason).toBeDefined();
+  }, 20_000);
+
+  it("PROPERTY vertical (PROPERTY LLM wiring): now DOES fetch a prompt override, filtered to clara_property_system_prompt (not clara_system_prompt)", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    process.env["AAOS_SIMULATOR_TENANT_ID"] = "agen-pintar-indonesia";
+
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (url.pathname.includes("/api/v1/learning/prompt-overrides/")) {
+        expect(url.pathname).toBe("/api/v1/learning/prompt-overrides/agen-pintar-indonesia/active");
+        return new Response(
+          JSON.stringify([
+            {
+              agent: "CLARA",
+              promptKey: "clara_system_prompt",
+              content: "AUTOMOTIVE override — must not apply here",
+              isActive: true,
+            },
+            {
+              agent: "CLARA",
+              promptKey: "clara_property_system_prompt",
+              content: "Kamu Clara properti versi override.",
+              isActive: true,
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+      // The listing fetch (`fetchListingById`) — a real listing so the simulation itself succeeds.
+      return new Response(
+        JSON.stringify({
+          id: "listing-1",
+          title: "Rumah Minimalis Cinere",
+          propertyType: "RUMAH",
+          price: 1_500_000_000,
+          city: "Cinere",
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      requestWith({ personaId: "cold_buyer", vertical: "PROPERTY", listingId: "listing-1" }),
+    );
+    const body = (await response.json()) as SimulateResponse;
+    expect(body.promptOverride).toEqual({ applied: true, tenantId: "agen-pintar-indonesia" });
+    // 2 real aaos-api calls: the listing fetch AND the prompt-override fetch — see the earlier
+    // "runs a real PROPERTY-vertical simulation end-to-end" test's identical comment.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   }, 20_000);
 });

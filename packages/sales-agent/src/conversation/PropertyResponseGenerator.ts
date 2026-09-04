@@ -23,8 +23,13 @@ import { PropertyDetectedIntent } from "./PropertyIntentDetector.js";
 
 const DEFAULT_SALES_NAME = "tim sales kita";
 const DEFAULT_HOT_THRESHOLD = 65;
-const SOFT_LENGTH_TARGET = 150;
-const HARD_LENGTH_CEILING = 200;
+/**
+ * Exported (AAOS Self-Learning AI, PROPERTY LLM wiring) so `LlmPropertyResponseGenerator` enforces
+ * the exact same PROPERTY length backstop instead of inventing a second pair of constants — per
+ * the task's explicit "reuse them, don't invent new ones" instruction.
+ */
+export const SOFT_LENGTH_TARGET = 150;
+export const HARD_LENGTH_CEILING = 200;
 
 const SYARIAH_ELIGIBLE_STAGES: ReadonlySet<ConversationStage> = new Set([
   ConversationStage.GREETING,

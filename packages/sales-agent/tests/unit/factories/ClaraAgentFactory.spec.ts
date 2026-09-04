@@ -256,6 +256,89 @@ describe("ClaraAgentFactory.createPropertyConversationEngine", () => {
       expect(decision.value.nextStage).toBe(ConversationStage.CLOSING);
     }
   });
+
+  it("llmReplyEnabled + a real openaiApiKey → calls OpenAI (MSW-mocked) and replies with its text", async () => {
+    mswServer.use(
+      http.post(CHAT_URL, () =>
+        HttpResponse.json({
+          choices: [{ message: { content: "Hai kak! Balesan LLM properti 😊" } }],
+        }),
+      ),
+    );
+    const engine = ClaraAgentFactory.createPropertyConversationEngine({
+      branchId: BranchId.BINTARO,
+      listingQueryService: fakeQueryService([LISTING]),
+      llmReplyEnabled: true,
+      openaiApiKey: "sk-test",
+    });
+    const conversation = LeadConversation.start("+6281200000001", BranchId.BINTARO, NOW);
+    const decision = await engine.decide(conversation, "halo min");
+    expect(decision.ok).toBe(true);
+    if (decision.ok) {
+      expect(decision.value.responseText).toBe("Hai kak! Balesan LLM properti 😊");
+    }
+  });
+
+  it("llmReplyEnabled + OpenAI failure (MSW-mocked 500) → still replies, via the rule-based fallback", async () => {
+    mswServer.use(http.post(CHAT_URL, () => new HttpResponse(null, { status: 500 })));
+    const engine = ClaraAgentFactory.createPropertyConversationEngine({
+      branchId: BranchId.BINTARO,
+      listingQueryService: fakeQueryService([LISTING]),
+      llmReplyEnabled: true,
+      openaiApiKey: "sk-test",
+    });
+    const conversation = LeadConversation.start("+6281200000001", BranchId.BINTARO, NOW);
+    const decision = await engine.decide(conversation, "halo min");
+    expect(decision.ok).toBe(true);
+    if (decision.ok) {
+      expect(decision.value.responseText.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("llmReplyEnabled but no openaiApiKey → stays on the pure rule-based generator (no OpenAI call attempted)", async () => {
+    mswServer.use(
+      http.post(CHAT_URL, () => {
+        throw new Error("must not be called — no apiKey configured");
+      }),
+    );
+    const engine = ClaraAgentFactory.createPropertyConversationEngine({
+      branchId: BranchId.BINTARO,
+      listingQueryService: fakeQueryService([LISTING]),
+      llmReplyEnabled: true,
+    });
+    const conversation = LeadConversation.start("+6281200000001", BranchId.BINTARO, NOW);
+    const decision = await engine.decide(conversation, "halo min");
+    expect(decision.ok).toBe(true);
+  });
+
+  it("promptOverride option → threaded end-to-end into the real OpenAI request body", async () => {
+    let capturedSystemContent: unknown;
+    mswServer.use(
+      http.post(CHAT_URL, async ({ request }) => {
+        const body = (await request.json()) as { messages: { role: string; content: string }[] };
+        capturedSystemContent = body.messages.find((m) => m.role === "system")?.content;
+        return HttpResponse.json({
+          choices: [{ message: { content: "Hai dari override properti! 🏠" } }],
+        });
+      }),
+    );
+    const override = "Kamu Clara properti override. Stage: {stage}. {stage_instruction}";
+    const engine = ClaraAgentFactory.createPropertyConversationEngine({
+      branchId: BranchId.BINTARO,
+      listingQueryService: fakeQueryService([LISTING]),
+      llmReplyEnabled: true,
+      openaiApiKey: "sk-test",
+      promptOverride: override,
+    });
+    const conversation = LeadConversation.start("+6281200000001", BranchId.BINTARO, NOW);
+    const decision = await engine.decide(conversation, "halo min");
+    expect(decision.ok).toBe(true);
+    if (decision.ok) {
+      expect(decision.value.responseText).toBe("Hai dari override properti! 🏠");
+    }
+    expect(capturedSystemContent).toContain("Kamu Clara properti override.");
+    expect(capturedSystemContent).not.toContain("sales AI properti");
+  });
 });
 
 describe("ClaraAgentFactory.createPropertyAgent", () => {
@@ -368,5 +451,75 @@ describe("ClaraAgentFactory.createPropertyAgent", () => {
       }),
     );
     expect(unitInfo.outgoingMessage.body.toString().length).toBeGreaterThan(0);
+  });
+
+  it("config.llmReplyEnabled + a real openaiApiKey + promptOverride → the real message flow calls OpenAI (MSW-mocked) with the override applied", async () => {
+    let capturedSystemContent: unknown;
+    mswServer.use(
+      http.post(CHAT_URL, async ({ request }) => {
+        const body = (await request.json()) as { messages: { role: string; content: string }[] };
+        capturedSystemContent = body.messages.find((m) => m.role === "system")?.content;
+        return HttpResponse.json({
+          choices: [{ message: { content: "Hai kak! Ini balesan LLM properti 😊" } }],
+        });
+      }),
+    );
+    const publisher = createFakePublisher();
+    const branchManager = makeRealBranchManager(publisher);
+    const override =
+      "Kamu Clara properti (agent-level override). Stage: {stage}. {stage_instruction}";
+    const agent = ClaraAgentFactory.createPropertyAgent({
+      config: makeSalesAgentConfig({ llmReplyEnabled: true, openaiApiKey: "sk-test" }),
+      branchId: BranchId.CINERE,
+      publisher,
+      assignLead: branchManager.assignLead,
+      salesTeamRegistry: branchManager.salesTeamRegistry,
+      listingQueryService: makeListingQueryService(),
+      now: fixedClock(),
+      promptOverride: override,
+    });
+
+    const outcome = await agent.processIncomingMessage.execute({
+      leadPhone: "+6281200000004",
+      branchId: BranchId.CINERE,
+      messageText: "halo min",
+      tenantId: "tenant-dss-motor",
+      correlationId: "corr-4",
+    });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.value.outgoingMessage.body.toString()).toBe(
+        "Hai kak! Ini balesan LLM properti 😊",
+      );
+    }
+    expect(capturedSystemContent).toContain("Kamu Clara properti (agent-level override).");
+  });
+
+  it("config.llmReplyEnabled but no openaiApiKey → stays on the pure rule-based generator (no OpenAI call attempted)", async () => {
+    mswServer.use(
+      http.post(CHAT_URL, () => {
+        throw new Error("must not be called — no apiKey configured");
+      }),
+    );
+    const publisher = createFakePublisher();
+    const branchManager = makeRealBranchManager(publisher);
+    const agent = ClaraAgentFactory.createPropertyAgent({
+      config: makeSalesAgentConfig({ llmReplyEnabled: true }),
+      branchId: BranchId.CINERE,
+      publisher,
+      assignLead: branchManager.assignLead,
+      salesTeamRegistry: branchManager.salesTeamRegistry,
+      listingQueryService: makeListingQueryService(),
+      now: fixedClock(),
+    });
+
+    const outcome = await agent.processIncomingMessage.execute({
+      leadPhone: "+6281200000005",
+      branchId: BranchId.CINERE,
+      messageText: "halo min",
+      tenantId: "tenant-dss-motor",
+      correlationId: "corr-5",
+    });
+    expect(outcome.ok).toBe(true);
   });
 });

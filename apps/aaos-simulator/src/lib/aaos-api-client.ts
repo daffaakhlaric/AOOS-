@@ -59,6 +59,12 @@ function isPromptOverrideResponseArray(value: unknown): value is AaosApiPromptOv
 }
 
 const CLARA_SYSTEM_PROMPT_KEY = "clara_system_prompt";
+/**
+ * PROPERTY LLM wiring — the real PROPERTY-vertical sibling `prompt_key` to
+ * `CLARA_SYSTEM_PROMPT_KEY`, added to `apps/aaos-api`'s `KNOWN_PROMPT_KEYS`
+ * (`apps/aaos-api/src/modules/llm/llm.service.ts`) alongside this change.
+ */
+const CLARA_PROPERTY_SYSTEM_PROMPT_KEY = "clara_property_system_prompt";
 
 /**
  * A real, honest outcome of trying to fetch the active Clara system-prompt override — never
@@ -86,11 +92,20 @@ export type ClaraPromptOverrideFetchResult =
  * The endpoint already returns only `is_active = true` rows (`PromptOverrideRepository.
  * listActiveForTenant`'s own `.eq("is_active", true)` filter — verified by direct read), so the
  * `isActive` check below is a defensive belt-and-suspenders, not the primary filter; the real
- * client-side filter this function applies is `agent === "CLARA" && promptKey ===
- * "clara_system_prompt"`, per the task's own instruction.
+ * client-side filter this function applies is `agent === "CLARA" && promptKey === promptKey`
+ * (the caller's own resolved key), per the task's own instruction.
+ *
+ * PROPERTY LLM wiring: vertical-aware — `promptKey` defaults to `CLARA_SYSTEM_PROMPT_KEY`
+ * (AUTOMOTIVE, today's exact unchanged behavior for every existing caller that doesn't pass this
+ * argument) but a caller resolving for `vertical === "PROPERTY"` passes
+ * `CLARA_PROPERTY_SYSTEM_PROMPT_KEY` explicitly (see the exported constant + both `POST
+ * /api/simulate*` routes, which no longer skip this fetch for PROPERTY — that "PROPERTY vertical
+ * has no LLM prompt path" comment was accurate before the PROPERTY LLM wiring task and is now
+ * outdated).
  */
 export async function fetchActiveClaraPromptOverride(
   tenantId: string,
+  promptKey: string = CLARA_SYSTEM_PROMPT_KEY,
 ): Promise<ClaraPromptOverrideFetchResult> {
   const baseUrl = process.env["AAOS_API_BASE_URL"];
   const apiKey = process.env["AAOS_API_KEY"];
@@ -142,15 +157,25 @@ export async function fetchActiveClaraPromptOverride(
   }
 
   const match = data.find(
-    (row) => row.agent === "CLARA" && row.promptKey === CLARA_SYSTEM_PROMPT_KEY && row.isActive,
+    (row) => row.agent === "CLARA" && row.promptKey === promptKey && row.isActive,
   );
   if (match === undefined) {
     return {
       found: false,
-      reason: `Tidak ada active override untuk (${tenantId}, CLARA, ${CLARA_SYSTEM_PROMPT_KEY}).`,
+      reason: `Tidak ada active override untuk (${tenantId}, CLARA, ${promptKey}).`,
     };
   }
   return { found: true, content: match.content };
+}
+
+/**
+ * Resolves the real `prompt_key` `fetchActiveClaraPromptOverride` should look up for a given
+ * simulator vertical (PROPERTY LLM wiring) — the single source of truth both `POST
+ * /api/simulate`/`POST /api/simulate-all` use, so the AUTOMOTIVE/PROPERTY choice never drifts
+ * between the two routes.
+ */
+export function resolveClaraPromptKeyForVertical(vertical: "AUTOMOTIVE" | "PROPERTY"): string {
+  return vertical === "PROPERTY" ? CLARA_PROPERTY_SYSTEM_PROMPT_KEY : CLARA_SYSTEM_PROMPT_KEY;
 }
 
 /**

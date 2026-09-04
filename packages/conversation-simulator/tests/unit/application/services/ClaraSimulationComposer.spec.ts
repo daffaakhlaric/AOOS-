@@ -125,5 +125,53 @@ describe("ClaraSimulationComposer", () => {
       );
       expect(composition.agent.handoffService).toBeDefined();
     });
+
+    describe("claraPropertyPromptOverride / LLM field threading (AAOS Self-Learning AI, PROPERTY LLM wiring)", () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("compose() threads config.claraPropertyPromptOverride into ClaraAgentFactory.createPropertyAgent's promptOverride option", async () => {
+        const spy = vi.spyOn(ClaraAgentFactory, "createPropertyAgent");
+        const composer = new ClaraSimulationComposer();
+        await composer.compose(
+          makeSimulatorConfig({
+            vertical: "PROPERTY",
+            claraPropertyPromptOverride: "custom property override text",
+          }),
+        );
+
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy.mock.calls[0]?.[0]).toMatchObject({
+          promptOverride: "custom property override text",
+        });
+      });
+
+      it("compose() with no claraPropertyPromptOverride configured → omits promptOverride entirely", async () => {
+        const spy = vi.spyOn(ClaraAgentFactory, "createPropertyAgent");
+        const composer = new ClaraSimulationComposer();
+        await composer.compose(makeSimulatorConfig({ vertical: "PROPERTY" }));
+
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy.mock.calls[0]?.[0]).not.toHaveProperty("promptOverride");
+      });
+
+      it("compose() threads llmReplyEnabled/openaiApiKey into the PROPERTY branch's config (via SalesAgentConfig, resolved before the vertical branch)", async () => {
+        const spy = vi.spyOn(ClaraAgentFactory, "createPropertyAgent");
+        const composer = new ClaraSimulationComposer();
+        await composer.compose(
+          makeSimulatorConfig({
+            vertical: "PROPERTY",
+            llmReplyEnabled: true,
+            openaiApiKey: "sk-test",
+          }),
+        );
+
+        expect(spy).toHaveBeenCalledTimes(1);
+        const passedConfig = spy.mock.calls[0]?.[0]?.config;
+        expect(passedConfig?.llmReplyEnabled).toBe(true);
+        expect(passedConfig?.openaiApiKey).toBe("sk-test");
+      });
+    });
   });
 });

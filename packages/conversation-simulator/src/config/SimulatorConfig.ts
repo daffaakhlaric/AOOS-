@@ -68,11 +68,23 @@ export interface SimulatorConfig {
    * process with a real HTTP path there is `apps/aaos-simulator` — so it owns the fetch (`GET
    * /api/v1/learning/prompt-overrides/:tenantId/active`, filtered to `agent === "CLARA" &&
    * promptKey === "clara_system_prompt"`) and passes the resolved content down into this field.
-   * AUTOMOTIVE-only (mirrors `ClaraAgentFactoryOptions.promptOverride`'s own doc): PROPERTY has no
-   * LLM response path to apply it to, so `ClaraSimulationComposer.composeProperty` never reads
-   * this field.
+   *
+   * AUTOMOTIVE-only — consumed by `ClaraSimulationComposer.compose`'s AUTOMOTIVE branch only. The
+   * PROPERTY-vertical sibling is `claraPropertyPromptOverride` below (PROPERTY LLM wiring): kept as
+   * a SEPARATE field rather than reused, because the two verticals resolve against different real
+   * `prompt_key`s (`clara_system_prompt` vs `clara_property_system_prompt`) — collapsing them into
+   * one field would make it ambiguous which prompt_key a given override content came from.
    */
   readonly claraPromptOverride?: string;
+  /**
+   * AAOS Self-Learning AI — PROPERTY LLM wiring: the real PROPERTY-vertical sibling to
+   * `claraPromptOverride` above. `apps/aaos-simulator` resolves this against the real
+   * `clara_property_system_prompt` prompt_key (same `GET
+   * /api/v1/learning/prompt-overrides/:tenantId/active` endpoint, filtered to `agent === "CLARA" &&
+   * promptKey === "clara_property_system_prompt"`) and passes it down here. Consumed only by
+   * `ClaraSimulationComposer.composeProperty`.
+   */
+  readonly claraPropertyPromptOverride?: string;
   /**
    * AAOS Self-Learning AI, Phase C wiring (2nd half) — real, first live consumer of
    * `@aos/sales-agent`'s pre-existing `SalesAgentConfig.llmReplyEnabled`/`openaiApiKey`/
@@ -81,8 +93,15 @@ export interface SimulatorConfig {
    * `apps/aaos-simulator` (the one process with a real `OPENAI_API_KEY` in its own env) owns
    * reading it and passes it down here. Defaults preserve every existing caller's behavior
    * unchanged: `llmReplyEnabled` defaults `false`, so a caller that never sets these fields still
-   * gets the pure rule-based `ResponseGenerator`, exactly as before this field existed.
-   * AUTOMOTIVE-only (mirrors `claraPromptOverride`'s own doc): PROPERTY has no LLM response path.
+   * gets the pure rule-based generator, exactly as before this field existed.
+   *
+   * UPDATE (PROPERTY LLM wiring): these 4 fields were previously documented AUTOMOTIVE-only — that
+   * finding is now OUTDATED. `ClaraSimulationComposer.compose` already threads them into
+   * `SalesAgentConfig` BEFORE branching on `config.vertical` (confirmed by direct read — the
+   * `parseSalesAgentConfig` call happens before the `config.vertical === "PROPERTY"` check), so
+   * `composeProperty` already receives a `salesAgentConfig` carrying the real, resolved values —
+   * no change to that plumbing was needed, only `createPropertyConversationEngine`'s own gate on
+   * the `@aos/sales-agent` side had to be added.
    */
   readonly llmReplyEnabled?: boolean;
   readonly openaiApiKey?: string;
@@ -101,6 +120,7 @@ export const SimulatorConfigSchema = z.object({
   listingId: z.string().min(1, "listingId must not be empty").optional(),
   listings: z.array(PropertyListingDataSchema).optional(),
   claraPromptOverride: z.string().min(1).optional(),
+  claraPropertyPromptOverride: z.string().min(1).optional(),
   llmReplyEnabled: z.boolean().optional(),
   openaiApiKey: z.string().min(1).optional(),
   openaiModel: z.string().min(1).optional(),

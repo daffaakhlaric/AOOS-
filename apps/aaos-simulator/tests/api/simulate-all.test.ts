@@ -230,4 +230,42 @@ describe("POST /api/simulate-all — promptOverride status when apps/aaos-api ha
     const body = (await response.json()) as SimulateAllResponse;
     expect(body.promptOverride).toEqual({ applied: true, tenantId: "agen-pintar-indonesia" });
   }, 60_000);
+
+  it("PROPERTY LLM wiring: vertical PROPERTY fetches clara_property_system_prompt (not clara_system_prompt)", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    process.env["AAOS_SIMULATOR_TENANT_ID"] = "agen-pintar-indonesia";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: URL | string) => {
+        const url = input.toString();
+        if (url.includes("/api/v1/learning/prompt-overrides/")) {
+          return new Response(
+            JSON.stringify([
+              {
+                agent: "CLARA",
+                promptKey: "clara_system_prompt",
+                content: "AUTOMOTIVE override — must not apply here",
+                isActive: true,
+              },
+              {
+                agent: "CLARA",
+                promptKey: "clara_property_system_prompt",
+                content: "Kamu Clara properti versi override.",
+                isActive: true,
+              },
+            ]),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    const response = await POST(requestWith({ vertical: "PROPERTY" }));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as SimulateAllResponse;
+    expect(body.promptOverride).toEqual({ applied: true, tenantId: "agen-pintar-indonesia" });
+  }, 60_000);
 });

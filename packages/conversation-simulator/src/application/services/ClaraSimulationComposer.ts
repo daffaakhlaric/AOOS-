@@ -194,6 +194,12 @@ export class ClaraSimulationComposer {
    * from `config.listings` — the already-fetched real listing data the caller (`apps/aaos-simulator`)
    * supplies. No inventory connector/sync is composed on this path — PROPERTY has no equivalent of
    * `@aos/dss-inventory-connector`.
+   *
+   * PROPERTY LLM wiring: `salesAgentConfig` already carries the real, resolved
+   * `llmReplyEnabled`/`openaiApiKey`/`openaiModel`/`openaiTimeoutMs` (threaded in by `compose()`
+   * BEFORE this vertical branch, see `SimulatorConfig.llmReplyEnabled`'s own doc) — `config.
+   * claraPropertyPromptOverride` is this method's own additional real input, threaded into
+   * `createPropertyAgent`'s `promptOverride` option.
    */
   private composeProperty(
     config: SimulatorConfig,
@@ -214,6 +220,9 @@ export class ClaraSimulationComposer {
       salesTeamRegistry: branchManager.salesTeamRegistry,
       listingQueryService: listingSpy,
       now,
+      ...(config.claraPropertyPromptOverride !== undefined
+        ? { promptOverride: config.claraPropertyPromptOverride }
+        : {}),
     });
 
     return ok({ agent, publisher, listingSpy, clock, salesAgentConfig });

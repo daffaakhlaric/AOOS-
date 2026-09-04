@@ -4,6 +4,7 @@ import type {
   IPropertyConversationEngine,
   PropertyEngineDecision,
 } from "../contracts/IPropertyConversationEngine.js";
+import type { IPropertyResponseGenerator } from "../contracts/IPropertyResponseGenerator.js";
 import type { LeadConversation } from "../domain/entities/LeadConversation.js";
 import type { PropertyListing, PropertyType } from "../domain/entities/PropertyListing.js";
 import type { AgentError } from "../domain/errors/AgentError.js";
@@ -11,7 +12,6 @@ import { ConversationStage } from "../domain/value-objects/ConversationStage.js"
 import type { ListingQuerier } from "../intelligence/ListingQuerier.js";
 
 import { PropertyIntentDetector } from "./PropertyIntentDetector.js";
-import type { PropertyResponseGenerator } from "./PropertyResponseGenerator.js";
 import { PropertyStageDetector } from "./PropertyStageDetector.js";
 import type { StageDetectorThresholds } from "./StageDetector.js";
 
@@ -87,13 +87,17 @@ const LISTING_QUESTION_STAGES: ReadonlySet<ConversationStage> = new Set([
  * Decides what Clara says next for a PROPERTY-vertical conversation — the sibling to
  * `ConversationEngine` (spec section 11 point 1). Runs `PropertyIntentDetector` +
  * `PropertyStageDetector`, queries Phase 2's real `listings` via `ListingQuerier` when the stage is
- * `UNIT_INFO`/`PRICE_INFO`, then delegates to `PropertyResponseGenerator` for the final text.
+ * `UNIT_INFO`/`PRICE_INFO`, then delegates to an `IPropertyResponseGenerator` for the final text —
+ * either the real, rule-based `PropertyResponseGenerator` or (AAOS Self-Learning AI, PROPERTY LLM
+ * wiring) the LLM-backed `LlmPropertyResponseGenerator`, whichever `ClaraAgentFactory` composed
+ * (constructor-injected against the interface, same discipline the automotive `ConversationEngine`
+ * already establishes for `IResponseGenerator`).
  */
 export class PropertyConversationEngine implements IPropertyConversationEngine {
   constructor(
     private readonly listingQuerier: ListingQuerier,
     private readonly thresholds: StageDetectorThresholds,
-    private readonly responseGenerator: PropertyResponseGenerator,
+    private readonly responseGenerator: IPropertyResponseGenerator,
     private readonly resolveSalesName: (branchId: LeadConversation["branchId"]) => string,
   ) {}
 

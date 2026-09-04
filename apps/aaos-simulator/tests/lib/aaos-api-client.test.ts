@@ -5,6 +5,7 @@ import {
   fetchActiveListings,
   fetchListingById,
   fetchTenants,
+  resolveClaraPromptKeyForVertical,
 } from "@/lib/aaos-api-client";
 
 describe("fetchListingById", () => {
@@ -238,6 +239,78 @@ describe("fetchActiveClaraPromptOverride (AAOS Self-Learning AI, Phase C wiring)
 
     const result = await fetchActiveClaraPromptOverride("tenant-dss-motor");
     expect(result.found).toBe(false);
+  });
+
+  it("PROPERTY LLM wiring: an explicit promptKey filters against that key, not clara_system_prompt", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify([
+              {
+                agent: "CLARA",
+                promptKey: "clara_system_prompt",
+                content: "AUTOMOTIVE prompt — must not match",
+                isActive: true,
+              },
+              {
+                agent: "CLARA",
+                promptKey: "clara_property_system_prompt",
+                content: "Kamu Clara properti versi baru",
+                isActive: true,
+              },
+            ]),
+            { status: 200 },
+          ),
+      ),
+    );
+
+    const result = await fetchActiveClaraPromptOverride(
+      "agen-pintar-indonesia",
+      "clara_property_system_prompt",
+    );
+    expect(result).toEqual({ found: true, content: "Kamu Clara properti versi baru" });
+  });
+
+  it("PROPERTY LLM wiring: found: false when only an AUTOMOTIVE row is active and PROPERTY's key was requested", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify([
+              {
+                agent: "CLARA",
+                promptKey: "clara_system_prompt",
+                content: "AUTOMOTIVE prompt only",
+                isActive: true,
+              },
+            ]),
+            { status: 200 },
+          ),
+      ),
+    );
+
+    const result = await fetchActiveClaraPromptOverride(
+      "agen-pintar-indonesia",
+      "clara_property_system_prompt",
+    );
+    expect(result.found).toBe(false);
+  });
+});
+
+describe("resolveClaraPromptKeyForVertical (PROPERTY LLM wiring)", () => {
+  it("resolves clara_system_prompt for AUTOMOTIVE", () => {
+    expect(resolveClaraPromptKeyForVertical("AUTOMOTIVE")).toBe("clara_system_prompt");
+  });
+
+  it("resolves clara_property_system_prompt for PROPERTY", () => {
+    expect(resolveClaraPromptKeyForVertical("PROPERTY")).toBe("clara_property_system_prompt");
   });
 });
 

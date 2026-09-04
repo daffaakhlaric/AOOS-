@@ -5,7 +5,11 @@ import {
 } from "@aos/conversation-simulator";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { fetchActiveClaraPromptOverride, fetchListingById } from "@/lib/aaos-api-client";
+import {
+  fetchActiveClaraPromptOverride,
+  fetchListingById,
+  resolveClaraPromptKeyForVertical,
+} from "@/lib/aaos-api-client";
 import { getJudge, toJudgementResultDto } from "@/lib/judge";
 import { DEFAULT_SIMULATOR_CONFIG, getSimulator, toSimulationResultDto } from "@/lib/simulator";
 import type { ApiErrorResponse, SimulateRequest, SimulateResponse } from "@/types/simulator.types";
@@ -115,12 +119,18 @@ export async function POST(
   // `tenantId` at all (an unselected/legacy caller — e.g. a direct API caller, or a test), per the
   // task's explicit "may remain as an honest DEFAULT/fallback value" instruction — it must never
   // again be the ONLY real value ever used.
+  //
+  // PROPERTY LLM wiring: vertical-aware — resolves `clara_property_system_prompt` for PROPERTY,
+  // `clara_system_prompt` for AUTOMOTIVE (`resolveClaraPromptKeyForVertical`), and always performs
+  // the real fetch. The previous "PROPERTY vertical has no LLM prompt path" short-circuit is
+  // OUTDATED now that `@aos/sales-agent`'s `createPropertyConversationEngine` has a real LLM
+  // call site — removed.
   const promptOverrideTenantId =
     requestTenantId ?? process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
-  const promptOverrideFetch =
-    vertical === "AUTOMOTIVE"
-      ? await fetchActiveClaraPromptOverride(promptOverrideTenantId)
-      : ({ found: false, reason: "PROPERTY vertical has no LLM prompt path." } as const);
+  const promptOverrideFetch = await fetchActiveClaraPromptOverride(
+    promptOverrideTenantId,
+    resolveClaraPromptKeyForVertical(vertical),
+  );
 
   // AAOS Self-Learning AI, Phase C wiring (2nd half) — real thread of `CLARA_LLM_REPLY_ENABLED`/
   // `OPENAI_API_KEY` from this app's own env into `SimulatorConfig`. Left unset,
@@ -141,7 +151,14 @@ export async function POST(
     vertical,
     ...(listingId !== undefined ? { listingId } : {}),
     ...(listing !== undefined ? { listings: [listing] } : {}),
-    ...(promptOverrideFetch.found ? { claraPromptOverride: promptOverrideFetch.content } : {}),
+    // PROPERTY LLM wiring: route the fetched override into the field the matching
+    // `ClaraSimulationComposer` branch actually reads — `claraPromptOverride` (AUTOMOTIVE) vs
+    // `claraPropertyPromptOverride` (PROPERTY).
+    ...(promptOverrideFetch.found
+      ? vertical === "PROPERTY"
+        ? { claraPropertyPromptOverride: promptOverrideFetch.content }
+        : { claraPromptOverride: promptOverrideFetch.content }
+      : {}),
     ...(llmReplyEnabled ? { llmReplyEnabled } : {}),
     ...(openaiApiKey !== undefined && openaiApiKey.length > 0 ? { openaiApiKey } : {}),
   };
