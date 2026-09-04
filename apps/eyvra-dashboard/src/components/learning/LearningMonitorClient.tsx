@@ -87,6 +87,33 @@ function formatDate(iso: string): string {
  * suggestion) rather than a new page, since both sections are the same real "manager reviews an
  * AI-driven pending action" workflow shape — same list/filter + Approve/Reject + refresh-after-
  * action convention as the section above, no new mechanic invented.
+ *
+ * EYVRA MENU RESTRUCTURE Sprint 3 (PROMPT 7, "/self-improve") — this page is now rendered directly
+ * as the real "AI Improve" hub (`/self-improve/page.tsx`, `/learning` redirects here since Sprint
+ * 1). Relayout-only additions on top of the SAME real data/handlers above, per the spec's 4
+ * sections:
+ *  - Header "Trigger improve manual ↗" (real, same `handleTrigger`/`historyAgent` state as the
+ *    existing Score Trend "Improve sekarang" button — now gated behind a real confirm modal,
+ *    matching the spec's "modal konfirmasi, tombol Lanjutkan|Batal").
+ *  - 4 score cards under the chart: SAMANTHA/CLARA are real (`GET /api/learning/judge-history`,
+ *    same endpoint the chart uses, fetched independently for both real-backed agents). KAI/KAREN
+ *    have NO real `judge_results` rows anywhere in this codebase (`/api/learning/judge-history`
+ *    and `/api/learning/trigger` are both hard-restricted server-side to `agent in
+ *    (SAMANTHA, CLARA)` — see those route handlers) — their cards honestly say so instead of
+ *    fabricating a score.
+ *  - Config Editor rows: real `↑ AI` / `✏ Manual` badge from the real `agent_configs.updated_by`
+ *    column (`AI_AUTO_APPLY` is a real, distinct sentinel `ConfigApplierService`/
+ *    `LogicApplierService` write there — never a human identifier; anything else is a real human
+ *    email) — never a fabricated heuristic.
+ *  - New "AI Judge Results" accordion: built from the SAME real `proposals` list already loaded
+ *    above, filtered to the ones with a real per-dimension breakdown (`gaps.scores`, only present
+ *    on LIVE_RUN-triggered proposals — Phase J3's `LiveRunGapSchema`). This is an honest SUBSET
+ *    (every judged run that crossed the gap threshold and produced a proposal), not a fabricated
+ *    complete judge-run history — there is no standalone "every judge run" endpoint in this
+ *    codebase to back a bigger list.
+ *  - The spec's literal `ROLLED_BACK` improvement-history status is NOT rendered — confirmed (see
+ *    `statusBadgeClass`'s own doc above) there is no real status by that name anywhere in this
+ *    codebase; fabricating one was rejected in an earlier phase and stays rejected here.
  */
 export function LearningMonitorClient(): React.ReactElement {
   const [proposals, setProposals] = useState<readonly LearningProposalDto[] | undefined>(undefined);
@@ -117,6 +144,15 @@ export function LearningMonitorClient(): React.ReactElement {
   const [historyError, setHistoryError] = useState<string | undefined>(undefined);
   const [triggerBusy, setTriggerBusy] = useState(false);
   const [triggerResult, setTriggerResult] = useState<TriggerCheckResultDto | undefined>(undefined);
+  // EYVRA Sprint 3 — real confirm-modal gate in front of the existing `handleTrigger` action
+  // (spec: header "Trigger improve manual ↗" + "modal konfirmasi, tombol Lanjutkan|Batal").
+  const [showTriggerConfirm, setShowTriggerConfirm] = useState(false);
+  // EYVRA Sprint 3 — 4 score cards (spec Section 1). Real for SAMANTHA/CLARA only (same real
+  // `/api/learning/judge-history` the chart already uses, fetched for both independently of the
+  // chart's own agent toggle); KAI/KAREN have no real judge_results backing anywhere (see doc above).
+  const [scoreCards, setScoreCards] = useState<
+    Partial<Record<(typeof HISTORY_AGENTS)[number], readonly JudgeHistoryPointDto[]>>
+  >({});
 
   // AAOS Self-Improving, Phase SI-6 — real `agent_configs` Config editor state.
   const [configs, setConfigs] = useState<readonly AgentConfigDto[] | undefined>(undefined);
@@ -224,6 +260,27 @@ export function LearningMonitorClient(): React.ReactElement {
   useEffect(() => {
     loadConfigs();
   }, [loadConfigs]);
+
+  // EYVRA Sprint 3 — real score cards, one fetch per real-backed agent (mount-only, same real
+  // endpoint the chart uses, independent of `historyAgent`'s own toggle above).
+  useEffect(() => {
+    let cancelled = false;
+    HISTORY_AGENTS.forEach((agent) => {
+      fetch(`/api/learning/judge-history?agent=${encodeURIComponent(agent)}&days=30`)
+        .then((res) => (res.ok ? (res.json() as Promise<readonly JudgeHistoryPointDto[]>) : null))
+        .then((points) => {
+          if (!cancelled && points !== null) {
+            setScoreCards((prev) => ({ ...prev, [agent]: points }));
+          }
+        })
+        .catch(() => {
+          // Best-effort — an honest "belum tersedia" card is fine if this fails.
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleDecide(id: string, action: "approve" | "reject"): Promise<void> {
     setBusyId(id);
@@ -397,9 +454,75 @@ export function LearningMonitorClient(): React.ReactElement {
 
   return (
     <main>
-      <TopBar title="Learning Monitor" accentColor="var(--v2-menu-improve)" />
+      <TopBar title="AI Self-Improvement" accentColor="var(--v2-menu-improve)" />
+      <div className={styles.headerExtra}>
+        <button
+          type="button"
+          className={styles.triggerHeaderButton}
+          onClick={() => setShowTriggerConfirm(true)}
+        >
+          Trigger improve manual ↗
+        </button>
+      </div>
       <div className={styles.page}>
         {actionError !== undefined ? <p className={styles.errorText}>{actionError}</p> : null}
+
+        <div className={styles.section} data-testid="score-cards-section">
+          <span className={styles.sectionTitle}>Score Cards</span>
+          <div className={styles.scoreCardGrid}>
+            {(["SAMANTHA", "KAI", "CLARA", "KAREN"] as const).map((agent) => {
+              const isRealAgent = agent === "SAMANTHA" || agent === "CLARA";
+              const points = isRealAgent
+                ? scoreCards[agent as (typeof HISTORY_AGENTS)[number]]
+                : undefined;
+              const scored = (points ?? [])
+                .filter((p): p is JudgeHistoryPointDto & { overall: number } => p.overall !== null)
+                .map((p) => p.overall);
+              const current = scored.length > 0 ? scored[scored.length - 1] : undefined;
+              const start = scored.length > 0 ? scored[0] : undefined;
+              const delta =
+                current !== undefined && start !== undefined
+                  ? Math.round((current - start) * 10) / 10
+                  : undefined;
+              return (
+                <div
+                  key={agent}
+                  className={styles.scoreCard}
+                  data-testid={`score-card-${agent}`}
+                  style={{ background: `var(--v2-${agent.toLowerCase()}-tint)` }}
+                >
+                  <span
+                    className={styles.scoreCardAgent}
+                    style={{ color: `var(--v2-${agent.toLowerCase()})` }}
+                  >
+                    {agent}
+                  </span>
+                  {!isRealAgent ? (
+                    <p className={styles.emptyState}>
+                      Belum ada real judge_results untuk {agent} — endpoint judge-history/trigger
+                      saat ini hanya mendukung SAMANTHA/CLARA.
+                    </p>
+                  ) : current === undefined ? (
+                    <p className={styles.emptyState}>Belum ada skor 30 hari terakhir.</p>
+                  ) : (
+                    <>
+                      <span className={styles.scoreCardValue}>{current.toFixed(1)}</span>
+                      {delta !== undefined ? (
+                        <span className={styles.scoreCardDelta}>
+                          {delta >= 0 ? "+" : ""}
+                          {delta} vs awal periode
+                        </span>
+                      ) : null}
+                      <span className={styles.scoreCardStatus}>
+                        {current >= 80 ? "Di atas target" : "Sedang belajar"}
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <div className={styles.section} data-testid="score-trend-section">
           <div className={styles.toolbar}>
@@ -460,7 +583,7 @@ export function LearningMonitorClient(): React.ReactElement {
         </div>
 
         <div className={styles.section} data-testid="config-editor-section">
-          <span className={styles.sectionTitle}>Config Editor (agent_configs)</span>
+          <span className={styles.sectionTitle}>Konfigurasi Agent (dari DB, tidak hardcode)</span>
           {configError !== undefined ? <p className={styles.errorText}>{configError}</p> : null}
 
           {configs === undefined ? (
@@ -477,15 +600,24 @@ export function LearningMonitorClient(): React.ReactElement {
                   <th>Agent</th>
                   <th>Config Key</th>
                   <th>Value</th>
-                  <th>Updated</th>
+                  <th>Diubah oleh</th>
+                  <th>Kapan</th>
                   <th>Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {configs.map((config) => {
                   const key = `${config.agent}:${config.configKey}`;
+                  // Real, exact sentinel `ConfigApplierService`/`LogicApplierService` write for an
+                  // AI-driven change — never a human identifier (see file-header doc). Anything
+                  // else non-null is a real human email/actor.
+                  const isAiChange = config.updatedBy === "AI_AUTO_APPLY";
                   return (
-                    <tr key={config.id}>
+                    <tr
+                      key={config.id}
+                      className={isAiChange ? styles.aiChangedRow : undefined}
+                      data-testid={`config-row-${key}`}
+                    >
                       <td>{config.agent}</td>
                       <td>{config.configKey}</td>
                       <td>
@@ -497,6 +629,15 @@ export function LearningMonitorClient(): React.ReactElement {
                             setConfigDraft((prev) => ({ ...prev, [key]: e.target.value }))
                           }
                         />
+                      </td>
+                      <td>
+                        {isAiChange ? (
+                          <span className={styles.aiBadge}>↑ AI</span>
+                        ) : config.updatedBy !== null ? (
+                          <span className={styles.manualBadge}>✏ Manual ({config.updatedBy})</span>
+                        ) : (
+                          <span className={styles.emptyState}>-</span>
+                        )}
                       </td>
                       <td>{formatDate(config.updatedAt)}</td>
                       <td>
@@ -879,7 +1020,90 @@ export function LearningMonitorClient(): React.ReactElement {
             </table>
           )}
         </div>
+
+        <div className={styles.section} data-testid="ai-judge-results-section">
+          <span className={styles.sectionTitle}>AI Judge Results</span>
+          {(() => {
+            // Real per-dimension breakdown only exists on LIVE_RUN-triggered proposals
+            // (`gaps.scores`, Phase J3) — an honest subset of judged runs, not a fabricated
+            // complete history (see file-header doc).
+            const liveRunProposals = proposals.filter(
+              (p) => p.agentRunId !== null && p.gaps.scores !== undefined,
+            );
+            if (liveRunProposals.length === 0) {
+              return (
+                <p className={styles.emptyState}>
+                  Belum ada real per-dimension judge scores (LIVE RUN) untuk tenant ini.
+                </p>
+              );
+            }
+            return (
+              <div className={styles.list}>
+                {liveRunProposals.map((proposal) => (
+                  <details key={proposal.id} className={styles.judgeAccordionItem}>
+                    <summary className={styles.judgeAccordionSummary}>
+                      <span>{formatDate(proposal.createdAt)}</span>
+                      <span className={styles.agentBadge}>{proposal.agent}</span>
+                      {proposal.gaps.overallScore !== undefined ? (
+                        <span>Overall: {proposal.gaps.overallScore}</span>
+                      ) : null}
+                    </summary>
+                    <div className={styles.judgeAccordionBody}>
+                      {Object.entries(proposal.gaps.scores ?? {}).map(([dimension, score]) => (
+                        <div key={dimension} className={styles.judgeDimensionRow}>
+                          <span className={styles.judgeDimensionLabel}>{dimension}</span>
+                          <div className={styles.judgeDimensionBarTrack}>
+                            <div
+                              className={styles.judgeDimensionBarFill}
+                              style={{
+                                width: `${String(Math.max(0, Math.min(100, score)))}%`,
+                                background: `var(--v2-${proposal.agent.toLowerCase()})`,
+                              }}
+                            />
+                          </div>
+                          <span className={styles.judgeDimensionScore}>{score}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
       </div>
+
+      {showTriggerConfirm ? (
+        <div className={styles.modalOverlay} role="dialog" aria-label="Konfirmasi trigger improve">
+          <div className={styles.modalCard}>
+            <p className={styles.modalText}>
+              Jalankan pemeriksaan improve manual sekarang untuk agent{" "}
+              <strong>{historyAgent}</strong>? Ini akan memeriksa judge score real terbaru dan
+              membuat proposal baru jika ada gap.
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.rollbackButton}
+                onClick={() => setShowTriggerConfirm(false)}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className={styles.approveButton}
+                disabled={triggerBusy}
+                onClick={() => {
+                  setShowTriggerConfirm(false);
+                  void handleTrigger();
+                }}
+              >
+                {triggerBusy ? "Memeriksa…" : "Lanjutkan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

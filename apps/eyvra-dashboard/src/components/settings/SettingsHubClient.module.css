@@ -1,0 +1,85 @@
+.tabBody {
+  padding: 8px 0 24px;
+}
+
+.unavailableCard {
+  margin: 24px 32px;
+  max-width: 700px;
+  border-radius: 14px;
+  border: var(--border);
+  background: var(--gray-50);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.unavailableTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.unavailableText {
+  font-size: 13px;
+  color: var(--gray-600);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.linkButton {
+  align-self: flex-start;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--v2-menu-settings);
+  color: white;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.agentGrid {
+  margin: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 900px;
+}
+
+.agentCard {
+  border-radius: 14px;
+  border: var(--border);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agentName {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.agentRole {
+  font-size: 13px;
+  color: var(--gray-700);
+}
+
+.agentToggleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--gray-600);
+  margin-top: 6px;
+  cursor: help;
+}
+
+.agentHonestNote {
+  font-size: 12px;
+  color: var(--gray-500);
+  line-height: 1.5;
+}

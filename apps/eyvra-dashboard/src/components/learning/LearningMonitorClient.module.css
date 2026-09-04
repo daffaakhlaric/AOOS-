@@ -327,3 +327,169 @@
 .chart {
   height: 220px;
 }
+
+/* EYVRA MENU RESTRUCTURE Sprint 3 — header trigger button row, same `headerExtra` convention
+   `CampaignsHubClient.module.css` already established for hub-page header actions. */
+.headerExtra {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 24px 0;
+}
+
+.triggerHeaderButton {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  color: white;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--v2-kai) 0%, var(--v2-menu-improve) 100%);
+}
+
+.scoreCardGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.scoreCard {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scoreCardAgent {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.scoreCardValue {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.scoreCardDelta {
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.scoreCardStatus {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+/* Real `agent_configs.updated_by === "AI_AUTO_APPLY"` row highlight (spec: "row diubah AI = bg
+   #EFF6FF + badge ↑ AI"). */
+.aiChangedRow {
+  background: #eff6ff;
+}
+
+.aiBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.manualBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fde68a;
+  color: #92400e;
+}
+
+.judgeAccordionItem {
+  border-radius: var(--radius);
+  border: var(--border);
+  background: var(--white);
+  padding: 10px 12px;
+}
+
+.judgeAccordionSummary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.judgeAccordionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.judgeDimensionRow {
+  display: grid;
+  grid-template-columns: 140px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.judgeDimensionLabel {
+  color: var(--gray-700);
+}
+
+.judgeDimensionBarTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  overflow: hidden;
+}
+
+.judgeDimensionBarFill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.judgeDimensionScore {
+  text-align: right;
+  color: var(--gray-700);
+  font-weight: 600;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modalCard {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  max-width: 420px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modalText {
+  font-size: 13px;
+  color: var(--gray-800);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

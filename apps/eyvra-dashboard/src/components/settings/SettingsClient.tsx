@@ -39,8 +39,17 @@ function useSignOut(): { readonly email: string | undefined; readonly onSignOut:
  * Account card. Account's [🚪 Logout] wires `TopBar`'s pre-existing (previously never actually
  * used anywhere in this app) `onSignOut` prop to a real `supabase.auth.signOut()` call — this is
  * the first page in this codebase to wire that affordance up, not a rebuild of a second mechanism.
+ *
+ * EYVRA MENU RESTRUCTURE Sprint 3 (PROMPT 8) — `/settings` is now `SettingsHubClient`'s real
+ * "Koneksi" tab (plus Mode Operasi/Mode Operasi AI/Tenant Info/Account, which this codebase never
+ * split into separate real components — see `SettingsHubClient.tsx`'s own doc for that honest
+ * scoping decision). `embedded` drops this component's own `<main><TopBar/></main>` wrapper so it
+ * renders as plain tab content inside the hub's own `TopBar`/`HubTabs` chrome — every other prop,
+ * every real fetch/handler below, is byte-for-byte unchanged.
  */
-export function SettingsClient(): React.ReactElement {
+export function SettingsClient({
+  embedded = false,
+}: { readonly embedded?: boolean } = {}): React.ReactElement {
   const { email, onSignOut } = useSignOut();
   const [settings, setSettings] = useState<SettingsDto | undefined>(undefined);
   const [wabaConfigs, setWabaConfigs] = useState<readonly WabaConfigDto[] | undefined>(undefined);
@@ -332,14 +341,18 @@ export function SettingsClient(): React.ReactElement {
     return <LoadingSpinner />;
   }
 
+  const Wrapper = embedded ? "div" : "main";
+
   return (
-    <main>
-      <TopBar
-        title="Settings"
-        userEmail={email}
-        onSignOut={onSignOut}
-        accentColor="var(--v2-menu-settings)"
-      />
+    <Wrapper>
+      {!embedded ? (
+        <TopBar
+          title="Settings"
+          userEmail={email}
+          onSignOut={onSignOut}
+          accentColor="var(--v2-menu-settings)"
+        />
+      ) : null}
       <div className={styles.page}>
         <section className={styles.card}>
           <span className={styles.cardTitle}>Meta Ads Configuration</span>
@@ -749,6 +762,6 @@ export function SettingsClient(): React.ReactElement {
           }}
         />
       ) : null}
-    </main>
+    </Wrapper>
   );
 }

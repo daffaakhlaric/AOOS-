@@ -30,10 +30,17 @@ vi.mock("@/components/creative/CreativeHubClient", () => ({
     <div data-testid="creative-hub-client">{initialTab ?? "undefined"}</div>
   ),
 }));
+// EYVRA MENU RESTRUCTURE Sprint 3 — same real server-reads-once convention for the new Settings hub.
+vi.mock("@/components/settings/SettingsHubClient", () => ({
+  SettingsHubClient: ({ initialTab }: { readonly initialTab?: string }) => (
+    <div data-testid="settings-hub-client">{initialTab ?? "undefined"}</div>
+  ),
+}));
 
 import CampaignsPage from "@/app/(app)/campaigns/page";
 import CreativePage from "@/app/(app)/creative/page";
 import LeadsPage from "@/app/(app)/leads/page";
+import SettingsPage from "@/app/(app)/settings/page";
 
 describe("Sprint 2 real hub pages — searchParams threading", () => {
   it("/campaigns passes searchParams.tab through to CampaignsHubClient", () => {
@@ -64,5 +71,15 @@ describe("Sprint 2 real hub pages — searchParams threading", () => {
   it("/creative with ?listingId= AND an explicit tab respects the explicit tab", () => {
     render(<CreativePage searchParams={{ listingId: "listing-7", tab: "assets" }} />);
     expect(screen.getByTestId("creative-hub-client")).toHaveTextContent("assets");
+  });
+
+  it("/settings passes searchParams.tab through to SettingsHubClient", () => {
+    render(<SettingsPage searchParams={{ tab: "koneksi" }} />);
+    expect(screen.getByTestId("settings-hub-client")).toHaveTextContent("koneksi");
+  });
+
+  it("/settings with no tab passes undefined (defaults inside the client)", () => {
+    render(<SettingsPage searchParams={{}} />);
+    expect(screen.getByTestId("settings-hub-client")).toHaveTextContent("undefined");
   });
 });

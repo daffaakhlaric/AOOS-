@@ -1,0 +1,250 @@
+.headerExtra {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 24px 0;
+}
+
+.modeBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.liveDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gray-300);
+}
+
+.liveDotConnected {
+  background: var(--v2-live);
+}
+
+.liveDotPulse {
+  animation: pulse 1.5s ease-out;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+}
+
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 24px;
+  border-bottom: var(--border);
+}
+
+.filterGroup {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filterChip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: var(--border);
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.filterChipActive {
+  border-color: transparent;
+  background: var(--gray-900);
+  color: white;
+}
+
+.dateInput,
+.searchInput {
+  font-size: 13px;
+  padding: 6px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+}
+
+.searchInput {
+  min-width: 180px;
+}
+
+.body {
+  display: flex;
+  gap: 16px;
+  padding: 16px 24px;
+  align-items: flex-start;
+}
+
+.feed {
+  flex: 0 0 60%;
+  max-width: 60%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail {
+  flex: 1;
+  position: sticky;
+  top: 16px;
+}
+
+.detailEmpty {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 24px;
+  font-size: 13px;
+  color: var(--gray-500);
+  text-align: center;
+}
+
+.loopGroup {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  overflow: hidden;
+}
+
+.loopHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--gray-50);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.loopTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-900);
+  flex: 1;
+}
+
+.loopCount {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.loopToggle {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.loopRows {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 70px 90px 1fr 90px 60px 20px;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  border-top: var(--border);
+  border-left: 3px solid transparent;
+  background: var(--white);
+  padding: 10px 14px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+}
+
+.row:hover {
+  background: var(--gray-50);
+}
+
+.rowTime {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.agentBadge {
+  display: inline-flex;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: white;
+}
+
+.rowLabel {
+  font-size: 13px;
+  color: var(--gray-800);
+}
+
+.statusBadge {
+  display: inline-flex;
+  justify-self: start;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.badgeSuccess {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badgeSimulated {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.badgeError {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badgeRunning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badgeNeedsHuman {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.rowDuration {
+  font-size: 12px;
+  color: var(--gray-500);
+  text-align: right;
+}
+
+.rowArrow {
+  font-size: 13px;
+  color: var(--gray-400);
+  text-align: right;
+}
+
+.emptyState {
+  font-size: 13px;
+  color: var(--gray-500);
+  padding: 24px;
+  text-align: center;
+}
