@@ -38,12 +38,16 @@
   gap: 8px;
 }
 
-/* v2 card treatment — 14px radius + subtle shadow, local override only (Phase B3's `Card.module.css`
-   precedent), not a change to any shared/global card token. */
+/* Real AAOS Colorful Brand Guideline v2 card recipe, extracted verbatim from the Overview page's
+   own canonical cards (`KpiStrip.module.css` `.cell`, `OverviewMonitorClient`'s `Card.module.css`):
+   14px radius + `var(--v2-border, #e2e8f0)` border + `var(--v2-card-bg, var(--white))` background +
+   `0 1px 3px rgba(0,0,0,0.06)` shadow. Same recipe now reused on every top-level card on this page
+   (`.card`, `.scoreCard`, `.chartCard`) instead of the plain `--border`/`--white` tokens this page
+   used before this pass. */
 .card {
   border-radius: 14px;
-  border: var(--border);
-  background: var(--white);
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 14px 16px;
   display: flex;
@@ -316,11 +320,14 @@
   color: #991b1b;
 }
 
-/* AAOS Self-Improving, Phase SI-6 — real Score Trend chart card, same `chartCard`/`chart` shape `ClaraAnalyticsClient.module.css`'s own real Tremor chart precedent already establishes. */
+/* AAOS Self-Improving, Phase SI-6 — real Score Trend chart card. Restyled to the same real Overview
+   v2 card recipe as `.card`/`.scoreCard` above (was `--radius-lg`/`--border`/`--white`, the older
+   pre-v2 panel recipe — see this file's header note on the canonical Overview card shape). */
 .chartCard {
-  border-radius: var(--radius-lg);
-  border: var(--border);
-  background: var(--white);
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 16px;
 }
 
@@ -354,8 +361,9 @@
 }
 
 .scoreCard {
-  border-radius: var(--radius-lg);
-  border: var(--border);
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -410,8 +418,8 @@
 
 .judgeAccordionItem {
   border-radius: var(--radius);
-  border: var(--border);
-  background: var(--white);
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
   padding: 10px 12px;
 }
 
