@@ -104,10 +104,16 @@
   top: 16px;
 }
 
+/* AAOS UI standardization, Phase A — migrated onto the real v2 card recipe (14px radius +
+   `var(--v2-border, #e2e8f0)` + `var(--v2-card-bg, var(--white))` + the 0.06 shadow), same
+   token substitution the prior pass (0b6bbfb) applied to self-improve/Settings' top-level cards.
+   Was the older pre-v2 `--radius-lg`(8px)/`--border`/`--white` recipe, internally consistent with
+   AUTOMOTIVE Overview but no longer with the rest of the app's newer v2 pages. */
 .detailEmpty {
-  border-radius: var(--radius-lg);
-  border: var(--border);
-  background: var(--white);
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 24px;
   font-size: 13px;
   color: var(--gray-500);
@@ -115,9 +121,10 @@
 }
 
 .loopGroup {
-  border-radius: var(--radius-lg);
-  border: var(--border);
-  background: var(--white);
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   overflow: hidden;
 }
 

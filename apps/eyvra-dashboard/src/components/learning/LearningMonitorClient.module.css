@@ -336,22 +336,45 @@
 }
 
 /* EYVRA MENU RESTRUCTURE Sprint 3 — header trigger button row, same `headerExtra` convention
-   `CampaignsHubClient.module.css` already established for hub-page header actions. */
+   `CampaignsHubClient.module.css` already established for hub-page header actions. Restyled to
+   match that same real bar chrome (`var(--v2-card-flat)` background + `var(--v2-border)` bottom
+   border) instead of this page's own plain `padding: 8px 24px 0` bar — see this file's header
+   note on the canonical v2 recipe. */
 .headerExtra {
   display: flex;
   justify-content: flex-end;
-  padding: 8px 24px 0;
+  padding: 12px 24px;
+  background: var(--v2-card-flat);
+  border-bottom: 1px solid var(--v2-border);
 }
 
+/* AAOS UI standardization, Phase A (cross-hub header buttons) — real canonical header-action-button
+   recipe extracted from `CampaignsHubClient`'s `.runLoopButton` / `LeadsHubClient`'s `.inboxButton` /
+   `CreativeHubClient`'s `.briefButton`, which already agree byte-for-byte on shape: 8px radius,
+   `padding: 8px 14px`, `font-size: 13px` / `font-weight: 600`, no border, white text, `inline-flex`
+   layout. That 8px-radius rectangle is the real, more-established convention here (3 of the 4 real
+   header action buttons already used it verbatim; this page's own 999px pill was the one outlier,
+   and `--radius-lg` in `globals.css` is already 8px, i.e. this shape is also the app's existing
+   general "medium" radius token, not an invented one). This button's own gradient background (a
+   real Kai×Improve brand identity, same category as Campaigns'/Leads'/Creative's own distinct
+   per-agent solid background colors) is intentionally kept — only the shape/padding/weight/hover
+   convention is unified, not the semantic color. */
 .triggerHeaderButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
-  font-weight: 700;
-  padding: 8px 16px;
-  border-radius: 999px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
   border: none;
   color: white;
   cursor: pointer;
   background: linear-gradient(135deg, var(--v2-kai) 0%, var(--v2-menu-improve) 100%);
+}
+
+.triggerHeaderButton:hover {
+  opacity: 0.9;
 }
 
 .scoreCardGrid {

@@ -24,6 +24,10 @@
   letter-spacing: 0.4px;
 }
 
+/* AAOS UI standardization, Phase A — this is the real canonical header-action-button recipe (8px
+   radius, `padding: 8px 14px`, 13px/600, no border, white text) that `LeadsHubClient`'s
+   `.inboxButton`, `CreativeHubClient`'s `.briefButton`, and (after this pass) self-improve's
+   `.triggerHeaderButton` were unified onto — already correct here, left byte-for-byte unchanged. */
 .runLoopButton {
   display: inline-flex;
   align-items: center;
