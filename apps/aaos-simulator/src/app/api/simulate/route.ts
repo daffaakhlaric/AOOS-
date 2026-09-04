@@ -63,7 +63,17 @@ export async function POST(
     );
   }
 
-  const requestBody = body as { vertical?: unknown; listingId?: unknown };
+  const requestBody = body as { tenantId?: unknown; vertical?: unknown; listingId?: unknown };
+
+  const rawTenantId = requestBody.tenantId;
+  if (rawTenantId !== undefined && (typeof rawTenantId !== "string" || rawTenantId.length === 0)) {
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: '"tenantId" must be a non-empty string.' } },
+      { status: 400 },
+    );
+  }
+  const requestTenantId = rawTenantId as string | undefined;
+
   const rawVertical = requestBody.vertical;
   if (
     rawVertical !== undefined &&
@@ -97,11 +107,16 @@ export async function POST(
 
   // AAOS Self-Learning AI, Phase C wiring — real-fetch the tenant's currently-active Clara
   // system-prompt override before composing (best-effort, never throws — see
-  // `fetchActiveClaraPromptOverride`'s own doc). Tenant resolution mirrors
-  // `learning-bridge.ts`'s own convention exactly: `AAOS_SIMULATOR_TENANT_ID` when set, else this
-  // request's own `DEFAULT_SIMULATOR_CONFIG.tenantId` — this app has no other tenant concept.
+  // `fetchActiveClaraPromptOverride`'s own doc).
+  //
+  // Tenant resolution (this task — real tenant selector): the REQUEST's own `tenantId` (from the
+  // UI's real `TenantSelector`, sourced from `apps/aaos-api`'s real tenant list) now takes
+  // priority. `AAOS_SIMULATOR_TENANT_ID` is kept ONLY as the fallback for a caller that sends no
+  // `tenantId` at all (an unselected/legacy caller — e.g. a direct API caller, or a test), per the
+  // task's explicit "may remain as an honest DEFAULT/fallback value" instruction — it must never
+  // again be the ONLY real value ever used.
   const promptOverrideTenantId =
-    process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
+    requestTenantId ?? process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
   const promptOverrideFetch =
     vertical === "AUTOMOTIVE"
       ? await fetchActiveClaraPromptOverride(promptOverrideTenantId)
@@ -118,6 +133,11 @@ export async function POST(
 
   const simulationConfig = {
     ...DEFAULT_SIMULATOR_CONFIG,
+    // Real tenant threading (this task): `SimulatorConfig.tenantId` drives
+    // `@aos/sales-agent`/`@aos/branch-manager`'s real use cases (see that package's own doc) — it
+    // must reflect the REQUEST's resolved tenant, same as `promptOverrideTenantId` above, not stay
+    // hardcoded at `DEFAULT_SIMULATOR_CONFIG.tenantId` ("tenant-dss-motor") for every run.
+    tenantId: promptOverrideTenantId,
     vertical,
     ...(listingId !== undefined ? { listingId } : {}),
     ...(listing !== undefined ? { listings: [listing] } : {}),

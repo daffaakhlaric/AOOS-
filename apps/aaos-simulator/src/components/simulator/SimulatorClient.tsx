@@ -12,6 +12,7 @@ import { FeedbackPanel } from "./FeedbackPanel";
 import { PersonaSelector } from "./PersonaSelector";
 import { RunButton } from "./RunButton";
 import { ScorePanel } from "./ScorePanel";
+import { TenantVerticalSelector, type TenantVerticalSelection } from "./TenantVerticalSelector";
 
 export interface SimulatorClientProps {
   /**
@@ -20,6 +21,8 @@ export interface SimulatorClientProps {
    * page.tsx`) — never a hardcoded client-side literal array.
    */
   readonly personas: ReadonlyArray<PersonaSummary>;
+  /** `AAOS_SIMULATOR_TENANT_ID` server env, forwarded down as `TenantVerticalSelector`'s initial-pick hint only — see that component's own doc. */
+  readonly defaultTenantId?: string;
 }
 
 /**
@@ -30,15 +33,19 @@ export interface SimulatorClientProps {
  * (design resolution #5: client components only ever call the Route Handlers via `fetch`, never
  * import `@aos/conversation-simulator`/`@aos/ai-judge` directly).
  */
-export function SimulatorClient({ personas }: SimulatorClientProps): React.ReactElement {
+export function SimulatorClient({
+  personas,
+  defaultTenantId,
+}: SimulatorClientProps): React.ReactElement {
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | undefined>(personas[0]?.id);
+  const [selection, setSelection] = useState<TenantVerticalSelection | undefined>(undefined);
   const [result, setResult] = useState<SimulateResponse | undefined>(undefined);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [approved, setApproved] = useState(false);
 
   async function handleRun(): Promise<void> {
-    if (!selectedPersonaId) {
+    if (!selectedPersonaId || !selection) {
       return;
     }
     setIsRunning(true);
@@ -48,7 +55,12 @@ export function SimulatorClient({ personas }: SimulatorClientProps): React.React
       const response = await fetch("/api/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personaId: selectedPersonaId }),
+        body: JSON.stringify({
+          personaId: selectedPersonaId,
+          tenantId: selection.tenantId,
+          vertical: selection.vertical,
+          ...(selection.listingId !== undefined ? { listingId: selection.listingId } : {}),
+        }),
       });
       const body = (await response.json()) as SimulateResponse | ApiErrorResponse;
       if (!response.ok || "error" in body) {
@@ -72,6 +84,16 @@ export function SimulatorClient({ personas }: SimulatorClientProps): React.React
 
   return (
     <div className="flex flex-col gap-6">
+      <TenantVerticalSelector
+        defaultTenantId={defaultTenantId}
+        onSelectionChange={(next) => {
+          setSelection(next);
+          setResult(undefined);
+          setApproved(false);
+          setError(undefined);
+        }}
+      />
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)_minmax(0,280px)]">
         <PersonaSelector
           personas={personas}
@@ -90,7 +112,11 @@ export function SimulatorClient({ personas }: SimulatorClientProps): React.React
           </h2>
           {error && <ErrorCard message={error} />}
           <ConversationView simulationResult={result?.simulationResult} />
-          <RunButton onClick={handleRun} disabled={!selectedPersonaId} isRunning={isRunning} />
+          <RunButton
+            onClick={handleRun}
+            disabled={!selectedPersonaId || !selection}
+            isRunning={isRunning}
+          />
         </div>
 
         <div className="flex flex-col gap-4 rounded-card border border-hairline bg-surface-card p-4 shadow-card">

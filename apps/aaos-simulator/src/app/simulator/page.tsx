@@ -45,7 +45,10 @@ export default function SimulatorPage(): React.ReactElement {
         </p>
       )}
 
-      <SimulatorClient personas={personas} />
+      <SimulatorClient
+        personas={personas}
+        defaultTenantId={process.env["AAOS_SIMULATOR_TENANT_ID"]}
+      />
     </main>
   );
 }

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import SimulatorPage from "@/app/simulator/page";
 
@@ -8,14 +8,33 @@ import SimulatorPage from "@/app/simulator/page";
  * needed) — exercises the real `getSimulator()` -> `listPersonas.execute()` path from
  * `src/lib/simulator.ts`, never a mock, so this is the same "all 10 persona names render" check
  * the manual dev-server verification also performs, just under Vitest/jsdom instead of curl.
+ *
+ * `SimulatorClient`'s new `TenantVerticalSelector` (this task) fires a real
+ * `fetch("/api/tenants")` on mount — stubbed here to a never-network-touching mock, same reasoning
+ * as `report-page.test.tsx`'s own `/api/simulate-all` stub.
  */
 describe("SimulatorPage", () => {
-  it("renders the page heading", () => {
-    render(<SimulatorPage />);
-    expect(screen.getByText("🎮 Clara Simulator")).toBeInTheDocument();
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: false, reason: "not configured in this test" }),
+      }),
+    );
   });
 
-  it("renders all 10 real persona names from the real PersonaRegistry", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("renders the page heading", async () => {
+    render(<SimulatorPage />);
+    expect(screen.getByText("🎮 Clara Simulator")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("tenant-selector-error")).toBeInTheDocument());
+  });
+
+  it("renders all 10 real persona names from the real PersonaRegistry", async () => {
     render(<SimulatorPage />);
     for (const name of [
       "Cold Buyer",
@@ -31,10 +50,12 @@ describe("SimulatorPage", () => {
     ]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
+    await waitFor(() => expect(screen.getByTestId("tenant-selector-error")).toBeInTheDocument());
   });
 
-  it('links "Run All Scenarios →" to /report', () => {
+  it('links "Run All Scenarios →" to /report', async () => {
     render(<SimulatorPage />);
     expect(screen.getByText("Run All Scenarios →").closest("a")).toHaveAttribute("href", "/report");
+    await waitFor(() => expect(screen.getByTestId("tenant-selector-error")).toBeInTheDocument());
   });
 });

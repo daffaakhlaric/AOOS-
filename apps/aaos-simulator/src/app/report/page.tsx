@@ -22,7 +22,7 @@ export default function ReportPage(): React.ReactElement {
         <p className="text-sm text-ink-muted">10 persona, run sekaligus</p>
       </header>
 
-      <ReportClient personas={personas} />
+      <ReportClient personas={personas} defaultTenantId={process.env["AAOS_SIMULATOR_TENANT_ID"]} />
     </main>
   );
 }

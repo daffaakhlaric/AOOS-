@@ -1,18 +1,91 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
-import { fetchActiveClaraPromptOverride } from "@/lib/aaos-api-client";
+import {
+  fetchActiveClaraPromptOverride,
+  fetchListingById,
+  type ClaraPromptOverrideFetchResult,
+} from "@/lib/aaos-api-client";
 import { getJudge, toAllScenariosReportDto, toJudgementResultDto } from "@/lib/judge";
 import { reportSimulationBatchToLearningSystem } from "@/lib/learning-bridge";
 import { DEFAULT_SIMULATOR_CONFIG, getSimulator, toSimulationResultDto } from "@/lib/simulator";
 import type { ApiErrorResponse, SimulateAllResponse } from "@/types/simulator.types";
+import { SIMULATOR_VERTICALS, type SimulatorVertical } from "@aos/conversation-simulator";
+
+const VALID_VERTICALS: ReadonlySet<string> = new Set(SIMULATOR_VERTICALS);
 
 /**
  * `POST /api/simulate-all` (spec "API Routes"): runs all 10 personas, then judges every one,
  * returning both the per-persona pairs and the aggregate `AllScenariosReport`. See
  * `src/app/api/simulate/route.ts` for the folder-structure fix and the client/server boundary
  * this route also follows.
+ *
+ * This task: previously took NO request body at all (every run silently used
+ * `DEFAULT_SIMULATOR_CONFIG`/`AAOS_SIMULATOR_TENANT_ID`). Now accepts an OPTIONAL JSON body —
+ * `{ tenantId?, vertical?, listingId? }` — mirroring `POST /api/simulate`'s shape exactly, so the
+ * batch "Jalankan Semua Skenario" flow can thread the SAME real, user-selected tenant/vertical/
+ * listing through as the single-persona flow. A missing/empty body is still valid (defaults
+ * unchanged, matching every pre-existing caller).
  */
-export async function POST(): Promise<NextResponse<SimulateAllResponse | ApiErrorResponse>> {
+export async function POST(
+  request: NextRequest,
+): Promise<NextResponse<SimulateAllResponse | ApiErrorResponse>> {
+  let body: unknown = {};
+  try {
+    const text = await request.text();
+    body = text.length > 0 ? JSON.parse(text) : {};
+  } catch {
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: "Request body must be valid JSON." } },
+      { status: 400 },
+    );
+  }
+
+  const requestBody = (body ?? {}) as {
+    tenantId?: unknown;
+    vertical?: unknown;
+    listingId?: unknown;
+  };
+
+  const rawTenantId = requestBody.tenantId;
+  if (rawTenantId !== undefined && (typeof rawTenantId !== "string" || rawTenantId.length === 0)) {
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: '"tenantId" must be a non-empty string.' } },
+      { status: 400 },
+    );
+  }
+  const requestTenantId = rawTenantId as string | undefined;
+
+  const rawVertical = requestBody.vertical;
+  if (
+    rawVertical !== undefined &&
+    (typeof rawVertical !== "string" || !VALID_VERTICALS.has(rawVertical))
+  ) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `"vertical" must be one of: ${[...VALID_VERTICALS].join(", ")}.`,
+        },
+      },
+      { status: 400 },
+    );
+  }
+  const vertical = (rawVertical as SimulatorVertical | undefined) ?? "AUTOMOTIVE";
+
+  const rawListingId = requestBody.listingId;
+  if (rawListingId !== undefined && typeof rawListingId !== "string") {
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: '"listingId" must be a string.' } },
+      { status: 400 },
+    );
+  }
+  const listingId = rawListingId as string | undefined;
+
+  const listing =
+    vertical === "PROPERTY" && listingId !== undefined && listingId.length > 0
+      ? await fetchListingById(listingId)
+      : undefined;
+
   const simulatorResult = getSimulator();
   /* v8 ignore start -- unreachable in practice: see `src/app/api/simulate/route.ts`'s identical
      `getSimulator()` guard for why `SimulatorFactory.create()` cannot realistically fail here. */
@@ -24,11 +97,19 @@ export async function POST(): Promise<NextResponse<SimulateAllResponse | ApiErro
   }
   /* v8 ignore stop */
 
-  // AAOS Self-Learning AI, Phase C wiring — same real-fetch, same tenant resolution, same
-  // never-throwing discipline as `src/app/api/simulate/route.ts`'s identical wiring.
+  // AAOS Self-Learning AI, Phase C wiring — same real-fetch, same never-throwing discipline as
+  // `src/app/api/simulate/route.ts`'s identical wiring.
+  //
+  // Tenant resolution (this task — real tenant selector): the REQUEST's own `tenantId` now takes
+  // priority; `AAOS_SIMULATOR_TENANT_ID` is kept ONLY as the fallback for a caller that sends none
+  // — see that route's identical comment for the full reasoning. AUTOMOTIVE-only (no LLM prompt
+  // path for PROPERTY), same rule `POST /api/simulate` already applies.
   const promptOverrideTenantId =
-    process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
-  const promptOverrideFetch = await fetchActiveClaraPromptOverride(promptOverrideTenantId);
+    requestTenantId ?? process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
+  const promptOverrideFetch: ClaraPromptOverrideFetchResult =
+    vertical === "AUTOMOTIVE"
+      ? await fetchActiveClaraPromptOverride(promptOverrideTenantId)
+      : { found: false, reason: "PROPERTY vertical has no LLM prompt path." };
 
   // AAOS Self-Learning AI, Phase C wiring (2nd half) — see `src/app/api/simulate/route.ts`'s
   // identical wiring for the full reasoning.
@@ -37,6 +118,12 @@ export async function POST(): Promise<NextResponse<SimulateAllResponse | ApiErro
 
   const batchConfig = {
     ...DEFAULT_SIMULATOR_CONFIG,
+    // Real tenant/vertical/listing threading (this task) — see `POST /api/simulate`'s identical
+    // `simulationConfig` for the full reasoning.
+    tenantId: promptOverrideTenantId,
+    vertical,
+    ...(listingId !== undefined ? { listingId } : {}),
+    ...(listing !== undefined ? { listings: [listing] } : {}),
     ...(promptOverrideFetch.found ? { claraPromptOverride: promptOverrideFetch.content } : {}),
     ...(llmReplyEnabled ? { llmReplyEnabled } : {}),
     ...(openaiApiKey !== undefined && openaiApiKey.length > 0 ? { openaiApiKey } : {}),
@@ -102,7 +189,10 @@ export async function POST(): Promise<NextResponse<SimulateAllResponse | ApiErro
   // Self-Improving pipeline. Never throws (see `learning-bridge.ts`'s own doc for the full
   // contract), so this can never turn the real, already-succeeded simulation above into a failed
   // response — the caller always gets its real report either way.
-  const learningBridge = await reportSimulationBatchToLearningSystem(reportDto);
+  const learningBridge = await reportSimulationBatchToLearningSystem(
+    reportDto,
+    promptOverrideTenantId,
+  );
 
   return NextResponse.json(
     {

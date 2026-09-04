@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchActiveClaraPromptOverride, fetchListingById } from "@/lib/aaos-api-client";
+import {
+  fetchActiveClaraPromptOverride,
+  fetchActiveListings,
+  fetchListingById,
+  fetchTenants,
+} from "@/lib/aaos-api-client";
 
 describe("fetchListingById", () => {
   const originalBaseUrl = process.env["AAOS_API_BASE_URL"];
@@ -233,5 +238,226 @@ describe("fetchActiveClaraPromptOverride (AAOS Self-Learning AI, Phase C wiring)
 
     const result = await fetchActiveClaraPromptOverride("tenant-dss-motor");
     expect(result.found).toBe(false);
+  });
+});
+
+describe("fetchTenants (this task — real tenant selector)", () => {
+  const originalBaseUrl = process.env["AAOS_API_BASE_URL"];
+  const originalApiKey = process.env["AAOS_API_KEY"];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalBaseUrl === undefined) {
+      delete process.env["AAOS_API_BASE_URL"];
+    } else {
+      process.env["AAOS_API_BASE_URL"] = originalBaseUrl;
+    }
+    if (originalApiKey === undefined) {
+      delete process.env["AAOS_API_KEY"];
+    } else {
+      process.env["AAOS_API_KEY"] = originalApiKey;
+    }
+  });
+
+  it("ok: false when AAOS_API_BASE_URL/AAOS_API_KEY are not configured", async () => {
+    delete process.env["AAOS_API_BASE_URL"];
+    delete process.env["AAOS_API_KEY"];
+    const result = await fetchTenants();
+    expect(result.ok).toBe(false);
+  });
+
+  it("fetches the real tenant list from GET /api/v1/superadmin/tenants, sending x-api-key", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            kpi: { totalTenants: 2, activeTenants: 2, trialTenants: 0, suspendedTenants: 0 },
+            tenants: [
+              { tenantId: "dss-motor", name: "DSS Motor", vertical: "AUTOMOTIVE" },
+              {
+                tenantId: "agen-pintar-indonesia",
+                name: "Agen Pintar Indonesia",
+                vertical: "PROPERTY",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchTenants();
+    expect(result).toEqual({
+      ok: true,
+      tenants: [
+        { tenantId: "dss-motor", name: "DSS Motor", vertical: "AUTOMOTIVE" },
+        { tenantId: "agen-pintar-indonesia", name: "Agen Pintar Indonesia", vertical: "PROPERTY" },
+      ],
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(url.pathname).toBe("/api/v1/superadmin/tenants");
+    expect((init.headers as Record<string, string>)["x-api-key"]).toBe("test-key");
+  });
+
+  it("ok: false on a non-2xx response, never throws", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 500 })),
+    );
+
+    const result = await fetchTenants();
+    expect(result.ok).toBe(false);
+  });
+
+  it("ok: false on a network failure, never throws", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network down");
+      }),
+    );
+
+    const result = await fetchTenants();
+    expect(result.ok).toBe(false);
+  });
+
+  it("ok: false when the response shape doesn't match", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ tenants: [{ id: "no-tenantId" }] }), { status: 200 }),
+      ),
+    );
+
+    const result = await fetchTenants();
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("fetchActiveListings (this task — PROPERTY listing picker)", () => {
+  const originalBaseUrl = process.env["AAOS_API_BASE_URL"];
+  const originalApiKey = process.env["AAOS_API_KEY"];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalBaseUrl === undefined) {
+      delete process.env["AAOS_API_BASE_URL"];
+    } else {
+      process.env["AAOS_API_BASE_URL"] = originalBaseUrl;
+    }
+    if (originalApiKey === undefined) {
+      delete process.env["AAOS_API_KEY"];
+    } else {
+      process.env["AAOS_API_KEY"] = originalApiKey;
+    }
+  });
+
+  it("ok: false when AAOS_API_BASE_URL/AAOS_API_KEY are not configured", async () => {
+    delete process.env["AAOS_API_BASE_URL"];
+    delete process.env["AAOS_API_KEY"];
+    const result = await fetchActiveListings("agen-pintar-indonesia");
+    expect(result.ok).toBe(false);
+  });
+
+  it("ok: false when tenantId is empty", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    const result = await fetchActiveListings("");
+    expect(result.ok).toBe(false);
+  });
+
+  it("fetches GET /api/v1/listings?status=AKTIF with x-api-key and x-tenant-id headers", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            listings: [
+              {
+                id: "listing-1",
+                title: "Rumah Minimalis Cinere",
+                propertyType: "RUMAH",
+                price: 1_500_000_000,
+                city: "Cinere",
+              },
+            ],
+            total: 1,
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchActiveListings("agen-pintar-indonesia");
+    expect(result).toEqual({
+      ok: true,
+      listings: [
+        {
+          id: "listing-1",
+          title: "Rumah Minimalis Cinere",
+          propertyType: "RUMAH",
+          price: 1_500_000_000,
+          city: "Cinere",
+        },
+      ],
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(url.pathname).toBe("/api/v1/listings");
+    expect(url.searchParams.get("status")).toBe("AKTIF");
+    const headers = init.headers as Record<string, string>;
+    expect(headers["x-api-key"]).toBe("test-key");
+    expect(headers["x-tenant-id"]).toBe("agen-pintar-indonesia");
+  });
+
+  it("ok: false on a non-2xx response, never throws", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 500 })),
+    );
+
+    const result = await fetchActiveListings("agen-pintar-indonesia");
+    expect(result.ok).toBe(false);
+  });
+
+  it("ok: false on a network failure, never throws", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network down");
+      }),
+    );
+
+    const result = await fetchActiveListings("agen-pintar-indonesia");
+    expect(result.ok).toBe(false);
+  });
+
+  it("ok: true with an empty array — an honest 'no active listings' outcome, never fabricated", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ listings: [], total: 0 }), { status: 200 })),
+    );
+
+    const result = await fetchActiveListings("agen-pintar-indonesia");
+    expect(result).toEqual({ ok: true, listings: [] });
   });
 });

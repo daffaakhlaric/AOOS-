@@ -14,11 +14,16 @@ import type { AllScenariosReportDto } from "@/types/simulator.types";
  * request (coordinator note's explicit "never let this bridge turn a successful simulation into a
  * failed request").
  *
- * TENANT RESOLUTION (real investigation finding, restated from `.env.example`'s own doc): this app
- * has zero tenant concept of its own. `AAOS_SIMULATOR_TENANT_ID` is optional — when unset, no
- * `x-tenant-id` header is sent at all, and `apps/aaos-api`'s own `DEFAULT_TENANT_ID` ("dss-motor")
- * resolution applies, the same real single-tenant default every pre-existing table in that app
- * already falls back to. No new auth/session/tenant mechanism was invented for this bridge.
+ * TENANT RESOLUTION (updated — real tenant selector, this task): the caller (`POST
+ * /api/simulate-all`) now threads the REQUEST's real, user-selected `tenantId` in as this
+ * function's optional `tenantId` parameter, so results for tenant A can never leak into tenant B's
+ * Learning Monitor. `AAOS_SIMULATOR_TENANT_ID` is kept ONLY as the fallback when the caller passes
+ * no `tenantId` (an unselected/legacy caller) — mirroring `.env.example`'s original single-tenant
+ * finding: this app has no tenant concept of its OWN, `AAOS_SIMULATOR_TENANT_ID` was always a
+ * deployment-level default, never a real per-run value. When neither is set, no `x-tenant-id`
+ * header is sent at all, and `apps/aaos-api`'s own `DEFAULT_TENANT_ID` ("dss-motor") resolution
+ * applies, the same real single-tenant default every pre-existing table in that app already falls
+ * back to. No new auth/session/tenant mechanism was invented for this bridge.
  *
  * SYNCHRONOUS, NOT DETACHED (a deliberate, documented departure from the coordinator note's own
  * "fire-and-forget... mirroring the `closings.service.ts` `.catch()` pattern" wording, chosen after
@@ -87,9 +92,13 @@ function toRequestBody(report: AllScenariosReportDto): Record<string, unknown> {
 /**
  * Sends this run's real `AllScenariosReportDto` to `apps/aaos-api`'s
  * `POST /api/v1/ai-judge/simulation-batch`. Never throws — see class-level doc.
+ *
+ * `tenantId` (optional): the REQUEST's real, user-selected tenant (this task). Falls back to
+ * `AAOS_SIMULATOR_TENANT_ID` when omitted — see class-level doc's "TENANT RESOLUTION" note.
  */
 export async function reportSimulationBatchToLearningSystem(
   report: AllScenariosReportDto,
+  tenantId?: string,
 ): Promise<LearningBridgeResult> {
   const baseUrl = process.env["AAOS_API_BASE_URL"];
   const apiKey = process.env["AAOS_API_KEY"];
@@ -105,13 +114,16 @@ export async function reportSimulationBatchToLearningSystem(
     };
   }
 
-  const tenantId = process.env["AAOS_SIMULATOR_TENANT_ID"];
+  const resolvedTenantId =
+    tenantId !== undefined && tenantId.length > 0
+      ? tenantId
+      : process.env["AAOS_SIMULATOR_TENANT_ID"];
   const headers: Record<string, string> = {
     "x-api-key": apiKey,
     "content-type": "application/json",
   };
-  if (tenantId !== undefined && tenantId.length > 0) {
-    headers["x-tenant-id"] = tenantId;
+  if (resolvedTenantId !== undefined && resolvedTenantId.length > 0) {
+    headers["x-tenant-id"] = resolvedTenantId;
   }
 
   let response: Response;

@@ -142,12 +142,55 @@ export interface AllScenariosReportDto {
  * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8 additions (spec section 12 point 4) — both
  * optional, `vertical` defaults `"AUTOMOTIVE"` when omitted (every existing caller's behavior
  * unchanged).
+ *
+ * `tenantId` (this task) is the real, user-selected tenant from `TenantSelector` — optional so
+ * every pre-existing caller/test that never sends it keeps working exactly as before (the route
+ * falls back to `AAOS_SIMULATOR_TENANT_ID`/`DEFAULT_SIMULATOR_CONFIG.tenantId`, in that order, per
+ * the task's explicit "may remain as an honest DEFAULT/fallback" instruction).
  */
 export interface SimulateRequest {
   readonly personaId: string;
+  readonly tenantId?: string;
   readonly vertical?: "AUTOMOTIVE" | "PROPERTY";
   readonly listingId?: string;
 }
+
+/**
+ * Request body for `POST /api/simulate-all` (this task — previously took NO body at all). Same
+ * `tenantId`/`vertical`/`listingId` shape as `SimulateRequest`, all optional for the identical
+ * fallback-default reason.
+ */
+export interface SimulateAllRequest {
+  readonly tenantId?: string;
+  readonly vertical?: "AUTOMOTIVE" | "PROPERTY";
+  readonly listingId?: string;
+}
+
+/** JSON-safe mirror of `src/lib/aaos-api-client.ts`'s `TenantSummary` — restated here for the same transport-boundary reason every other DTO in this file is. */
+export interface TenantSummaryDto {
+  readonly tenantId: string;
+  readonly name: string;
+  readonly vertical: "AUTOMOTIVE" | "PROPERTY";
+}
+
+/** Response body for `GET /api/tenants` — mirrors `aaos-api-client.ts`'s `FetchTenantsResult` exactly (always HTTP 200; `ok: false` is the honest "real call failed" outcome, not a fabricated list). */
+export type FetchTenantsResponse =
+  | { readonly ok: true; readonly tenants: readonly TenantSummaryDto[] }
+  | { readonly ok: false; readonly reason: string };
+
+/** JSON-safe mirror of `src/lib/aaos-api-client.ts`'s `ListingSummary`. */
+export interface ListingSummaryDto {
+  readonly id: string;
+  readonly title: string;
+  readonly propertyType: string;
+  readonly price: number;
+  readonly city?: string;
+}
+
+/** Response body for `GET /api/listings?tenantId=...` — mirrors `aaos-api-client.ts`'s `FetchActiveListingsResult` exactly. */
+export type FetchActiveListingsResponse =
+  | { readonly ok: true; readonly listings: readonly ListingSummaryDto[] }
+  | { readonly ok: false; readonly reason: string };
 
 /**
  * AAOS Self-Learning AI, Phase C wiring — a real, honest, always-present (never omitted) record of

@@ -19,6 +19,21 @@ function jsonResponse(body: unknown, ok = true): Response {
   } as unknown as Response;
 }
 
+/** Stubs `GET /api/tenants` to resolve with one real AUTOMOTIVE tenant, matching every other real fetch call's `(url, init?)` signature — routes calls by URL so `POST /api/simulate` can be asserted on separately. */
+function stubTenantsThen(fetchSpy: ReturnType<typeof vi.fn>, simulateResponse: Response): void {
+  fetchSpy.mockImplementation((url: string) => {
+    if (url === "/api/tenants") {
+      return Promise.resolve(
+        jsonResponse({
+          ok: true,
+          tenants: [{ tenantId: "dss-motor", name: "DSS Motor", vertical: "AUTOMOTIVE" }],
+        }),
+      );
+    }
+    return Promise.resolve(simulateResponse);
+  });
+}
+
 describe("SimulatorClient", () => {
   const fetchSpy = vi.fn();
 
@@ -31,23 +46,37 @@ describe("SimulatorClient", () => {
     vi.unstubAllGlobals();
   });
 
-  it("selecting a persona then clicking Run calls POST /api/simulate with that personaId", async () => {
+  it("Run is disabled until the real tenant selector resolves a tenant", async () => {
+    stubTenantsThen(fetchSpy, jsonResponse({}));
+    render(<SimulatorClient personas={TEST_PERSONAS} />);
+
+    expect(screen.getByTestId("run-button")).toBeDisabled();
+    await waitFor(() => expect(screen.getByTestId("run-button")).not.toBeDisabled());
+  });
+
+  it("selecting a persona then clicking Run calls POST /api/simulate with personaId, the resolved tenantId, and vertical", async () => {
     const user = userEvent.setup();
     const successBody: SimulateResponse = {
       simulationResult: buildSimulationResult(),
       judgementResult: buildJudgementResult(),
       promptOverride: buildPromptOverrideStatus(),
     };
-    fetchSpy.mockResolvedValue(jsonResponse(successBody));
+    stubTenantsThen(fetchSpy, jsonResponse(successBody));
 
     render(<SimulatorClient personas={TEST_PERSONAS} />);
+    await waitFor(() => expect(screen.getByTestId("run-button")).not.toBeDisabled());
     await user.click(screen.getByText("Cold Buyer"));
     await user.click(screen.getByTestId("run-button"));
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
-    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/simulate");
-    expect(JSON.parse(init.body as string)).toEqual({ personaId: "cold_buyer" });
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+    const simulateCall = fetchSpy.mock.calls.find(([url]) => url === "/api/simulate");
+    expect(simulateCall).toBeDefined();
+    const [, init] = simulateCall as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      personaId: "cold_buyer",
+      tenantId: "dss-motor",
+      vertical: "AUTOMOTIVE",
+    });
   });
 
   it("renders the conversation and score panel once the run succeeds", async () => {
@@ -57,9 +86,10 @@ describe("SimulatorClient", () => {
       judgementResult: buildJudgementResult(),
       promptOverride: buildPromptOverrideStatus(),
     };
-    fetchSpy.mockResolvedValue(jsonResponse(successBody));
+    stubTenantsThen(fetchSpy, jsonResponse(successBody));
 
     render(<SimulatorClient personas={TEST_PERSONAS} />);
+    await waitFor(() => expect(screen.getByTestId("run-button")).not.toBeDisabled());
     await user.click(screen.getByTestId("run-button"));
 
     await waitFor(() => expect(screen.getByTestId("conversation-view")).toBeInTheDocument());
@@ -71,9 +101,10 @@ describe("SimulatorClient", () => {
     const errorBody: ApiErrorResponse = {
       error: { code: "VALIDATION_ERROR", message: "Persona tidak valid." },
     };
-    fetchSpy.mockResolvedValue(jsonResponse(errorBody, false));
+    stubTenantsThen(fetchSpy, jsonResponse(errorBody, false));
 
     render(<SimulatorClient personas={TEST_PERSONAS} />);
+    await waitFor(() => expect(screen.getByTestId("run-button")).not.toBeDisabled());
     await user.click(screen.getByTestId("run-button"));
 
     await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
@@ -82,9 +113,20 @@ describe("SimulatorClient", () => {
 
   it("shows an ErrorCard when fetch itself rejects (network failure)", async () => {
     const user = userEvent.setup();
-    fetchSpy.mockRejectedValue(new Error("network down"));
+    fetchSpy.mockImplementation((url: string) => {
+      if (url === "/api/tenants") {
+        return Promise.resolve(
+          jsonResponse({
+            ok: true,
+            tenants: [{ tenantId: "dss-motor", name: "DSS Motor", vertical: "AUTOMOTIVE" }],
+          }),
+        );
+      }
+      return Promise.reject(new Error("network down"));
+    });
 
     render(<SimulatorClient personas={TEST_PERSONAS} />);
+    await waitFor(() => expect(screen.getByTestId("run-button")).not.toBeDisabled());
     await user.click(screen.getByTestId("run-button"));
 
     await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
@@ -97,17 +139,18 @@ describe("SimulatorClient", () => {
       judgementResult: buildJudgementResult(),
       promptOverride: buildPromptOverrideStatus(),
     };
-    fetchSpy.mockResolvedValue(jsonResponse(successBody));
+    stubTenantsThen(fetchSpy, jsonResponse(successBody));
 
     render(<SimulatorClient personas={TEST_PERSONAS} />);
     expect(screen.getByTestId("approve-button")).toBeDisabled();
+    await waitFor(() => expect(screen.getByTestId("run-button")).not.toBeDisabled());
 
     await user.click(screen.getByTestId("run-button"));
     await waitFor(() => expect(screen.getByTestId("approve-button")).not.toBeDisabled());
 
     await user.click(screen.getByTestId("approve-button"));
     expect(screen.getByTestId("approve-confirmation")).toBeInTheDocument();
-    // Only the one /api/simulate call from Run — approving never calls fetch again.
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // The /api/tenants selector fetch, plus the one /api/simulate call from Run — approving never calls fetch again.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });
