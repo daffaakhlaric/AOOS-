@@ -1,23 +1,26 @@
-import { PlaceholderPage } from "@/components/layout/PlaceholderPage";
+import { CreativeHubClient } from "@/components/creative/CreativeHubClient";
 
 /**
- * EYVRA MENU RESTRUCTURE Sprint 1 — "Creative" hub (spec PROMPT 2: "gabungan Kai features" —
- * merges `/creative` (Creative Review), `/listings` (Listing Manager), and `/assets/library`
- * (Asset Library) into one route). Placeholder only this sprint — real tab content is Sprint 2/3.
+ * EYVRA MENU RESTRUCTURE Sprint 2 (PROMPT 5) — real "Creative" hub. `?tab=` matches Sprint 1's own
+ * real redirect targets exactly (`tests/app/redirects.test.tsx`: `ab-results`, `listing`,
+ * `assets`).
  *
- * Real deviation: this app's OLD Creative Review page already lived at this exact `/creative`
- * path (no `creative-review/` -> `/property/creative` rename was needed, unlike the spec's own
- * assumption — see PROMPT 9's list), so the new hub and the old page coincide at the same real
- * URL. Rather than fabricate a second, differently-named route to redirect from, this file's
- * content is replaced in place — the previous `CreativeClient` (creative-package approval list)
- * is untouched in `src/components/creative/CreativeClient.tsx` and simply not rendered here for
- * now; wiring it back in as one of this hub's real tabs is Sprint 2/3 work, not deleted.
+ * `?listingId=` is the real, pre-existing query param `ListingDetailClient.tsx`'s own
+ * "🎨 Buat Creative dengan Kai →" button already navigates here with (`router.push(
+ * "/creative?listingId=...")`) — that real button predates this sprint and was landing on Sprint
+ * 1's bare placeholder with the param silently ignored. When present with no explicit `tab`, it
+ * now defaults straight to the real "review-kai" tab (`CreativeClient`'s own "Buat Manual" brief
+ * form) instead of the bare Asset Library default — closing that real, previously-dead
+ * integration. Real per-listing pre-selection INSIDE the form itself is not wired this sprint
+ * (`ManualBriefForm`/`PropertyManualBriefForm` have no prefill prop today) — the form's own real
+ * listing picker still requires a manual pick, honestly left as-is rather than fabricated.
  */
-export default function CreativePage(): React.ReactElement {
-  return (
-    <PlaceholderPage
-      title="Creative"
-      description="Creative Review, Listing Manager, dan Asset Library akan digabung ke sini."
-    />
-  );
+export default function CreativePage({
+  searchParams,
+}: {
+  readonly searchParams: { readonly tab?: string; readonly listingId?: string };
+}): React.ReactElement {
+  const initialTab =
+    searchParams.tab ?? (searchParams.listingId !== undefined ? "review-kai" : undefined);
+  return <CreativeHubClient initialTab={initialTab} />;
 }

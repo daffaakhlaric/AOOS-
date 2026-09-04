@@ -1,0 +1,70 @@
+/* EYVRA MENU RESTRUCTURE Sprint 2 — Campaign hub, AAOS Colorful Brand Guideline v2 tokens. */
+.headerExtra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--v2-card-flat);
+  border-bottom: 1px solid var(--v2-border);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modeBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.runLoopButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--v2-blue);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.runLoopButton:hover {
+  background: var(--v2-blue-dark);
+}
+
+.tabBody {
+  padding: 20px 24px;
+}
+
+.lookalikeSection,
+.analisaSection {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--v2-border);
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--v2-text-1);
+  margin: 0 0 12px;
+}
+
+.honestNote {
+  font-size: 13px;
+  color: var(--v2-text-2);
+  background: var(--v2-warm-tint);
+  border: 1px solid var(--v2-warm-light);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 16px;
+}

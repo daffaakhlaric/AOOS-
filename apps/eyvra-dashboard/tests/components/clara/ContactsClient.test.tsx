@@ -73,13 +73,13 @@ describe("ContactsClient", () => {
     expect(screen.getByText("Inbound Message")).toBeInTheDocument();
   });
 
-  it("each row's name links to /clara/inbox?lead=[id]", async () => {
+  it("each row's name links to /leads?tab=inbox&lead=[id] (EYVRA MENU RESTRUCTURE Sprint 2 Leads hub)", async () => {
     mockFetch([LEAD]);
     render(<ContactsClient />);
     await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
     expect(screen.getByText("Pak Andi").closest("a")).toHaveAttribute(
       "href",
-      "/clara/inbox?lead=lead-1",
+      "/leads?tab=inbox&lead=lead-1",
     );
   });
 

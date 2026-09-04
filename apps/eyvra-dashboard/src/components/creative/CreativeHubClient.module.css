@@ -1,0 +1,30 @@
+/* EYVRA MENU RESTRUCTURE Sprint 2 — Creative hub, AAOS Colorful Brand Guideline v2 tokens. */
+.headerExtra {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 24px;
+  background: var(--v2-card-flat);
+  border-bottom: 1px solid var(--v2-border);
+}
+
+.briefButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--v2-kai);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.briefButton:hover {
+  opacity: 0.9;
+}
+
+.tabBody {
+  padding: 20px 24px;
+}

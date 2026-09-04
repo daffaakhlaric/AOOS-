@@ -6,7 +6,14 @@ import styles from "./ListingCard.module.css";
 
 /**
  * Listing Manager grid card (spec Part 4 mockup): main photo, title, price, area/specs summary,
- * photo count + status, `[Edit]`/`[Kai →]` actions.
+ * photo count + status, `[Edit]`/`[Detail]`/`[Brief Kai →]` actions.
+ *
+ * EYVRA MENU RESTRUCTURE Sprint 2 (PROMPT 5, Creative hub "Listing Manager" tab) — "Brief Kai →"
+ * links straight to the real Creative hub's "review-kai" tab with `?listingId=` (the same real
+ * param `ListingDetailClient.tsx`'s own "🎨 Buat Creative dengan Kai →" button already sends),
+ * giving every card the spec's own explicit per-listing "Brief Kai" button without a detour
+ * through the detail page. The former single "Kai →" link (which pointed at `/listings/:id`) is
+ * now the separate "Detail" action so that real navigation isn't lost.
  */
 export function ListingCard({
   listing,
@@ -47,7 +54,13 @@ export function ListingCard({
           Edit
         </button>
         <Link href={`/listings/${listing.id}`} className={styles.actionButton}>
-          Kai →
+          Detail
+        </Link>
+        <Link
+          href={`/creative?tab=review-kai&listingId=${encodeURIComponent(listing.id)}`}
+          className={styles.actionButton}
+        >
+          Brief Kai →
         </Link>
       </div>
     </section>

@@ -39,8 +39,10 @@ const PAGE_SIZE = 50;
  * data-fetching logic, restyled with the spec's richer columns (Source, Assigned to, Last Seen)
  * and wired to the real `POST /leads/:id/claim` endpoint for "Assigned to" (coordinator note #4 —
  * `ClaimLeadBodyDto`'s real shape is `{ salesHumanId }`, no new `/leads/:id/assign` endpoint).
- * Row click opens `/clara/inbox?lead=:id` — this app has no separate contact detail page, so a
- * contact's real conversation IS its detail view.
+ * Row click opens `/leads?tab=inbox&lead=:id` (EYVRA MENU RESTRUCTURE Sprint 2 — the real Leads
+ * hub's "Inbox" tab, `ClaraInboxClient`; was `/clara/inbox?lead=:id` before Sprint 1 retired that
+ * route) — this app has no separate contact detail page, so a contact's real conversation IS its
+ * detail view.
  */
 export function ContactsClient(): React.ReactElement {
   const [leads, setLeads] = useState<readonly LeadDto[] | undefined>(undefined);
@@ -179,7 +181,7 @@ export function ContactsClient(): React.ReactElement {
             {pageLeads.map((lead) => (
               <TableRow key={lead.id} data-testid="contact-row">
                 <TableCell className={styles.nameCell}>
-                  <Link href={`/clara/inbox?lead=${lead.id}`}>
+                  <Link href={`/leads?tab=inbox&lead=${lead.id}`}>
                     {lead.leadName ?? lead.leadPhone}
                   </Link>
                   <span className={styles.mutedCell}> · {lead.branchId}</span>

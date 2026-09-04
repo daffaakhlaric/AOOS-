@@ -1,0 +1,35 @@
+/* EYVRA MENU RESTRUCTURE Sprint 2 — shared hub tab bar, AAOS Colorful Brand Guideline v2 tokens. */
+.tabBar {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--v2-border);
+  background: var(--v2-card-bg);
+  overflow-x: auto;
+}
+
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--v2-text-2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition:
+    color 100ms,
+    border-color 100ms;
+}
+
+.tab:hover {
+  color: var(--v2-text-1);
+}
+
+.tabActive {
+  color: var(--v2-blue);
+  border-bottom-color: var(--v2-blue);
+  font-weight: 600;
+}

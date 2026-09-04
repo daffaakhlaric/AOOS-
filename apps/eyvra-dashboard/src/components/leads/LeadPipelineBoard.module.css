@@ -1,0 +1,121 @@
+/* EYVRA MENU RESTRUCTURE Sprint 2 — Leads hub Pipeline tab, AAOS Colorful Brand Guideline v2. */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.columnHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px 10px 0 0;
+  font-weight: 700;
+}
+
+.columnLabel {
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+
+.columnCount {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--v2-card-flat);
+  border-radius: 0 0 10px 10px;
+  min-height: 120px;
+}
+
+.emptyColumn {
+  font-size: 12px;
+  color: var(--v2-text-m);
+  text-align: center;
+  padding: 12px 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: var(--v2-card-bg);
+  border: 1px solid var(--v2-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.card:hover {
+  border-color: var(--v2-border-strong);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cardName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v2-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scorePill {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.cardSummary {
+  font-size: 12px;
+  color: var(--v2-text-2);
+  margin: 0;
+}
+
+.cardBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cardMeta {
+  font-size: 11px;
+  color: var(--v2-text-m);
+}
+
+.handoffButton {
+  margin-top: 4px;
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-blue);
+  cursor: pointer;
+}
+
+.handoffButton:hover {
+  text-decoration: underline;
+}

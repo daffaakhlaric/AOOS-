@@ -1,0 +1,180 @@
+/* EYVRA MENU RESTRUCTURE Sprint 2 — Leads hub lead detail drawer, AAOS Colorful Brand Guideline v2. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 50;
+}
+
+.drawer {
+  width: min(420px, 100%);
+  background: var(--v2-card-bg);
+  height: 100%;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.15);
+}
+
+.closeButton {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+  z-index: 1;
+}
+
+.header {
+  padding: 24px 20px;
+  color: #ffffff;
+}
+
+.name {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.phone {
+  font-size: 12px;
+  opacity: 0.85;
+  margin: 2px 0 12px;
+}
+
+.headerBadges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scoreRing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--v2-border);
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v2-text-1);
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.qualificationList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.qualificationItem {
+  font-size: 13px;
+  color: var(--v2-text-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qualOk {
+  color: var(--v2-live);
+  font-weight: 700;
+}
+
+.qualMissing {
+  color: var(--v2-text-m);
+}
+
+.messageList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.messageItem {
+  font-size: 12px;
+  color: var(--v2-text-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--v2-card-flat);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.messageDirection {
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--v2-text-1);
+}
+
+.messageBody {
+  word-break: break-word;
+}
+
+.empty {
+  font-size: 12px;
+  color: var(--v2-text-m);
+}
+
+.timelineItem {
+  font-size: 12px;
+  color: var(--v2-text-2);
+  margin: 0 0 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px;
+}
+
+.primaryAction {
+  flex: 1;
+  text-align: center;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--v2-blue);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.secondaryAction {
+  flex: 1;
+  text-align: center;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--v2-card-flat);
+  border: 1px solid var(--v2-border);
+  color: var(--v2-text-1);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
