@@ -60,6 +60,19 @@ export interface SimulatorConfig {
   readonly vertical: SimulatorVertical;
   readonly listingId?: string;
   readonly listings?: ReadonlyArray<PropertyListingData>;
+  /**
+   * AAOS Self-Learning AI, Phase C wiring — the real, first live consumer of
+   * `@aos/sales-agent`'s pre-existing `promptOverride` parameter. Same deliberate "NOT fetched via
+   * HTTP inside this package" discipline `listings`' own doc above already establishes for the
+   * exact same reason: `ClaraSimulationComposer` never calls `apps/aaos-api` directly, and the one
+   * process with a real HTTP path there is `apps/aaos-simulator` — so it owns the fetch (`GET
+   * /api/v1/learning/prompt-overrides/:tenantId/active`, filtered to `agent === "CLARA" &&
+   * promptKey === "clara_system_prompt"`) and passes the resolved content down into this field.
+   * AUTOMOTIVE-only (mirrors `ClaraAgentFactoryOptions.promptOverride`'s own doc): PROPERTY has no
+   * LLM response path to apply it to, so `ClaraSimulationComposer.composeProperty` never reads
+   * this field.
+   */
+  readonly claraPromptOverride?: string;
 }
 
 export const SimulatorConfigSchema = z.object({
@@ -72,6 +85,7 @@ export const SimulatorConfigSchema = z.object({
   vertical: z.enum(SIMULATOR_VERTICALS).default("AUTOMOTIVE"),
   listingId: z.string().min(1, "listingId must not be empty").optional(),
   listings: z.array(PropertyListingDataSchema).optional(),
+  claraPromptOverride: z.string().min(1).optional(),
 });
 
 export type SimulatorConfigInput = z.input<typeof SimulatorConfigSchema>;

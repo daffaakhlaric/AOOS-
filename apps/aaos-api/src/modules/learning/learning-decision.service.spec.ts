@@ -427,6 +427,57 @@ describe("LearningDecisionService", () => {
     });
   });
 
+  describe("setOverride (real, direct human/coordinator-authored write, no proposal required)", () => {
+    it("creates version 1 for a tenant/agent/promptKey with no prior override", async () => {
+      const client = createFakeSupabaseClient();
+      const { service } = buildService(client);
+
+      const row = await service.setOverride(
+        "dss-motor",
+        "CLARA",
+        "clara_system_prompt",
+        "Kamu adalah Clara...",
+      );
+
+      expect(row.version).toBe(1);
+      expect(row.is_active).toBe(true);
+      expect(row.content).toBe("Kamu adalah Clara...");
+      expect(row.tenant_id).toBe("dss-motor");
+      expect(row.agent).toBe("CLARA");
+      expect(row.prompt_key).toBe("clara_system_prompt");
+    });
+
+    it("deactivates the prior active row and activates a new, incremented version", async () => {
+      const client = createFakeSupabaseClient();
+      client.seed("agent_prompt_overrides", {
+        id: "active-1",
+        tenant_id: "dss-motor",
+        agent: "CLARA",
+        prompt_key: "clara_system_prompt",
+        content: "old prompt",
+        version: 1,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00.000Z",
+        activated_at: "2026-01-01T00:00:00.000Z",
+        deactivated_at: null,
+      });
+      const { service } = buildService(client);
+
+      const row = await service.setOverride(
+        "dss-motor",
+        "CLARA",
+        "clara_system_prompt",
+        "new prompt",
+      );
+
+      expect(row.version).toBe(2);
+      expect(row.is_active).toBe(true);
+      const rows = client.rows("agent_prompt_overrides");
+      const previous = rows.find((r) => r["id"] === "active-1");
+      expect(previous?.["is_active"]).toBe(false);
+    });
+  });
+
   describe("listProposals / listActiveOverrides", () => {
     it("lists only the tenant's own proposals, optionally filtered by status", async () => {
       const client = createFakeSupabaseClient();

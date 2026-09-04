@@ -54,7 +54,7 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("Branch: Mobix Cinere");
     expect(prompt).toContain("Lead score: 42/100");
     expect(prompt).toContain("Stage: DISCOVERY");
-    expect(prompt).toContain("Tidak lebih dari 150 karakter per pesan");
+    expect(prompt).toContain("Di bawah 150 karakter per pesan");
   });
 
   it("lead_profile slot says 'belum ada info' when nothing is known yet", () => {

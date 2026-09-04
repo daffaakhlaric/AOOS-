@@ -116,4 +116,36 @@ describe("LlmResponseGenerator", () => {
     await generator.generate(context());
     expect(received?.messages[0]?.role).toBe("system");
   });
+
+  it("threads a configured promptOverride into buildConversationMessages, once per instance, for every generate() call", async () => {
+    const override = "Kamu Clara. Branch: {branch}. Stage: {stage}. Tugas: {stage_instruction}.";
+    let received: ChatCompletionRequest | undefined;
+    const client: ILlmChatClient = {
+      complete: (request) => {
+        received = request;
+        return Promise.resolve(ok("Halo kak!"));
+      },
+    };
+    const generator = new LlmResponseGenerator({
+      client,
+      fallback: new ResponseGenerator(),
+      promptOverride: override,
+    });
+    await generator.generate(context());
+    expect(received?.messages[0]?.content).toContain("Kamu Clara. Branch: Mobix Cinere.");
+    expect(received?.messages[0]?.content).not.toContain("Mobix by DSS Motor");
+  });
+
+  it("promptOverride omitted → uses the unmodified default SYSTEM_PROMPT_TEMPLATE (today's exact unchanged behavior)", async () => {
+    let received: ChatCompletionRequest | undefined;
+    const client: ILlmChatClient = {
+      complete: (request) => {
+        received = request;
+        return Promise.resolve(ok("Halo kak!"));
+      },
+    };
+    const generator = new LlmResponseGenerator({ client, fallback: new ResponseGenerator() });
+    await generator.generate(context());
+    expect(received?.messages[0]?.content).toContain("Mobix by DSS Motor");
+  });
 });

@@ -170,6 +170,46 @@ describe("ClaraAgentFactory", () => {
     });
     expect(outcome.ok).toBe(true);
   });
+
+  it("promptOverride option → threaded end-to-end into the real OpenAI request body (AAOS Self-Learning AI Phase C wiring)", async () => {
+    let capturedSystemContent: unknown;
+    mswServer.use(
+      http.post(CHAT_URL, async ({ request }) => {
+        const body = (await request.json()) as { messages: { role: string; content: string }[] };
+        capturedSystemContent = body.messages.find((m) => m.role === "system")?.content;
+        return HttpResponse.json({ choices: [{ message: { content: "Halo dari override! 🚗" } }] });
+      }),
+    );
+    const publisher = createFakePublisher();
+    const branchManager = makeRealBranchManager(publisher);
+    const inventoryQueryService = await makeRealSyncedInventoryQueryService();
+    const override =
+      "Kamu Clara versi override. Branch: {branch}. Stage: {stage}. {stage_instruction}";
+    const agent = ClaraAgentFactory.create({
+      config: makeSalesAgentConfig({ llmReplyEnabled: true, openaiApiKey: "sk-test" }),
+      branchId: BranchId.CINERE,
+      publisher,
+      assignLead: branchManager.assignLead,
+      salesTeamRegistry: branchManager.salesTeamRegistry,
+      inventoryQueryService,
+      now: fixedClock(),
+      promptOverride: override,
+    });
+
+    const outcome = await agent.processIncomingMessage.execute({
+      leadPhone: "+6281200000005",
+      branchId: BranchId.CINERE,
+      messageText: "halo min",
+      tenantId: "tenant-dss-motor",
+      correlationId: "corr-5",
+    });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.value.outgoingMessage.body.toString()).toBe("Halo dari override! 🚗");
+    }
+    expect(capturedSystemContent).toContain("Kamu Clara versi override. Branch: Mobix Cinere.");
+    expect(capturedSystemContent).not.toContain("Mobix by DSS Motor");
+  });
 });
 
 describe("ClaraAgentFactory.createPropertyConversationEngine", () => {

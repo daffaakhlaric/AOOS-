@@ -5,11 +5,25 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentConfigService } from "../agent-config/agent-config.service.js";
 import type { JudgeResultRepository } from "../ai-judge/infrastructure/judge-result.repository.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import type { PromptOverrideRow } from "../prompt-override/infrastructure/prompt-override.repository.js";
 
 import type { LearningProposalRow } from "./infrastructure/learning-proposal.repository.js";
 import type { LearningDecisionService } from "./learning-decision.service.js";
 import { LearningController } from "./learning.controller.js";
 import type { LearningService } from "./learning.service.js";
+
+const PROMPT_OVERRIDE_ROW: PromptOverrideRow = {
+  id: "override-1",
+  tenant_id: "agen-pintar-indonesia",
+  agent: "CLARA",
+  prompt_key: "clara_system_prompt",
+  content: "Kamu adalah Clara...",
+  version: 3,
+  is_active: true,
+  created_at: "2026-09-01T00:00:00.000Z",
+  activated_at: "2026-09-01T00:00:00.000Z",
+  deactivated_at: null,
+};
 
 const PROPOSAL_ROW: LearningProposalRow = {
   id: "proposal-1",
@@ -45,6 +59,7 @@ function buildFakeDecisions(): LearningDecisionService {
     reject: vi.fn(async () => ({ ...PROPOSAL_ROW, status: "REJECTED" })),
     rollback: vi.fn(async () => ({ rolledBackToVersion: 1 })),
     listActiveOverrides: vi.fn(async () => []),
+    setOverride: vi.fn(async () => PROMPT_OVERRIDE_ROW),
   } as unknown as LearningDecisionService;
 }
 
@@ -172,6 +187,40 @@ describe("LearningController", () => {
     const result = await controller.rollback("dss-motor", "SAMANTHA", "analyze");
     expect(decisions.rollback).toHaveBeenCalledWith("dss-motor", "SAMANTHA", "analyze");
     expect(result).toEqual({ rolledBackToVersion: 1 });
+  });
+
+  it("PUT prompt-overrides/:tenantId/:agent/:promptKey delegates to LearningDecisionService.setOverride, tenant/agent/key from the path, content from the body, camelCase-mapped", async () => {
+    const decisions = buildFakeDecisions();
+    const controller = new LearningController(
+      decisions,
+      buildFakeLearning(),
+      buildFakeAgentConfig(),
+      buildFakeJudgeResults(),
+    );
+    const result = await controller.setOverride(
+      "agen-pintar-indonesia",
+      "CLARA",
+      "clara_system_prompt",
+      { content: "Kamu adalah Clara..." },
+    );
+    expect(decisions.setOverride).toHaveBeenCalledWith(
+      "agen-pintar-indonesia",
+      "CLARA",
+      "clara_system_prompt",
+      "Kamu adalah Clara...",
+    );
+    expect(result).toEqual({
+      id: "override-1",
+      tenantId: "agen-pintar-indonesia",
+      agent: "CLARA",
+      promptKey: "clara_system_prompt",
+      content: "Kamu adalah Clara...",
+      version: 3,
+      isActive: true,
+      createdAt: "2026-09-01T00:00:00.000Z",
+      activatedAt: "2026-09-01T00:00:00.000Z",
+      deactivatedAt: null,
+    });
   });
 
   it("POST trigger delegates to LearningService.triggerManualCheck, tenant-scoped", async () => {

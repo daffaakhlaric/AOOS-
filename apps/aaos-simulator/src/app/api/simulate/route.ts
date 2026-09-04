@@ -5,7 +5,7 @@ import {
 } from "@aos/conversation-simulator";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { fetchListingById } from "@/lib/aaos-api-client";
+import { fetchActiveClaraPromptOverride, fetchListingById } from "@/lib/aaos-api-client";
 import { getJudge, toJudgementResultDto } from "@/lib/judge";
 import { DEFAULT_SIMULATOR_CONFIG, getSimulator, toSimulationResultDto } from "@/lib/simulator";
 import type { ApiErrorResponse, SimulateRequest, SimulateResponse } from "@/types/simulator.types";
@@ -95,11 +95,24 @@ export async function POST(
       ? await fetchListingById(listingId)
       : undefined;
 
+  // AAOS Self-Learning AI, Phase C wiring — real-fetch the tenant's currently-active Clara
+  // system-prompt override before composing (best-effort, never throws — see
+  // `fetchActiveClaraPromptOverride`'s own doc). Tenant resolution mirrors
+  // `learning-bridge.ts`'s own convention exactly: `AAOS_SIMULATOR_TENANT_ID` when set, else this
+  // request's own `DEFAULT_SIMULATOR_CONFIG.tenantId` — this app has no other tenant concept.
+  const promptOverrideTenantId =
+    process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
+  const promptOverrideFetch =
+    vertical === "AUTOMOTIVE"
+      ? await fetchActiveClaraPromptOverride(promptOverrideTenantId)
+      : ({ found: false, reason: "PROPERTY vertical has no LLM prompt path." } as const);
+
   const simulationConfig = {
     ...DEFAULT_SIMULATOR_CONFIG,
     vertical,
     ...(listingId !== undefined ? { listingId } : {}),
     ...(listing !== undefined ? { listings: [listing] } : {}),
+    ...(promptOverrideFetch.found ? { claraPromptOverride: promptOverrideFetch.content } : {}),
   };
 
   const simulatorResult = getSimulator();
@@ -163,6 +176,11 @@ export async function POST(
     {
       simulationResult: toSimulationResultDto(simulationOutcome.value),
       judgementResult: toJudgementResultDto(judgementOutcome.value),
+      promptOverride: {
+        applied: promptOverrideFetch.found,
+        tenantId: promptOverrideTenantId,
+        ...(promptOverrideFetch.found ? {} : { reason: promptOverrideFetch.reason }),
+      },
     },
     { status: 200 },
   );

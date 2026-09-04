@@ -19,6 +19,21 @@ export interface LlmResponseGeneratorOptions {
    */
   readonly fallback: IResponseGenerator;
   readonly logger?: LlmFallbackLogger;
+  /**
+   * AAOS Self-Learning AI, Phase C wiring — the real, first caller of `buildSystemPrompt`'s
+   * pre-existing `promptOverride` parameter (added in Phase A, unused until now — see
+   * `buildClaraPrompt.ts`'s own doc). Resolved ONCE, at composition time
+   * (`ClaraAgentFactory.create`/`ClaraSimulationComposer.compose`), not re-fetched per message:
+   * this generator instance is composed fresh per conversation session in every real caller today
+   * (`ClaraSimulationComposer.compose()` is called once per simulation session —
+   * `SimulationRunnerService.runTurnLoop` then calls `processIncomingMessage.execute` once per
+   * turn against the SAME composed agent), so "once per composed agent" is the real, honest
+   * granularity this codebase supports — there is no live "override changed mid-conversation"
+   * signal anywhere to react to, and building one would be unverifiable speculation. Threaded
+   * straight through to every `generate()` call unchanged. `undefined` (the default) reproduces
+   * today's exact unchanged behavior — the spec's own `SYSTEM_PROMPT_TEMPLATE`.
+   */
+  readonly promptOverride?: string;
 }
 
 /**
@@ -33,16 +48,20 @@ export class LlmResponseGenerator implements IResponseGenerator {
   private readonly client: ILlmChatClient;
   private readonly fallback: IResponseGenerator;
   private readonly logger: LlmFallbackLogger | undefined;
+  private readonly promptOverride: string | undefined;
 
   constructor(options: LlmResponseGeneratorOptions) {
     this.client = options.client;
     this.fallback = options.fallback;
     this.logger = options.logger;
+    this.promptOverride = options.promptOverride;
   }
 
   async generate(context: ResponseContext): Promise<string> {
     try {
-      const result = await this.client.complete({ messages: buildConversationMessages(context) });
+      const result = await this.client.complete({
+        messages: buildConversationMessages(context, this.promptOverride),
+      });
       if (!result.ok) {
         return this.fallbackTo(context, result.error.message);
       }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/simulate-all/route";
 import type { SimulateAllResponse } from "@/types/simulator.types";
@@ -51,5 +51,74 @@ describe("POST /api/simulate-all", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as SimulateAllResponse;
     expect(body.learningBridge.status).toBe("SKIPPED");
+  }, 60_000);
+
+  it("includes an honest promptOverride status (applied: false — no real AAOS_API_BASE_URL/AAOS_API_KEY configured in this test env), and never fails the request over it", async () => {
+    const response = await POST();
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as SimulateAllResponse;
+    expect(body.promptOverride.applied).toBe(false);
+    expect(body.promptOverride.reason).toBeDefined();
+  }, 60_000);
+});
+
+/**
+ * AAOS Self-Learning AI, Phase C wiring — real, honest reporting of whether the batch actually
+ * applied a fetched Clara system-prompt override. Only `global.fetch` is stubbed.
+ */
+describe("POST /api/simulate-all — promptOverride status when apps/aaos-api has a real active override", () => {
+  const originalBaseUrl = process.env["AAOS_API_BASE_URL"];
+  const originalApiKey = process.env["AAOS_API_KEY"];
+  const originalTenantId = process.env["AAOS_SIMULATOR_TENANT_ID"];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalBaseUrl === undefined) {
+      delete process.env["AAOS_API_BASE_URL"];
+    } else {
+      process.env["AAOS_API_BASE_URL"] = originalBaseUrl;
+    }
+    if (originalApiKey === undefined) {
+      delete process.env["AAOS_API_KEY"];
+    } else {
+      process.env["AAOS_API_KEY"] = originalApiKey;
+    }
+    if (originalTenantId === undefined) {
+      delete process.env["AAOS_SIMULATOR_TENANT_ID"];
+    } else {
+      process.env["AAOS_SIMULATOR_TENANT_ID"] = originalTenantId;
+    }
+  });
+
+  it("promptOverride.applied: true, and the learning bridge report call is unaffected (SKIPPED — no ai-judge ingest endpoint stubbed)", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    process.env["AAOS_SIMULATOR_TENANT_ID"] = "agen-pintar-indonesia";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: URL | string) => {
+        const url = input.toString();
+        if (url.includes("/api/v1/learning/prompt-overrides/")) {
+          return new Response(
+            JSON.stringify([
+              {
+                agent: "CLARA",
+                promptKey: "clara_system_prompt",
+                content: "Kamu Clara versi override.",
+                isActive: true,
+              },
+            ]),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    const response = await POST();
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as SimulateAllResponse;
+    expect(body.promptOverride).toEqual({ applied: true, tenantId: "agen-pintar-indonesia" });
   }, 60_000);
 });

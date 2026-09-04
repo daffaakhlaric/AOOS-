@@ -189,4 +189,23 @@ export class LearningDecisionService {
   async listActiveOverrides(tenantId: string): Promise<readonly PromptOverrideRow[]> {
     return this.promptOverride.listActiveForTenant(tenantId);
   }
+
+  /**
+   * AAOS Self-Learning AI — the real, direct human/coordinator-authored prompt-override write
+   * (a real, additive capability gap: `PromptOverrideService.applyApproved` already existed, but
+   * its only caller was `approve()` above, gated behind an LLM-originated, PENDING
+   * `learning_proposals` row — there was no direct "set this override right now" path for a
+   * human/coordinator-authored change that never went through the proposal/approve flow, unlike
+   * `agent_configs`'s existing `PUT /api/v1/learning/configs` Config editor). Delegates straight to
+   * `PromptOverrideService.applyApproved` — the SAME real deactivate-then-insert write every other
+   * real activation path in this app already uses, never a second, parallel write path.
+   */
+  async setOverride(
+    tenantId: string,
+    agent: string,
+    promptKey: string,
+    content: string,
+  ): Promise<PromptOverrideRow> {
+    return this.promptOverride.applyApproved(tenantId, agent, promptKey, content);
+  }
 }

@@ -8,6 +8,7 @@ import type {
   JudgementResultDto,
   LearningBridgeStatusDto,
   PersonaSummary,
+  PromptOverrideStatusDto,
   SimulateAllResponse,
   SimulateAllResultEntry,
   SimulationMessageDto,
@@ -242,6 +243,17 @@ export function buildLearningBridgeStatus(
   } as LearningBridgeStatusDto;
 }
 
+export function buildPromptOverrideStatus(
+  overrides: Partial<PromptOverrideStatusDto> = {},
+): PromptOverrideStatusDto {
+  return {
+    applied: false,
+    tenantId: "tenant-dss-motor",
+    reason: "AAOS_API_BASE_URL/AAOS_API_KEY belum dikonfigurasi di aaos-simulator.",
+    ...overrides,
+  } as PromptOverrideStatusDto;
+}
+
 export function buildSimulateAllResponse(
   overrides: Partial<SimulateAllResponse> = {},
 ): SimulateAllResponse {
@@ -249,6 +261,7 @@ export function buildSimulateAllResponse(
     results: [],
     report: buildAllScenariosReport(),
     learningBridge: buildLearningBridgeStatus(),
+    promptOverride: buildPromptOverrideStatus(),
     ...overrides,
   };
 }

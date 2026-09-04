@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchListingById } from "@/lib/aaos-api-client";
+import { fetchActiveClaraPromptOverride, fetchListingById } from "@/lib/aaos-api-client";
 
 describe("fetchListingById", () => {
   const originalBaseUrl = process.env["AAOS_API_BASE_URL"];
@@ -137,5 +137,101 @@ describe("fetchListingById", () => {
 
     const result = await fetchListingById("listing-1");
     expect(result).toBeUndefined();
+  });
+});
+
+describe("fetchActiveClaraPromptOverride (AAOS Self-Learning AI, Phase C wiring)", () => {
+  const originalBaseUrl = process.env["AAOS_API_BASE_URL"];
+  const originalApiKey = process.env["AAOS_API_KEY"];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalBaseUrl === undefined) {
+      delete process.env["AAOS_API_BASE_URL"];
+    } else {
+      process.env["AAOS_API_BASE_URL"] = originalBaseUrl;
+    }
+    if (originalApiKey === undefined) {
+      delete process.env["AAOS_API_KEY"];
+    } else {
+      process.env["AAOS_API_KEY"] = originalApiKey;
+    }
+  });
+
+  it("found: false when AAOS_API_BASE_URL/AAOS_API_KEY are not configured", async () => {
+    delete process.env["AAOS_API_BASE_URL"];
+    delete process.env["AAOS_API_KEY"];
+    const result = await fetchActiveClaraPromptOverride("agen-pintar-indonesia");
+    expect(result).toEqual({
+      found: false,
+      reason: "AAOS_API_BASE_URL/AAOS_API_KEY belum dikonfigurasi di aaos-simulator.",
+    });
+  });
+
+  it("fetches the active row, sending the x-api-key header, filtered to agent CLARA / promptKey clara_system_prompt", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+
+    const fetchMock = vi.fn(
+      async (_url: URL, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify([
+            { agent: "SAMANTHA", promptKey: "analyze", content: "irrelevant", isActive: true },
+            {
+              agent: "CLARA",
+              promptKey: "clara_system_prompt",
+              content: "Kamu Clara versi baru",
+              isActive: true,
+            },
+          ]),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchActiveClaraPromptOverride("agen-pintar-indonesia");
+    expect(result).toEqual({ found: true, content: "Kamu Clara versi baru" });
+
+    const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(url.pathname).toBe("/api/v1/learning/prompt-overrides/agen-pintar-indonesia/active");
+    expect((init.headers as Record<string, string>)["x-api-key"]).toBe("test-key");
+  });
+
+  it("found: false when no CLARA/clara_system_prompt row is active for this tenant", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })),
+    );
+
+    const result = await fetchActiveClaraPromptOverride("tenant-dss-motor");
+    expect(result.found).toBe(false);
+  });
+
+  it("found: false on a non-2xx response", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 500 })),
+    );
+
+    const result = await fetchActiveClaraPromptOverride("tenant-dss-motor");
+    expect(result.found).toBe(false);
+  });
+
+  it("found: false on a network failure, never throws", async () => {
+    process.env["AAOS_API_BASE_URL"] = "http://localhost:3000";
+    process.env["AAOS_API_KEY"] = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network down");
+      }),
+    );
+
+    const result = await fetchActiveClaraPromptOverride("tenant-dss-motor");
+    expect(result.found).toBe(false);
   });
 });

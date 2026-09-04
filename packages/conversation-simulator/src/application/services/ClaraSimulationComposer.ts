@@ -166,6 +166,11 @@ export class ClaraSimulationComposer {
       salesTeamRegistry: branchManager.salesTeamRegistry,
       inventoryQueryService: inventorySpy,
       now,
+      // AAOS Self-Learning AI, Phase C wiring — see `SimulatorConfig.claraPromptOverride`'s own
+      // doc for why this package never fetches it itself.
+      ...(config.claraPromptOverride !== undefined
+        ? { promptOverride: config.claraPromptOverride }
+        : {}),
     });
 
     return ok({ agent, publisher, inventorySpy, clock, salesAgentConfig });

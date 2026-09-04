@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { ClaraAgentFactory } from "@aos/sales-agent";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ClaraSimulationComposer } from "../../../../src/application/services/ClaraSimulationComposer.js";
 import { makeSimulatorConfig } from "../../../fixtures/simulatorFixtures.js";
@@ -46,6 +47,30 @@ describe("ClaraSimulationComposer", () => {
     const composer = new ClaraSimulationComposer();
     const composition = unwrap(await composer.compose(makeSimulatorConfig()));
     expect(composition.agent.handoffService).toBeDefined();
+  });
+
+  describe("claraPromptOverride (AAOS Self-Learning AI, Phase C wiring)", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("compose() threads config.claraPromptOverride straight into ClaraAgentFactory.create's promptOverride option", async () => {
+      const spy = vi.spyOn(ClaraAgentFactory, "create");
+      const composer = new ClaraSimulationComposer();
+      await composer.compose(makeSimulatorConfig({ claraPromptOverride: "custom override text" }));
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0]?.[0]).toMatchObject({ promptOverride: "custom override text" });
+    });
+
+    it("compose() with no claraPromptOverride configured → omits promptOverride entirely (today's real, unchanged default)", async () => {
+      const spy = vi.spyOn(ClaraAgentFactory, "create");
+      const composer = new ClaraSimulationComposer();
+      await composer.compose(makeSimulatorConfig());
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0]?.[0]).not.toHaveProperty("promptOverride");
+    });
   });
 
   describe("vertical: PROPERTY (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 8)", () => {

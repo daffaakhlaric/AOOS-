@@ -61,6 +61,21 @@ export interface ClaraAgentFactoryOptions {
   readonly tracer?: Tracer;
   /** Injectable clock — defaults to the real wall clock only here. */
   readonly now?: () => Date;
+  /**
+   * AAOS Self-Learning AI, Phase C wiring — the real, first live caller of `buildClaraPrompt.ts`'s
+   * pre-existing `promptOverride` parameter. Threaded straight through to
+   * `createResponseGenerator`'s composed `LlmResponseGenerator` (see that class's own doc for why
+   * "once per composed agent" is the real, honest granularity here). Deliberately AUTOMOTIVE-path
+   * only (`create()`, not `createPropertyAgent()`/`createPropertyConversationEngine()` below):
+   * confirmed by direct read that the PROPERTY-vertical response path
+   * (`createPropertyConversationEngine` always composes a plain, rule-based
+   * `PropertyResponseGenerator` — never `LlmResponseGenerator`, never gated by
+   * `config.llmReplyEnabled` the way `create()`'s automotive path is) has no LLM call site at all
+   * today, so a `promptOverride` would have nowhere real to apply. Not added to
+   * `PropertyClaraAgentFactoryOptions` — a dead, unused option there would be misleading, not
+   * additive. `undefined` (the default) reproduces today's exact unchanged behavior.
+   */
+  readonly promptOverride?: string;
 }
 
 /**
@@ -154,7 +169,11 @@ export class ClaraAgentFactory {
     const events = new ClaraAgentEvents(options.publisher);
 
     const inventoryQuerier = new InventoryQuerier(options.inventoryQueryService);
-    const responseGenerator = ClaraAgentFactory.createResponseGenerator(options.config, logger);
+    const responseGenerator = ClaraAgentFactory.createResponseGenerator(
+      options.config,
+      logger,
+      options.promptOverride,
+    );
     const conversationEngine = new ConversationEngine(
       inventoryQuerier,
       { warmThreshold: options.config.warmThreshold, hotThreshold: options.config.hotThreshold },
@@ -293,6 +312,7 @@ export class ClaraAgentFactory {
   private static createResponseGenerator(
     config: SalesAgentConfig,
     logger: Logger,
+    promptOverride?: string,
   ): IResponseGenerator {
     const ruleBasedGenerator = new ResponseGenerator();
     const apiKey = config.openaiApiKey;
@@ -308,6 +328,7 @@ export class ClaraAgentFactory {
       }),
       fallback: ruleBasedGenerator,
       logger,
+      promptOverride,
     });
   }
 }

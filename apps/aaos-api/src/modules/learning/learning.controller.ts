@@ -35,6 +35,10 @@ import {
   toPromptOverrideResponseDto,
   type PromptOverrideResponseDto,
 } from "./dto/prompt-override-response.dto.js";
+import {
+  SetPromptOverrideBodySchema,
+  type SetPromptOverrideBodyDto,
+} from "./dto/set-prompt-override.dto.js";
 import { TriggerCheckBodySchema, type TriggerCheckBodyDto } from "./dto/trigger-check.dto.js";
 import { LearningDecisionService } from "./learning-decision.service.js";
 import { LearningService } from "./learning.service.js";
@@ -122,6 +126,25 @@ export class LearningController {
     @Param("promptKey") promptKey: string,
   ): Promise<{ readonly rolledBackToVersion: number | null }> {
     return this.decisions.rollback(tenantId, agent, promptKey);
+  }
+
+  /**
+   * The real, direct human/coordinator-authored prompt-override write — the Prompt editor's
+   * WRITE, the sibling gap `PUT /api/v1/learning/configs` already fills for `agent_configs`. `PUT`,
+   * not `POST`: idempotent "set this key to this content" semantics, matching
+   * `PromptOverrideService.applyApproved`'s own real deactivate-then-insert upsert behavior. See
+   * `LearningDecisionService.setOverride`'s own doc for why this is additive, not a second write
+   * path.
+   */
+  @Put("prompt-overrides/:tenantId/:agent/:promptKey")
+  async setOverride(
+    @Param("tenantId") tenantId: string,
+    @Param("agent") agent: string,
+    @Param("promptKey") promptKey: string,
+    @Body(new ZodValidationPipe(SetPromptOverrideBodySchema)) body: SetPromptOverrideBodyDto,
+  ): Promise<PromptOverrideResponseDto> {
+    const row = await this.decisions.setOverride(tenantId, agent, promptKey, body.content);
+    return toPromptOverrideResponseDto(row);
   }
 
   /**

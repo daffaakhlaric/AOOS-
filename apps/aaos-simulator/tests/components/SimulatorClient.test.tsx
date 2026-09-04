@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SimulatorClient } from "@/components/simulator/SimulatorClient";
 import type { ApiErrorResponse, SimulateResponse } from "@/types/simulator.types";
 
-import { buildJudgementResult, buildSimulationResult, TEST_PERSONAS } from "../fixtures";
+import {
+  buildJudgementResult,
+  buildPromptOverrideStatus,
+  buildSimulationResult,
+  TEST_PERSONAS,
+} from "../fixtures";
 
 function jsonResponse(body: unknown, ok = true): Response {
   return {
@@ -31,6 +36,7 @@ describe("SimulatorClient", () => {
     const successBody: SimulateResponse = {
       simulationResult: buildSimulationResult(),
       judgementResult: buildJudgementResult(),
+      promptOverride: buildPromptOverrideStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(successBody));
 
@@ -49,6 +55,7 @@ describe("SimulatorClient", () => {
     const successBody: SimulateResponse = {
       simulationResult: buildSimulationResult(),
       judgementResult: buildJudgementResult(),
+      promptOverride: buildPromptOverrideStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(successBody));
 
@@ -88,6 +95,7 @@ describe("SimulatorClient", () => {
     const successBody: SimulateResponse = {
       simulationResult: buildSimulationResult(),
       judgementResult: buildJudgementResult(),
+      promptOverride: buildPromptOverrideStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(successBody));
 

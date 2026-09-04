@@ -9,6 +9,7 @@ import type { ApiErrorResponse, SimulateAllResponse } from "@/types/simulator.ty
 import {
   buildAllScenariosReport,
   buildLearningBridgeStatus,
+  buildPromptOverrideStatus,
   buildSimulateAllResultEntry,
   TEST_PERSONAS,
 } from "../fixtures";
@@ -38,6 +39,7 @@ describe("ReportClient", () => {
         results: [],
         report: buildAllScenariosReport(),
         learningBridge: buildLearningBridgeStatus(),
+        promptOverride: buildPromptOverrideStatus(),
       }),
     );
     render(<ReportClient personas={TEST_PERSONAS} />);
@@ -54,6 +56,7 @@ describe("ReportClient", () => {
       results: [buildSimulateAllResultEntry()],
       report: buildAllScenariosReport(),
       learningBridge: buildLearningBridgeStatus(),
+      promptOverride: buildPromptOverrideStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(body));
 
@@ -73,6 +76,7 @@ describe("ReportClient", () => {
         agentRunId: "run-1",
         judgeResultId: "judge-1",
       }),
+      promptOverride: buildPromptOverrideStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(body));
 
@@ -92,6 +96,7 @@ describe("ReportClient", () => {
         status: "FAILED",
         reason: "aaos-api merespons status 500",
       }),
+      promptOverride: buildPromptOverrideStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(body));
 
@@ -108,6 +113,7 @@ describe("ReportClient", () => {
       results: [],
       report: buildAllScenariosReport({ topPriorities: ["Perbaiki objection handling."] }),
       learningBridge: buildLearningBridgeStatus(),
+      promptOverride: buildPromptOverrideStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(body));
 
@@ -133,6 +139,7 @@ describe("ReportClient", () => {
       results: [buildSimulateAllResultEntry()],
       report: buildAllScenariosReport({ overallVerdict: Verdict.APPROVE }),
       learningBridge: buildLearningBridgeStatus(),
+      promptOverride: buildPromptOverrideStatus(),
     };
     fetchSpy.mockResolvedValue(jsonResponse(body));
 

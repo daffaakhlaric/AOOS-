@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { fetchActiveClaraPromptOverride } from "@/lib/aaos-api-client";
 import { getJudge, toAllScenariosReportDto, toJudgementResultDto } from "@/lib/judge";
 import { reportSimulationBatchToLearningSystem } from "@/lib/learning-bridge";
 import { DEFAULT_SIMULATOR_CONFIG, getSimulator, toSimulationResultDto } from "@/lib/simulator";
@@ -23,8 +24,17 @@ export async function POST(): Promise<NextResponse<SimulateAllResponse | ApiErro
   }
   /* v8 ignore stop */
 
-  const simulationsOutcome =
-    await simulatorResult.value.runAllScenarios.execute(DEFAULT_SIMULATOR_CONFIG);
+  // AAOS Self-Learning AI, Phase C wiring — same real-fetch, same tenant resolution, same
+  // never-throwing discipline as `src/app/api/simulate/route.ts`'s identical wiring.
+  const promptOverrideTenantId =
+    process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
+  const promptOverrideFetch = await fetchActiveClaraPromptOverride(promptOverrideTenantId);
+  const batchConfig = {
+    ...DEFAULT_SIMULATOR_CONFIG,
+    ...(promptOverrideFetch.found ? { claraPromptOverride: promptOverrideFetch.content } : {}),
+  };
+
+  const simulationsOutcome = await simulatorResult.value.runAllScenarios.execute(batchConfig);
   /* v8 ignore start -- unreachable in practice: `RunAllScenarios.execute` itself converts any
      single persona's `RunSimulation` failure into a synthesized `FAILED`-status result rather than
      aborting the batch (`@aos/conversation-simulator`'s own design) — it only returns `err` if
@@ -91,6 +101,11 @@ export async function POST(): Promise<NextResponse<SimulateAllResponse | ApiErro
       results,
       report: reportDto,
       learningBridge,
+      promptOverride: {
+        applied: promptOverrideFetch.found,
+        tenantId: promptOverrideTenantId,
+        ...(promptOverrideFetch.found ? {} : { reason: promptOverrideFetch.reason }),
+      },
     },
     { status: 200 },
   );

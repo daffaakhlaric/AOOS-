@@ -149,10 +149,24 @@ export interface SimulateRequest {
   readonly listingId?: string;
 }
 
+/**
+ * AAOS Self-Learning AI, Phase C wiring — a real, honest, always-present (never omitted) record of
+ * whether this run's Clara conversation actually used a fetched `agent_prompt_overrides` row
+ * (`applied: true`) or the unchanged hardcoded default (`applied: false`, with `reason` explaining
+ * why — no active override, or `apps/aaos-api` unreachable/misconfigured). Exists so this never
+ * becomes invisible/unverifiable, per the task's own explicit requirement — never fabricated.
+ */
+export interface PromptOverrideStatusDto {
+  readonly applied: boolean;
+  readonly tenantId: string;
+  readonly reason?: string;
+}
+
 /** Success response body for `POST /api/simulate` (spec "API Routes"). */
 export interface SimulateResponse {
   readonly simulationResult: SimulationResultDto;
   readonly judgementResult: JudgementResultDto;
+  readonly promptOverride: PromptOverrideStatusDto;
 }
 
 /** One entry of `POST /api/simulate-all`'s `results` array (spec "API Routes"). */
@@ -184,6 +198,8 @@ export interface SimulateAllResponse {
    * fabricated — see `learning-bridge.ts`'s own doc for the full best-effort contract.
    */
   readonly learningBridge: LearningBridgeStatusDto;
+  /** See `PromptOverrideStatusDto`'s own doc — same real, honest, never-fabricated contract. */
+  readonly promptOverride: PromptOverrideStatusDto;
 }
 
 /** Shared error envelope both Route Handlers return on failure. */
