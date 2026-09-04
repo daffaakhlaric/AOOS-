@@ -107,12 +107,23 @@ export async function POST(
       ? await fetchActiveClaraPromptOverride(promptOverrideTenantId)
       : ({ found: false, reason: "PROPERTY vertical has no LLM prompt path." } as const);
 
+  // AAOS Self-Learning AI, Phase C wiring (2nd half) — real thread of `CLARA_LLM_REPLY_ENABLED`/
+  // `OPENAI_API_KEY` from this app's own env into `SimulatorConfig`. Left unset,
+  // `SimulatorConfigSchema` leaves `llmReplyEnabled` undefined, `SalesAgentConfigSchema` then
+  // defaults it `false` — today's unchanged rule-based behavior, same never-silently-broken
+  // discipline `SalesAgentConfig.openaiApiKey`'s own doc already requires (an accidental `true`
+  // with no real key never wires the LLM generator regardless).
+  const llmReplyEnabled = process.env["CLARA_LLM_REPLY_ENABLED"] === "true";
+  const openaiApiKey = process.env["OPENAI_API_KEY"];
+
   const simulationConfig = {
     ...DEFAULT_SIMULATOR_CONFIG,
     vertical,
     ...(listingId !== undefined ? { listingId } : {}),
     ...(listing !== undefined ? { listings: [listing] } : {}),
     ...(promptOverrideFetch.found ? { claraPromptOverride: promptOverrideFetch.content } : {}),
+    ...(llmReplyEnabled ? { llmReplyEnabled } : {}),
+    ...(openaiApiKey !== undefined && openaiApiKey.length > 0 ? { openaiApiKey } : {}),
   };
 
   const simulatorResult = getSimulator();

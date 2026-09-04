@@ -29,9 +29,17 @@ export async function POST(): Promise<NextResponse<SimulateAllResponse | ApiErro
   const promptOverrideTenantId =
     process.env["AAOS_SIMULATOR_TENANT_ID"] ?? DEFAULT_SIMULATOR_CONFIG.tenantId;
   const promptOverrideFetch = await fetchActiveClaraPromptOverride(promptOverrideTenantId);
+
+  // AAOS Self-Learning AI, Phase C wiring (2nd half) — see `src/app/api/simulate/route.ts`'s
+  // identical wiring for the full reasoning.
+  const llmReplyEnabled = process.env["CLARA_LLM_REPLY_ENABLED"] === "true";
+  const openaiApiKey = process.env["OPENAI_API_KEY"];
+
   const batchConfig = {
     ...DEFAULT_SIMULATOR_CONFIG,
     ...(promptOverrideFetch.found ? { claraPromptOverride: promptOverrideFetch.content } : {}),
+    ...(llmReplyEnabled ? { llmReplyEnabled } : {}),
+    ...(openaiApiKey !== undefined && openaiApiKey.length > 0 ? { openaiApiKey } : {}),
   };
 
   const simulationsOutcome = await simulatorResult.value.runAllScenarios.execute(batchConfig);

@@ -71,7 +71,18 @@ export class ClaraSimulationComposer {
   async compose(
     config: SimulatorConfig,
   ): Promise<Result<ClaraSimulationComposition, SimulatorError>> {
-    const salesAgentConfigResult = parseSalesAgentConfig({ tenantId: config.tenantId });
+    const salesAgentConfigResult = parseSalesAgentConfig({
+      tenantId: config.tenantId,
+      // AAOS Self-Learning AI, Phase C wiring (2nd half) — real, first live thread of
+      // `SimulatorConfig.llmReplyEnabled`/`openaiApiKey`/`openaiModel`/`openaiTimeoutMs` into the
+      // `SalesAgentConfig` `ClaraAgentFactory.createResponseGenerator` actually reads. Left
+      // undefined (the default), `SalesAgentConfigSchema` itself defaults `llmReplyEnabled: false`,
+      // so a caller that never sets these fields gets today's unchanged rule-based behavior.
+      ...(config.llmReplyEnabled !== undefined ? { llmReplyEnabled: config.llmReplyEnabled } : {}),
+      ...(config.openaiApiKey !== undefined ? { openaiApiKey: config.openaiApiKey } : {}),
+      ...(config.openaiModel !== undefined ? { openaiModel: config.openaiModel } : {}),
+      ...(config.openaiTimeoutMs !== undefined ? { openaiTimeoutMs: config.openaiTimeoutMs } : {}),
+    });
     /* v8 ignore start -- unreachable in practice: `config.tenantId` is already validated
        non-empty by `SimulatorConfigSchema` before a `SimulatorConfig` can exist, and every other
        `SalesAgentConfig` field defaults from `@aos/sales-agent`'s own schema, so

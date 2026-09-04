@@ -73,6 +73,21 @@ export interface SimulatorConfig {
    * this field.
    */
   readonly claraPromptOverride?: string;
+  /**
+   * AAOS Self-Learning AI, Phase C wiring (2nd half) — real, first live consumer of
+   * `@aos/sales-agent`'s pre-existing `SalesAgentConfig.llmReplyEnabled`/`openaiApiKey`/
+   * `openaiModel`/`openaiTimeoutMs`. Same "this package never calls `apps/aaos-api` or reads
+   * `process.env` itself" discipline `listings`/`claraPromptOverride` already establish —
+   * `apps/aaos-simulator` (the one process with a real `OPENAI_API_KEY` in its own env) owns
+   * reading it and passes it down here. Defaults preserve every existing caller's behavior
+   * unchanged: `llmReplyEnabled` defaults `false`, so a caller that never sets these fields still
+   * gets the pure rule-based `ResponseGenerator`, exactly as before this field existed.
+   * AUTOMOTIVE-only (mirrors `claraPromptOverride`'s own doc): PROPERTY has no LLM response path.
+   */
+  readonly llmReplyEnabled?: boolean;
+  readonly openaiApiKey?: string;
+  readonly openaiModel?: string;
+  readonly openaiTimeoutMs?: number;
 }
 
 export const SimulatorConfigSchema = z.object({
@@ -86,6 +101,10 @@ export const SimulatorConfigSchema = z.object({
   listingId: z.string().min(1, "listingId must not be empty").optional(),
   listings: z.array(PropertyListingDataSchema).optional(),
   claraPromptOverride: z.string().min(1).optional(),
+  llmReplyEnabled: z.boolean().optional(),
+  openaiApiKey: z.string().min(1).optional(),
+  openaiModel: z.string().min(1).optional(),
+  openaiTimeoutMs: z.number().int().positive().optional(),
 });
 
 export type SimulatorConfigInput = z.input<typeof SimulatorConfigSchema>;
