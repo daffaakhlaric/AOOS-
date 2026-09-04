@@ -1,6 +1,6 @@
-import { ListingsClient } from "@/components/listings/ListingsClient";
+import { redirect } from "next/navigation";
 
-/** `/listings` — Listing Manager (spec Part 4, PROPERTY vertical, replaces Scraper Mobix). */
-export default function ListingsPage(): React.ReactElement {
-  return <ListingsClient />;
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9) — `/listings` ("Listing Manager") retired into the new Creative hub's "listing" tab (real tab content is Sprint 2/3; real `ListingsClient` untouched). */
+export default function ListingsPage(): never {
+  redirect("/creative?tab=listing");
 }

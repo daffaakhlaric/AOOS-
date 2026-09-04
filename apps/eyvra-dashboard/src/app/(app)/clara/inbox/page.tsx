@@ -1,20 +1,6 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { ClaraInboxClient } from "@/components/clara/ClaraInboxClient";
+import { redirect } from "next/navigation";
 
-/**
- * `/clara/inbox` — 3-panel Chatwoot-style inbox (MENU RESTRUCTURE FINAL, coordinator note #2).
- * Fully replaces the retired `/leads/[leadId]` split-panel chat room + the flat `/leads` list's
- * "Lihat Chat →" links — the ONLY live chat UI in this app now.
- */
-export default function ClaraInboxPage({
-  searchParams,
-}: {
-  readonly searchParams: { readonly lead?: string };
-}): React.ReactElement {
-  return (
-    <main>
-      <TopBar title="Inbox" accentColor="var(--v2-menu-leads)" />
-      <ClaraInboxClient initialLeadId={searchParams.lead} />
-    </main>
-  );
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9, "jessy/inbox" equivalent) — `/clara/inbox` retired into the new Leads hub (real tab content is Sprint 2/3; real `ClaraInboxClient` untouched). */
+export default function ClaraInboxPage(): never {
+  redirect("/leads");
 }

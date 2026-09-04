@@ -1,194 +1,85 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
+let currentPathname = "/dashboard";
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
+  usePathname: () => currentPathname,
 }));
 
-import { buildNavGroups, Sidebar } from "@/components/layout/Sidebar";
+import { MENU, NAV_ITEMS, SETTINGS_ITEM, Sidebar } from "@/components/layout/Sidebar";
 
-function mockSettingsFetch(vertical: "AUTOMOTIVE" | "PROPERTY" | undefined): void {
-  global.fetch = vi.fn(async () =>
-    vertical === undefined
-      ? new Response(null, { status: 401 })
-      : new Response(
-          JSON.stringify({
-            tenant: { tenantId: "t", name: "T", vertical, status: "ACTIVE" },
-            meta: { apiVersion: "v21.0", hasToken: false, usingEnvDefault: true },
-          }),
-          { status: 200 },
-        ),
-  ) as unknown as typeof fetch;
-}
-
+/**
+ * EYVRA MENU RESTRUCTURE Sprint 1 — full rewrite replacing the old grouped/collapsible/
+ * per-vertical Sidebar tests: the new Sidebar is a flat, vertical-agnostic 7-item rail with no
+ * section headers, no collapse state, and no `/api/settings` fetch (see `Sidebar.tsx`'s class
+ * doc for why the vertical fetch was removed entirely, not just untested).
+ */
 describe("Sidebar", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+  const EXPECTED_ROUTES: ReadonlyArray<readonly [label: string, href: string]> = [
+    ["Overview", "/dashboard"],
+    ["Campaign", "/campaigns"],
+    ["Leads", "/leads"],
+    ["Creative", "/creative"],
+    ["Aktivitas", "/activity"],
+    ["AI Improve", "/self-improve"],
+    ["Setting", "/settings"],
+  ];
+
+  it("exposes exactly 7 nav items in NAV_ITEMS, in the spec's order", () => {
+    expect(NAV_ITEMS).toHaveLength(7);
+    expect(NAV_ITEMS.map((item) => item.label)).toEqual(EXPECTED_ROUTES.map(([label]) => label));
   });
 
-  it("renders the AUTOMOTIVE nav (Scraper Mobix, plain KAI label) before the vertical is resolved", () => {
-    mockSettingsFetch(undefined);
-    render(<Sidebar />);
-    expect(screen.getByText("KAI (CREATIVE)")).toBeInTheDocument();
-    expect(screen.getByText("Scraper Mobix")).toBeInTheDocument();
-    expect(screen.queryByText("Listing Manager")).not.toBeInTheDocument();
+  it("MENU holds the first 6 items (everything except Setting, which renders separately)", () => {
+    expect(MENU).toHaveLength(6);
+    expect(SETTINGS_ITEM.label).toBe("Setting");
+    expect(SETTINGS_ITEM.href).toBe("/settings");
   });
 
-  it("keeps the AUTOMOTIVE nav (Scraper Mobix) when the session's vertical is AUTOMOTIVE", async () => {
-    mockSettingsFetch("AUTOMOTIVE");
+  it("renders all 7 menu items with the correct label and href, and no old section headers", () => {
+    currentPathname = "/dashboard";
     render(<Sidebar />);
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/settings"));
-    expect(screen.getByText("Scraper Mobix")).toBeInTheDocument();
-    expect(screen.queryByText("Listing Manager")).not.toBeInTheDocument();
-  });
-
-  it("swaps to the PROPERTY nav (Listing Manager, relabeled KAI section) when the session's vertical is PROPERTY", async () => {
-    mockSettingsFetch("PROPERTY");
-    render(<Sidebar />);
-    await waitFor(() => expect(screen.getByText("Listing Manager")).toBeInTheDocument());
-    expect(screen.getByText("KAI (CREATIVE) — PROPERTI")).toBeInTheDocument();
-    expect(screen.queryByText("Scraper Mobix")).not.toBeInTheDocument();
-    const link = screen.getByText("Listing Manager").closest("a");
-    expect(link).toHaveAttribute("href", "/listings");
-  });
-
-  it("does NOT render Activity Log for AUTOMOTIVE (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B, PROPERTY-only)", async () => {
-    mockSettingsFetch("AUTOMOTIVE");
-    render(<Sidebar />);
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/settings"));
-    expect(screen.queryByText("Activity Log")).not.toBeInTheDocument();
-  });
-
-  it("renders Activity Log under OPERASIONAL for PROPERTY, linking to /property/activity", async () => {
-    mockSettingsFetch("PROPERTY");
-    render(<Sidebar />);
-    await waitFor(() => expect(screen.getByText("Activity Log")).toBeInTheDocument());
-    const link = screen.getByText("Activity Log").closest("a");
-    expect(link).toHaveAttribute("href", "/property/activity");
-  });
-
-  it("PROPERTY-TENANT-ISOLATION Phase 1: does NOT render Branch Settings under OPERASIONAL for PROPERTY", async () => {
-    mockSettingsFetch("PROPERTY");
-    render(<Sidebar />);
-    await waitFor(() => expect(screen.getByText("Listing Manager")).toBeInTheDocument());
-    expect(screen.queryByText("Branch Settings")).not.toBeInTheDocument();
-  });
-
-  it("PROPERTY-TENANT-ISOLATION Phase 1: keeps Branch Settings under OPERASIONAL for AUTOMOTIVE", async () => {
-    mockSettingsFetch("AUTOMOTIVE");
-    render(<Sidebar />);
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/settings"));
-    const link = screen.getByText("Branch Settings").closest("a");
-    expect(link).toHaveAttribute("href", "/branches");
-  });
-
-  it("renders the Lead Recycling nav item under CLARA (SALES AI), for both verticals", () => {
-    mockSettingsFetch(undefined);
-    render(<Sidebar />);
-    const link = screen.getByText("Lead Recycling").closest("a");
-    expect(link).toHaveAttribute("href", "/clara/recycling");
-  });
-
-  it("renders the A/B Testing nav item under SAMANTHA (META ADS)", () => {
-    mockSettingsFetch(undefined);
-    render(<Sidebar />);
-    const link = screen.getByText("A/B Testing").closest("a");
-    expect(link).toHaveAttribute("href", "/meta-ads/abtesting");
-  });
-
-  it("renders the Lookalike Audience nav item under SAMANTHA (META ADS)", () => {
-    mockSettingsFetch(undefined);
-    render(<Sidebar />);
-    const link = screen.getByText("Lookalike Audience").closest("a");
-    expect(link).toHaveAttribute("href", "/meta-ads/lookalike");
-  });
-
-  it("renders the SOSIAL MEDIA section with its 6 sub-items (AAOS-SOSMED-AUTOMATION Phase 5)", () => {
-    mockSettingsFetch(undefined);
-    render(<Sidebar />);
-    expect(screen.getByText("SOSIAL MEDIA")).toBeInTheDocument();
-    expect(screen.getByText("Dashboard Sosmed").closest("a")).toHaveAttribute("href", "/sosmed");
-    expect(screen.getByText("Content Calendar").closest("a")).toHaveAttribute(
-      "href",
-      "/sosmed/calendar",
-    );
-    expect(screen.getByText("Content Studio").closest("a")).toHaveAttribute(
-      "href",
-      "/sosmed/studio",
-    );
-    expect(screen.getByText("Post Manager").closest("a")).toHaveAttribute("href", "/sosmed/posts");
-    expect(screen.getByText("Analytics Sosmed").closest("a")).toHaveAttribute(
-      "href",
-      "/sosmed/analytics",
-    );
-    expect(screen.getByText("Akun Terhubung").closest("a")).toHaveAttribute(
-      "href",
-      "/sosmed/accounts",
-    );
-  });
-
-  it("does NOT render the SOSIAL MEDIA section for PROPERTY (AAOS-KAI-MANUAL-SHOOT-MENU-CLEANUP Part B)", async () => {
-    mockSettingsFetch("PROPERTY");
-    render(<Sidebar />);
-    await waitFor(() => expect(screen.getByText("Listing Manager")).toBeInTheDocument());
+    for (const [label, href] of EXPECTED_ROUTES) {
+      const link = screen.getByText(label).closest("a");
+      expect(link).toHaveAttribute("href", href);
+    }
+    // The old 24-item sidebar's section headers must be completely gone.
+    expect(screen.queryByText("SAMANTHA (META ADS)")).not.toBeInTheDocument();
+    expect(screen.queryByText("CLARA (SALES AI)")).not.toBeInTheDocument();
+    expect(screen.queryByText("KAI (CREATIVE)")).not.toBeInTheDocument();
+    expect(screen.queryByText("OPERASIONAL")).not.toBeInTheDocument();
     expect(screen.queryByText("SOSIAL MEDIA")).not.toBeInTheDocument();
-    expect(screen.queryByText("Dashboard Sosmed")).not.toBeInTheDocument();
   });
 
-  it("keeps the SOSIAL MEDIA section (all 6 items) for AUTOMOTIVE", async () => {
-    mockSettingsFetch("AUTOMOTIVE");
+  it("marks the active item (current route /campaigns) with the navItemActive styling hook, and only that one", () => {
+    currentPathname = "/campaigns";
     render(<Sidebar />);
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith("/api/settings"));
-    expect(screen.getByText("SOSIAL MEDIA")).toBeInTheDocument();
-    expect(screen.getByText("Dashboard Sosmed")).toBeInTheDocument();
-  });
+    const campaignLink = screen.getByText("Campaign").closest("a");
+    expect(campaignLink).toHaveAttribute("aria-current", "page");
+    expect(campaignLink?.className).toMatch(/navItemActive/);
 
-  it("buildNavGroups: omits the sosmed group entirely for PROPERTY, keeps all 6 items for AUTOMOTIVE", () => {
-    const propertyGroups = buildNavGroups("PROPERTY");
-    expect(propertyGroups.find((group) => group.key === "sosmed")).toBeUndefined();
-
-    const automotiveGroups = buildNavGroups("AUTOMOTIVE");
-    const sosmed = automotiveGroups.find((group) => group.key === "sosmed");
-    expect(sosmed?.items).toHaveLength(6);
-  });
-
-  it("never breaks rendering when the settings fetch fails", async () => {
-    global.fetch = vi.fn(async () => {
-      throw new Error("network down");
-    }) as unknown as typeof fetch;
-    render(<Sidebar />);
-    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-    expect(screen.getByText("Scraper Mobix")).toBeInTheDocument();
-  });
-
-  /**
-   * AAOS Colorful Brand Guideline v2, Phase B2 — the one additive JSX change this recolor needed:
-   * each nav `Link` now carries `data-group` (the real `NavGroup.key`) so `Sidebar.module.css` can
-   * color the active-state pill/accent-bar per group (see that file's `.navItemActive[data-group=…]`
-   * rules). Asserted directly against the real markup, not just claimed.
-   */
-  it("tags every real nav group's links with data-group matching the group key (v2 active-state coloring)", () => {
-    mockSettingsFetch(undefined);
-    render(<Sidebar />);
-    expect(screen.getByText("Overview").closest("a")).toHaveAttribute("data-group", "top");
-    expect(screen.getByText("Data Iklan").closest("a")).toHaveAttribute("data-group", "samantha");
-    expect(screen.getByText("Lead Recycling").closest("a")).toHaveAttribute("data-group", "clara");
-    expect(screen.getByText("Creative Review").closest("a")).toHaveAttribute("data-group", "kai");
-    expect(screen.getByText("Branch Settings").closest("a")).toHaveAttribute(
-      "data-group",
-      "operasional",
-    );
-    expect(screen.getByText("Dashboard Sosmed").closest("a")).toHaveAttribute(
-      "data-group",
-      "sosmed",
-    );
-  });
-
-  it("marks the active Overview link (current route /dashboard) with the navItemActive styling hook", () => {
-    mockSettingsFetch(undefined);
-    render(<Sidebar />);
     const overviewLink = screen.getByText("Overview").closest("a");
-    expect(overviewLink).toHaveAttribute("aria-current", "page");
-    expect(overviewLink?.className).toMatch(/navItemActive/);
+    expect(overviewLink).not.toHaveAttribute("aria-current");
+    expect(overviewLink?.className ?? "").not.toMatch(/navItemActive/);
+  });
+
+  it("treats a nested path under a menu route as active too (e.g. /leads/123 activates Leads)", () => {
+    currentPathname = "/leads/123";
+    render(<Sidebar />);
+    const leadsLink = screen.getByText("Leads").closest("a");
+    expect(leadsLink).toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders the logo mark as a plain 'E' (Eyvra rebrand), not the old 'AAOS' wordmark", () => {
+    currentPathname = "/dashboard";
+    render(<Sidebar />);
+    expect(screen.getByText("E")).toBeInTheDocument();
+    expect(screen.queryByText("AAOS")).not.toBeInTheDocument();
+  });
+
+  it("has an accessible desktop navigation landmark", () => {
+    currentPathname = "/dashboard";
+    render(<Sidebar />);
+    expect(screen.getByRole("navigation", { name: "Navigasi utama" })).toBeInTheDocument();
   });
 });

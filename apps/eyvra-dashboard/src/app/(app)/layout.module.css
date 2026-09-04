@@ -15,7 +15,9 @@
  */
 .shell {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  /* EYVRA MENU RESTRUCTURE Sprint 1: Sidebar rail shrank from 220px (text rail) to 72px
+     (icon+label rail) — see Sidebar.module.css's own class doc. */
+  grid-template-columns: 72px 1fr;
   min-height: 100vh;
 }
 

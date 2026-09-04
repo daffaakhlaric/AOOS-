@@ -1,12 +1,6 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { KnowledgeClient } from "@/components/knowledge/KnowledgeClient";
+import { redirect } from "next/navigation";
 
-/** Excel upload + knowledge base (spec "knowledge/page.tsx"). */
-export default function KnowledgePage(): React.ReactElement {
-  return (
-    <main>
-      <TopBar title="Knowledge Base" />
-      <KnowledgeClient />
-    </main>
-  );
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9, "jessy/knowledge" equivalent) — `/clara/knowledge` retired into the new Leads hub's "knowledge-base" tab (real tab content is Sprint 2/3; real `KnowledgeClient` untouched). */
+export default function KnowledgePage(): never {
+  redirect("/leads?tab=knowledge-base");
 }

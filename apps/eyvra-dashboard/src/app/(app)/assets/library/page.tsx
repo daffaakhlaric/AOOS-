@@ -1,15 +1,6 @@
-import { AssetLibraryClient } from "@/components/assets/AssetLibraryClient";
-import { TopBar } from "@/components/layout/TopBar";
+import { redirect } from "next/navigation";
 
-/**
- * Asset Library page (`/assets/library`) — AAOS-SCRAPER-ASSET-LIBRARY. Reachable from the
- * OPERASIONAL sidebar group. All data flows through this app's own `/api/assets*` proxy routes.
- */
-export default function AssetLibraryPage(): React.ReactElement {
-  return (
-    <main>
-      <TopBar title="Asset Library" />
-      <AssetLibraryClient />
-    </main>
-  );
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9) — `/assets/library` ("Asset Library") retired into the new Creative hub's "assets" tab (real tab content is Sprint 2/3; real `AssetLibraryClient` untouched). */
+export default function AssetLibraryPage(): never {
+  redirect("/creative?tab=assets");
 }

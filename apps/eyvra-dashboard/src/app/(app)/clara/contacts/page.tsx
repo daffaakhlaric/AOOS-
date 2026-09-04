@@ -1,12 +1,6 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { ContactsClient } from "@/components/clara/ContactsClient";
+import { redirect } from "next/navigation";
 
-/** `/clara/contacts` — all leads overview across every branch (MENU RESTRUCTURE FINAL), replacing the old flat `/leads` list. */
-export default function ClaraContactsPage(): React.ReactElement {
-  return (
-    <main>
-      <TopBar title="Contacts" accentColor="var(--v2-menu-leads)" />
-      <ContactsClient />
-    </main>
-  );
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9, "jessy/contacts" equivalent) — `/clara/contacts` retired into the new Leads hub's "semua" tab (real tab content is Sprint 2/3; real `ContactsClient` untouched). */
+export default function ClaraContactsPage(): never {
+  redirect("/leads?tab=semua");
 }

@@ -65,11 +65,11 @@ describe("middleware", () => {
     expect(response.status).toBe(200);
   });
 
-  it("redirects /leads to /clara/inbox without checking session (MENU RESTRUCTURE FINAL)", async () => {
+  it("no longer redirects /leads (EYVRA MENU RESTRUCTURE Sprint 1) — it's a real, session-gated page now (the new Leads hub), not a compatibility redirect", async () => {
+    getSession.mockResolvedValue({ userId: "u1", role: "manager" });
     const response = await middleware(buildRequest("/leads"));
-    expect(getSession).not.toHaveBeenCalled();
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain("/clara/inbox");
+    expect(getSession).toHaveBeenCalled();
+    expect(response.status).toBe(200);
   });
 
   it("redirects /knowledge to /clara/knowledge", async () => {

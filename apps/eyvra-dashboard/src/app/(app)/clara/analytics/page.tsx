@@ -1,12 +1,6 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { ClaraAnalyticsClient } from "@/components/clara/ClaraAnalyticsClient";
+import { redirect } from "next/navigation";
 
-/** `/clara/analytics` — real KPIs computed from `@aos/lead-store` data (MENU RESTRUCTURE FINAL). */
-export default function ClaraAnalyticsPage(): React.ReactElement {
-  return (
-    <main>
-      <TopBar title="Analytics" />
-      <ClaraAnalyticsClient />
-    </main>
-  );
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9, "jessy/analytics" equivalent) — `/clara/analytics` retired into `/dashboard` (real `ClaraAnalyticsClient` untouched). */
+export default function ClaraAnalyticsPage(): never {
+  redirect("/dashboard");
 }

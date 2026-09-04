@@ -1,12 +1,6 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { LookalikeClient } from "@/components/meta-ads/LookalikeClient";
+import { redirect } from "next/navigation";
 
-/** Lookalike Audience page (`/meta-ads/lookalike`, AAOS-ABTESTING-LOOKALIKE Part 2). */
-export default function LookalikePage(): React.ReactElement {
-  return (
-    <main>
-      <TopBar title="Lookalike Audience" accentColor="var(--v2-menu-campaigns)" />
-      <LookalikeClient />
-    </main>
-  );
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9) — `/meta-ads/lookalike` ("Lookalike Audience") retired into the new Campaign hub (real tab content is Sprint 2/3; real `LookalikeClient` untouched). */
+export default function LookalikePage(): never {
+  redirect("/campaigns");
 }

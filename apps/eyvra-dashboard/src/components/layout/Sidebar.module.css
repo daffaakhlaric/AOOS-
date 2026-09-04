@@ -1,286 +1,133 @@
 /**
- * AAOS Colorful Brand Guideline v2, Phase B2 — recolored to the deep-indigo sidebar
- * (`--v2-sidebar-*` tokens from `globals.css`, Phase B1) per
- * `docs/PROMPT-AAOS-BRAND-GUIDELINE-V2.md` decision #2: same real 220px rail / structure as
- * before, palette swap only. Spec "=== SIDEBAR ===" — fixed 220px rail, logo/nav/user sections.
+ * EYVRA MENU RESTRUCTURE Sprint 1 (Foundation) — total rebuild: 220px text rail with collapsible
+ * SAMANTHA/CLARA/KAI/OPERASIONAL sections -> 72px icon+label rail, 7 flat items, no section
+ * headers, no sub-menus. See `Sidebar.tsx`'s class doc for the real icon/color/route deviations
+ * from the spec's literal `ti-*`/hex/`/property/*` assumptions. `--v2-sidebar-bg` (`#1e1b4b`) and
+ * `--v2-sidebar-active` (`#3730a3`) already matched the spec's literal "#1E1B4B deep indigo" /
+ * "#3730A3" logo-box color exactly (`globals.css`, added for the pre-restructure sidebar) — reused
+ * as-is rather than hardcoded a second time.
  */
 .sidebar {
   position: fixed;
   top: 0;
   left: 0;
-  width: 220px;
+  width: 72px;
   height: 100vh;
   overflow-y: auto;
   background: var(--v2-sidebar-bg);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
+  align-items: center;
   z-index: 10;
 }
 
 .logo {
-  padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.logoRow {
+  padding: 14px 0 10px;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  justify-content: center;
 }
 
-/* Real "AAOS" wordmark (NOT the spec's fictional "Eyvra"/"E" mark — see coordinator doc decision
-   #2). Box recolored to `--v2-sidebar-active` (the spec's own logo-box color, `#3730A3`) so it
-   reads against the new deep-indigo surround instead of the old plain-black square. */
 .logoMark {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   background: var(--v2-sidebar-active);
   color: var(--v2-sidebar-text-active);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1;
   flex-shrink: 0;
 }
 
-.logoText {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.3px;
-  color: var(--v2-sidebar-text-active);
-}
-
 .nav {
-  padding: 12px 8px;
-  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
+  padding: 4px 0;
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-}
-
-/* MENU RESTRUCTURE FINAL: thin divider between the standalone Overview item and the 4
-   collapsible sections below it — rendered only after the "top" group. Recolored to a
-   translucent white line for the dark indigo background (was a light-theme gray). */
+/* Spec "DIVIDER: div width 32px, height 0.5px, background rgba(255,255,255,0.1), margin 2px auto". */
 .divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  margin: 6px 8px 4px;
+  width: 32px;
+  height: 0.5px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 2px auto;
 }
 
-.sectionLabel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--v2-sidebar-text);
-  padding: 8px 8px 4px;
-  cursor: pointer;
-  border-radius: var(--radius);
-}
-
-.sectionLabel:hover {
-  color: var(--v2-sidebar-text-active);
-}
-
-.chevron {
-  font-size: 10px;
-  transition: transform 200ms;
-  transform: rotate(180deg);
-}
-
-.chevronCollapsed {
-  transform: rotate(0deg);
-}
-
-.collapse {
-  display: grid;
-  overflow: hidden;
-  transition:
-    grid-template-rows 200ms ease,
-    opacity 200ms ease;
-  grid-template-rows: 1fr;
-}
-
-.collapsed {
-  grid-template-rows: 0fr;
-  opacity: 0;
-}
-
-.collapseInner {
-  overflow: hidden;
+/* Spec "Settings di bawah dengan margin-top auto". */
+.settingsRow {
+  margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  padding-bottom: 10px;
 }
 
+/* Spec "Container: flex-col, align-items center, gap 3px, padding 6px 4px, width 60px,
+   border-radius 9px". Transition: all 0.15s. */
 .navItem {
-  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  color: var(--v2-sidebar-text);
-  cursor: pointer;
-  transition:
-    background 80ms,
-    color 80ms;
+  gap: 3px;
+  width: 60px;
+  padding: 6px 4px;
+  border-radius: 9px;
   text-decoration: none;
+  transition: all 0.15s;
 }
 
 .navItem:hover {
   background: rgba(255, 255, 255, 0.06);
-  color: var(--v2-sidebar-text-active);
 }
 
-/**
- * Active nav item — colored pill + left accent bar, per real nav GROUP (the spec's own
- * `MENU_ITEMS`/`ACTIVITY_ROW_ACCENT` tables are keyed per flat item, one item = one page; this
- * app's real sidebar groups 20+ items under 4-5 collapsible sections instead, so the sensible
- * adaptation is one color per GROUP rather than per item). Every real group is matched to one of
- * the 8 `--v2-menu-*` tokens by nearest semantic fit:
- *   - "top" (Overview, standalone)     -> --v2-menu-overview  (blue)   — spec's own Overview color
- *   - samantha (SAMANTHA / META ADS)   -> --v2-menu-campaigns (violet) — spec's "Campaign" color
- *   - clara (CLARA / SALES AI)         -> --v2-menu-leads     (emerald)— spec's "Leads" color
- *   - sosmed (SOSIAL MEDIA)            -> --v2-menu-analytics (pink)   — not in the spec's 4-group
- *     mapping (real app has a 5th group the spec never anticipated); pink is otherwise unused by
- *     any of the 4 mapped groups below and reads as a distinct "content/analytics" adjacent hue.
- *   - kai (KAI / CREATIVE)             -> --v2-menu-creative  (amber)  — spec's "Creative" color
- *   - operasional (OPERASIONAL)        -> --v2-menu-settings  (slate)  — spec's "Pengaturan" color
- * Selected via the `data-group` attribute `Sidebar.tsx` sets on each `Link` (the one minimal,
- * additive JSX change this recolor needed) rather than a separate CSS class per group, so the
- * base `.navItemActive` pill/bar rule stays the fallback for any unmatched group key.
- */
-.navItemActive {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--v2-sidebar-text-active);
-  font-weight: 500;
-}
-
-.navItemActive::before {
-  content: "";
-  position: absolute;
-  left: -8px;
-  width: 3px;
-  height: 16px;
-  border-radius: 2px;
-  background: var(--v2-menu-overview);
-}
-
-.navItemActive[data-group="top"] {
-  background: color-mix(in srgb, var(--v2-menu-overview) 18%, transparent);
-}
-.navItemActive[data-group="top"]::before {
-  background: var(--v2-menu-overview);
-}
-
-.navItemActive[data-group="samantha"] {
-  background: color-mix(in srgb, var(--v2-menu-campaigns) 18%, transparent);
-}
-.navItemActive[data-group="samantha"]::before {
-  background: var(--v2-menu-campaigns);
-}
-
-.navItemActive[data-group="clara"] {
-  background: color-mix(in srgb, var(--v2-menu-leads) 18%, transparent);
-}
-.navItemActive[data-group="clara"]::before {
-  background: var(--v2-menu-leads);
-}
-
-.navItemActive[data-group="sosmed"] {
-  background: color-mix(in srgb, var(--v2-menu-analytics) 18%, transparent);
-}
-.navItemActive[data-group="sosmed"]::before {
-  background: var(--v2-menu-analytics);
-}
-
-.navItemActive[data-group="kai"] {
-  background: color-mix(in srgb, var(--v2-menu-creative) 18%, transparent);
-}
-.navItemActive[data-group="kai"]::before {
-  background: var(--v2-menu-creative);
-}
-
-.navItemActive[data-group="operasional"] {
-  background: color-mix(in srgb, var(--v2-menu-settings) 18%, transparent);
-}
-.navItemActive[data-group="operasional"]::before {
-  background: var(--v2-menu-settings);
-}
-
-/* Muted by default, full color once active — inactive icons dim against the dark sidebar,
-   matching the spec's rgba(255,255,255,0.35-0.4) inactive-icon treatment (grayscale/opacity
-   filter kept from the pre-v2 light-theme rule since these are emoji glyphs, not an SVG icon
-   set — swapping to one is a separate, larger decision, unchanged by this recolor). */
+/* Spec "Icon box: 30×30px, border-radius 8px, font-size 16px". Inactive icon color
+   rgba(255,255,255,0.35) (spec's own inactive value — the emoji glyph itself can't be recolored
+   like an SVG icon would, so this dims the box's foreground/opacity instead, same real-glyph
+   constraint the pre-restructure `.navIcon` rule already worked within). */
 .navIcon {
-  font-size: 14px;
-  line-height: 1;
-  filter: grayscale(1) opacity(0.6);
-  transition: filter 80ms;
-}
-
-.navItem:hover .navIcon,
-.navItemActive .navIcon {
-  filter: none;
-}
-
-.userSection {
-  margin-top: auto;
-  padding: 12px 16px;
-  border-top: var(--border);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--gray-200);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--gray-700);
-  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.35);
+  filter: grayscale(1) opacity(0.55);
+  transition: all 0.15s;
 }
 
-.userMeta {
-  min-width: 0;
+/* Spec "Label: 8.5px, active = #FFFFFF font-weight 500, inactive = rgba(255,255,255,0.35)". */
+.navLabel {
+  font-size: 8.5px;
+  color: rgba(255, 255, 255, 0.35);
+  transition: all 0.15s;
 }
 
-.userName {
-  font-size: 12px;
+/* Spec "Active container bg: rgba(itemColor, 0.12)" / "Active icon box bg: rgba(itemColor, 0.25),
+   color: itemColor" — expressed via `color-mix()` against the per-item `--item-color` custom
+   property `Sidebar.tsx` sets inline (same `color-mix(in srgb, X, transparent)` technique the
+   pre-restructure `.navItemActive[data-group=…]` rules already used for per-group coloring). */
+.navItemActive {
+  background: color-mix(in srgb, var(--item-color) 12%, transparent);
+}
+
+.navItemActive .navIcon {
+  background: color-mix(in srgb, var(--item-color) 25%, transparent);
+  color: var(--item-color);
+  filter: none;
+}
+
+.navItemActive .navLabel {
+  color: #ffffff;
   font-weight: 500;
-  color: var(--gray-900);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.userRole {
-  font-size: 10px;
-  color: var(--gray-400);
 }
 
 @media (max-width: 767px) {

@@ -1,12 +1,6 @@
-import { AnalisaClient } from "@/components/meta-ads/AnalisaClient";
-import { TopBar } from "@/components/layout/TopBar";
+import { redirect } from "next/navigation";
 
-/** Analisa & Rekomendasi page (spec `meta-ads/analisa/page.tsx`, AAOS-SAMANTHA-PAGES redesign). */
-export default function AnalisaPage(): React.ReactElement {
-  return (
-    <main>
-      <TopBar title="Analisa & Rekomendasi" accentColor="var(--v2-menu-campaigns)" />
-      <AnalisaClient />
-    </main>
-  );
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9) — `/meta-ads/analisa` ("Analisa & Rekomendasi") retired into the new Campaign hub's "verdict" tab (real tab content is Sprint 2/3; real `AnalisaClient` untouched). */
+export default function AnalisaPage(): never {
+  redirect("/campaigns?tab=verdict");
 }

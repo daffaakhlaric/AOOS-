@@ -1,6 +1,6 @@
-import { ActivityLogClient } from "@/components/activity/ActivityLogClient";
+import { redirect } from "next/navigation";
 
-/** `/property/activity` — Activity Log (AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B, PROPERTY vertical nav entry). */
-export default function ActivityLogPage(): React.ReactElement {
-  return <ActivityLogClient />;
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9, "activity-log/" equivalent) — `/property/activity` retired into the new top-level Aktivitas hub (`/activity`, no `/property` prefix — this app has never had vertical-prefixed routing; real `ActivityLogClient` untouched). */
+export default function ActivityLogPage(): never {
+  redirect("/activity");
 }

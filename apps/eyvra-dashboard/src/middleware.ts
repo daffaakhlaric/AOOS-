@@ -36,19 +36,20 @@ function isApiPath(pathname: string): boolean {
 }
 
 /**
- * MENU RESTRUCTURE FINAL — exact-path redirects for the 3 routes this restructure moved/retired.
- * `/leads` is retired entirely (its flat list became `/clara/contacts`, its chat room became
- * `/clara/inbox` — see `docs/PROMPT-AAOS-MENU-RESTRUCTURE-FINAL.md`'s coordinator note #2), so
- * (unlike the spec's own middleware sketch, which sends `/leads` there loosely) it redirects to
- * `/clara/inbox`, matching the spec's original REDIRECTS map. `/knowledge`/`/simulator` simply
- * moved under `/clara/*` with identical content.
+ * MENU RESTRUCTURE FINAL — exact-path redirects for stale bookmarks to routes this restructure
+ * moved/retired. `/knowledge`/`/simulator` simply moved under `/clara/*` with identical content.
  *
  * AGENT RENAME Phase 8: `/jessy/*` was itself renamed to `/clara/*` (Jessy → Clara). Same
  * exact-path stale-link pattern as above, this time for every real `/jessy/*` page that existed
  * before the rename, so no existing bookmark 404s.
+ *
+ * EYVRA MENU RESTRUCTURE Sprint 1: the `/leads` entry that used to live here (redirecting to
+ * `/clara/inbox`) is REMOVED — `/leads` is now reclaimed as a real page of its own (the new
+ * "Leads" hub, `src/app/(app)/leads/page.tsx`), not a compatibility redirect. This map running
+ * ahead of the app router means leaving `/leads` in here would have silently swallowed every
+ * request to the new page before it ever rendered.
  */
 const REDIRECTS: Readonly<Record<string, string>> = {
-  "/leads": "/clara/inbox",
   "/knowledge": "/clara/knowledge",
   "/simulator": "/clara/simulator",
   "/jessy/analytics": "/clara/analytics",

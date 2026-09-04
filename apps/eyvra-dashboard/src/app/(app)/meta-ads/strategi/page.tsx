@@ -1,12 +1,6 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { StrategiClient } from "@/components/meta-ads/StrategiClient";
+import { redirect } from "next/navigation";
 
-/** Strategi & Approve page (spec `meta-ads/strategi/page.tsx`, AAOS-SAMANTHA-PAGES redesign). */
-export default function StrategiPage(): React.ReactElement {
-  return (
-    <main>
-      <TopBar title="Strategi & Approve" accentColor="var(--v2-menu-campaigns)" />
-      <StrategiClient />
-    </main>
-  );
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9) — `/meta-ads/strategi` ("Strategi & Approve") retired into the new Campaign hub's "verdict" tab (real tab content is Sprint 2/3; real `StrategiClient` untouched). */
+export default function StrategiPage(): never {
+  redirect("/campaigns?tab=verdict");
 }

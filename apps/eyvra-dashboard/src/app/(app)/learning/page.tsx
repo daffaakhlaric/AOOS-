@@ -1,6 +1,6 @@
-import { LearningMonitorClient } from "@/components/learning/LearningMonitorClient";
+import { redirect } from "next/navigation";
 
-/** `/learning` — Learning Monitor (AAOS Self-Learning AI, Phase C — the human-approval gate). */
-export default function LearningPage(): React.ReactElement {
-  return <LearningMonitorClient />;
+/** EYVRA MENU RESTRUCTURE Sprint 1 (PROMPT 9, "learning-monitor/" equivalent) — `/learning` retired into the new AI Improve hub (real tab content is Sprint 2/3; real `LearningMonitorClient` untouched). */
+export default function LearningPage(): never {
+  redirect("/self-improve");
 }
