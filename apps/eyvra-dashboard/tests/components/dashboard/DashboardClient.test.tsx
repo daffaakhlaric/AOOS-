@@ -155,6 +155,81 @@ describe("DashboardClient (FINAL UI REBUILD: KPI strip + Samantha Digest + Hot L
     expect(calledCampaigns).toBe(false);
   });
 
+  it("EYVRA MENU RESTRUCTURE Sprint 4 (PROMPT 10): 'Lihat semua' on Hot Leads Terbaru points at the real /leads?tab=semua route, not the retired /clara/contacts", async () => {
+    mockFetchOk();
+    render(<DashboardClient />);
+    await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
+
+    expect(screen.getByRole("link", { name: /Lihat semua/ })).toHaveAttribute(
+      "href",
+      "/leads?tab=semua",
+    );
+  });
+
+  it("EYVRA MENU RESTRUCTURE Sprint 4 (PROMPT 10): Samantha Digest's 'Lihat Strategi & Approve' points at the real /campaigns?tab=verdict route, not the retired /meta-ads/strategi", async () => {
+    localStorage.setItem(
+      CAMPAIGNS_CACHE_KEY,
+      JSON.stringify({
+        fetchedAt: Date.now(),
+        period: "last_30d",
+        data: {
+          id: "act-1",
+          name: "DSS Motor",
+          syncedAt: new Date().toISOString(),
+          campaigns: [],
+          ads: [
+            {
+              id: "ad-1",
+              stableId: "#C001",
+              name: "Ad 1",
+              campaignName: "Campaign 1",
+              status: "ACTIVE",
+              funnel: "DM",
+              branch: "CINERE",
+              verdict: "PAUSE",
+              metrics: {
+                spend: 500_000,
+                clicks: 10,
+                frequency: 1,
+                conversations: 2,
+                d2: 1,
+                d3: 0,
+                d5: 0,
+                leadForm: 0,
+                totalLead: 0,
+                rphD3: null,
+                rphLead: null,
+              },
+            },
+          ],
+          totals: {
+            spend: 500_000,
+            clicks: 10,
+            frequency: 1,
+            conversations: 2,
+            d2: 1,
+            d3: 0,
+            d5: 0,
+            leadForm: 0,
+            totalLead: 0,
+            rphD3: null,
+            rphLead: null,
+          },
+          campaignCount: 1,
+          adCount: 1,
+        },
+      }),
+    );
+    mockFetchOk();
+    render(<DashboardClient />);
+    await waitFor(() => expect(screen.getByText("Pak Andi")).toBeInTheDocument());
+
+    expect(screen.getByRole("link", { name: /Lihat Strategi/ })).toHaveAttribute(
+      "href",
+      "/campaigns?tab=verdict",
+    );
+  });
+
   it("shows an error card when a fetch fails", async () => {
     global.fetch = vi.fn(async () => jsonResponse({}, 500)) as unknown as typeof fetch;
     render(<DashboardClient />);

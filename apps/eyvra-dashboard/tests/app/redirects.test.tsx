@@ -127,3 +127,85 @@ describe("EYVRA MENU RESTRUCTURE Sprint 1 — real redirect stubs (PROMPT 9)", (
     await expectRedirect(() => import("@/app/(app)/learning/page"), "/self-improve");
   });
 });
+
+/**
+ * EYVRA MENU RESTRUCTURE Sprint 4 (PROMPT 10) — integration-style walk of every real redirect
+ * stub's OWN target, asserting each one lands directly on a real, non-redirecting hub route (never
+ * on another stub's own path), so no stub can silently double-hop or loop. Built from the exact
+ * same target strings the suite above already asserts — kept as a single source-of-truth list here
+ * rather than re-deriving it from the stub files themselves (would need a real router to resolve,
+ * which this suite deliberately doesn't stand up).
+ */
+describe("EYVRA MENU RESTRUCTURE Sprint 4 — no redirect stub points at another redirect stub", () => {
+  // Every route this app's `page.tsx` files actually redirect FROM (Sprint 1's real stubs).
+  const STUB_SOURCE_PATHS = new Set([
+    "/meta-ads",
+    "/meta-ads/audit",
+    "/meta-ads/analisa",
+    "/meta-ads/analytics/heatmap",
+    "/meta-ads/strategi",
+    "/meta-ads/abtesting",
+    "/meta-ads/lookalike",
+    "/meta-ads/simulasi",
+    "/clara/analytics",
+    "/clara/inbox",
+    "/clara/contacts",
+    "/clara/knowledge",
+    "/clara/simulator",
+    "/clara/recycling",
+    "/listings",
+    "/assets/library",
+    "/objective",
+    "/go-live",
+    "/property/activity",
+    "/learning",
+    "/", // app/page.tsx
+  ]);
+
+  // Every real target a stub redirects TO — mirrors the exact strings asserted in the suite above
+  // (plus `/` -> `/dashboard`, not itself covered by `expectRedirect` there).
+  const STUB_TARGETS = [
+    "/campaigns",
+    "/campaigns?tab=anggaran",
+    "/campaigns?tab=verdict",
+    "/creative?tab=ab-results",
+    "/campaigns?tab=verdict",
+    "/campaigns?tab=ab",
+    "/campaigns",
+    "/activity",
+    "/dashboard",
+    "/leads",
+    "/leads?tab=semua",
+    "/leads?tab=knowledge-base",
+    "/activity",
+    "/leads?tab=recycling",
+    "/creative?tab=listing",
+    "/creative?tab=assets",
+    "/settings?tab=objective",
+    "/activity",
+    "/activity",
+    "/self-improve",
+    "/dashboard",
+  ];
+
+  it.each(STUB_TARGETS)("target %s is not itself a redirect-stub source path", (target) => {
+    const pathname = target.split("?")[0]!;
+    expect(STUB_SOURCE_PATHS.has(pathname)).toBe(false);
+  });
+
+  it("every stub target's pathname is one of the 7 real hub/dashboard routes", () => {
+    const REAL_ROUTES = new Set([
+      "/dashboard",
+      "/campaigns",
+      "/leads",
+      "/creative",
+      "/activity",
+      "/self-improve",
+      "/settings",
+    ]);
+    for (const target of STUB_TARGETS) {
+      const pathname = target.split("?")[0]!;
+      expect(REAL_ROUTES.has(pathname)).toBe(true);
+    }
+  });
+});

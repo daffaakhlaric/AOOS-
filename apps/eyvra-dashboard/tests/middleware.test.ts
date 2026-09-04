@@ -72,16 +72,28 @@ describe("middleware", () => {
     expect(response.status).toBe(200);
   });
 
-  it("redirects /knowledge to /clara/knowledge", async () => {
+  it("redirects /knowledge straight to /leads?tab=knowledge-base (EYVRA MENU RESTRUCTURE Sprint 4 double-hop fix — /clara/knowledge is itself a redirect stub to this same target, so this map skips that extra hop)", async () => {
     const response = await middleware(buildRequest("/knowledge"));
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain("/clara/knowledge");
+    expect(response.headers.get("location")).toContain("/leads?tab=knowledge-base");
   });
 
-  it("redirects /simulator to /clara/simulator", async () => {
+  it("redirects /simulator straight to /activity (EYVRA MENU RESTRUCTURE Sprint 4 double-hop fix — /clara/simulator is itself a redirect stub to this same target)", async () => {
     const response = await middleware(buildRequest("/simulator"));
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain("/clara/simulator");
+    expect(response.headers.get("location")).toContain("/activity");
+  });
+
+  it("redirects /jessy/inbox straight to /leads (EYVRA MENU RESTRUCTURE Sprint 4 double-hop fix — /clara/inbox is itself a redirect stub to this same target)", async () => {
+    const response = await middleware(buildRequest("/jessy/inbox"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/leads");
+  });
+
+  it("redirects /jessy/recycling straight to /leads?tab=recycling (EYVRA MENU RESTRUCTURE Sprint 4 double-hop fix)", async () => {
+    const response = await middleware(buildRequest("/jessy/recycling"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/leads?tab=recycling");
   });
 
   it("does NOT redirect a nested path like /leads/abc — only the exact /leads path", async () => {

@@ -48,16 +48,24 @@ function isApiPath(pathname: string): boolean {
  * "Leads" hub, `src/app/(app)/leads/page.tsx`), not a compatibility redirect. This map running
  * ahead of the app router means leaving `/leads` in here would have silently swallowed every
  * request to the new page before it ever rendered.
+ *
+ * EYVRA MENU RESTRUCTURE Sprint 4 (PROMPT 10, double-hop fix): every `/clara/*` page these entries
+ * used to point at is now ITSELF one of Sprint 1's own `redirect(...)` stubs (`/clara/analytics` →
+ * `/dashboard`, `/clara/contacts` → `/leads?tab=semua`, `/clara/inbox` → `/leads`,
+ * `/clara/knowledge` → `/leads?tab=knowledge-base`, `/clara/recycling` → `/leads?tab=recycling`,
+ * `/clara/simulator` → `/activity`). Redirecting here into another redirect was a real, silent
+ * double-hop (`/jessy/inbox` → `/clara/inbox` → `/leads`, an extra network round-trip every time)
+ * — every target below now points straight at the real final destination instead.
  */
 const REDIRECTS: Readonly<Record<string, string>> = {
-  "/knowledge": "/clara/knowledge",
-  "/simulator": "/clara/simulator",
-  "/jessy/analytics": "/clara/analytics",
-  "/jessy/contacts": "/clara/contacts",
-  "/jessy/inbox": "/clara/inbox",
-  "/jessy/knowledge": "/clara/knowledge",
-  "/jessy/recycling": "/clara/recycling",
-  "/jessy/simulator": "/clara/simulator",
+  "/knowledge": "/leads?tab=knowledge-base",
+  "/simulator": "/activity",
+  "/jessy/analytics": "/dashboard",
+  "/jessy/contacts": "/leads?tab=semua",
+  "/jessy/inbox": "/leads",
+  "/jessy/knowledge": "/leads?tab=knowledge-base",
+  "/jessy/recycling": "/leads?tab=recycling",
+  "/jessy/simulator": "/activity",
 };
 
 /**

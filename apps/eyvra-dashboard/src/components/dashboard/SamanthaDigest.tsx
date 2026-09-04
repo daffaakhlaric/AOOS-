@@ -20,8 +20,9 @@ export interface SamanthaDigestProps {
    * 1 perlu SCALE / 8 perlu FIX" row). Optional so callers with no cached Meta data (nothing to
    * count yet) can omit it entirely rather than showing empty/zero pills. */
   readonly tags?: readonly SamanthaDigestTag[];
-  /** "Lihat Strategi & Approve →" link target — real route (`/meta-ads/strategi`), passed by the
-   * caller rather than hardcoded here so this component stays reusable/testable in isolation. */
+  /** "Lihat Strategi & Approve →" link target — real route (`/campaigns?tab=verdict`, the
+   * Campaign hub's Verdict tab that `/meta-ads/strategi` redirects into since Sprint 1), passed by
+   * the caller rather than hardcoded here so this component stays reusable/testable in isolation. */
   readonly strategiHref?: string;
   /** ISO timestamp of the cached Meta pull this digest was computed from (real bug fix: the
    * reference mockup shows a fixed "Hari ini 06:00 WIB", but this digest is actually recomputed

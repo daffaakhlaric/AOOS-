@@ -185,7 +185,7 @@ function AutomotiveOverview(): React.ReactElement {
       <SamanthaDigest
         text={digestText}
         tags={digestTags}
-        strategiHref="/meta-ads/strategi"
+        strategiHref="/campaigns?tab=verdict"
         updatedAt={
           metaCache !== undefined ? new Date(metaCache.fetchedAt).toISOString() : undefined
         }
@@ -194,7 +194,7 @@ function AutomotiveOverview(): React.ReactElement {
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <p className={styles.panelTitle}>🔥 Hot Leads Terbaru</p>
-            <Link href="/clara/contacts" className={styles.panelLink}>
+            <Link href="/leads?tab=semua" className={styles.panelLink}>
               Lihat semua →
             </Link>
           </div>
