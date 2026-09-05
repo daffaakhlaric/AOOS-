@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 
+import {
+  CampaignDetailDrawer,
+  type DrawerTarget,
+} from "@/components/campaigns/CampaignDetailDrawer";
 import { CampaignFunnelBar } from "@/components/meta-ads/CampaignFunnelBar";
 import { VerdictBadge } from "@/components/meta-ads/VerdictBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -175,8 +179,40 @@ export function CampaignTree({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [expandedAdSets, setExpandedAdSets] = useState<Record<string, boolean>>({});
   const [expandedAds, setExpandedAds] = useState<Record<string, boolean>>({});
+  const [drawerState, setDrawerState] = useState<
+    | {
+        readonly target: DrawerTarget;
+        readonly status: string;
+        readonly verdict: string;
+        readonly adSet: AdSetSummaryDto;
+        readonly focusAd: AdSummaryDto | undefined;
+      }
+    | undefined
+  >(undefined);
   const filtered = filterCampaigns(campaigns, search);
   const searchActive = search.trim().length > 0;
+
+  /** Opens the Prompt 11 detail drawer (see `CampaignDetailDrawer`'s own docstring) — reuses this
+   * SAME already-loaded `adSet`/`ad` snapshot, no network call. */
+  function openAdSetDrawer(adSet: AdSetSummaryDto): void {
+    setDrawerState({
+      target: { kind: "adset", name: adSet.name, stableId: adSet.stableId },
+      status: adSet.status,
+      verdict: aggregateVerdict(adSet.ads.map((ad) => ad.verdict)),
+      adSet,
+      focusAd: undefined,
+    });
+  }
+
+  function openAdDrawer(adSet: AdSetSummaryDto, ad: AdSummaryDto): void {
+    setDrawerState({
+      target: { kind: "ad", name: ad.name, stableId: ad.stableId },
+      status: ad.status,
+      verdict: ad.verdict,
+      adSet,
+      focusAd: ad,
+    });
+  }
 
   if (filtered.length === 0) {
     return (
@@ -204,158 +240,192 @@ export function CampaignTree({
   }
 
   return (
-    <ul data-testid="campaign-tree" className={styles.wrapper}>
-      {filtered.map((campaign) => {
-        const allAds = campaign.adSets.flatMap((adSet) => adSet.ads);
-        const { conversations, d3, totalLead } = sumMetrics(allAds);
-        const verdict = aggregateVerdict(allAds.map((ad) => ad.verdict));
-        const isExpanded = expanded[campaign.id] ?? searchActive;
-        return (
-          <li key={campaign.id} className={styles.card}>
-            <span aria-hidden="true" className={`${styles.accent} ${accentClass(verdict)}`} />
-            <div className={styles.header}>
-              <button
-                type="button"
-                onClick={() => toggleCampaign(campaign.id)}
-                aria-expanded={isExpanded}
-                className={styles.headerButton}
-              >
-                <span aria-hidden="true" className={styles.expandChevron}>
-                  {isExpanded ? "▼" : "▶"}
-                </span>
-                <span className={styles.idBadge}>{campaign.stableId}</span>
-                <div className={styles.nameBlock}>
-                  <span className={styles.name}>{stripAdNameSuffix(campaign.name)}</span>
-                  <p className={styles.metrics}>
-                    {campaign.adSets.length} ad set · {formatNumber(totalLead)} lead
-                  </p>
-                </div>
-              </button>
-              <div className={styles.rightSide}>
-                <VerdictBadge verdict={verdict} />
-                <MetricColumn label="Belanja" value={formatIdr(campaign.spend)} variant="belanja" />
-                <MetricColumn label="Chat" value={formatNumber(conversations)} variant="chat" />
-                <MetricColumn label="D3" value={formatNumber(d3)} variant="d3" accent />
+    <>
+      <ul data-testid="campaign-tree" className={styles.wrapper}>
+        {filtered.map((campaign) => {
+          const allAds = campaign.adSets.flatMap((adSet) => adSet.ads);
+          const { conversations, d3, totalLead } = sumMetrics(allAds);
+          const verdict = aggregateVerdict(allAds.map((ad) => ad.verdict));
+          const isExpanded = expanded[campaign.id] ?? searchActive;
+          return (
+            <li key={campaign.id} className={styles.card}>
+              <span aria-hidden="true" className={`${styles.accent} ${accentClass(verdict)}`} />
+              <div className={styles.header}>
                 <button
                   type="button"
-                  onClick={() => onExecute(campaign.id, "campaign", verdict)}
-                  className={styles.executeButton}
+                  onClick={() => toggleCampaign(campaign.id)}
+                  aria-expanded={isExpanded}
+                  className={styles.headerButton}
                 >
-                  ⚡ Execute
+                  <span aria-hidden="true" className={styles.expandChevron}>
+                    {isExpanded ? "▼" : "▶"}
+                  </span>
+                  <span className={styles.idBadge}>{campaign.stableId}</span>
+                  <div className={styles.nameBlock}>
+                    <span className={styles.name}>{stripAdNameSuffix(campaign.name)}</span>
+                    <p className={styles.metrics}>
+                      {campaign.adSets.length} ad set · {formatNumber(totalLead)} lead
+                    </p>
+                  </div>
                 </button>
+                <div className={styles.rightSide}>
+                  <VerdictBadge verdict={verdict} />
+                  <MetricColumn
+                    label="Belanja"
+                    value={formatIdr(campaign.spend)}
+                    variant="belanja"
+                  />
+                  <MetricColumn label="Chat" value={formatNumber(conversations)} variant="chat" />
+                  <MetricColumn label="D3" value={formatNumber(d3)} variant="d3" accent />
+                  <button
+                    type="button"
+                    onClick={() => onExecute(campaign.id, "campaign", verdict)}
+                    className={styles.executeButton}
+                  >
+                    ⚡ Execute
+                  </button>
+                </div>
               </div>
-            </div>
-            {isExpanded ? (
-              <div className={styles.adSetContainer}>
-                {campaign.adSets.map((adSet) => {
-                  const { conversations: setConversations, d3: setD3 } = sumMetrics(adSet.ads);
-                  const isAdSetExpanded = expandedAdSets[adSet.id] ?? searchActive;
-                  return (
-                    <div key={adSet.id} className={styles.adSetRow}>
-                      {/* Sibling button + rightSideSmall (not one big button wrapping everything)
+              {isExpanded ? (
+                <div className={styles.adSetContainer}>
+                  {campaign.adSets.map((adSet) => {
+                    const { conversations: setConversations, d3: setD3 } = sumMetrics(adSet.ads);
+                    const isAdSetExpanded = expandedAdSets[adSet.id] ?? searchActive;
+                    return (
+                      <div key={adSet.id} className={styles.adSetRow}>
+                        {/* Sibling button + rightSideSmall (not one big button wrapping everything)
                           — same pattern as the campaign header above: a `<button>` can't validly
                           contain another interactive element, and the ad row below needs its own
                           Execute button nested inside its row, so the toggle target stays scoped
                           to just the chevron/id/name/count. */}
-                      <div className={styles.adSetHeader}>
-                        <button
-                          type="button"
-                          onClick={() => toggleAdSet(adSet.id)}
-                          aria-expanded={isAdSetExpanded}
-                          className={styles.headerButton}
-                        >
-                          <span aria-hidden="true" className={styles.expandChevron}>
-                            {isAdSetExpanded ? "▼" : "▶"}
-                          </span>
-                          <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
-                            {adSet.stableId}
-                          </span>
-                          <span className={styles.adSetName}>{stripAdNameSuffix(adSet.name)}</span>
-                          <span className={styles.adSetCount}>{adSet.ads.length} iklan</span>
-                        </button>
-                        <div className={styles.rightSideSmall}>
-                          <MetricColumn
-                            label="Belanja"
-                            value={formatIdr(adSet.spend)}
-                            variant="belanja"
-                          />
-                          <MetricColumn
-                            label="Chat"
-                            value={formatNumber(setConversations)}
-                            variant="chat"
-                          />
-                          <MetricColumn
-                            label="D3"
-                            value={formatNumber(setD3)}
-                            variant="d3"
-                            accent
-                          />
+                        <div className={styles.adSetHeader}>
+                          <button
+                            type="button"
+                            onClick={() => toggleAdSet(adSet.id)}
+                            aria-expanded={isAdSetExpanded}
+                            className={styles.headerButton}
+                          >
+                            <span aria-hidden="true" className={styles.expandChevron}>
+                              {isAdSetExpanded ? "▼" : "▶"}
+                            </span>
+                            <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
+                              {adSet.stableId}
+                            </span>
+                            <span className={styles.adSetName}>
+                              {stripAdNameSuffix(adSet.name)}
+                            </span>
+                            <span className={styles.adSetCount}>{adSet.ads.length} iklan</span>
+                          </button>
+                          <div className={styles.rightSideSmall}>
+                            <MetricColumn
+                              label="Belanja"
+                              value={formatIdr(adSet.spend)}
+                              variant="belanja"
+                            />
+                            <MetricColumn
+                              label="Chat"
+                              value={formatNumber(setConversations)}
+                              variant="chat"
+                            />
+                            <MetricColumn
+                              label="D3"
+                              value={formatNumber(setD3)}
+                              variant="d3"
+                              accent
+                            />
+                            <button
+                              type="button"
+                              data-testid={`open-drawer-adset-${adSet.id}`}
+                              onClick={() => openAdSetDrawer(adSet)}
+                              className={styles.detailButton}
+                            >
+                              Detail
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      {isAdSetExpanded ? (
-                        <div className={styles.adList}>
-                          {adSet.ads.map((ad) => {
-                            const isAdExpanded = expandedAds[ad.id] ?? false;
-                            return (
-                              <div key={ad.id} className={styles.adRow}>
-                                <div className={styles.adTopRow}>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleAd(ad.id)}
-                                    aria-expanded={isAdExpanded}
-                                    className={styles.headerButton}
-                                  >
-                                    <span aria-hidden="true" className={styles.expandChevron}>
-                                      {isAdExpanded ? "▼" : "▶"}
-                                    </span>
-                                    <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
-                                      {ad.stableId}
-                                    </span>
-                                    <span className={styles.adName}>
-                                      {stripAdNameSuffix(ad.name)}
-                                    </span>
-                                  </button>
-                                  <VerdictBadge verdict={ad.verdict} />
-                                  <div className={styles.rightSideSmall}>
-                                    <MetricColumn
-                                      label="Belanja"
-                                      value={formatIdr(ad.metrics.spend)}
-                                      variant="belanja"
-                                    />
-                                    <MetricColumn
-                                      label="Chat"
-                                      value={formatNumber(ad.metrics.conversations)}
-                                      variant="chat"
-                                    />
-                                    <MetricColumn
-                                      label="D3"
-                                      value={formatNumber(ad.metrics.d3)}
-                                      variant="d3"
-                                      accent
-                                    />
+                        {isAdSetExpanded ? (
+                          <div className={styles.adList}>
+                            {adSet.ads.map((ad) => {
+                              const isAdExpanded = expandedAds[ad.id] ?? false;
+                              return (
+                                <div key={ad.id} className={styles.adRow}>
+                                  <div className={styles.adTopRow}>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleAd(ad.id)}
+                                      aria-expanded={isAdExpanded}
+                                      className={styles.headerButton}
+                                    >
+                                      <span aria-hidden="true" className={styles.expandChevron}>
+                                        {isAdExpanded ? "▼" : "▶"}
+                                      </span>
+                                      <span className={`${styles.idBadge} ${styles.idBadgeSmall}`}>
+                                        {ad.stableId}
+                                      </span>
+                                      <span className={styles.adName}>
+                                        {stripAdNameSuffix(ad.name)}
+                                      </span>
+                                    </button>
+                                    <VerdictBadge verdict={ad.verdict} />
+                                    <div className={styles.rightSideSmall}>
+                                      <MetricColumn
+                                        label="Belanja"
+                                        value={formatIdr(ad.metrics.spend)}
+                                        variant="belanja"
+                                      />
+                                      <MetricColumn
+                                        label="Chat"
+                                        value={formatNumber(ad.metrics.conversations)}
+                                        variant="chat"
+                                      />
+                                      <MetricColumn
+                                        label="D3"
+                                        value={formatNumber(ad.metrics.d3)}
+                                        variant="d3"
+                                        accent
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      data-testid={`open-drawer-ad-${ad.id}`}
+                                      onClick={() => openAdDrawer(adSet, ad)}
+                                      className={styles.detailButton}
+                                    >
+                                      Detail
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => onExecute(ad.id, "ad", ad.verdict)}
+                                      className={`${styles.executeButton} ${styles.executeButtonSmall}`}
+                                    >
+                                      ⚡ Execute
+                                    </button>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => onExecute(ad.id, "ad", ad.verdict)}
-                                    className={`${styles.executeButton} ${styles.executeButtonSmall}`}
-                                  >
-                                    ⚡ Execute
-                                  </button>
+                                  {isAdExpanded ? <CampaignFunnelBar metrics={ad.metrics} /> : null}
                                 </div>
-                                {isAdExpanded ? <CampaignFunnelBar metrics={ad.metrics} /> : null}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      {drawerState !== undefined ? (
+        <CampaignDetailDrawer
+          target={drawerState.target}
+          status={drawerState.status}
+          verdict={drawerState.verdict}
+          adSet={drawerState.adSet}
+          focusAd={drawerState.focusAd}
+          onClose={() => setDrawerState(undefined)}
+        />
+      ) : null}
+    </>
   );
 }
