@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import { ConflictError, NotFoundError } from "@aos/errors";
 import { Injectable, Logger, Optional } from "@nestjs/common";
 
+import { AuditLogService } from "../audit-log/audit-log.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignBodyDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import {
   PendingActionRepository,
@@ -46,6 +48,11 @@ export class PendingActionsService {
   constructor(
     private readonly pendingActions: PendingActionRepository,
     private readonly campaignsService: CampaignsService,
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — real audit_log writer. Best-effort
+    // (`AuditLogService.record` never throws) so a logging failure can never turn a real
+    // approve/reject decision into a failed request.
+    private readonly auditLog: AuditLogService,
+    private readonly modeGuard: ModeGuardService,
     // Same real bug/fix `LearningDecisionService`/`GoLiveService` document on their own
     // constructors: a bare `Function`-typed param with a default still gets a real DI resolution
     // attempt from Nest without `@Optional()`.
@@ -92,9 +99,14 @@ export class PendingActionsService {
       );
     }
 
+    let campaignResult: Awaited<ReturnType<CampaignsService["createPropertyCampaign"]>> | undefined;
     if (row.action_type === "CREATE_PROPERTY_CAMPAIGN") {
       const payload = row.payload as unknown as CreatePropertyCampaignBodyDto;
-      await this.campaignsService.createPropertyCampaign(tenantId, payload, randomUUID());
+      campaignResult = await this.campaignsService.createPropertyCampaign(
+        tenantId,
+        payload,
+        randomUUID(),
+      );
     } else {
       throw new ConflictError(
         `pending_agent_actions "${id}" has an unsupported action_type "${row.action_type}" — cannot approve.`,
@@ -109,6 +121,47 @@ export class PendingActionsService {
       this.now().toISOString(),
     );
     this.logger.log(`PendingActionsService.approve(${id}): real ${row.action_type} executed.`);
+
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — real audit_log write. `decided_by` is real
+    // ('user_manual' — a human clicked Approve; nothing here ever auto-approves). Best-effort
+    // (`AuditLogService.record` never throws), fired AFTER the real decision write above succeeded.
+    const mode = await this.modeGuard.resolveMode(tenantId);
+    await this.auditLog.record({
+      tenantId,
+      agent: row.agent,
+      actionType: "VERDICT_APPLIED",
+      beforeState: row.payload,
+      afterState: campaignResult,
+      decidedBy: "user_manual",
+      ...(decidedBy !== undefined ? { userId: decidedBy } : {}),
+      mode,
+      relatedVerdictId: id,
+      // Reversibility of the real underlying action (CREATE_PROPERTY_CAMPAIGN's real campaign
+      // publish) is recorded on ITS OWN `CAMPAIGN_PUBLISHED` semantics, not duplicated here — this
+      // VERDICT_APPLIED row records the human decision itself, which cannot itself be "rolled back"
+      // (the decision already happened) — only the underlying campaign publish can be, so a second,
+      // separate CAMPAIGN_PUBLISHED row records that when it is a real, non-simulated result.
+      reversible: false,
+    });
+    if (
+      campaignResult !== undefined &&
+      !campaignResult.simulated &&
+      campaignResult.campaignId !== undefined
+    ) {
+      await this.auditLog.record({
+        tenantId,
+        agent: row.agent,
+        actionType: "CAMPAIGN_PUBLISHED",
+        beforeState: null,
+        afterState: campaignResult,
+        decidedBy: "user_manual",
+        ...(decidedBy !== undefined ? { userId: decidedBy } : {}),
+        mode,
+        relatedVerdictId: id,
+        reversible: true,
+      });
+    }
+
     return this.requireOwnedByTenant(id, tenantId);
   }
 
@@ -132,6 +185,23 @@ export class PendingActionsService {
       decisionNotes,
       this.now().toISOString(),
     );
+
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — real audit_log write. A reject never runs any real
+    // Meta/campaign action (see this method's own doc), so `after_state` is honestly `null`.
+    const mode = await this.modeGuard.resolveMode(tenantId);
+    await this.auditLog.record({
+      tenantId,
+      agent: row.agent,
+      actionType: "VERDICT_REJECTED",
+      beforeState: row.payload,
+      afterState: null,
+      decidedBy: "user_manual",
+      ...(decidedBy !== undefined ? { userId: decidedBy } : {}),
+      mode,
+      relatedVerdictId: id,
+      reversible: false,
+    });
+
     return this.requireOwnedByTenant(id, tenantId);
   }
 }

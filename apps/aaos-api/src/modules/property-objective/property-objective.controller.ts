@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Patch, Post, Query, UseGuards } from "@nestjs/common";
 
 import { CorrelationId } from "../../common/correlation.js";
 import { TenantId } from "../../common/tenant-context.js";
@@ -8,10 +8,12 @@ import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import {
   BudgetSuggestionQuerySchema,
   CreatePropertyObjectiveBodySchema,
+  UpdateBusinessContextBodySchema,
   type BudgetSuggestionQueryDto,
   type BudgetSuggestionResponseDto,
   type CreatePropertyObjectiveBodyDto,
   type PropertyObjectiveResponseDto,
+  type UpdateBusinessContextBodyDto,
 } from "./dto/property-objective.dto.js";
 import { PropertyObjectiveService } from "./property-objective.service.js";
 
@@ -60,5 +62,15 @@ export class PropertyObjectiveController {
     body: CreatePropertyObjectiveBodyDto,
   ): Promise<PropertyObjectiveResponseDto> {
     return this.service.create(tenantId, body);
+  }
+
+  /** AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — the real "Konteks Bisnis" card write. */
+  @Patch("business-context")
+  async updateBusinessContext(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(UpdateBusinessContextBodySchema))
+    body: UpdateBusinessContextBodyDto,
+  ): Promise<PropertyObjectiveResponseDto> {
+    return this.service.updateBusinessContext(tenantId, body);
   }
 }

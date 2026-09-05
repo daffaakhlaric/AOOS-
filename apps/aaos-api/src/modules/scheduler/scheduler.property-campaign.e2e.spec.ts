@@ -287,6 +287,16 @@ describe("AAOS EPIC S Phase S6 — real end-to-end: cron tick -> SchedulerServic
       // zero-behavior-change discipline as `agentConfigService` above — this real end-to-end
       // flow's PAUSE/SCALE digest classification stays byte-identical to before this phase.
       { get: vi.fn(async () => undefined) } as never,
+      // AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — real audit_log fake (best-effort, unrelated to
+      // this real flow's own assertions).
+      { record: vi.fn(async () => undefined) } as never,
+      // AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — real "no current objective yet" fake, same
+      // zero-behavior-change discipline as the other Self-Improving fakes above — this real
+      // end-to-end flow's HIGH_CPL reasoning text stays on the generic-threshold fallback.
+      { getCurrentSafe: vi.fn(async () => undefined) } as never,
+      // AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real "no creative packages yet" fake, unrelated to
+      // this real flow's own assertions.
+      { list: vi.fn(async () => []), updateFatigueStatus: vi.fn(async () => undefined) } as never,
     );
 
     await service.executeEvent(buildEvent());

@@ -142,3 +142,57 @@ export function recommendPropertyAngles(
     .sort((a, b) => rank[a.confidence] - rank[b.confidence])
     .slice(0, MAX_RECOMMENDATIONS);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — Fatigue-aware "refresh this angle" recommendation,
+// reusing this SAME real "Card rekomendasi" data shape (per the spec's own explicit instruction to
+// reuse `kaiRecommendations.ts`). A genuinely different real signal from `recommendPropertyAngles`
+// above (that one recommends a NEW angle from cross-listing evidence; this one flags an EXISTING
+// package on THIS listing whose real, scheduler-computed `fatigueStatus` is no longer NORMAL) — kept
+// as its own small function rather than folded into `recommendPropertyAngles`'s loop, which has no
+// concept of a specific existing package to point at.
+// ═══════════════════════════════════════════════════════════════════════════════════════
+
+export interface FatigueRecommendation {
+  readonly packageId: string;
+  readonly packageTitle: string;
+  readonly fatigueStatus: "WARNING" | "FATIGUED";
+  readonly reasoning: string;
+}
+
+/**
+ * Real, deterministic (no LLM call) — looks at THIS listing's own creative packages for the
+ * highest-priority real `fatigueStatus` (`FATIGUED` beats `WARNING`; `NORMAL` packages are never
+ * returned). `aaos-api`'s `scheduler/domain/fatigue.ts` already computed and persisted the real
+ * status and its own real reasoning text — this function does not recompute any threshold, only
+ * picks which package to surface when a listing has more than one.
+ */
+export function getFatigueRecommendation(
+  allPackages: readonly CreativePackageDto[],
+  currentListingId: string,
+): FatigueRecommendation | undefined {
+  const candidates = allPackages.filter(
+    (pkg) =>
+      pkg.vertical === "PROPERTY" &&
+      pkg.listingId === currentListingId &&
+      pkg.fatigueStatus !== "NORMAL",
+  );
+  if (candidates.length === 0) {
+    return undefined;
+  }
+  const fatigued = candidates.find((pkg) => pkg.fatigueStatus === "FATIGUED");
+  const chosen = fatigued ?? candidates[0];
+  if (chosen === undefined) {
+    return undefined;
+  }
+  const status = chosen.fatigueStatus as "WARNING" | "FATIGUED";
+  return {
+    packageId: chosen.id,
+    packageTitle: chosen.title,
+    fatigueStatus: status,
+    reasoning:
+      status === "FATIGUED"
+        ? `${chosen.title} sudah FATIGUED (frequency terlalu tinggi + CTR turun signifikan) — waktunya refresh angle ini dengan variasi baru.`
+        : `${chosen.title} menunjukkan tanda fatigue (frequency mulai tinggi) — pertimbangkan refresh angle sebelum performa turun lebih jauh.`,
+  };
+}

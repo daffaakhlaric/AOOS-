@@ -13,3 +13,13 @@
   color: var(--black);
   line-height: 1;
 }
+
+.businessContextBanner {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--amber-light, #fef3c7);
+  color: var(--amber-dark, #92400e);
+  font-size: 13px;
+  font-weight: 500;
+}

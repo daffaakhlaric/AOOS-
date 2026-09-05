@@ -65,9 +65,14 @@ export function CreativePackageCard({
 }: CreativePackageCardProps): React.ReactElement {
   const [selectedId, setSelectedId] = useState<string | undefined>(pkg.copyVariants[0]?.id);
   const hasMedia = pkg.videoUrl !== undefined || pkg.imageUrls.length > 0;
+  const isFatigued = pkg.fatigueStatus === "FATIGUED";
+  const isWarning = pkg.fatigueStatus === "WARNING";
 
   return (
-    <section data-testid="creative-package-card" className={styles.section}>
+    <section
+      data-testid="creative-package-card"
+      className={`${styles.section} ${isFatigued ? styles.sectionFatigued : ""}`}
+    >
       <div className={styles.headerRow}>
         <p className={styles.name}>
           {pkg.title}
@@ -77,6 +82,21 @@ export function CreativePackageCard({
           {pkg.aiRecommended ? (
             <span data-testid="ai-suggested-badge" className={styles.aiSuggestedBadge}>
               ✨ AI Suggested
+            </span>
+          ) : null}
+          {/* AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real, scheduler-computed fatigue badge,
+              separate from the status badge (per the spec's own "terpisah dari badge WINNER/
+              AVERAGE/LOW" instruction — this codebase has no such performance-badge concept at
+              all, see AssetLibraryClient.tsx's own docstring, so this is the one real badge row
+              that exists to add fatigue to). */}
+          {isFatigued ? (
+            <span data-testid="fatigue-badge-fatigued" className={styles.fatigueBadgeFatigued}>
+              ⚠ Fatigue
+            </span>
+          ) : null}
+          {isWarning ? (
+            <span data-testid="fatigue-badge-warning" className={styles.fatigueBadgeWarning}>
+              Menurun
             </span>
           ) : null}
           <StatusBadge label={pkg.status} tone={STATUS_TONE[pkg.status]} />

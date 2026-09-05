@@ -130,7 +130,12 @@ describe("AppModule.forRoot", () => {
     // `GET /api/v1/region/provinces|regencies/:provinceId|districts/:regencyId` real proxy over
     // the public wilayah catalog) — no new global provider (composes its own in-memory
     // `ResponseCache` locally, no `SUPABASE_CLIENT`/tenant dependency at all).
-    expect(dynamicModule.imports).toHaveLength(31);
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 17: +1 import (AuditLogModule, the new real
+    // `GET/POST /api/v1/audit-log*` HTTP surface) — no new global provider (composes its own
+    // AuditLogRepository locally from the existing SUPABASE_CLIENT, same pattern
+    // PropertyObjectiveModule/OverviewModule already establish; imports the existing MetaAdsModule
+    // for its own real rollback wiring, not a new global provider here).
+    expect(dynamicModule.imports).toHaveLength(32);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

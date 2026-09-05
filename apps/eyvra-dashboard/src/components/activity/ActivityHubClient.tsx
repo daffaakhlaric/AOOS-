@@ -11,6 +11,7 @@ import type { SettingsDto } from "@/types/tenant.types";
 
 import styles from "./ActivityHubClient.module.css";
 import { ActivityDetailPanel } from "./ActivityDetailPanel";
+import { AuditLogTable } from "./AuditLogTable";
 
 const AGENT_OPTIONS = ["SAMANTHA", "KAI", "CLARA", "KAREN"] as const;
 
@@ -106,6 +107,9 @@ export function ActivityHubClient(): React.ReactElement {
   const [search, setSearch] = useState("");
   const [collapsedLoops, setCollapsedLoops] = useState<Record<string, boolean>>({});
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  // AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — the real "Audit" sub-tab, alongside the existing
+  // agent filter chips (spec's own "[Semua] [Samantha] [Kai] [Clara] [Karen] | [Audit]" layout).
+  const [view, setView] = useState<"FEED" | "AUDIT">("FEED");
 
   const load = useCallback(() => {
     const params = new URLSearchParams();
@@ -248,15 +252,33 @@ export function ActivityHubClient(): React.ReactElement {
             <button
               key={agent}
               type="button"
-              className={`${styles.filterChip} ${agentFilter === agent ? styles.filterChipActive : ""}`}
-              style={agentFilter === agent ? { background: agentColor(agent), color: "white" } : {}}
-              onClick={() => setAgentFilter(agentFilter === agent ? undefined : agent)}
+              className={`${styles.filterChip} ${agentFilter === agent && view === "FEED" ? styles.filterChipActive : ""}`}
+              style={
+                agentFilter === agent && view === "FEED"
+                  ? { background: agentColor(agent), color: "white" }
+                  : {}
+              }
+              onClick={() => {
+                setView("FEED");
+                setAgentFilter(agentFilter === agent ? undefined : agent);
+              }}
             >
               {agent}
             </button>
           ))}
+          <span className={styles.filterDivider} aria-hidden="true">
+            |
+          </span>
+          <button
+            type="button"
+            data-testid="audit-tab-button"
+            className={`${styles.filterChip} ${view === "AUDIT" ? styles.filterChipActive : ""}`}
+            onClick={() => setView("AUDIT")}
+          >
+            Audit
+          </button>
         </div>
-        <div className={styles.filterGroup}>
+        <div className={styles.filterGroup} hidden={view === "AUDIT"}>
           {STATUS_FILTERS.map((status) => (
             <button
               key={status.key}
@@ -268,96 +290,106 @@ export function ActivityHubClient(): React.ReactElement {
             </button>
           ))}
         </div>
-        <input
-          type="date"
-          className={styles.dateInput}
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          aria-label="Filter tanggal"
-        />
-        <input
-          type="text"
-          className={styles.searchInput}
-          placeholder="Cari action..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        {view === "FEED" ? (
+          <>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              aria-label="Filter tanggal"
+            />
+            <input
+              type="text"
+              className={styles.searchInput}
+              placeholder="Cari action..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </>
+        ) : null}
       </div>
 
-      <div className={styles.body}>
-        <div className={styles.feed} data-testid="activity-feed">
-          {groups.length === 0 ? (
-            <p className={styles.emptyState}>Belum ada aktivitas agent.</p>
-          ) : (
-            groups.map((group) => {
-              const collapsed = collapsedLoops[group.loopId] ?? false;
-              return (
-                <div key={group.loopId} className={styles.loopGroup} data-testid="loop-group">
-                  <button
-                    type="button"
-                    className={styles.loopHeader}
-                    onClick={() =>
-                      setCollapsedLoops((prev) => ({ ...prev, [group.loopId]: !collapsed }))
-                    }
-                  >
-                    <span className={styles.loopTitle}>{group.label}</span>
-                    <span className={styles.loopCount}>{group.activities.length} actions</span>
-                    <span className={styles.loopToggle}>{collapsed ? "▸" : "▾"}</span>
-                  </button>
-                  {!collapsed ? (
-                    <div className={styles.loopRows}>
-                      {group.activities.map((activity) => (
-                        <button
-                          key={activity.id}
-                          type="button"
-                          className={styles.row}
-                          data-testid={`activity-row-${activity.id}`}
-                          style={
-                            selectedId === activity.id
-                              ? { borderLeft: `3px solid ${agentColor(activity.agent)}` }
-                              : undefined
-                          }
-                          onClick={() => setSelectedId(activity.id)}
-                        >
-                          <span className={styles.rowTime}>
-                            {new Date(activity.startedAt).toLocaleTimeString("id-ID")}
-                          </span>
-                          <span
-                            className={styles.agentBadge}
-                            style={{ background: agentColor(activity.agent) }}
-                          >
-                            {activity.agent}
-                          </span>
-                          <span className={styles.rowLabel}>{activity.actionType}</span>
-                          <span
-                            className={`${styles.statusBadge} ${statusBadgeClass(activity.status)}`}
-                          >
-                            {activity.status === "SUCCESS" ? "EXECUTED" : activity.status}
-                          </span>
-                          <span className={styles.rowDuration}>
-                            {activity.durationMs !== undefined ? `${activity.durationMs}ms` : "-"}
-                          </span>
-                          <span className={styles.rowArrow}>→</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })
-          )}
+      {view === "AUDIT" ? (
+        <div data-testid="audit-tab-body">
+          <AuditLogTable />
         </div>
+      ) : (
+        <div className={styles.body}>
+          <div className={styles.feed} data-testid="activity-feed">
+            {groups.length === 0 ? (
+              <p className={styles.emptyState}>Belum ada aktivitas agent.</p>
+            ) : (
+              groups.map((group) => {
+                const collapsed = collapsedLoops[group.loopId] ?? false;
+                return (
+                  <div key={group.loopId} className={styles.loopGroup} data-testid="loop-group">
+                    <button
+                      type="button"
+                      className={styles.loopHeader}
+                      onClick={() =>
+                        setCollapsedLoops((prev) => ({ ...prev, [group.loopId]: !collapsed }))
+                      }
+                    >
+                      <span className={styles.loopTitle}>{group.label}</span>
+                      <span className={styles.loopCount}>{group.activities.length} actions</span>
+                      <span className={styles.loopToggle}>{collapsed ? "▸" : "▾"}</span>
+                    </button>
+                    {!collapsed ? (
+                      <div className={styles.loopRows}>
+                        {group.activities.map((activity) => (
+                          <button
+                            key={activity.id}
+                            type="button"
+                            className={styles.row}
+                            data-testid={`activity-row-${activity.id}`}
+                            style={
+                              selectedId === activity.id
+                                ? { borderLeft: `3px solid ${agentColor(activity.agent)}` }
+                                : undefined
+                            }
+                            onClick={() => setSelectedId(activity.id)}
+                          >
+                            <span className={styles.rowTime}>
+                              {new Date(activity.startedAt).toLocaleTimeString("id-ID")}
+                            </span>
+                            <span
+                              className={styles.agentBadge}
+                              style={{ background: agentColor(activity.agent) }}
+                            >
+                              {activity.agent}
+                            </span>
+                            <span className={styles.rowLabel}>{activity.actionType}</span>
+                            <span
+                              className={`${styles.statusBadge} ${statusBadgeClass(activity.status)}`}
+                            >
+                              {activity.status === "SUCCESS" ? "EXECUTED" : activity.status}
+                            </span>
+                            <span className={styles.rowDuration}>
+                              {activity.durationMs !== undefined ? `${activity.durationMs}ms` : "-"}
+                            </span>
+                            <span className={styles.rowArrow}>→</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
+          </div>
 
-        <div className={styles.detail}>
-          {selected !== undefined ? (
-            <ActivityDetailPanel activity={selected} onClose={() => setSelectedId(undefined)} />
-          ) : (
-            <div className={styles.detailEmpty}>
-              Pilih satu action di feed kiri untuk melihat detail Output/Reasoning/Tool Calls.
-            </div>
-          )}
+          <div className={styles.detail}>
+            {selected !== undefined ? (
+              <ActivityDetailPanel activity={selected} onClose={() => setSelectedId(undefined)} />
+            ) : (
+              <div className={styles.detailEmpty}>
+                Pilih satu action di feed kiri untuk melihat detail Output/Reasoning/Tool Calls.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }

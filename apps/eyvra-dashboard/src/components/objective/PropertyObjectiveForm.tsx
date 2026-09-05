@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import type { BudgetSuggestionDto } from "@/types/property-objective.types";
+import type { BudgetSuggestionDto, PropertyObjectiveDto } from "@/types/property-objective.types";
 import type { ListingDto, ListingListDto } from "@/types/listing.types";
 
 import styles from "./PropertyObjectiveForm.module.css";
@@ -18,6 +18,10 @@ export interface PropertyObjectiveFormValues {
 export interface PropertyObjectiveFormProps {
   readonly onSubmit: (values: PropertyObjectiveFormValues) => void;
   readonly submitting?: boolean;
+  /** AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — the tenant's real, already-persisted current objective (if any), so the "Konteks Bisnis" card can prefill its 3 inputs and PATCH the real, existing row instead of guessing at one. `undefined` when no objective has been set yet this period — the card still renders (per the spec's own UI placement, above the stepper) but its inputs are disabled with an honest explanation until an objective exists to attach business context to. */
+  readonly existingObjective?: PropertyObjectiveDto;
+  /** Called after a real, successful `PATCH /api/property-objective/business-context` — lets the parent refresh its own copy of the objective (same "parent owns the fetched data, child reports success" convention `onSubmit` already establishes). */
+  readonly onBusinessContextSaved?: (updated: PropertyObjectiveDto) => void;
 }
 
 /**
@@ -58,7 +62,79 @@ export interface PropertyObjectiveFormProps {
 export function PropertyObjectiveForm({
   onSubmit,
   submitting = false,
+  existingObjective,
+  onBusinessContextSaved,
 }: PropertyObjectiveFormProps): React.ReactElement {
+  // AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — "Konteks Bisnis" card state, prefilled from the real,
+  // already-persisted objective (if any). Kept as raw string inputs (same convention every other
+  // numeric field in this form already uses) so an empty field is honestly distinguishable from a
+  // real `0`.
+  const [avgDealValue, setAvgDealValue] = useState(
+    existingObjective?.avgDealValue !== undefined ? String(existingObjective.avgDealValue) : "",
+  );
+  const [targetCpl, setTargetCpl] = useState(
+    existingObjective?.targetCpl !== undefined ? String(existingObjective.targetCpl) : "",
+  );
+  const [breakevenCpl, setBreakevenCpl] = useState(
+    existingObjective?.breakevenCpl !== undefined ? String(existingObjective.breakevenCpl) : "",
+  );
+  const [businessContextError, setBusinessContextError] = useState<string | undefined>(undefined);
+  const [businessContextSaving, setBusinessContextSaving] = useState(false);
+  const [businessContextSaved, setBusinessContextSaved] = useState(false);
+
+  async function saveBusinessContext(): Promise<void> {
+    setBusinessContextError(undefined);
+    setBusinessContextSaved(false);
+    const avg = avgDealValue.trim() === "" ? undefined : Number(avgDealValue);
+    const target = targetCpl.trim() === "" ? undefined : Number(targetCpl);
+    const breakeven = breakevenCpl.trim() === "" ? undefined : Number(breakevenCpl);
+    if (avg !== undefined && (!Number.isFinite(avg) || avg < 0)) {
+      setBusinessContextError("Rata-rata nilai closing harus angka >= 0.");
+      return;
+    }
+    if (target !== undefined && (!Number.isFinite(target) || target < 0)) {
+      setBusinessContextError("Target CPL harus angka >= 0.");
+      return;
+    }
+    if (breakeven !== undefined && (!Number.isFinite(breakeven) || breakeven < 0)) {
+      setBusinessContextError("Batas maksimal CPL harus angka >= 0.");
+      return;
+    }
+    if (target !== undefined && breakeven !== undefined && breakeven <= target) {
+      setBusinessContextError(
+        "Batas maksimal biaya per HOT lead harus lebih besar dari target biaya per HOT lead.",
+      );
+      return;
+    }
+    setBusinessContextSaving(true);
+    try {
+      const res = await fetch("/api/property-objective/business-context", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...(avg !== undefined ? { avgDealValue: avg } : {}),
+          ...(target !== undefined ? { targetCpl: target } : {}),
+          ...(breakeven !== undefined ? { breakevenCpl: breakeven } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const responseBody = (await res.json().catch(() => ({}))) as {
+          error?: { message?: string };
+        };
+        throw new Error(responseBody.error?.message ?? "Gagal menyimpan konteks bisnis.");
+      }
+      const responseBody = (await res.json()) as { objective: PropertyObjectiveDto };
+      setBusinessContextSaved(true);
+      onBusinessContextSaved?.(responseBody.objective);
+    } catch (caught) {
+      setBusinessContextError(
+        caught instanceof Error ? caught.message : "Gagal menyimpan konteks bisnis.",
+      );
+    } finally {
+      setBusinessContextSaving(false);
+    }
+  }
+
   const [targetHotLeads, setTargetHotLeads] = useState("50");
   const [budgetAllocation, setBudgetAllocation] = useState("");
   const [budgetSource, setBudgetSource] = useState<"MANUAL" | "SAMANTHA_SUGGESTED">("MANUAL");
@@ -174,6 +250,97 @@ export function PropertyObjectiveForm({
 
   return (
     <div className={styles.card}>
+      {/* AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — "Konteks Bisnis" card, rendered ABOVE the target
+          HOT-leads stepper per the spec's own explicit UI placement. A genuinely separate save
+          action from the objective form below it (own PATCH endpoint, own error/saved state) —
+          the two forms edit different real resources (`property_objectives`'s business-context
+          columns vs. its target/budget/focus columns) and a manager may want to update one without
+          touching the other. */}
+      <section
+        className={styles.businessContextCard}
+        data-testid="business-context-card"
+        aria-label="Konteks Bisnis"
+      >
+        <h3 className={styles.businessContextTitle}>💰 Konteks Bisnis</h3>
+        <p className={styles.hint}>
+          Angka-angka ini dipakai Samantha untuk reasoning Verdict (PAUSE/lanjutkan campaign) supaya
+          merujuk kondisi bisnis nyatamu, bukan threshold generik.
+        </p>
+        {existingObjective === undefined ? (
+          <p className={styles.hint} data-testid="business-context-no-objective">
+            Set Objective bulan ini dulu di bawah sebelum mengisi konteks bisnis.
+          </p>
+        ) : (
+          <>
+            <div className={styles.row}>
+              <label className={styles.field}>
+                Rata-rata nilai closing per transaksi (Rp)
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="cth. 50000000"
+                  value={avgDealValue}
+                  onChange={(event) => setAvgDealValue(event.target.value)}
+                  className={styles.input}
+                />
+                <span className={styles.hint}>
+                  Dipakai untuk konteks ROI — belum langsung memengaruhi Verdict hari ini.
+                </span>
+              </label>
+              <label className={styles.field}>
+                Target biaya per HOT lead (Rp)
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="cth. 25000"
+                  value={targetCpl}
+                  onChange={(event) => setTargetCpl(event.target.value)}
+                  className={styles.input}
+                />
+                <span className={styles.hint}>
+                  Campaign dengan CPL di bawah angka ini dianggap sehat oleh Samantha.
+                </span>
+              </label>
+              <label className={styles.field}>
+                Batas maksimal biaya per HOT lead (Rp)
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="cth. 30000"
+                  value={breakevenCpl}
+                  onChange={(event) => setBreakevenCpl(event.target.value)}
+                  className={styles.input}
+                />
+                <span className={styles.hint}>
+                  CPL di atas angka ini → Samantha merekomendasikan PAUSE. Harus lebih besar dari
+                  target biaya per HOT lead.
+                </span>
+              </label>
+            </div>
+            {businessContextError !== undefined ? (
+              <p className={styles.error} data-testid="business-context-error">
+                {businessContextError}
+              </p>
+            ) : null}
+            <div className={styles.footer}>
+              <button
+                type="button"
+                className={styles.submitButton}
+                disabled={businessContextSaving}
+                onClick={() => void saveBusinessContext()}
+              >
+                {businessContextSaving ? "Menyimpan..." : "💾 Simpan Konteks Bisnis"}
+              </button>
+              {businessContextSaved ? (
+                <span data-testid="business-context-saved" className={styles.hint}>
+                  Tersimpan.
+                </span>
+              ) : null}
+            </div>
+          </>
+        )}
+      </section>
+
       <form
         onSubmit={handleSubmit}
         noValidate

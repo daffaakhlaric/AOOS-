@@ -190,6 +190,15 @@
   color: var(--gray-500);
 }
 
+/* AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — fatigue-aware recommendation banner, styled with the
+   real WARNING/FATIGUED amber/red tones every other fatigue UI in this app uses (see
+   CreativePackageCard.module.css's own `.fatigueBadgeWarning`/`.fatigueBadgeFatigued`). */
+.fatigueRecommendationCard {
+  cursor: default;
+  border-color: var(--v2-warning-color, #92400e);
+  background: var(--v2-warning-bg, #fef3c7);
+}
+
 .recommendedTag {
   margin-left: 6px;
   font-size: 10px;

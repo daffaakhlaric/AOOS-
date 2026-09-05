@@ -31,5 +31,9 @@ import { PropertyObjectiveService } from "./property-objective.service.js";
       inject: [SUPABASE_CLIENT],
     },
   ],
+  // AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — exported so `SchedulerModule` can inject the SAME real
+  // `PropertyObjectiveService` for `runPropertyCampaignTriggerCheck`'s business-context-aware
+  // reasoning text (see that method's own doc) — never a second, parallel objective read path.
+  exports: [PropertyObjectiveService],
 })
 export class PropertyObjectiveModule {}

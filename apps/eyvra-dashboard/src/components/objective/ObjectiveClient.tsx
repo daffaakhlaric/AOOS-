@@ -13,7 +13,10 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Toast } from "@/components/ui/Toast";
 import type { ObjectiveDto } from "@/types/dashboard.types";
-import type { PropertyObjectiveDto } from "@/types/property-objective.types";
+import {
+  isBusinessContextFilled,
+  type PropertyObjectiveDto,
+} from "@/types/property-objective.types";
 import type { Vertical } from "@/types/tenant.types";
 
 import styles from "./ObjectiveClient.module.css";
@@ -169,14 +172,30 @@ export function ObjectiveClient(): React.ReactElement {
     if (propertyObjective === undefined && error === undefined) {
       return <LoadingSpinner />;
     }
+    const existingObjective = propertyObjective ?? undefined;
     return (
       <div className={styles.page}>
         <h2 className={styles.title}>🎯 Objective Bulan Ini</h2>
         {error !== undefined ? <ErrorCard message={error} /> : null}
+        {/* AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — the spec's own fallback banner. Placed here
+            (not a "Tab Verdict" — no such PROPERTY tab exists anywhere in this app; the closest
+            real, honest PROPERTY-facing "AI decided X, here is why" surface is the Activity
+            detail drawer's Reasoning tab, which has no dedicated banner slot of its own) rather
+            than fabricating a Verdict tab that doesn't exist. */}
+        {existingObjective !== undefined && !isBusinessContextFilled(existingObjective) ? (
+          <p className={styles.businessContextBanner} data-testid="business-context-banner">
+            ⚠ Isi konteks bisnis di Settings &gt; Objective supaya rekomendasi lebih akurat.
+          </p>
+        ) : null}
         {propertyObjective !== null && propertyObjective !== undefined ? (
           <PropertyObjectiveCard objective={propertyObjective} />
         ) : null}
-        <PropertyObjectiveForm onSubmit={handlePropertySubmit} submitting={submitting} />
+        <PropertyObjectiveForm
+          onSubmit={handlePropertySubmit}
+          submitting={submitting}
+          existingObjective={existingObjective}
+          onBusinessContextSaved={(updated) => setPropertyObjective(updated)}
+        />
         {savedToast ? (
           <Toast
             message="Objective berhasil disimpan"

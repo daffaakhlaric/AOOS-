@@ -32,6 +32,9 @@ export type CreativePackageOrigin = "MANUAL" | "SAMANTHA";
  */
 export type CreativePackageVertical = "AUTOMOTIVE" | "PROPERTY";
 
+/** `044_creative_packages_fatigue.sql` (AAOS LOOP UPGRADE, Sprint 6 Prompt 16). `NORMAL` (default) → `WARNING` (real, frequency-only degrade — see `scheduler/domain/fatigue.ts`'s own doc) → `FATIGUED` (requires a real, confirmed CTR-trend drop this app cannot compute yet — see that same doc). */
+export type CreativePackageFatigueStatus = "NORMAL" | "WARNING" | "FATIGUED";
+
 /** `@aos/creative-agent`'s real `CreativeFormat` — a package-level decision, not a per-asset tag. */
 export type CreativePackageFormat = "VIDEO_AND_IMAGES" | "IMAGES_ONLY";
 
@@ -84,6 +87,8 @@ export interface StoredCreativePackage {
    * has no recommendation logic to accept.
    */
   readonly aiRecommended: boolean;
+  /** `044_creative_packages_fatigue.sql`. Defaults to `NORMAL` for every pre-existing row. */
+  readonly fatigueStatus: CreativePackageFatigueStatus;
   /** Real `@aos/asset-library` public URLs of the source photos found for `unit` when generation started. An empty array is a real state, not "unknown". */
   readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;

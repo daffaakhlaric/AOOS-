@@ -2,8 +2,10 @@ import { ConflictError, NotFoundError } from "@aos/errors";
 import { describe, expect, it, vi } from "vitest";
 
 import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
+import type { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import {
   PendingActionRepository,
@@ -52,13 +54,32 @@ function buildFakeCampaignsService(
   } as unknown as CampaignsService;
 }
 
+function buildFakeAuditLogService(): AuditLogService {
+  return { record: vi.fn(async () => undefined) } as unknown as AuditLogService;
+}
+
+function buildFakeModeGuardService(): ModeGuardService {
+  return { resolveMode: vi.fn(async () => "DEV") } as unknown as ModeGuardService;
+}
+
 function buildService(
   client: ReturnType<typeof createFakeSupabaseClient>,
   campaignsService: CampaignsService = buildFakeCampaignsService(),
-): { service: PendingActionsService; campaignsService: CampaignsService } {
+  auditLog: AuditLogService = buildFakeAuditLogService(),
+): {
+  service: PendingActionsService;
+  campaignsService: CampaignsService;
+  auditLog: AuditLogService;
+} {
   const repository = new PendingActionRepository(client);
-  const service = new PendingActionsService(repository, campaignsService, () => FIXED_NOW);
-  return { service, campaignsService };
+  const service = new PendingActionsService(
+    repository,
+    campaignsService,
+    auditLog,
+    buildFakeModeGuardService(),
+    () => FIXED_NOW,
+  );
+  return { service, campaignsService, auditLog };
 }
 
 describe("PendingActionsService", () => {
@@ -148,6 +169,40 @@ describe("PendingActionsService", () => {
       );
       expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
     });
+
+    it("AAOS LOOP UPGRADE Prompt 17: writes a real VERDICT_APPLIED audit_log row, plus CAMPAIGN_PUBLISHED for a real (non-simulated) result", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client);
+      const auditLog = buildFakeAuditLogService();
+      const { service } = buildService(client, buildFakeCampaignsService(), auditLog);
+
+      await service.approve("pending-1", "dss-motor", "manager@dss-motor.id", undefined);
+
+      expect(auditLog.record).toHaveBeenCalledWith(
+        expect.objectContaining({ actionType: "VERDICT_APPLIED", decidedBy: "user_manual" }),
+      );
+      expect(auditLog.record).toHaveBeenCalledWith(
+        expect.objectContaining({ actionType: "CAMPAIGN_PUBLISHED", reversible: true }),
+      );
+    });
+
+    it("does not write a CAMPAIGN_PUBLISHED audit_log row for a DEV-mode simulated result", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client);
+      const auditLog = buildFakeAuditLogService();
+      const simulatedCampaigns = buildFakeCampaignsService(async () => ({
+        simulated: true,
+        resolvedCities: ["Jakarta"],
+      }));
+      const { service } = buildService(client, simulatedCampaigns, auditLog);
+
+      await service.approve("pending-1", "dss-motor", undefined, undefined);
+
+      const calls = (auditLog.record as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [{ actionType: string }]
+      >;
+      expect(calls.some(([arg]) => arg.actionType === "CAMPAIGN_PUBLISHED")).toBe(false);
+    });
   });
 
   describe("reject", () => {
@@ -186,6 +241,24 @@ describe("PendingActionsService", () => {
       await expect(
         service.reject("pending-1", "other-tenant", undefined, undefined),
       ).rejects.toThrow(NotFoundError);
+    });
+
+    it("AAOS LOOP UPGRADE Prompt 17: writes a real VERDICT_REJECTED audit_log row with a null after_state", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client);
+      const auditLog = buildFakeAuditLogService();
+      const { service } = buildService(client, buildFakeCampaignsService(), auditLog);
+
+      await service.reject("pending-1", "dss-motor", "manager@dss-motor.id", "Tidak relevan");
+
+      expect(auditLog.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: "VERDICT_REJECTED",
+          decidedBy: "user_manual",
+          afterState: null,
+          reversible: false,
+        }),
+      );
     });
   });
 });

@@ -28,8 +28,10 @@ import type { AgentLogicService } from "../agent-config/agent-logic.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
+import type { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import type { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import type { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { ListingListResponseDto } from "../listings/dto/listing.dto.js";
 import type { ListingsService } from "../listings/listings.service.js";
@@ -39,6 +41,7 @@ import type { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tena
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 import type { PendingActionRow } from "../pending-actions/infrastructure/pending-action.repository.js";
 import type { PendingActionsService } from "../pending-actions/pending-actions.service.js";
+import type { PropertyObjectiveService } from "../property-objective/property-objective.service.js";
 import type { RecyclingRunResult, RecyclingService } from "../recycling/recycling.service.js";
 import type { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -381,6 +384,38 @@ function buildFakeIntelligenceService(result?: CalendarEventResult): Intelligenc
   } as unknown as IntelligenceService;
 }
 
+function buildFakeAuditLogService(): AuditLogService {
+  return {
+    record: vi.fn(async () => undefined),
+    list: vi.fn(async () => []),
+    get: vi.fn(async () => {
+      throw new Error("not found");
+    }),
+    rollback: vi.fn(async () => {
+      throw new Error("not implemented in this fake");
+    }),
+  } as unknown as AuditLogService;
+}
+
+function buildFakePropertyObjectiveService(
+  overrides: Partial<PropertyObjectiveService> = {},
+): PropertyObjectiveService {
+  return {
+    getCurrentSafe: vi.fn(async () => undefined),
+    ...overrides,
+  } as unknown as PropertyObjectiveService;
+}
+
+function buildFakeCreativePackageRepository(
+  overrides: Partial<CreativePackageRepository> = {},
+): CreativePackageRepository {
+  return {
+    list: vi.fn(async () => []),
+    updateFatigueStatus: vi.fn(async () => undefined),
+    ...overrides,
+  } as unknown as CreativePackageRepository;
+}
+
 function buildService(
   options: {
     repository?: CalendarEventRepository;
@@ -404,6 +439,9 @@ function buildService(
     pendingActions?: PendingActionsService;
     agentConfigService?: AgentConfigService;
     agentLogicService?: AgentLogicService;
+    auditLog?: AuditLogService;
+    propertyObjectiveService?: PropertyObjectiveService;
+    creativePackageRepository?: CreativePackageRepository;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -443,6 +481,9 @@ function buildService(
     options.pendingActions ?? buildFakePendingActionsService(),
     options.agentConfigService ?? buildFakeAgentConfigService(),
     options.agentLogicService ?? buildFakeAgentLogicService(),
+    options.auditLog ?? buildFakeAuditLogService(),
+    options.propertyObjectiveService ?? buildFakePropertyObjectiveService(),
+    options.creativePackageRepository ?? buildFakeCreativePackageRepository(),
   );
 }
 

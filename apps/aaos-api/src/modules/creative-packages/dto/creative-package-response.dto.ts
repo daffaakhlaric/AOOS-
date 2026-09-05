@@ -1,5 +1,6 @@
 import type { CreativeLogEntry } from "../domain/creative-log.js";
 import type {
+  CreativePackageFatigueStatus,
   CreativePackageFormat,
   CreativePackageOrigin,
   CreativePackageStatus,
@@ -36,6 +37,8 @@ export interface CreativePackageResponseDto {
   readonly status: CreativePackageStatus;
   /** `042_creative_packages_ai_recommended.sql` — real record of whether this brief's angle was an accepted Kai recommendation (`kaiRecommendations.ts`). Only ever `true` for a `PROPERTY` package today. */
   readonly aiRecommended: boolean;
+  /** `044_creative_packages_fatigue.sql` — real, scheduler-computed fatigue status (see `scheduler/domain/fatigue.ts`'s own doc for the honest FATIGUED-vs-WARNING degrade). */
+  readonly fatigueStatus: CreativePackageFatigueStatus;
   readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;
   readonly imageUrls: readonly string[];

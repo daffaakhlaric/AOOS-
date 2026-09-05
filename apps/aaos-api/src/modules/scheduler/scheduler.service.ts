@@ -45,7 +45,10 @@ import { AgentLogicService } from "../agent-config/agent-logic.service.js";
 import { evaluateLogicRules, type LogicRuleSet } from "../agent-config/logic-interpreter.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
+import { AuditLogService } from "../audit-log/audit-log.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
+import type { StoredCreativePackage } from "../creative-packages/domain/creative-package.js";
+import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
@@ -59,6 +62,9 @@ import {
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 import { PendingActionsService } from "../pending-actions/pending-actions.service.js";
+import { isBusinessContextFilled } from "../property-objective/dto/property-objective.dto.js";
+import { PropertyObjectiveService } from "../property-objective/property-objective.service.js";
+import { buildCplReasoningText } from "../property-objective/reasoning.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -69,6 +75,7 @@ import {
   shouldCreateNewCampaign,
   type CampaignTriggerDecision,
 } from "./domain/campaign-trigger.js";
+import { evaluateFatigue } from "./domain/fatigue.js";
 import type {
   CreateCalendarEventBodyDto,
   GetCalendarQueryDto,
@@ -167,6 +174,30 @@ export class SchedulerService {
      * `AgentConfigModule`).
      */
     private readonly agentLogicService: AgentLogicService,
+    /**
+     * AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — real `audit_log` writer for the FULL_CONTROL branch
+     * of `recordCampaignTriggerDecision` (a real, non-simulated LIVE-mode campaign publish —
+     * `CAMPAIGN_PUBLISHED`, `reversible: true`). Injected the same way `pendingActions` above
+     * already is (`AuditLogModule`, imported directly by `SchedulerModule`).
+     */
+    private readonly auditLog: AuditLogService,
+    /**
+     * AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — real, tenant-set Business Context (AOV/target-CPL/
+     * breakeven-CPL), resolved once per `runPropertyCampaignTriggerCheck` call and threaded into
+     * `buildCplReasoningText` so the real `CAMPAIGN_TRIGGER_RECOMMENDATION` activity row's
+     * `reasoning` text explicitly cites the tenant's own real numbers instead of a generic
+     * threshold-only sentence (see that function's own doc). Injected the same way
+     * `agentConfigService` above already is.
+     */
+    private readonly propertyObjectiveService: PropertyObjectiveService,
+    /**
+     * AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real per-listing fatigue check
+     * (`runPropertyCampaignTriggerCheck`'s own extension), reusing the SAME real
+     * `matchActiveCampaignForListing` frequency signal already computed for the CPL-trigger check.
+     * Injected directly (not via a small standalone service — this table's own repository already
+     * mirrors every other Supabase-backed repository's composition, see `CreativePackagesModule`).
+     */
+    private readonly creativePackageRepository: CreativePackageRepository,
   ) {}
 
   /**
@@ -879,6 +910,17 @@ export class SchedulerService {
         ? definedCpls.reduce((sum, value) => sum + value, 0) / definedCpls.length
         : undefined;
 
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — real, tenant-set Business Context, resolved ONCE for
+    // this whole pull (same "resolve once, pass in explicitly" discipline `cplMultiplier` above
+    // already establishes). `undefined` (no current objective yet, or one with an unfilled business
+    // context) means `buildCplReasoningText` falls back to the generic threshold sentence — never a
+    // fabricated breakeven number.
+    const objective = await this.propertyObjectiveService.getCurrentSafe(tenantId);
+    const breakevenCpl =
+      objective !== undefined && isBusinessContextFilled(objective)
+        ? objective.breakevenCpl
+        : undefined;
+
     let triggered = 0;
     for (const { listing, matched } of perListing) {
       const decision = shouldCreateNewCampaign(
@@ -897,7 +939,13 @@ export class SchedulerService {
         continue;
       }
       try {
-        await this.recordCampaignTriggerDecision(
+        // AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — real business-context-aware reasoning text for a
+        // HIGH_CPL trigger, logged onto the SAME `agent_activities` row
+        // `recordCampaignTriggerDecision` starts (`ActivityLogger.logReasoning`), so the dashboard's
+        // real Activity detail drawer's "Reasoning" tab shows it. Only built when `HIGH_CPL` is
+        // actually one of the fired reasons — the other 3 reasons have no CPL number to reason
+        // about.
+        const activityId = await this.recordCampaignTriggerDecision(
           tenantId,
           correlationId,
           listing,
@@ -910,6 +958,21 @@ export class SchedulerService {
           // resolves to the exact real, unconditional today's behavior — zero regression.
           tenant.operating_mode ?? "FULL_CONTROL",
         );
+        if (
+          decision.reasons.includes("HIGH_CPL") &&
+          matched.cplIDR !== undefined &&
+          benchmarkCplIDR !== undefined
+        ) {
+          await this.activityLogger.logReasoning(
+            activityId,
+            buildCplReasoningText({
+              cplIDR: matched.cplIDR,
+              benchmarkCplIDR,
+              cplMultiplier,
+              ...(breakevenCpl !== undefined ? { breakevenCpl } : {}),
+            }),
+          );
+        }
         triggered += 1;
       } catch (caught) {
         this.logger.warn(
@@ -918,7 +981,83 @@ export class SchedulerService {
       }
     }
 
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real per-listing fatigue check, reusing the SAME
+    // `matched.maxFrequency` signal already computed above for the CPL-trigger check. Best-effort
+    // per listing, same discipline as the trigger loop above.
+    await this.runFatigueCheck(tenantId, correlationId, perListing);
+
     return { checked: perListing.length, triggered };
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real fatigue detection, run once per
+   * `runPropertyCampaignTriggerCheck` call (i.e. once per real loop cycle that pulls PROPERTY
+   * campaign data — the spec's own "jalan tiap loop run" requirement). See `scheduler/domain/
+   * fatigue.ts`'s own header doc for the full, honest data-availability finding this method's shape
+   * reflects: `ctrTrend` is always `undefined` here (no real 7-day-vs-previous-7-day time series
+   * exists anywhere in this app today), so `evaluateFatigue` can only ever honestly return `NORMAL`
+   * or `WARNING` from this real call site — never a fabricated `FATIGUED`.
+   *
+   * Updates EVERY `creative_packages` row whose real `listing_id` matches this listing (a listing
+   * can honestly have more than one creative package) — `creative_packages` is the real,
+   * PROPERTY-reachable table this feature attaches to (see `044_creative_packages_fatigue.sql`'s own
+   * doc for why, not the spec's literal `creative_assets`). Only writes an activity log row when the
+   * status actually CHANGES (never a duplicate "still WARNING" row every single loop tick).
+   */
+  private async runFatigueCheck(
+    tenantId: string,
+    correlationId: string,
+    perListing: readonly {
+      readonly listing: ListingResponseDto;
+      readonly matched: MatchedCampaignSignals;
+    }[],
+  ): Promise<void> {
+    for (const { listing, matched } of perListing) {
+      if (matched.maxFrequency === undefined) {
+        continue;
+      }
+      const evaluation = evaluateFatigue({ frequencyCurrent: matched.maxFrequency });
+      let packages: readonly StoredCreativePackage[];
+      try {
+        packages = await this.creativePackageRepository.list(tenantId, { limit: 200 });
+      } catch (caught) {
+        this.logger.warn(
+          `SchedulerService.runFatigueCheck: list(${tenantId}) failed: ${String(caught)}`,
+        );
+        return;
+      }
+      const matchingPackages = packages.filter((pkg) => pkg.listingId === listing.id);
+      for (const pkg of matchingPackages) {
+        if (pkg.fatigueStatus === evaluation.status) {
+          continue;
+        }
+        try {
+          await this.creativePackageRepository.updateFatigueStatus(pkg.id, evaluation.status);
+          if (evaluation.status !== "NORMAL") {
+            const activityId = await this.activityLogger.start({
+              tenantId,
+              agent: "KAI",
+              actionType: "FATIGUE_DETECTED",
+              mode: await this.modeGuard.resolveMode(tenantId),
+              loopId: correlationId,
+              input: { listingId: listing.id, packageId: pkg.id, packageTitle: pkg.title },
+            });
+            await this.activityLogger.logReasoning(
+              activityId,
+              `Fatigue terdeteksi: ${pkg.title} — ${evaluation.reasoning}`,
+            );
+            await this.activityLogger.complete(activityId, {
+              status: "SUCCESS",
+              output: { status: evaluation.status },
+            });
+          }
+        } catch (caught) {
+          this.logger.warn(
+            `SchedulerService.runFatigueCheck: updateFatigueStatus(${pkg.id}) failed: ${String(caught)}`,
+          );
+        }
+      }
+    }
   }
 
   /**
@@ -989,7 +1128,7 @@ export class SchedulerService {
     listing: ListingResponseDto,
     decision: CampaignTriggerDecision,
     operatingMode: string,
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     const mode = await this.modeGuard.resolveMode(tenantId);
     const activityId = await this.activityLogger.start({
       tenantId,
@@ -1020,7 +1159,7 @@ export class SchedulerService {
         await this.activityLogger.fail(activityId, error);
         throw error;
       }
-      return;
+      return activityId;
     }
 
     try {
@@ -1033,10 +1172,30 @@ export class SchedulerService {
         status: result.simulated ? "SIMULATED" : "SUCCESS",
         ...(result.simulated ? { devPreview: result } : { output: result }),
       });
+
+      // AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — real audit_log write, ONLY for a genuine
+      // non-simulated real Meta campaign publish (never a DEV-mode `SIMULATED` result — nothing
+      // real happened yet to audit). `reversible: true` — the real, safe reverse operation is
+      // `MetaAdsService.executeVerdict({verdict: 'PAUSE', targetType: 'campaign'})` against this
+      // same real `campaignId` (see `AuditLogService.rollback`'s own doc).
+      if (!result.simulated && result.campaignId !== undefined) {
+        await this.auditLog.record({
+          tenantId,
+          agent: "SAMANTHA",
+          actionType: "CAMPAIGN_PUBLISHED",
+          beforeState: null,
+          afterState: result,
+          decidedBy: "ai_auto",
+          mode,
+          relatedVerdictId: activityId,
+          reversible: true,
+        });
+      }
     } catch (error) {
       await this.activityLogger.fail(activityId, error);
       throw error;
     }
+    return activityId;
   }
 
   /**

@@ -5,6 +5,32 @@
   padding: 16px;
 }
 
+/* AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — thin red border for a FATIGUED package, per the spec's
+   own "border kartu merah tipis" instruction. */
+.sectionFatigued {
+  border: 1px solid var(--red, #dc2626);
+}
+
+.fatigueBadgeFatigued {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--red-light, #fee2e2);
+  color: var(--red, #dc2626);
+  white-space: nowrap;
+}
+
+.fatigueBadgeWarning {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--v2-warning-bg, #fef3c7);
+  color: var(--v2-warning-color, #92400e);
+  white-space: nowrap;
+}
+
 .headerRow {
   display: flex;
   align-items: center;

@@ -72,6 +72,7 @@ import { TracingInterceptor } from "./interceptors/tracing.interceptor.js";
 import { AbTestingModule } from "./modules/abtesting/abtesting.module.js";
 import { ActivityLogModule } from "./modules/activity-log/activity-log.module.js";
 import { AssetsModule } from "./modules/assets/assets.module.js";
+import { AuditLogModule } from "./modules/audit-log/audit-log.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { ClosingsModule } from "./modules/closings/closings.module.js";
@@ -356,6 +357,11 @@ export class AppModule {
         WebhookModule,
         WhatsAppWebhookModule,
         ObjectiveModule,
+        // AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — real `api/v1/audit-log*` HTTP surface. Also
+        // imported directly by `PendingActionsModule`/`SchedulerModule` for their own real writer
+        // call sites (approve/reject, campaign-trigger publish) — this top-level registration is
+        // what actually mounts `AuditLogController`'s routes.
+        AuditLogModule,
         CreativePackagesModule,
         BranchesModule,
         CampaignsModule,

@@ -31,6 +31,11 @@ function seedObjective(
     created_at: "2026-09-01T00:00:00.000Z",
     activated_at: null,
     completed_at: null,
+    avg_deal_value: null,
+    target_cpl: null,
+    breakeven_cpl: null,
+    updated_by: null,
+    updated_at: null,
     ...overrides,
   });
 }
@@ -254,6 +259,46 @@ describe("PropertyObjectiveService", () => {
 
       const result = await service.getBudgetSuggestion(10, CORRELATION_ID, TENANT_ID);
       expect(result.available).toBe(false);
+    });
+  });
+
+  describe("updateBusinessContext", () => {
+    it("persists all 3 real business-context numbers plus updated_by/updated_at", async () => {
+      const client = createFakeSupabaseClient();
+      seedObjective(client);
+      const { service } = buildService(client);
+
+      const result = await service.updateBusinessContext(TENANT_ID, {
+        avgDealValue: 50_000_000,
+        targetCpl: 25_000,
+        breakevenCpl: 30_000,
+        updatedBy: "manager@example.com",
+      });
+
+      expect(result.avgDealValue).toBe(50_000_000);
+      expect(result.targetCpl).toBe(25_000);
+      expect(result.breakevenCpl).toBe(30_000);
+      expect(result.businessContextUpdatedBy).toBe("manager@example.com");
+      expect(result.businessContextUpdatedAt).toBe(FIXED_NOW.toISOString());
+    });
+
+    it("throws NotFoundError when the tenant has no current-period objective to attach business context to", async () => {
+      const client = createFakeSupabaseClient();
+      const { service } = buildService(client);
+
+      await expect(service.updateBusinessContext(TENANT_ID, { avgDealValue: 1 })).rejects.toThrow(
+        NotFoundError,
+      );
+    });
+  });
+
+  describe("getCurrentSafe", () => {
+    it("returns undefined instead of throwing when the tenant has no current-period objective", async () => {
+      const client = createFakeSupabaseClient();
+      const { service } = buildService(client);
+
+      const result = await service.getCurrentSafe(TENANT_ID);
+      expect(result).toBeUndefined();
     });
   });
 });

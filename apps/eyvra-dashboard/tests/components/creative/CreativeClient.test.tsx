@@ -24,6 +24,7 @@ const PACKAGE: CreativePackageDto = {
   primaryMessage: "DP mulai 29 juta",
   urgency: "HIGH",
   aiRecommended: false,
+  fatigueStatus: "NORMAL",
   origin: "MANUAL",
   status: "PENDING",
   sourcePhotoUrls: [],

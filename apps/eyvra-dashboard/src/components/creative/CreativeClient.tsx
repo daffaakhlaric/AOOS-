@@ -186,6 +186,13 @@ export function CreativeClient(): React.ReactElement {
   const rejectedThisMonth = packages.filter(
     (pkg) => pkg.status === "REJECTED" && isThisMonth(pkg.reviewedAt, now),
   );
+  // AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real, scheduler-computed fatigue signal, FATIGUED
+  // packages surfaced first (highest real priority).
+  const fatiguedPackages = packages
+    .filter((pkg) => pkg.fatigueStatus !== "NORMAL")
+    .sort((a, b) =>
+      a.fatigueStatus === b.fatigueStatus ? 0 : a.fatigueStatus === "FATIGUED" ? -1 : 1,
+    );
 
   return (
     <div className={styles.page}>
@@ -231,28 +238,46 @@ export function CreativeClient(): React.ReactElement {
       {error !== undefined ? <ErrorCard message={error} /> : null}
 
       {tab === "REVIEW" ? (
-        pending.length === 0 ? (
-          <EmptyState
-            title="Tidak ada package menunggu review"
-            description="Semua package sudah direview. Buat brief baru di tab “Buat Manual”."
-          />
-        ) : (
-          <div className={styles.list}>
-            {pending.map((pkg) => (
-              <CreativePackageCard
-                key={pkg.id}
-                pkg={pkg}
-                busy={busyId === pkg.id}
-                onApprove={(selectedCopyVariantId) => {
-                  void review(pkg, "approve", selectedCopyVariantId);
-                }}
-                onReject={() => {
-                  void review(pkg, "reject");
-                }}
-              />
-            ))}
-          </div>
-        )
+        <>
+          {/* AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real fatigue banner, shown above the grid
+              whenever ANY real package (any status, not just PENDING) has a real, scheduler-
+              computed fatigueStatus other than NORMAL. */}
+          {fatiguedPackages.length > 0 ? (
+            <div className={styles.fatigueBanner} data-testid="fatigue-banner">
+              <strong>{fatiguedPackages.length} creative package menunjukkan tanda fatigue</strong>
+              <ul className={styles.fatigueBannerList}>
+                {fatiguedPackages.slice(0, 5).map((pkg) => (
+                  <li key={pkg.id}>
+                    {pkg.fatigueStatus === "FATIGUED" ? "⚠ " : ""}
+                    {pkg.title} — {pkg.fatigueStatus === "FATIGUED" ? "Fatigue" : "Menurun"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {pending.length === 0 ? (
+            <EmptyState
+              title="Tidak ada package menunggu review"
+              description="Semua package sudah direview. Buat brief baru di tab “Buat Manual”."
+            />
+          ) : (
+            <div className={styles.list}>
+              {pending.map((pkg) => (
+                <CreativePackageCard
+                  key={pkg.id}
+                  pkg={pkg}
+                  busy={busyId === pkg.id}
+                  onApprove={(selectedCopyVariantId) => {
+                    void review(pkg, "approve", selectedCopyVariantId);
+                  }}
+                  onReject={() => {
+                    void review(pkg, "reject");
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : null}
 
       {tab === "PROCESSING" ? (

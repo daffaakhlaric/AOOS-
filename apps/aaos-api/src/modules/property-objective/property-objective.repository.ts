@@ -64,4 +64,35 @@ export class PropertyObjectiveRepository {
     }
     return data ?? [];
   }
+
+  /** AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — the real Business Context write. `id` is the objective row being edited (the tenant's real "current" one, resolved by `PropertyObjectiveService.updateBusinessContext`), never a fabricated/implicit target. */
+  async updateBusinessContext(
+    id: string,
+    input: {
+      readonly avgDealValue?: number;
+      readonly targetCpl?: number;
+      readonly breakevenCpl?: number;
+      readonly updatedBy?: string;
+      readonly updatedAt: string;
+    },
+  ): Promise<PropertyObjectiveRow> {
+    const { data, error } = await this.client
+      .from<PropertyObjectiveRow>(TABLE)
+      .update({
+        ...(input.avgDealValue !== undefined ? { avg_deal_value: input.avgDealValue } : {}),
+        ...(input.targetCpl !== undefined ? { target_cpl: input.targetCpl } : {}),
+        ...(input.breakevenCpl !== undefined ? { breakeven_cpl: input.breakevenCpl } : {}),
+        updated_by: input.updatedBy ?? null,
+        updated_at: input.updatedAt,
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error !== null || data === null) {
+      throw new PropertyObjectiveRepositoryError(
+        `PropertyObjectiveRepository.updateBusinessContext failed: ${error?.message ?? "no row returned"}`,
+      );
+    }
+    return data;
+  }
 }

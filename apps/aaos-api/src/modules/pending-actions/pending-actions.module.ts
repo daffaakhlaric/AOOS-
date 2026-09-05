@@ -2,8 +2,10 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { AuditLogModule } from "../audit-log/audit-log.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
 import { PendingActionRepository } from "./infrastructure/pending-action.repository.js";
 import { PendingActionsController } from "./pending-actions.controller.js";
@@ -24,7 +26,7 @@ import { PendingActionsService } from "./pending-actions.service.js";
  * for its own real `enqueue()` write path when a tenant's `operating_mode` is `APPROVAL`.
  */
 @Module({
-  imports: [CampaignsModule],
+  imports: [CampaignsModule, AuditLogModule, ModeGuardModule],
   controllers: [PendingActionsController],
   providers: [
     PendingActionsService,

@@ -260,6 +260,14 @@ export interface CreativePackageDto {
    * `PROPERTY` package today — `AUTOMOTIVE`'s `ManualBriefForm.tsx` has no recommendation logic.
    */
   readonly aiRecommended: boolean;
+  /**
+   * AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real, scheduler-computed fatigue status.
+   * `044_creative_packages_fatigue.sql`. `FATIGUED` requires a real, confirmed 7-day CTR-trend drop
+   * this app cannot compute yet (no historical/time-series metrics storage anywhere) — see
+   * `apps/aaos-api`'s `scheduler/domain/fatigue.ts` for the full honest-degrade reasoning. In
+   * practice, today, only `NORMAL`/`WARNING` are ever real, scheduler-written values.
+   */
+  readonly fatigueStatus: "NORMAL" | "WARNING" | "FATIGUED";
   /** Real asset-library photo URLs found for this unit when generation started. */
   readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;

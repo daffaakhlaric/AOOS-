@@ -50,6 +50,13 @@
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+/* AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — separator before the real "Audit" sub-tab chip. */
+.filterDivider {
+  color: var(--gray-300);
+  margin: 0 4px;
 }
 
 .filterChip {

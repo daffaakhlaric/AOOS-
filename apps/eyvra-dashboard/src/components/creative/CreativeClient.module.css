@@ -72,6 +72,21 @@
   gap: 12px;
 }
 
+/* AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — fatigue banner above the Review grid. */
+.fatigueBanner {
+  border-radius: var(--radius);
+  border: 1px solid var(--red, #dc2626);
+  background: var(--red-light, #fee2e2);
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--red, #dc2626);
+}
+
+.fatigueBannerList {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
 /* v2 card treatment — 14px radius + subtle shadow, local override only (Phase B3's `Card.module.css`
    precedent), not a change to any shared/global card token. */
 .row {

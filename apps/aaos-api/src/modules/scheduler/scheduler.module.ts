@@ -7,7 +7,9 @@ import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
+import { AuditLogModule } from "../audit-log/audit-log.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
+import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { LlmModule } from "../llm/llm.module.js";
@@ -16,6 +18,7 @@ import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 import { PendingActionsModule } from "../pending-actions/pending-actions.module.js";
+import { PropertyObjectiveModule } from "../property-objective/property-objective.module.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
@@ -91,6 +94,13 @@ import { SchedulerService } from "./scheduler.service.js";
     // AAOS Self-Improving (Phase SI-1) — so SchedulerService can inject the real
     // AgentConfigService for `pause_cpl_multiplier` (see runPropertyCampaignTriggerCheck's own doc).
     AgentConfigModule,
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 17 — so SchedulerService can inject the exported
+    // AuditLogService for its own real CAMPAIGN_PUBLISHED writer (a real, non-simulated LIVE-mode
+    // `recordCampaignTriggerDecision` success — see that method's own doc).
+    AuditLogModule,
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — so SchedulerService can inject the exported
+    // PropertyObjectiveService for its own real business-context-aware reasoning text.
+    PropertyObjectiveModule,
   ],
   controllers: [SchedulerController],
   providers: [
@@ -111,6 +121,16 @@ import { SchedulerService } from "./scheduler.service.js";
     {
       provide: TenantRepository,
       useFactory: (client: SupabaseClientLike): TenantRepository => new TenantRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    // AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — composed here from the shared `SUPABASE_CLIENT`, the
+    // SAME "each module composes its own instance of a shared repository class over one shared
+    // connection" pattern this module already establishes for every repository above
+    // (`CreativePackagesModule` does not export this repository, only its own `Service`).
+    {
+      provide: CreativePackageRepository,
+      useFactory: (client: SupabaseClientLike): CreativePackageRepository =>
+        new CreativePackageRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

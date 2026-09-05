@@ -23,6 +23,7 @@ const PACKAGE: CreativePackageDto = {
   origin: "MANUAL",
   status: "PENDING",
   aiRecommended: false,
+  fatigueStatus: "NORMAL",
   sourcePhotoUrls: ["https://storage.googleapis.com/aoos/units/x/foto-1.jpg"],
   videoUrl: "https://storage.googleapis.com/aoos/ai-creatives/x/video.mp4",
   imageUrls: [

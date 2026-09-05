@@ -3,6 +3,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import type {
   CreateCreativePackageInput,
   CreativeGenerationOutcome,
+  CreativePackageFatigueStatus,
   CreativePackageFormat,
   CreativePackageOrigin,
   CreativePackageStatus,
@@ -44,6 +45,8 @@ export interface CreativePackageRow {
   readonly status: string;
   /** Additive, `042_creative_packages_ai_recommended.sql`. Defaults to `false` at the DB layer for every pre-existing row. */
   readonly ai_recommended: boolean;
+  /** Additive, `044_creative_packages_fatigue.sql`. Defaults to `'NORMAL'` at the DB layer for every pre-existing row. */
+  readonly fatigue_status: string;
   readonly source_photo_urls: readonly string[];
   readonly video_url: string | null;
   readonly image_urls: readonly string[];
@@ -86,6 +89,7 @@ function toDomain(row: CreativePackageRow): StoredCreativePackage {
     origin: row.origin as CreativePackageOrigin,
     status: row.status as CreativePackageStatus,
     aiRecommended: row.ai_recommended,
+    fatigueStatus: row.fatigue_status as CreativePackageFatigueStatus,
     sourcePhotoUrls: row.source_photo_urls ?? [],
     ...(row.video_url !== null ? { videoUrl: row.video_url } : {}),
     imageUrls: row.image_urls ?? [],
@@ -142,6 +146,7 @@ export class CreativePackageRepository {
         urgency: input.urgency,
         origin: input.origin,
         ai_recommended: input.aiRecommended ?? false,
+        fatigue_status: "NORMAL",
         status: "DRAFT",
         source_photo_urls: [],
         image_urls: [],
@@ -225,6 +230,11 @@ export class CreativePackageRepository {
 
   async fail(id: string, errorMessage: string): Promise<void> {
     await this.patch(id, "fail", { status: "FAILED", error_message: errorMessage });
+  }
+
+  /** AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — the real fatigue-status write, called from `SchedulerService.runFatigueCheck`. */
+  async updateFatigueStatus(id: string, status: CreativePackageFatigueStatus): Promise<void> {
+    await this.patch(id, "updateFatigueStatus", { fatigue_status: status });
   }
 
   async review(

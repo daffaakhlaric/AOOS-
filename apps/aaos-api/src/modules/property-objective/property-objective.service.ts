@@ -9,6 +9,7 @@ import {
   type CreatePropertyObjectiveBodyDto,
   type PropertyObjectiveResponseDto,
   type PropertyObjectiveRow,
+  type UpdateBusinessContextBodyDto,
 } from "./dto/property-objective.dto.js";
 import { PropertyObjectiveRepository } from "./property-objective.repository.js";
 
@@ -54,6 +55,22 @@ export class PropertyObjectiveService {
       );
     }
     return toPropertyObjectiveResponseDto(current);
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 6 Prompt 15/16 — the SAME real "current objective" resolution `get()`
+   * performs, but honestly returns `undefined` instead of throwing when none exists yet. Real
+   * callers that need to "try to read business context, but it's fine if there is none" (the
+   * scheduler's CPL-reasoning wiring, the fatigue-check wiring) use this instead of wrapping `get()`
+   * in a try/catch for what is a normal, expected, non-error outcome for a tenant that has not set
+   * an objective for the current period yet.
+   */
+  async getCurrentSafe(tenantId: string): Promise<PropertyObjectiveResponseDto | undefined> {
+    try {
+      return await this.get(tenantId);
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -139,5 +156,28 @@ export class PropertyObjectiveService {
       portfolioAvgCplIDR,
       targetHotLeads,
     };
+  }
+
+  /**
+   * `PATCH /api/v1/property-objective/business-context` (AAOS LOOP UPGRADE, Sprint 6 Prompt 15) —
+   * the real "Konteks Bisnis" card write. Requires a real, already-existing current-period objective
+   * row to attach to (this is a business-context EDIT, not a way to create an objective) — throws
+   * the SAME real `NotFoundError` `get()` would for a tenant with no current objective, so the
+   * dashboard can surface an honest "set your objective first" message rather than silently doing
+   * nothing.
+   */
+  async updateBusinessContext(
+    tenantId: string,
+    body: UpdateBusinessContextBodyDto,
+  ): Promise<PropertyObjectiveResponseDto> {
+    const current = await this.get(tenantId);
+    const row = await this.repository.updateBusinessContext(current.id, {
+      ...(body.avgDealValue !== undefined ? { avgDealValue: body.avgDealValue } : {}),
+      ...(body.targetCpl !== undefined ? { targetCpl: body.targetCpl } : {}),
+      ...(body.breakevenCpl !== undefined ? { breakevenCpl: body.breakevenCpl } : {}),
+      ...(body.updatedBy !== undefined ? { updatedBy: body.updatedBy } : {}),
+      updatedAt: this.now().toISOString(),
+    });
+    return toPropertyObjectiveResponseDto(row);
   }
 }

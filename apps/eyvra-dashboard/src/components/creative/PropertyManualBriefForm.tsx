@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ErrorCard } from "@/components/ui/ErrorCard";
-import { recommendPropertyAngles, type AngleRecommendation } from "@/lib/kaiRecommendations";
+import {
+  getFatigueRecommendation,
+  recommendPropertyAngles,
+  type AngleRecommendation,
+} from "@/lib/kaiRecommendations";
 import type { CreativeFormatDto, CreativePackageDto } from "@/types/dashboard.types";
 import type { ListingDto, ListingListDto } from "@/types/listing.types";
 
@@ -155,6 +159,16 @@ export function PropertyManualBriefForm({
     return recommendPropertyAngles(allPackages, listingId, PROPERTY_AD_ANGLES);
   }, [allPackages, listingId]);
 
+  // AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real fatigue-aware recommendation for THIS listing,
+  // rendered with the highest priority (above the angle-recommendation cards) per the spec's own
+  // explicit instruction.
+  const fatigueRecommendation = useMemo(() => {
+    if (allPackages === undefined || listingId === "") {
+      return undefined;
+    }
+    return getFatigueRecommendation(allPackages, listingId);
+  }, [allPackages, listingId]);
+
   const recommendedAngleSet = useMemo(
     () => new Set(recommendations.map((rec) => rec.angle)),
     [recommendations],
@@ -282,6 +296,22 @@ export function PropertyManualBriefForm({
           </div>
         )}
       </div>
+
+      {fatigueRecommendation !== undefined ? (
+        <div
+          className={`${styles.recommendationCard} ${styles.fatigueRecommendationCard}`}
+          data-testid="fatigue-recommendation-card"
+        >
+          <div className={styles.recommendationBody}>
+            <div className={styles.recommendationHead}>
+              <strong>
+                {fatigueRecommendation.fatigueStatus === "FATIGUED" ? "⚠ Fatigue" : "Menurun"}
+              </strong>
+            </div>
+            <p className={styles.recommendationReason}>{fatigueRecommendation.reasoning}</p>
+          </div>
+        </div>
+      ) : null}
 
       {listingId !== "" && recommendations.length > 0 ? (
         <div className={styles.field} data-testid="kai-recommendations">
