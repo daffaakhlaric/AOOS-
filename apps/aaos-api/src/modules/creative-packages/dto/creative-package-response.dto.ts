@@ -34,6 +34,8 @@ export interface CreativePackageResponseDto {
   readonly urgency: CreativePackageUrgency;
   readonly origin: CreativePackageOrigin;
   readonly status: CreativePackageStatus;
+  /** `042_creative_packages_ai_recommended.sql` — real record of whether this brief's angle was an accepted Kai recommendation (`kaiRecommendations.ts`). Only ever `true` for a `PROPERTY` package today. */
+  readonly aiRecommended: boolean;
   readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;
   readonly imageUrls: readonly string[];

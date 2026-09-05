@@ -156,6 +156,9 @@ describe("PropertyManualBriefForm", () => {
     expect(body["format"]).toBe("VIDEO_AND_IMAGES");
     expect(body["generate"]).toBe(false);
     expect(body["origin"]).toBe("MANUAL");
+    // 042_creative_packages_ai_recommended.sql — a manually-picked angle with no accepted
+    // recommendation must submit `aiRecommended: false`, never assumed true.
+    expect(body["aiRecommended"]).toBe(false);
     expect(body).not.toHaveProperty("unit");
     expect(body).not.toHaveProperty("branch");
     expect(body).not.toHaveProperty("targetPersona");
@@ -221,6 +224,57 @@ describe("PropertyManualBriefForm", () => {
         ),
       );
       expect(screen.getByText("Direkomendasikan")).toBeInTheDocument();
+    });
+
+    it("042_creative_packages_ai_recommended: submits aiRecommended:true when the pre-checked TINGGI recommendation is what's actually sent", async () => {
+      const fetchMock = mockFetch({
+        packages: ["listing-other-1", "listing-other-2", "listing-other-3"].map((listingId) =>
+          propertyPackage({ listingId, angle: "INVESTASI" }),
+        ),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      render(<PropertyManualBriefForm onCreated={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByTestId("kai-recommendations")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /INVESTASI/ })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        ),
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: /Simpan sebagai Draft/ }));
+      await waitFor(() =>
+        expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true),
+      );
+      const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+      const body = JSON.parse(String(post?.[1]?.body)) as Record<string, unknown>;
+      expect(body["angle"]).toBe("INVESTASI");
+      expect(body["aiRecommended"]).toBe(true);
+    });
+
+    it("042_creative_packages_ai_recommended: unchecking the recommendation before picking a DIFFERENT angle submits aiRecommended:false", async () => {
+      const fetchMock = mockFetch({
+        packages: ["listing-other-1", "listing-other-2", "listing-other-3"].map((listingId) =>
+          propertyPackage({ listingId, angle: "INVESTASI" }),
+        ),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      render(<PropertyManualBriefForm onCreated={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByTestId("kai-recommendations")).toBeInTheDocument());
+      // Manually pick a DIFFERENT angle than the one Kai recommended — the submitted angle no
+      // longer matches any accepted recommendation, so this must be honestly false.
+      await userEvent.click(screen.getByRole("button", { name: "SYARIAH" }));
+
+      await userEvent.click(screen.getByRole("button", { name: /Simpan sebagai Draft/ }));
+      await waitFor(() =>
+        expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true),
+      );
+      const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+      const body = JSON.parse(String(post?.[1]?.body)) as Record<string, unknown>;
+      expect(body["angle"]).toBe("SYARIAH");
+      expect(body["aiRecommended"]).toBe(false);
     });
 
     it("does NOT pre-check a SEDANG/COBA_COBA recommendation, and does not recommend the current listing's already-used angle", async () => {

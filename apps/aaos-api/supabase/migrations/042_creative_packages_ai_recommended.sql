@@ -1,0 +1,36 @@
+-- AAOS SPRINT 5, PROMPT 14 FOLLOW-UP -- "AI Suggested" badge, real schema -- 042_creative_packages_ai_recommended.sql
+-- Additive extension of `creative_packages` (003_creative_packages.sql, extended 026) so a package's
+-- own row can honestly record whether ITS brief was submitted with an accepted Kai angle
+-- recommendation (`src/lib/kaiRecommendations.ts`'s real, deterministic threshold logic,
+-- `PropertyManualBriefForm.tsx`'s Step 2 "Kai merekomendasikan" checkbox).
+--
+-- Real next migration number verified directly against this folder's actual latest
+-- (041_learning_proposals_slot_guard.sql) before choosing 042 -- no other 042 exists.
+--
+-- REAL GAP THIS CLOSES: `3f52197`'s own commit message and `AssetLibraryClient.tsx`'s own docstring
+-- both documented this honestly as the one genuinely-open item from Sprint 5 Prompt 14 -- an
+-- "AI Suggested" badge was NOT built because no field anywhere records "was this brief's angle an
+-- accepted Kai recommendation". This migration adds that real field.
+--
+-- REAL, DELIBERATE DECISION: a plain `ai_recommended BOOLEAN`, not a richer `recommendation_source
+-- TEXT`. `kaiRecommendations.ts` has exactly ONE real recommendation source today (the
+-- approved-other-listings threshold logic) -- there is no second real source anywhere in this
+-- codebase to distinguish a richer value FROM, so a `TEXT` column would carry a single hardcoded
+-- literal forever and lie about there being real variety to record. A boolean is the honest,
+-- minimal shape for "was the accepted angle a Kai recommendation, yes or no" -- same "no invented
+-- richness a real caller cannot yet populate" discipline `026_creative_packages_property.sql`'s own
+-- header doc already establishes for `vertical`/`listing_id`.
+--
+-- SCOPE: only `PropertyCreatePackageBodySchema`/`createProperty` (K1, PROPERTY vertical) can set this
+-- true today -- `CreatePackageBodySchema`/`create()` (AUTOMOTIVE) has no recommendation logic
+-- anywhere (`ManualBriefForm.tsx` never computes one), so every AUTOMOTIVE row keeps the real,
+-- honest default of `false`. Defaulting every PRE-EXISTING row (both verticals) to `false` on this
+-- migration is also honest: none of them were ever submitted through a recommendation-aware form,
+-- since that form did not exist before Sprint 5 Prompt 14.
+--
+-- NOT auto-applied by this repo's tooling -- run this against the real Supabase project before
+-- `CreatePackageInput.aiRecommended`/`PropertyCreatePackageBodySchema.aiRecommended` can persist a
+-- real, non-default value.
+
+ALTER TABLE creative_packages
+  ADD COLUMN ai_recommended BOOLEAN NOT NULL DEFAULT false;

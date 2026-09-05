@@ -76,20 +76,29 @@ function parseError(body: unknown, fallback: string): string {
  * `ArchiveAsset` use case: it sets `AssetStatus.ARCHIVED` and KEEPS both the row and the GCS object.
  * There is no hard delete anywhere in this domain.
  *
- * SPRINT 5 PROMPT 14 INVESTIGATION ("AI Suggested" badge, not added): the spec asks for a card
- * badge marking an asset that was "born from" an accepted Kai recommendation
- * (`PropertyManualBriefForm.tsx`'s new Step 2), separate from a WINNER/AVERAGE/LOW performance
- * badge. Two real gaps make this genuinely impossible to build honestly today: (1) there is no
- * WINNER/AVERAGE/LOW performance-badge concept ANYWHERE on this real `AssetDto` card at all (only
- * `AbTestingClient.tsx`, a completely different domain, has WINNER/AVERAGE-style labels — this
- * component computes none), and (2) `AssetDto`/`CreativePackageDto` (`origin: "MANUAL" |
- * "SAMANTHA"`) carry no field recording "was this brief's angle an accepted Kai recommendation" —
- * adding one would need a real schema/migration change on `creative_packages` plus threading a new
- * value through the generation pipeline, out of scope for a client-side dispatch. Rather than
- * fabricate a badge with nothing real behind it, `PropertyManualBriefForm.tsx` instead records an
- * accepted recommendation's real reasoning text into the package's own real, already-persisted
- * `reason` field — a genuinely real, honest trace of the acceptance, just not a queryable flag this
- * card could key a badge off.
+ * SPRINT 5 PROMPT 14 FOLLOW-UP ("AI Suggested" badge) — STILL not rendered HERE, now for a
+ * different, more fundamental real reason than before: `042_creative_packages_ai_recommended.sql`
+ * closed gap (2) below — `creative_packages.ai_recommended` is now a real, persisted column,
+ * threaded end-to-end from `PropertyManualBriefForm.tsx`'s Step 2 checkbox through
+ * `PropertyCreatePackageBodySchema`/`createProperty` — so the flag itself is no longer fabricated or
+ * missing. But gap (1) below turned out to hide a SECOND, structural gap discovered while wiring
+ * this: a `PROPERTY` creative package's generated media never reaches this asset library's `assets`
+ * table AT ALL — `creative-packages.service.ts`'s `persistGeneratedMedia`/`runGenerationProperty`
+ * upload straight to GCS via the shared `IAssetStorage` adapter and deliberately bypass
+ * `@aos/asset-library`'s `SaveAiCreative`/`assets` table entirely (that use case needs a real
+ * `Branch` enum member, an AUTOMOTIVE-only concept a PROPERTY package has none of — see that
+ * service's own "Finding 7" doc comment). `aiRecommended` can only ever be `true` on a `PROPERTY`
+ * row (AUTOMOTIVE's `ManualBriefForm.tsx` has no recommendation logic), so the one real case this
+ * badge exists for structurally never produces an `AssetDto` card here to badge. Rendering it on
+ * this component would be dead code — always false, forever, by construction. The badge is instead
+ * rendered on `CreativePackageCard.tsx` (`components/creative/`), the real place a PROPERTY package
+ * — recommended or not — is actually shown to a human, where `pkg.aiRecommended` is real, live data.
+ *
+ * Original two gaps (both explain why the badge concept looked impossible before this follow-up):
+ * (1) there is no WINNER/AVERAGE/LOW performance-badge concept ANYWHERE on this real `AssetDto` card
+ * at all (only `AbTestingClient.tsx`, a completely different domain, has WINNER/AVERAGE-style
+ * labels — this component computes none), and (2) `AssetDto`/`CreativePackageDto` carried no field
+ * recording "was this brief's angle an accepted Kai recommendation" — now closed by (2) above.
  *
  * TENANT-SCOPING FIX, Phase T2 (docs/PROMPT-AAOS-TENANT-SCOPING-AND-PROPERTY-OBJECTIVE.md
  * Finding 2): `asset.branch` (`packages/asset-library`'s `Asset` entity) is a real, OPTIONAL

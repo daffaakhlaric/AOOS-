@@ -211,6 +211,10 @@ export function PropertyManualBriefForm({
           urgency,
           origin: "MANUAL",
           ...(reason.trim().length > 0 ? { reason: reason.trim() } : {}),
+          // Real, honest record of whether the angle actually being submitted is one the manager
+          // accepted as a Kai recommendation (Step 2's checkbox state) — NOT whether a
+          // recommendation merely existed for some other angle. `042_creative_packages_ai_recommended.sql`.
+          aiRecommended: acceptedAngles.has(angle),
           generate,
         }),
       });

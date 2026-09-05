@@ -339,6 +339,7 @@ export class CreativePackagesService {
       primaryMessage: body.primaryMessage ?? listing.title,
       urgency: body.urgency,
       origin: body.origin,
+      aiRecommended: body.aiRecommended,
     });
 
     if (!body.generate) {

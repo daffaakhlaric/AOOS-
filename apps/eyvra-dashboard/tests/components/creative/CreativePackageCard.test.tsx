@@ -22,6 +22,7 @@ const PACKAGE: CreativePackageDto = {
   urgency: "HIGH",
   origin: "MANUAL",
   status: "PENDING",
+  aiRecommended: false,
   sourcePhotoUrls: ["https://storage.googleapis.com/aoos/units/x/foto-1.jpg"],
   videoUrl: "https://storage.googleapis.com/aoos/ai-creatives/x/video.mp4",
   imageUrls: [
@@ -139,5 +140,22 @@ describe("CreativePackageCard", () => {
     await userEvent.click(screen.getByText(/Copy B:/));
     await userEvent.click(screen.getByRole("button", { name: /Approve/ }));
     expect(onApprove).toHaveBeenCalledWith("v-b");
+  });
+
+  // 042_creative_packages_ai_recommended.sql — real, persisted "AI Suggested" badge.
+  it("does NOT show the AI Suggested badge for a package with no accepted recommendation", () => {
+    render(<CreativePackageCard pkg={PACKAGE} onApprove={vi.fn()} onReject={vi.fn()} />);
+    expect(screen.queryByTestId("ai-suggested-badge")).not.toBeInTheDocument();
+  });
+
+  it("shows the AI Suggested badge when pkg.aiRecommended is real, persisted true", () => {
+    render(
+      <CreativePackageCard
+        pkg={{ ...PACKAGE, vertical: "PROPERTY", aiRecommended: true }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("ai-suggested-badge")).toHaveTextContent("AI Suggested");
   });
 });

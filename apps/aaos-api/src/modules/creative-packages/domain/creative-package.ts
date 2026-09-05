@@ -76,6 +76,14 @@ export interface StoredCreativePackage {
   readonly urgency: CreativePackageUrgency;
   readonly origin: CreativePackageOrigin;
   readonly status: CreativePackageStatus;
+  /**
+   * `042_creative_packages_ai_recommended.sql` — real, persisted record of whether THIS package's
+   * brief was submitted with an accepted Kai angle recommendation
+   * (`src/lib/kaiRecommendations.ts`'s threshold logic, `PropertyManualBriefForm.tsx`'s Step 2
+   * checkbox). Only ever `true` for a `PROPERTY` package today — `AUTOMOTIVE`'s `ManualBriefForm.tsx`
+   * has no recommendation logic to accept.
+   */
+  readonly aiRecommended: boolean;
   /** Real `@aos/asset-library` public URLs of the source photos found for `unit` when generation started. An empty array is a real state, not "unknown". */
   readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;
@@ -114,6 +122,8 @@ export interface CreateCreativePackageInput {
   readonly primaryMessage: string;
   readonly urgency: CreativePackageUrgency;
   readonly origin: CreativePackageOrigin;
+  /** Defaults to `false` at the call site when the caller (e.g. `create()`, AUTOMOTIVE) has no recommendation concept at all. */
+  readonly aiRecommended?: boolean;
 }
 
 /** The real, measured outcome of one successful `ProcessCreativeBrief` run. */

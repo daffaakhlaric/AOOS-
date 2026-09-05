@@ -155,6 +155,10 @@ describe("MetricsTab", () => {
     const select = screen.getByTestId("metrics-campaign-select");
     (select as HTMLSelectElement).value = "c1";
     select.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(screen.getByTestId("metric-frequency")).toHaveTextContent("Audiens jenuh");
+    expect(
+      screen.getByTestId("metric-frequency").querySelector("[data-testid='metric-card-warning']"),
+    ).toBeInTheDocument();
   });
 
   it("marks a real zero-spend campaign with a 'NO SPEND' indicator in the campaign selector", () => {

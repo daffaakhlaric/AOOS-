@@ -43,6 +43,19 @@ const FORMAT_LABEL = {
  * `FormatDecider` chose (which can differ from what was requested when a unit has no source
  * photos), and "Sumber foto" counts the real asset-library photos found for the unit. Nothing here
  * is derived from a placeholder or a guess.
+ *
+ * "AI SUGGESTED" BADGE (Sprint 5 Prompt 14 follow-up, `042_creative_packages_ai_recommended.sql`):
+ * `pkg.aiRecommended` is real, persisted state — set only when the manager submitted this exact
+ * brief with an accepted Kai angle recommendation (`kaiRecommendations.ts`,
+ * `PropertyManualBriefForm.tsx`'s Step 2 checkbox). Rendered HERE, not on `AssetLibraryClient.tsx`'s
+ * asset cards as originally asked: a `PROPERTY` package's generated media is uploaded straight to
+ * GCS via `persistGeneratedMedia` and deliberately bypasses `@aos/asset-library`'s `assets` table
+ * entirely (`creative-packages.service.ts`'s own "Finding 7" doc comment on `runGenerationProperty`)
+ * — the ONLY vertical that can ever have `aiRecommended === true` therefore never produces an
+ * `AssetDto` row for the Asset Library to badge in the first place. This card is the real place a
+ * PROPERTY package (recommended or not) is actually rendered to a human, so this is the honest home
+ * for the badge — a real, working end-to-end wire, not a badge stapled onto a component that would
+ * structurally never receive a `true` value.
  */
 export function CreativePackageCard({
   pkg,
@@ -60,7 +73,14 @@ export function CreativePackageCard({
           {pkg.title}
           {pkg.stableId !== undefined ? ` · dari #${pkg.stableId}` : ""}
         </p>
-        <StatusBadge label={pkg.status} tone={STATUS_TONE[pkg.status]} />
+        <div className={styles.badgeRow}>
+          {pkg.aiRecommended ? (
+            <span data-testid="ai-suggested-badge" className={styles.aiSuggestedBadge}>
+              ✨ AI Suggested
+            </span>
+          ) : null}
+          <StatusBadge label={pkg.status} tone={STATUS_TONE[pkg.status]} />
+        </div>
       </div>
       <p className={styles.meta}>
         Brief oleh: {pkg.origin === "SAMANTHA" ? "Samantha" : "Manager"} · Generate: Kai ·{" "}

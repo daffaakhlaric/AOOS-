@@ -42,6 +42,8 @@ export interface CreativePackageRow {
   readonly urgency: string;
   readonly origin: string;
   readonly status: string;
+  /** Additive, `042_creative_packages_ai_recommended.sql`. Defaults to `false` at the DB layer for every pre-existing row. */
+  readonly ai_recommended: boolean;
   readonly source_photo_urls: readonly string[];
   readonly video_url: string | null;
   readonly image_urls: readonly string[];
@@ -83,6 +85,7 @@ function toDomain(row: CreativePackageRow): StoredCreativePackage {
     urgency: row.urgency as CreativePackageUrgency,
     origin: row.origin as CreativePackageOrigin,
     status: row.status as CreativePackageStatus,
+    aiRecommended: row.ai_recommended,
     sourcePhotoUrls: row.source_photo_urls ?? [],
     ...(row.video_url !== null ? { videoUrl: row.video_url } : {}),
     imageUrls: row.image_urls ?? [],
@@ -138,6 +141,7 @@ export class CreativePackageRepository {
         primary_message: input.primaryMessage,
         urgency: input.urgency,
         origin: input.origin,
+        ai_recommended: input.aiRecommended ?? false,
         status: "DRAFT",
         source_photo_urls: [],
         image_urls: [],

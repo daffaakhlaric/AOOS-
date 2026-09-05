@@ -723,6 +723,7 @@ const PROPERTY_BODY: PropertyCreatePackageBodyDto = {
   format: "VIDEO_AND_IMAGES",
   urgency: "MEDIUM",
   origin: "MANUAL",
+  aiRecommended: false,
   generate: false,
 };
 
@@ -756,6 +757,29 @@ describe("CreativePackagesService.createProperty (K1)", () => {
     await expect(harness.service.createProperty(TENANT_B, PROPERTY_BODY)).rejects.toThrow(
       NotFoundError,
     );
+  });
+
+  it("042_creative_packages_ai_recommended: persists aiRecommended=false by default for a manually-authored brief", async () => {
+    const harness = buildHarness({
+      listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+    });
+    const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+    expect(created.aiRecommended).toBe(false);
+  });
+
+  it("042_creative_packages_ai_recommended: persists aiRecommended=true when the brief was submitted with an accepted Kai recommendation", async () => {
+    const harness = buildHarness({
+      listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+    });
+    const created = await harness.service.createProperty(TENANT_A, {
+      ...PROPERTY_BODY,
+      aiRecommended: true,
+    });
+    expect(created.aiRecommended).toBe(true);
+    // A real, persisted row (not just the create() response) must also honestly reflect it —
+    // proves the value round-trips through the repository/DB layer, not just the in-memory return.
+    const [persisted] = harness.client.rows("creative_packages");
+    expect(persisted?.["ai_recommended"]).toBe(true);
   });
 });
 

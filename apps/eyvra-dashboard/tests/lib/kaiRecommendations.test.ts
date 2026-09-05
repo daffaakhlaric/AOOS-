@@ -19,6 +19,7 @@ function pkg(overrides: Partial<CreativePackageDto> = {}): CreativePackageDto {
     urgency: "MEDIUM",
     origin: "MANUAL",
     status: "APPROVED",
+    aiRecommended: false,
     sourcePhotoUrls: [],
     imageUrls: [],
     copyVariants: [],

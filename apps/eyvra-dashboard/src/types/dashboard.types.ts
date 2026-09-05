@@ -253,6 +253,13 @@ export interface CreativePackageDto {
   readonly urgency: "HIGH" | "MEDIUM" | "LOW";
   readonly origin: "MANUAL" | "SAMANTHA";
   readonly status: CreativePackageStatusDto;
+  /**
+   * `042_creative_packages_ai_recommended.sql` — real, persisted record of whether this brief's
+   * angle was submitted as an accepted Kai recommendation (`src/lib/kaiRecommendations.ts`'s
+   * threshold logic, `PropertyManualBriefForm.tsx`'s Step 2 checkbox). Only ever `true` for a
+   * `PROPERTY` package today — `AUTOMOTIVE`'s `ManualBriefForm.tsx` has no recommendation logic.
+   */
+  readonly aiRecommended: boolean;
   /** Real asset-library photo URLs found for this unit when generation started. */
   readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;

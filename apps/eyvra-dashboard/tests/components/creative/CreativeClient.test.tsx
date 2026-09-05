@@ -23,6 +23,7 @@ const PACKAGE: CreativePackageDto = {
   requestedFormat: "VIDEO_AND_IMAGES",
   primaryMessage: "DP mulai 29 juta",
   urgency: "HIGH",
+  aiRecommended: false,
   origin: "MANUAL",
   status: "PENDING",
   sourcePhotoUrls: [],

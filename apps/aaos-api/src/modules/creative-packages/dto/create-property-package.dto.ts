@@ -38,6 +38,14 @@ export const PropertyCreatePackageBodySchema = z.object({
   title: z.string().trim().min(1).optional(),
   origin: z.enum(["MANUAL", "SAMANTHA"]).default("MANUAL"),
   reason: z.string().trim().min(1).optional(),
+  /**
+   * Real, honest record of whether `angle` above was an accepted Kai recommendation
+   * (`src/lib/kaiRecommendations.ts`'s threshold logic, surfaced by `PropertyManualBriefForm.tsx`'s
+   * Step 2 "Kai merekomendasikan" checkbox) — `042_creative_packages_ai_recommended.sql`. Defaults
+   * to `false`: a manually-picked angle with no accepted recommendation is the honest default, never
+   * assumed true.
+   */
+  aiRecommended: z.boolean().default(false),
   generate: z.boolean().default(false),
 });
 export type PropertyCreatePackageBodyDto = z.infer<typeof PropertyCreatePackageBodySchema>;
