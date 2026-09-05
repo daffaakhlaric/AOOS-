@@ -37,6 +37,9 @@ vi.mock("@/components/meta-ads/AuditClient", () => ({
 vi.mock("@/components/objective/ObjectiveClient", () => ({
   ObjectiveClient: () => <div data-testid="real-objective-client" />,
 }));
+vi.mock("@/components/campaigns/MetricsTab", () => ({
+  MetricsTab: () => <div data-testid="real-metrics-tab" />,
+}));
 
 import { CampaignsHubClient } from "@/components/campaigns/CampaignsHubClient";
 
@@ -57,6 +60,15 @@ describe("CampaignsHubClient (EYVRA MENU RESTRUCTURE Sprint 2, /campaigns)", () 
     expect(screen.getByTestId("campaigns-tab-aktif")).toBeInTheDocument();
     expect(screen.getByTestId("real-meta-ads-client")).toBeInTheDocument();
     expect(screen.getByTestId("real-lookalike-client")).toBeInTheDocument();
+  });
+
+  it("Sprint 5 Prompt 13: 'metrics' is the FIRST tab in the nav and deep-links to ?tab=metrics, rendering the real MetricsTab", () => {
+    mockFetchOnce({ tenant: { mode: "DEV" } });
+    render(<CampaignsHubClient initialTab="metrics" />);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs[0]).toHaveTextContent("Metrics");
+    expect(screen.getByTestId("campaigns-tab-metrics")).toBeInTheDocument();
+    expect(screen.getByTestId("real-metrics-tab")).toBeInTheDocument();
   });
 
   it("deep-links to ?tab=verdict (Sprint 1's real /meta-ads/analisa + /meta-ads/strategi redirect target) and renders StrategiClient + AnalisaClient", () => {

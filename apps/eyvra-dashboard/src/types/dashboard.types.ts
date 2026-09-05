@@ -19,6 +19,17 @@ export interface AdMetricsDto {
   readonly rphD3: number | null;
   /** AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE: mirrors `AdMetricsResponseDto.rphLead` on the real `aaos-api` response (`spend / totalLead`, division-by-zero safe — see `Rph`/`AdMetrics` in `@aos/meta-ads-connector`). Was already computed server-side but never plumbed through this app's DTOs; added so "Lead & Spend per Cabang × Source"'s "RP/LEAD" column can reuse the real per-ad value rather than re-deriving it, same discipline as `rphD3`. */
   readonly rphLead: number | null;
+  /**
+   * Sprint 5 Prompt 13 (Campaigns "Metrics" tab): mirrors `AdMetricsResponseDto.impressions` on the
+   * real `aaos-api` response (`@aos/meta-ads-connector`'s `Ad.metrics.impressions`) — a genuinely
+   * real field the connector/backend already return (see `toAdResponseDto` in
+   * `apps/aaos-api/src/modules/meta-ads/dto/campaign-response.dto.ts`) that this app's `/api/campaigns`
+   * proxy never forwarded until now (same class of gap `rphLead`'s own docstring documents: "already
+   * computed server-side but never plumbed through this app's DTOs"). Optional, like
+   * `daysSinceCreation` above, so the ~24 existing test fixtures that construct an `AdMetricsDto`
+   * literal without it keep compiling — never widened to required just for one new tab's sake.
+   */
+  readonly impressions?: number;
 }
 
 export interface CampaignAdDto {

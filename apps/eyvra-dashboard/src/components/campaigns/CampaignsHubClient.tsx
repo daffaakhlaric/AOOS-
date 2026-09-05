@@ -14,11 +14,13 @@ import { TopBar } from "@/components/layout/TopBar";
 import { ObjectiveClient } from "@/components/objective/ObjectiveClient";
 import type { SettingsDto } from "@/types/tenant.types";
 
+import { MetricsTab } from "./MetricsTab";
 import styles from "./CampaignsHubClient.module.css";
 
 const DEFAULT_TAB = "aktif";
 
 const TABS: readonly HubTab[] = [
+  { key: "metrics", label: "Metrics" },
   { key: "aktif", label: "Aktif" },
   { key: "verdict", label: "Verdict" },
   { key: "ab", label: "A/B Testing" },
@@ -54,6 +56,12 @@ export interface CampaignsHubClientProps {
  * A-B Testing/Anggaran/Objective) — Sprint 1's own redirect for `/meta-ads/lookalike` sends it to
  * the bare `/campaigns` (the default tab, same as `/meta-ads` itself), so it is rendered as an
  * additional real section under the "Aktif" tab rather than fabricated a 6th tab or dropped.
+ *
+ * Sprint 5 Prompt 13 ADDITION: a "Metrics" tab, placed FIRST (before "Aktif") per spec — a
+ * pre-drill-down summary reusing the exact same `useCampaignsSnapshot()`/`/api/campaigns` data
+ * "Aktif" already reads (no new query/table — see `MetricsTab.tsx`'s own extensive docstring for
+ * the real per-metric availability findings that shaped its scope, especially Revenue/ROAS/the
+ * spend-vs-revenue chart, which are honestly degraded rather than fabricated).
  *
  * "Verdict" tab renders BOTH real verdict components Sprint 1 mapped here (`meta-ads/analisa` AND
  * `meta-ads/strategi` both redirect to `?tab=verdict`): `StrategiClient` first (it is the real
@@ -114,6 +122,7 @@ export function CampaignsHubClient({ initialTab }: CampaignsHubClientProps): Rea
         onChange={setTab}
       />
       <div className={styles.tabBody} data-testid={`campaigns-tab-${tab}`}>
+        {tab === "metrics" ? <MetricsTab /> : null}
         {tab === "aktif" ? (
           <>
             <MetaAdsClient />

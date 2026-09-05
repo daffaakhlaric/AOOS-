@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ErrorCard } from "@/components/ui/ErrorCard";
+import { recommendPropertyAngles, type AngleRecommendation } from "@/lib/kaiRecommendations";
 import type { CreativeFormatDto, CreativePackageDto } from "@/types/dashboard.types";
 import type { ListingDto, ListingListDto } from "@/types/listing.types";
 
@@ -53,6 +54,28 @@ export interface PropertyManualBriefFormProps {
  *
  * The listing picker reuses the REAL `GET /api/listings` route the Listing Manager page
  * (`ListingsClient.tsx`) already calls — no new listings-fetching mechanism.
+ *
+ * SPRINT 5 PROMPT 14 UPGRADE ("Brief ke Kai, versi sadar-heatmap"): this component IS the real
+ * "Brief ke Kai" flow the spec asks to upgrade — the spec's literal file
+ * (`components/creative/BriefKaiModal.tsx`, opened as a modal) does not exist anywhere in this
+ * codebase; there is no modal at all. `CreativeHubClient.tsx`'s own docstring already documents the
+ * real flow: the "Brief ke Kai ↗" header button navigates to `/creative?tab=review-kai`, which
+ * renders `CreativeClient`'s "Buat Manual" tab — THIS component, for PROPERTY tenants. The 5-step
+ * shape (listing → Kai recommendation → angle → format → preview/send) is built as real tab
+ * content here rather than fabricating a second, parallel modal.
+ *
+ * STEP 2 "Kai merekomendasikan" — real, deterministic threshold logic (`recommendPropertyAngles`,
+ * `src/lib/kaiRecommendations.ts`; see that module's own extensive docstring for the honest
+ * data-availability finding that shaped its exact scope: no real join exists between an audience
+ * segment and a creative angle anywhere in this codebase, so recommendations are built from the
+ * real signal that DOES exist — how many OTHER real listings already used + got a human approval
+ * for a given angle). Fetches the SAME real `GET /api/creative?limit=200` endpoint
+ * `CreativeClient.tsx` already calls — no second/new endpoint.
+ *
+ * STEP 5 "Prediksi performa": the spec asks for "CTR rata-rata Z% dari Y aset sejenis". No real
+ * field anywhere joins a `CreativePackageDto.angle` to a CTR/impressions value (heatmap CTR is
+ * grouped by creative ASSET, never by angle — same gap `kaiRecommendations.ts` documents). Rather
+ * than fabricate a CTR number, this honestly shows why it is unavailable instead.
  */
 export function PropertyManualBriefForm({
   onCreated,
@@ -67,6 +90,13 @@ export function PropertyManualBriefForm({
   const [reason, setReason] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+
+  // Step 2 — Kai's real recommendation data + which recommendation(s) the user has accepted.
+  const [allPackages, setAllPackages] = useState<readonly CreativePackageDto[] | undefined>(
+    undefined,
+  );
+  const [acceptedAngles, setAcceptedAngles] = useState<ReadonlySet<string>>(new Set());
+  const [manuallyPickedAngle, setManuallyPickedAngle] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -90,10 +120,79 @@ export function PropertyManualBriefForm({
     };
   }, []);
 
+  // Real data for Step 2's recommendation cards — the SAME `/api/creative` list `CreativeClient`
+  // already fetches, read once here (best-effort: a failure just means no recommendations show,
+  // never breaks the rest of the form).
+  useEffect(() => {
+    let active = true;
+    fetch("/api/creative?limit=200")
+      .then(async (res) =>
+        res.ok ? ((await res.json()) as { packages: readonly CreativePackageDto[] }) : undefined,
+      )
+      .then((body) => {
+        if (active && body !== undefined) {
+          setAllPackages(body.packages);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — Step 2 simply shows no cards, same discipline as other best-effort
+        // fetches in this file.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const selectedListing = useMemo(
     () => listings?.find((listing) => listing.id === listingId),
     [listings, listingId],
   );
+
+  const recommendations: readonly AngleRecommendation[] = useMemo(() => {
+    if (allPackages === undefined || listingId === "") {
+      return [];
+    }
+    return recommendPropertyAngles(allPackages, listingId, PROPERTY_AD_ANGLES);
+  }, [allPackages, listingId]);
+
+  const recommendedAngleSet = useMemo(
+    () => new Set(recommendations.map((rec) => rec.angle)),
+    [recommendations],
+  );
+
+  // Pre-select the first TINGGI-confidence recommendation's angle automatically (per spec: "angle
+  // yang direkomendasikan Step 2 sudah pre-selected") — but only until the user has manually
+  // touched the angle picker themselves, so this never overrides a deliberate choice.
+  useEffect(() => {
+    if (manuallyPickedAngle) {
+      return;
+    }
+    const highConfidence = recommendations.find((rec) => rec.preChecked);
+    if (highConfidence !== undefined) {
+      setAngle(highConfidence.angle);
+      setAcceptedAngles((current) => new Set(current).add(highConfidence.angle));
+    }
+  }, [recommendations, manuallyPickedAngle]);
+
+  function toggleRecommendation(rec: AngleRecommendation, checked: boolean): void {
+    setAcceptedAngles((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(rec.angle);
+      } else {
+        next.delete(rec.angle);
+      }
+      return next;
+    });
+    if (checked) {
+      setManuallyPickedAngle(true);
+      setAngle(rec.angle);
+      // Real, persisted record of WHY this angle was picked (the only genuinely available field —
+      // see this file's own docstring on why a fabricated "AI Suggested" flag is not added
+      // anywhere it cannot be honestly persisted).
+      setReason((current) => (current.trim().length > 0 ? current : rec.reasoning));
+    }
+  }
 
   const canSubmit = listingId !== "" && !submitting;
 
@@ -180,20 +279,73 @@ export function PropertyManualBriefForm({
         )}
       </div>
 
-      <label className={styles.field}>
+      {listingId !== "" && recommendations.length > 0 ? (
+        <div className={styles.field} data-testid="kai-recommendations">
+          <span className={styles.label}>💡 Kai merekomendasikan</span>
+          <span className={styles.hint}>berdasarkan riwayat approval brief 30 hari terakhir</span>
+          <div className={styles.recommendationList}>
+            {recommendations.map((rec) => (
+              <label key={rec.angle} className={styles.recommendationCard}>
+                <input
+                  type="checkbox"
+                  checked={acceptedAngles.has(rec.angle)}
+                  onChange={(event) => toggleRecommendation(rec, event.target.checked)}
+                />
+                <div className={styles.recommendationBody}>
+                  <div className={styles.recommendationHead}>
+                    <strong>{rec.angle}</strong>
+                    <span
+                      data-testid={`confidence-badge-${rec.angle}`}
+                      className={`${styles.confidenceBadge} ${
+                        rec.confidence === "TINGGI"
+                          ? styles.confidenceHigh
+                          : rec.confidence === "SEDANG"
+                            ? styles.confidenceMedium
+                            : styles.confidenceLow
+                      }`}
+                    >
+                      {rec.confidence === "TINGGI"
+                        ? "Tinggi"
+                        : rec.confidence === "SEDANG"
+                          ? "Sedang"
+                          : "Coba-coba"}
+                    </span>
+                  </div>
+                  <p className={styles.recommendationReason}>{rec.reasoning}</p>
+                  <span className={styles.hint}>Pakai rekomendasi ini</span>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* A plain `<div>`, not `<label>` — a `<label>` wrapping `<button>` elements (a real
+          "labelable" HTML element) implicitly associates with the FIRST button inside it,
+          silently prepending "Angle Kreatif *" into ONLY that first button's real accessible
+          name. `FORMAT`/`URGENCY` below already use `<div>` for this exact reason. */}
+      <div className={styles.field}>
         <span className={styles.label}>Angle Kreatif *</span>
-        <select
-          className={styles.input}
-          value={angle}
-          onChange={(event) => setAngle(event.target.value)}
-        >
+        <div className={styles.pillRow}>
           {PROPERTY_AD_ANGLES.map((entry) => (
-            <option key={entry} value={entry}>
+            <button
+              key={entry}
+              type="button"
+              className={angle === entry ? `${styles.pill} ${styles.pillActive}` : styles.pill}
+              aria-pressed={angle === entry}
+              onClick={() => {
+                setManuallyPickedAngle(true);
+                setAngle(entry);
+              }}
+            >
               {entry}
-            </option>
+              {recommendedAngleSet.has(entry) ? (
+                <span className={styles.recommendedTag}>Direkomendasikan</span>
+              ) : null}
+            </button>
           ))}
-        </select>
-      </label>
+        </div>
+      </div>
 
       <label className={styles.field}>
         <span className={styles.label}>Pesan Utama</span>
@@ -269,6 +421,17 @@ export function PropertyManualBriefForm({
             2,
           )}
         </pre>
+        {/*
+         * Step 5's "Prediksi performa: berdasarkan Y aset sejenis, CTR rata-rata Z%" — honestly
+         * NOT computable: no real field anywhere joins `angle` to a CTR/impressions value (the real
+         * heatmap CTR data is grouped by creative ASSET, `HeatmapCellDto.assetId`, never by angle —
+         * same finding `src/lib/kaiRecommendations.ts`'s own docstring documents in depth). Rather
+         * than fabricate a Y/Z number, this line says so.
+         */}
+        <p className={styles.hint} data-testid="performance-prediction-honest-note">
+          Prediksi performa belum tersedia — tidak ada data CTR historis yang bisa dikaitkan dengan
+          angle secara real (heatmap performa dikelompokkan per creative asset, bukan per angle).
+        </p>
       </div>
 
       <div className={styles.actions}>

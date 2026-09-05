@@ -28,6 +28,16 @@ export interface MetricCardProps {
   /** 7-14 raw data points, oldest first. Rendered as a small axis-less sparkline, height 24px. */
   readonly sparkline?: readonly number[];
   readonly testId?: string;
+  /**
+   * Sprint 5 Prompt 13 (Metrics tab) addition: a plain, VALUE-threshold amber badge — e.g.
+   * Frequency > 3.5 — shown INSTEAD of (or alongside) a `delta` pill. Genuinely different from
+   * `delta`: this card has no historical time series to compute a real percent-change delta from
+   * (the Metrics tab's data source, `AdAccountSummaryDto`, is one point-in-time snapshot per
+   * `datePreset`, not a daily series — see `MetricsTab.tsx`'s own docstring), so the spec's literal
+   * "delta badge jadi warning amber meski secara % naik" cannot be built from a real delta. This is
+   * the honest analog: a static, real, value-based warning instead of a fabricated delta-based one.
+   */
+  readonly warningLabel?: string;
 }
 
 function sparklinePath(points: readonly number[], width: number, height: number): string {
@@ -56,12 +66,18 @@ export function MetricCard({
   delta,
   sparkline,
   testId,
+  warningLabel,
 }: MetricCardProps): React.ReactElement {
   const deltaGood = delta !== undefined && delta.percent >= 0 === delta.higherIsBetter;
   return (
     <div className={styles.card} data-testid={testId ?? "metric-card"}>
       <span className={styles.label}>{label}</span>
       <span className={styles.value}>{value}</span>
+      {warningLabel !== undefined ? (
+        <span className={styles.warning} data-testid="metric-card-warning">
+          ⚠ {warningLabel}
+        </span>
+      ) : null}
       {delta !== undefined ? (
         <span
           className={`${styles.delta} ${deltaGood ? styles.deltaGood : styles.deltaBad}`}

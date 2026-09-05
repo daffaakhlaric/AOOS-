@@ -59,6 +59,7 @@ const ZERO_METRICS: CampaignAdDto["metrics"] = {
   totalLead: 0,
   rphD3: null,
   rphLead: null,
+  impressions: 0,
 };
 
 function toAdSummary(
@@ -151,6 +152,10 @@ function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
       d5: acc.d5 + ad.metrics.d5,
       leadForm: acc.leadForm + ad.metrics.leadForm,
       totalLead: acc.totalLead + ad.metrics.totalLead,
+      // Additive, real (Sprint 5 Prompt 13) — same convention as `spend`/`clicks` above, now that
+      // `impressions` is genuinely plumbed through from `aaos-api`'s real per-ad value (see
+      // `AdMetricsDto.impressions`'s own docstring in `dashboard.types.ts`).
+      impressions: (acc.impressions ?? 0) + (ad.metrics.impressions ?? 0),
       rphD3: null,
       // Not summed — same non-additive-average judgment call as `rphD3` above (a group's real
       // Rp/Lead is `groupSpend / groupTotalLead`, not a sum of per-ad ratios). Callers needing a

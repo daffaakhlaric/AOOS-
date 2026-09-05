@@ -129,3 +129,74 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Sprint 5 Prompt 14 — Step 2 "Kai merekomendasikan" cards (PropertyManualBriefForm only; the
+   AUTOMOTIVE `ManualBriefForm` has no equivalent step and never references these classes). */
+.recommendationList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recommendationCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--gray-50, #f9fafb);
+}
+
+.recommendationBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.recommendationHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recommendationReason {
+  margin: 0;
+  font-size: 13px;
+  color: var(--gray-700, #374151);
+}
+
+.confidenceBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.confidenceHigh {
+  background: var(--v2-perf-good-bg, #d1fae5);
+  color: var(--v2-perf-good, #059669);
+}
+
+.confidenceMedium {
+  background: var(--v2-warning-bg, #fef3c7);
+  color: var(--v2-warning-color, #92400e);
+}
+
+.confidenceLow {
+  background: var(--gray-100);
+  color: var(--gray-500);
+}
+
+.recommendedTag {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--v2-perf-good-bg, #d1fae5);
+  color: var(--v2-perf-good, #059669);
+  vertical-align: middle;
+}

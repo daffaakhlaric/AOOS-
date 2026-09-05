@@ -76,6 +76,21 @@ function parseError(body: unknown, fallback: string): string {
  * `ArchiveAsset` use case: it sets `AssetStatus.ARCHIVED` and KEEPS both the row and the GCS object.
  * There is no hard delete anywhere in this domain.
  *
+ * SPRINT 5 PROMPT 14 INVESTIGATION ("AI Suggested" badge, not added): the spec asks for a card
+ * badge marking an asset that was "born from" an accepted Kai recommendation
+ * (`PropertyManualBriefForm.tsx`'s new Step 2), separate from a WINNER/AVERAGE/LOW performance
+ * badge. Two real gaps make this genuinely impossible to build honestly today: (1) there is no
+ * WINNER/AVERAGE/LOW performance-badge concept ANYWHERE on this real `AssetDto` card at all (only
+ * `AbTestingClient.tsx`, a completely different domain, has WINNER/AVERAGE-style labels — this
+ * component computes none), and (2) `AssetDto`/`CreativePackageDto` (`origin: "MANUAL" |
+ * "SAMANTHA"`) carry no field recording "was this brief's angle an accepted Kai recommendation" —
+ * adding one would need a real schema/migration change on `creative_packages` plus threading a new
+ * value through the generation pipeline, out of scope for a client-side dispatch. Rather than
+ * fabricate a badge with nothing real behind it, `PropertyManualBriefForm.tsx` instead records an
+ * accepted recommendation's real reasoning text into the package's own real, already-persisted
+ * `reason` field — a genuinely real, honest trace of the acceptance, just not a queryable flag this
+ * card could key a badge off.
+ *
  * TENANT-SCOPING FIX, Phase T2 (docs/PROMPT-AAOS-TENANT-SCOPING-AND-PROPERTY-OBJECTIVE.md
  * Finding 2): `asset.branch` (`packages/asset-library`'s `Asset` entity) is a real, OPTIONAL
  * `Branch` value — the SAME AUTOMOTIVE-only dealer-branch enum `AreaPriority` uses — so a

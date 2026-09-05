@@ -25,18 +25,49 @@ const LISTING = {
   updatedAt: "2026-08-01T00:00:00.000Z",
 };
 
-function mockFetch(overrides: { readonly listings?: readonly unknown[] } = {}) {
-  return vi.fn(async (input: string | URL, _init?: RequestInit) => {
+function mockFetch(
+  overrides: {
+    readonly listings?: readonly unknown[];
+    readonly packages?: readonly unknown[];
+  } = {},
+) {
+  return vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/api/listings")) {
       const listings = overrides.listings ?? [LISTING];
       return jsonResponse({ listings, total: listings.length });
+    }
+    if (url.includes("/api/creative") && init?.method !== "POST") {
+      return jsonResponse({ packages: overrides.packages ?? [] });
     }
     return jsonResponse(
       { package: { id: "pkg-1", title: "T", status: "DRAFT", vertical: "PROPERTY" } },
       200,
     );
   });
+}
+
+function propertyPackage(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "pkg-existing",
+    briefId: "brief-existing",
+    vertical: "PROPERTY",
+    listingId: "listing-other",
+    title: "Brief",
+    angle: "INVESTASI",
+    reason: "",
+    requestedFormat: "IMAGES_ONLY",
+    primaryMessage: "",
+    urgency: "MEDIUM",
+    origin: "MANUAL",
+    status: "APPROVED",
+    sourcePhotoUrls: [],
+    imageUrls: [],
+    copyVariants: [],
+    createdAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-01T00:00:00.000Z",
+    ...overrides,
+  };
 }
 
 describe("PropertyManualBriefForm", () => {
@@ -54,11 +85,11 @@ describe("PropertyManualBriefForm", () => {
     expect(fetchMock.mock.calls.some(([i]) => String(i).includes("/api/listings"))).toBe(true);
   });
 
-  it("offers the REAL 8 PropertyAdAngle members", async () => {
+  it("offers the REAL 8 PropertyAdAngle members as pill buttons (Sprint 5 Prompt 14: chips, not a <select>, so a 'Direkomendasikan' badge can attach to one)", async () => {
     global.fetch = mockFetch() as unknown as typeof fetch;
     render(<PropertyManualBriefForm onCreated={vi.fn()} />);
     await waitFor(() =>
-      expect(screen.getByRole("option", { name: "DP_RINGAN" })).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: "DP_RINGAN" })).toBeInTheDocument(),
     );
     for (const angle of [
       "DP_RINGAN",
@@ -70,7 +101,7 @@ describe("PropertyManualBriefForm", () => {
       "TESTIMONIAL",
       "VIRTUAL_TOUR",
     ]) {
-      expect(screen.getByRole("option", { name: angle })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: angle })).toBeInTheDocument();
     }
   });
 
@@ -165,5 +196,65 @@ describe("PropertyManualBriefForm", () => {
     await waitFor(() =>
       expect(screen.getByTestId("error-card")).toHaveTextContent(/Invalid enum value/),
     );
+  });
+
+  describe("Sprint 5 Prompt 14 — Step 2 Kai recommendation + Step 3 pre-selection", () => {
+    it("shows a TINGGI-confidence card pre-checked, with the recommended angle chip pre-selected and tagged 'Direkomendasikan'", async () => {
+      global.fetch = mockFetch({
+        packages: ["listing-other-1", "listing-other-2", "listing-other-3"].map((listingId) =>
+          propertyPackage({ listingId, angle: "INVESTASI" }),
+        ),
+      }) as unknown as typeof fetch;
+      render(<PropertyManualBriefForm onCreated={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByTestId("kai-recommendations")).toBeInTheDocument());
+      expect(screen.getByTestId("confidence-badge-INVESTASI")).toHaveTextContent("Tinggi");
+      const checkbox = screen
+        .getByTestId("kai-recommendations")
+        .querySelector("input[type=checkbox]");
+      expect(checkbox).toBeChecked();
+
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /INVESTASI/ })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        ),
+      );
+      expect(screen.getByText("Direkomendasikan")).toBeInTheDocument();
+    });
+
+    it("does NOT pre-check a SEDANG/COBA_COBA recommendation, and does not recommend the current listing's already-used angle", async () => {
+      global.fetch = mockFetch({
+        packages: [
+          propertyPackage({ listingId: "listing-other", angle: "EXCLUSIVE", status: "APPROVED" }),
+          propertyPackage({ listingId: "listing-1", angle: "DP_RINGAN", status: "APPROVED" }),
+        ],
+      }) as unknown as typeof fetch;
+      render(<PropertyManualBriefForm onCreated={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByTestId("kai-recommendations")).toBeInTheDocument());
+      expect(screen.getByTestId("confidence-badge-EXCLUSIVE")).toHaveTextContent("Sedang");
+      // DP_RINGAN was already used for the currently-selected listing (listing-1) — never suggested.
+      expect(screen.queryByTestId("confidence-badge-DP_RINGAN")).not.toBeInTheDocument();
+    });
+
+    it("honestly says a CTR-based performance prediction is unavailable rather than fabricating one", async () => {
+      global.fetch = mockFetch() as unknown as typeof fetch;
+      render(<PropertyManualBriefForm onCreated={vi.fn()} />);
+      await waitFor(() =>
+        expect(screen.getByTestId("performance-prediction-honest-note")).toHaveTextContent(
+          /Prediksi performa belum tersedia/,
+        ),
+      );
+    });
+
+    it("shows no recommendation section at all when there is no real evidence for any angle", async () => {
+      global.fetch = mockFetch({ packages: [] }) as unknown as typeof fetch;
+      render(<PropertyManualBriefForm onCreated={vi.fn()} />);
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "DP_RINGAN" })).toBeInTheDocument(),
+      );
+      expect(screen.queryByTestId("kai-recommendations")).not.toBeInTheDocument();
+    });
   });
 });
