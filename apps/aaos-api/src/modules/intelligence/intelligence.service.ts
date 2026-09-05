@@ -386,7 +386,19 @@ export class IntelligenceService {
     if (vertical === "PROPERTY") {
       const rows = await this.listingRepository.listByTenant(tenant.tenant_id);
       const snapshots = rows.map(toPropertyListingSnapshot);
-      const signal = InventoryIntelService.propertySignals(snapshots);
+      // Real bug fix: this call site previously omitted `referenceDate`, silently falling back to
+      // `propertySignals`'s own `new Date()` default — the REAL wall clock, not this service's
+      // injected `this.now()` (already used consistently elsewhere in this file, e.g.
+      // `getRecommendation(vertical, this.now())` above). A test injecting a fixed `now()` could
+      // never actually control "is this listing new" — it silently drifted out of the real,
+      // intended new-arrival window as real time passed, which is exactly the wall-clock-drift
+      // flake this fixes.
+      const signal = InventoryIntelService.propertySignals(
+        snapshots,
+        undefined,
+        undefined,
+        this.now(),
+      );
       return {
         available: true,
         hasNewArrivals: signal.newListings.length > 0,
