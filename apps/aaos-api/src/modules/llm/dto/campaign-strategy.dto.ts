@@ -69,6 +69,40 @@ const ClosingContextSchema = z.object({
   slowUnitModels: z.array(z.object({ unitModel: z.string(), closingRate: z.number() })),
 });
 
+/**
+ * AAOS LOOP UPGRADE, Sprint 7 Prompt 18 ("Market Intelligence") — real, additive context from
+ * `MarketIntelligenceService.refresh()` (`modules/market-intelligence`), threaded in ALONGSIDE the
+ * existing `seasonal`/`trends`/`competitor` context above (never replacing it — the two modules
+ * cover overlapping-but-distinct real sources, see `046_market_signals.sql`'s header doc). Kept
+ * `.optional()` so a `CampaignStrategyRequestDto` built before this field existed (or a caller that
+ * genuinely has no Market Intelligence run yet) still validates — `IntelligenceService.refresh`
+ * always sends it now, but this schema itself must not require a field impossible to satisfy the
+ * very first time `market_signals` has never been refreshed for a tenant.
+ */
+const MarketSignalsContextSchema = z.object({
+  searchTrend: z.object({
+    available: z.boolean(),
+    keywords: z.array(z.object({ keyword: z.string(), delta: z.string() })).optional(),
+    reasoning: z.string(),
+  }),
+  competitorAngleTrend: z.object({
+    available: z.boolean(),
+    angleCounts: z.record(z.string(), z.number()).optional(),
+    topAngle: z.string().optional(),
+    reasoning: z.string(),
+  }),
+  kprRate: z.object({
+    available: z.boolean(),
+    currentPct: z.number().optional(),
+    direction: z.string().optional(),
+    reasoning: z.string(),
+  }),
+  seasonality: z.object({
+    status: z.enum(["musim ramai", "musim sepi"]),
+    note: z.string(),
+  }),
+});
+
 export const CampaignStrategyRequestSchema = z.object({
   vertical: z.enum(["AUTOMOTIVE", "PROPERTY"]),
   tenantName: z.string().min(1),
@@ -83,6 +117,8 @@ export const CampaignStrategyRequestSchema = z.object({
   inventory: InventoryContextSchema,
   leadProfile: LeadProfileContextSchema,
   closing: ClosingContextSchema,
+  /** AAOS LOOP UPGRADE, Sprint 7 Prompt 18 — see `MarketSignalsContextSchema`'s own doc. */
+  marketSignals: MarketSignalsContextSchema.optional(),
 });
 export type CampaignStrategyRequestDto = z.infer<typeof CampaignStrategyRequestSchema>;
 

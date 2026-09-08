@@ -14,6 +14,7 @@ import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { LookalikeModule } from "../lookalike/lookalike.module.js";
+import { MarketIntelligenceModule } from "../market-intelligence/market-intelligence.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
@@ -101,6 +102,11 @@ import { SchedulerService } from "./scheduler.service.js";
     // AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — so SchedulerService can inject the exported
     // PropertyObjectiveService for its own real business-context-aware reasoning text.
     PropertyObjectiveModule,
+    // AAOS LOOP UPGRADE, Sprint 7 Prompt 18 — so SchedulerService can inject the exported
+    // MarketIntelligenceService for MARKET_INTELLIGENCE_REFRESH (this module's real "weekly cron"
+    // wiring — see `calendar-event.ts`'s doc for why this reuses the existing due-window cron
+    // rather than a second, parallel `@Cron`).
+    MarketIntelligenceModule,
   ],
   controllers: [SchedulerController],
   providers: [

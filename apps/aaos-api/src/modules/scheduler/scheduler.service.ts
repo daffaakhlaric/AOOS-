@@ -55,6 +55,7 @@ import { ListingsService } from "../listings/listings.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { LookalikeService } from "../lookalike/lookalike.service.js";
+import { MarketIntelligenceService } from "../market-intelligence/market-intelligence.service.js";
 import {
   AdTenantIndexRepository,
   indexPulledAdAccount,
@@ -130,6 +131,7 @@ export class SchedulerService {
     private readonly abTestingService: AbTestingService,
     private readonly lookalikeService: LookalikeService,
     private readonly intelligenceService: IntelligenceService,
+    private readonly marketIntelligenceService: MarketIntelligenceService,
     private readonly adTenantIndex: AdTenantIndexRepository,
     private readonly tenants: TenantRepository,
     private readonly listingsService: ListingsService,
@@ -277,6 +279,9 @@ export class SchedulerService {
         case "TAMARA_INTELLIGENCE_REFRESH":
         case "SAMANTHA_INTELLIGENCE_REFRESH":
           result = await this.runSamanthaIntelligenceRefresh();
+          break;
+        case "MARKET_INTELLIGENCE_REFRESH":
+          result = await this.runMarketIntelligenceRefresh();
           break;
       }
 
@@ -762,6 +767,22 @@ export class SchedulerService {
       : "AI campaign strategy tidak tersedia";
     return {
       summary: strategySummary,
+      generatedAt: signals.generatedAt,
+    };
+  }
+
+  /**
+   * `MARKET_INTELLIGENCE_REFRESH` (AAOS LOOP UPGRADE, Sprint 7 Prompt 18) — delegates every real
+   * decision (which of the 4 real Market Intelligence sources to aggregate, how to combine them) to
+   * `MarketIntelligenceService.refresh()`, which returns an honest, real, persisted result — never
+   * a fabricated count. Real weekly cadence via the pre-existing `"WEEKLY"` recurrence, checked by
+   * this SAME due-window cron rather than a second, parallel `@Cron` (same choice as
+   * `runSamanthaIntelligenceRefresh`/`LOOKALIKE_SYNC`).
+   */
+  private async runMarketIntelligenceRefresh(): Promise<CalendarEventResult> {
+    const signals = await this.marketIntelligenceService.refresh();
+    return {
+      summary: signals.digestText ?? "Sinyal Pasar diperbarui.",
       generatedAt: signals.generatedAt,
     };
   }

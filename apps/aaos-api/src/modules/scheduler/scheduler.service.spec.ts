@@ -37,6 +37,7 @@ import type { ListingListResponseDto } from "../listings/dto/listing.dto.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { LookalikeService } from "../lookalike/lookalike.service.js";
+import type { MarketIntelligenceService } from "../market-intelligence/market-intelligence.service.js";
 import type { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 import type { PendingActionRow } from "../pending-actions/infrastructure/pending-action.repository.js";
@@ -384,6 +385,27 @@ function buildFakeIntelligenceService(result?: CalendarEventResult): Intelligenc
   } as unknown as IntelligenceService;
 }
 
+function buildFakeMarketIntelligenceService(
+  result?: CalendarEventResult,
+): MarketIntelligenceService {
+  return {
+    refresh: vi.fn(
+      async () =>
+        result ?? {
+          id: "mkt-1",
+          vertical: "PROPERTY",
+          searchTrend: { available: false, reason: "circuit breaker terbuka" },
+          competitorAngleTrend: { available: false, reason: "META_APP_ID belum dikonfigurasi" },
+          kprRate: { available: false, reason: "belum dikonfigurasi" },
+          seasonality: { available: true, status: "musim sepi", note: "musim sepi properti" },
+          digestText: "digest",
+          generatedAt: "2026-08-19T07:00:00.000Z",
+        },
+    ),
+    getLatest: vi.fn(async () => undefined),
+  } as unknown as MarketIntelligenceService;
+}
+
 function buildFakeAuditLogService(): AuditLogService {
   return {
     record: vi.fn(async () => undefined),
@@ -428,6 +450,7 @@ function buildService(
     abTestingService?: AbTestingService;
     lookalikeService?: LookalikeService;
     intelligenceService?: IntelligenceService;
+    marketIntelligenceService?: MarketIntelligenceService;
     adTenantIndex?: AdTenantIndexRepository;
     tenants?: TenantRepository;
     listingsService?: ListingsService;
@@ -470,6 +493,7 @@ function buildService(
     options.abTestingService ?? buildFakeAbTestingService(),
     options.lookalikeService ?? buildFakeLookalikeService(),
     options.intelligenceService ?? buildFakeIntelligenceService(),
+    options.marketIntelligenceService ?? buildFakeMarketIntelligenceService(),
     options.adTenantIndex ?? buildFakeAdTenantIndex(),
     options.tenants ?? buildFakeTenantRepository(),
     options.listingsService ?? buildFakeListingsService(),
@@ -1409,6 +1433,30 @@ describe("SchedulerService.executeEvent", () => {
       expect.any(String),
       expect.any(Number),
       expect.objectContaining({ summary: "AI campaign strategy tidak tersedia" }),
+    );
+  });
+
+  it("MARKET_INTELLIGENCE_REFRESH delegates to MarketIntelligenceService.refresh and marks DONE with its real digest summary", async () => {
+    const repository = buildFakeRepository();
+    const marketIntelligenceService = buildFakeMarketIntelligenceService({
+      id: "mkt-1",
+      vertical: "PROPERTY",
+      searchTrend: { available: true, keywords: [], reasoning: "x" },
+      competitorAngleTrend: { available: false, reason: "META_APP_ID belum dikonfigurasi." },
+      kprRate: { available: false, reason: "belum dikonfigurasi" },
+      seasonality: { available: true, status: "musim ramai", note: "Mendekati THR" },
+      digestText: "📊 Sinyal Pasar\n📅 Musiman: Mendekati THR",
+      generatedAt: "2026-08-19T07:00:00.000Z",
+    } as unknown as CalendarEventResult);
+    const service = buildService({ repository, marketIntelligenceService });
+    await service.executeEvent(buildEvent({ eventType: "MARKET_INTELLIGENCE_REFRESH" }));
+
+    expect(marketIntelligenceService.refresh).toHaveBeenCalled();
+    expect(repository.markDone).toHaveBeenCalledWith(
+      "evt-1",
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ summary: "📊 Sinyal Pasar\n📅 Musiman: Mendekati THR" }),
     );
   });
 

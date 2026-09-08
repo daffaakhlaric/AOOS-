@@ -263,6 +263,7 @@ describe("AAOS EPIC S Phase S6 — real end-to-end: cron tick -> SchedulerServic
       { checkAndRun: vi.fn() } as never, // abTestingService — unused
       { sync: vi.fn() } as never, // lookalikeService — unused
       { refresh: vi.fn() } as never, // intelligenceService — unused
+      { refresh: vi.fn(), getLatest: vi.fn(async () => undefined) } as never, // marketIntelligenceService — unused by this real flow
       { upsertMany: vi.fn(async () => undefined) } as never, // adTenantIndex
       buildRealFlowTenantRepository(),
       listings,

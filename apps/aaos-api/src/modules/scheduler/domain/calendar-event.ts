@@ -32,6 +32,14 @@
  * `"DAILY"` recurrence (seeded at 06:00) — no new recurrence type needed for this one, same choice
  * as `LOOKALIKE_SYNC`.
  *
+ * `MARKET_INTELLIGENCE_REFRESH` was added by AAOS LOOP UPGRADE Sprint 7 Prompt 18 — runs
+ * `MarketIntelligenceService.refresh()`: aggregates the 4 real "Market Intelligence" sources
+ * (search trend / competitor ad angle trend / KPR rate / seasonal calendar, see that service's own
+ * doc for which are genuinely live vs. honestly degraded), persisting the result to
+ * `market_signals`. Uses the pre-existing `"WEEKLY"` recurrence (seeded at 07:00 the next day, see
+ * `046_market_signals.sql`) — matches the spec's own "jalan mingguan via cron" cadence, no new
+ * recurrence type needed.
+ *
  * AGENT RENAME (Phase 7, Tamara→Samantha / Jessy→Clara): `TAMARA_PULL_DATA`/`TAMARA_ANALYZE`/
  * `TAMARA_INTELLIGENCE_REFRESH` are kept below, permanently, alongside their new
  * `SAMANTHA_*`-prefixed equivalents — real `calendar_events` rows already seeded by
@@ -54,6 +62,7 @@ export const SUPPORTED_CALENDAR_EVENT_TYPES = [
   "LOOKALIKE_SYNC",
   "TAMARA_INTELLIGENCE_REFRESH",
   "SAMANTHA_INTELLIGENCE_REFRESH",
+  "MARKET_INTELLIGENCE_REFRESH",
 ] as const;
 
 export type CalendarEventType = (typeof SUPPORTED_CALENDAR_EVENT_TYPES)[number];

@@ -176,6 +176,28 @@ export interface AaosApiConfig {
    * OAuth flow is started and it's unset, rather than sending Meta a malformed/empty `redirect_uri`.
    */
   readonly AAOS_API_BASE_URL: string;
+
+  /**
+   * AAOS-MARKET-INTELLIGENCE (Sprint 7 Prompt 18) — `kpr_rate.ts`'s real data source. Investigated
+   * honestly: Bank Indonesia publishes the real BI 7-Day Reverse Repo Rate on its own website, but
+   * this session found no real, stable, JSON/RSS-shaped public endpoint for it (BI's real
+   * `bi.go.id` rate page is an HTML page meant for human reading, not a documented API — the same
+   * "no official public REST API with a stable key-based auth flow" problem the coordinator note
+   * flags for Google Trends, without even an unofficial-library workaround). Rather than scraping
+   * an undocumented HTML page (fragile, and BI carries none of Google's tolerance for
+   * high-volume automated scraping this session could verify), this is a MANUALLY-CURATED,
+   * periodically-updated real rate value — the honest path the coordinator note's own point 4
+   * explicitly sanctions ("a manually-curated, periodically-updated real rate value in a
+   * config/table is the more honest approach for this phase, documented as such rather than
+   * pretending a live feed exists when it doesn't"). Deliberately allowed to be an empty string:
+   * `KprRateService` reports an honest `available: false` when unset, rather than fabricating a
+   * rate — same graceful-degradation discipline as `META_APP_ID`/`KIE_AI_API_KEY` above. An
+   * operator updates these 3 vars by hand after checking BI's real published rate (monthly cadence
+   * is enough — see `KprRateService`'s own doc for why).
+   */
+  readonly MARKET_INTEL_KPR_RATE_PCT: string;
+  readonly MARKET_INTEL_KPR_RATE_DIRECTION: "NAIK" | "TURUN" | "STABIL" | "";
+  readonly MARKET_INTEL_KPR_RATE_AS_OF: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -266,6 +288,12 @@ export const AaosApiConfigSchema = z.object({
   // `AaosApiConfig.CAPI_PIXEL_ID`/`CAPI_ACCESS_TOKEN` doc comments above.
   CAPI_PIXEL_ID: z.string().default(""),
   CAPI_ACCESS_TOKEN: z.string().default(""),
+
+  // AAOS-MARKET-INTELLIGENCE (Sprint 7 Prompt 18). Intentionally NOT `.min(1, ...)` — see the
+  // `AaosApiConfig.MARKET_INTEL_KPR_RATE_PCT` doc comment above.
+  MARKET_INTEL_KPR_RATE_PCT: z.string().default(""),
+  MARKET_INTEL_KPR_RATE_DIRECTION: z.enum(["NAIK", "TURUN", "STABIL", ""]).default(""),
+  MARKET_INTEL_KPR_RATE_AS_OF: z.string().default(""),
 });
 
 /**

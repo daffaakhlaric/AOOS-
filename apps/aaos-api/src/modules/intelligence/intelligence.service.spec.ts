@@ -14,6 +14,7 @@ import type {
 } from "../listings/infrastructure/listing.repository.js";
 import type { CampaignStrategyResponseDto } from "../llm/dto/campaign-strategy.dto.js";
 import type { LlmService } from "../llm/llm.service.js";
+import type { MarketIntelligenceService } from "../market-intelligence/market-intelligence.service.js";
 import type {
   TenantRepository,
   TenantRow,
@@ -69,6 +70,7 @@ function buildService(
     readonly competitorPageRepository?: CompetitorPageRepository;
     readonly capiConnector?: CapiConnector;
     readonly metaAdsConnector?: MetaAdsConnector;
+    readonly marketIntelligenceService?: MarketIntelligenceService;
   } = {},
 ): {
   readonly service: IntelligenceService;
@@ -111,6 +113,11 @@ function buildService(
     } as unknown as CompetitorPageRepository)) as CompetitorPageRepository;
   const seasonalCalendarService = new SeasonalCalendarService();
   const trendsService = new GoogleTrendsService({ fetchImpl: alwaysFailingFetch() });
+  const marketIntelligenceService = (overrides.marketIntelligenceService ??
+    ({
+      getLatest: vi.fn(async () => undefined),
+      refresh: vi.fn(),
+    } as unknown as MarketIntelligenceService)) as MarketIntelligenceService;
   const metaAdsConnector = overrides.metaAdsConnector ?? buildFakeMetaAdsConnector();
   const metaAdsConnectorRegistry = {
     resolve: vi.fn(async () =>
@@ -136,6 +143,7 @@ function buildService(
     overrides.capiConnector,
     metaAdsConnectorRegistry as never,
     { upsertMany: async () => undefined, findTenantByAdMetaId: async () => undefined } as never,
+    marketIntelligenceService,
     () => NOW,
     () => "test-correlation-id",
   );
@@ -245,6 +253,62 @@ describe("IntelligenceService", () => {
       });
       const result = await service.refresh();
       expect(result.inventory).toMatchObject({ available: true, hasNewArrivals: true });
+    });
+
+    it("AAOS LOOP UPGRADE Sprint 7 Prompt 18: threads the latest real market_signals into campaignStrategy's request when one exists", async () => {
+      const marketIntelligenceService = {
+        getLatest: vi.fn(async () => ({
+          id: "mkt-1",
+          vertical: "PROPERTY",
+          searchTrend: {
+            available: true,
+            keywords: [
+              { keyword: "rumah dijual BSD", delta: "+24%", deltaPct: 24, trend: "RISING" },
+            ],
+            reasoning: "1 dari 1 keyword naik minggu ini.",
+          },
+          competitorAngleTrend: {
+            available: true,
+            angleCounts: { DP_RINGAN: 8, TESTIMONIAL: 3 },
+            activeAdCount: 11,
+            topAngle: "DP_RINGAN",
+            reasoning: "Kompetitor paling sering pakai angle DP_RINGAN (8 dari 11 ad aktif).",
+          },
+          kprRate: { available: false, reason: "belum dikonfigurasi" },
+          seasonality: { available: true, status: "musim ramai", note: "Mendekati THR" },
+          digestText: "digest",
+          generatedAt: NOW.toISOString(),
+        })),
+        refresh: vi.fn(),
+      } as unknown as MarketIntelligenceService;
+      const { service, llmService } = buildService({
+        tenant: buildTenantRow({ vertical: "PROPERTY" }),
+        marketIntelligenceService,
+      });
+      await service.refresh();
+
+      const requestArg = vi.mocked(llmService.campaignStrategy).mock.calls[0]?.[1];
+      expect(requestArg?.marketSignals?.searchTrend).toMatchObject({
+        available: true,
+        keywords: [{ keyword: "rumah dijual BSD", delta: "+24%" }],
+      });
+      expect(requestArg?.marketSignals?.competitorAngleTrend).toMatchObject({
+        available: true,
+        topAngle: "DP_RINGAN",
+      });
+      expect(requestArg?.marketSignals?.kprRate).toMatchObject({
+        available: false,
+        reasoning: "belum dikonfigurasi",
+      });
+      expect(requestArg?.marketSignals?.seasonality).toMatchObject({ status: "musim ramai" });
+    });
+
+    it("leaves marketSignals entirely absent from campaignStrategy's request when no Market Intelligence run has ever completed", async () => {
+      const { service, llmService } = buildService();
+      await service.refresh();
+
+      const requestArg = vi.mocked(llmService.campaignStrategy).mock.calls[0]?.[1];
+      expect(requestArg?.marketSignals).toBeUndefined();
     });
 
     it("aggregates hot leads across every branch via LeadStore.getHotLeads", async () => {

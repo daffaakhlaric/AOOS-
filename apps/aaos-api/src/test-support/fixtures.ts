@@ -78,6 +78,12 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     // test ever reaches a real Meta Conversions API call).
     CAPI_PIXEL_ID: "",
     CAPI_ACCESS_TOKEN: "",
+    // AAOS-MARKET-INTELLIGENCE (Sprint 7 Prompt 18) — empty by default, same rationale as
+    // `META_APP_ID`/`CAPI_PIXEL_ID`: most tests exercise the "KPR rate not configured" honest
+    // degrade path. Tests needing the "configured" branch pass all 3 explicitly.
+    MARKET_INTEL_KPR_RATE_PCT: "",
+    MARKET_INTEL_KPR_RATE_DIRECTION: "",
+    MARKET_INTEL_KPR_RATE_AS_OF: "",
     ...overrides,
   };
 }

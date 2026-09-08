@@ -5,6 +5,7 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ListingRepository } from "../listings/infrastructure/listing.repository.js";
 import { LlmModule } from "../llm/llm.module.js";
+import { MarketIntelligenceModule } from "../market-intelligence/market-intelligence.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
@@ -34,12 +35,19 @@ import { IntelligenceService } from "./intelligence.service.js";
  * `LlmService` every other Samantha feature in this app already uses for
  * `LlmService.campaignStrategy` — one Samantha LLM implementation, not two.
  *
+ * `MarketIntelligenceModule` is imported (not re-provided), AAOS LOOP UPGRADE Sprint 7 Prompt 18 —
+ * so `IntelligenceService.refresh` can read the SAME real, already-composed
+ * `MarketIntelligenceService`'s latest persisted `market_signals` row and thread it into
+ * `LlmService.campaignStrategy`'s context as real, additive `marketSignals` (see
+ * `IntelligenceService.buildMarketSignalsContext`'s own doc) — never a second, parallel
+ * aggregation.
+ *
  * `IntelligenceService` is exported so `SchedulerModule` can inject it for the
  * `SAMANTHA_INTELLIGENCE_REFRESH` Kalender handler, and `DAILY_DIGEST`'s own extension, without a
  * second, parallel composition.
  */
 @Module({
-  imports: [LlmModule],
+  imports: [LlmModule, MarketIntelligenceModule],
   controllers: [IntelligenceController],
   providers: [
     IntelligenceService,

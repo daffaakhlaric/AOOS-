@@ -135,7 +135,13 @@ describe("AppModule.forRoot", () => {
     // AuditLogRepository locally from the existing SUPABASE_CLIENT, same pattern
     // PropertyObjectiveModule/OverviewModule already establish; imports the existing MetaAdsModule
     // for its own real rollback wiring, not a new global provider here).
-    expect(dynamicModule.imports).toHaveLength(32);
+    // AAOS LOOP UPGRADE, Sprint 7 Prompt 18: +1 import (MarketIntelligenceModule, the new real
+    // `GET/POST /api/v1/market-signals/*` HTTP surface) — no new global provider (composes its own
+    // TenantRepository/CompetitorPageRepository/MarketSignalsRepository locally from the existing
+    // SUPABASE_CLIENT, same pattern IntelligenceModule already establishes; IntelligenceModule
+    // itself now imports this module directly to thread `market_signals` into
+    // `LlmService.campaignStrategy`'s context, not a new global provider here).
+    expect(dynamicModule.imports).toHaveLength(33);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

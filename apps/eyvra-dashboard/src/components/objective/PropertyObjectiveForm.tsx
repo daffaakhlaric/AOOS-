@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { BudgetSuggestionDto, PropertyObjectiveDto } from "@/types/property-objective.types";
 import type { ListingDto, ListingListDto } from "@/types/listing.types";
 
+import { MarketSignalsCard } from "./MarketSignalsCard";
 import styles from "./PropertyObjectiveForm.module.css";
 
 export interface PropertyObjectiveFormValues {
@@ -340,6 +341,12 @@ export function PropertyObjectiveForm({
           </>
         )}
       </section>
+
+      {/* AAOS LOOP UPGRADE, Sprint 7 Prompt 18 — "Sinyal Pasar" card, rendered directly below
+          Konteks Bisnis per the spec's own "di bawah Card Konteks Bisnis" placement instruction —
+          see `MarketSignalsCard`'s own doc for why THIS is the real, current analog of that
+          placement after the `/campaigns` unified-page rebuild. */}
+      <MarketSignalsCard />
 
       <form
         onSubmit={handleSubmit}

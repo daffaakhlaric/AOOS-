@@ -84,6 +84,7 @@ import { LeadsModule } from "./modules/leads/leads.module.js";
 import { ListingsModule } from "./modules/listings/listings.module.js";
 import { LlmModule } from "./modules/llm/llm.module.js";
 import { LookalikeModule } from "./modules/lookalike/lookalike.module.js";
+import { MarketIntelligenceModule } from "./modules/market-intelligence/market-intelligence.module.js";
 import { MetaAdsConnectorRegistry } from "./modules/meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
@@ -411,6 +412,13 @@ export class AppModule {
         // module directly (same pattern as `RecyclingModule`/`AbTestingModule`/`LookalikeModule`)
         // so it can inject the exported `IntelligenceService`.
         IntelligenceModule,
+        // AAOS LOOP UPGRADE, Sprint 7 Prompt 18 — new `market-intelligence` module (`GET/POST
+        // /api/v1/market-signals/*` + the MARKET_INTELLIGENCE_REFRESH Kalender handler's business
+        // logic). `SchedulerModule` separately imports this module directly (same pattern as
+        // `IntelligenceModule`) so it can inject the exported `MarketIntelligenceService`, and
+        // `IntelligenceModule`'s own `LlmModule` import already threads the resulting
+        // `MarketSignals` into `LlmService.campaignStrategy`'s real context.
+        MarketIntelligenceModule,
         // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase B — new `activity-log` module (`GET
         // /api/v1/activity-log` + the exported `ActivityLogger`, which `MetaAdsModule`/
         // `CampaignsModule` each import directly to log their own gated actions — same

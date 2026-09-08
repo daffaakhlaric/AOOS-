@@ -40,6 +40,7 @@ import type {
   CampaignStrategyResponseDto,
 } from "../llm/dto/campaign-strategy.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import { MarketIntelligenceService } from "../market-intelligence/market-intelligence.service.js";
 import {
   AdTenantIndexRepository,
   indexPulledAdAccount,
@@ -175,6 +176,12 @@ export class IntelligenceService {
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly metaAdsConnectorRegistry: MetaAdsConnectorRegistry,
     private readonly adTenantIndex: AdTenantIndexRepository,
+    // AAOS LOOP UPGRADE, Sprint 7 Prompt 18 — the SAME real, already-composed
+    // `MarketIntelligenceService` `MarketIntelligenceController`/`SchedulerService`'s own
+    // `MARKET_INTELLIGENCE_REFRESH` handler use, injected here so `refresh()` can thread its
+    // latest real `market_signals` row into `LlmService.campaignStrategy`'s context as real,
+    // additive `marketSignals` — never a second, parallel aggregation.
+    private readonly marketIntelligenceService: MarketIntelligenceService,
     // `@Optional()` — a bare `Function`-typed constructor param with a default value still gets a
     // real DI resolution attempt from Nest (this session's recurring DI gotcha — see
     // `RecyclingService`'s own `now` param for the original fix). Without this, real bootstrap
@@ -205,6 +212,7 @@ export class IntelligenceService {
     const closingContext = await this.buildClosingContext();
     const capiHealthContext = await this.buildCapiHealthContext();
     const anomalyContext = await this.buildAnomalyContext();
+    const marketSignalsContext = await this.buildMarketSignalsContext();
 
     const brandAngleIds = getBrandAngleIds(vertical);
     const productAngleValues =
@@ -222,6 +230,7 @@ export class IntelligenceService {
       inventory: inventoryContext,
       leadProfile: leadProfileContext,
       closing: closingContext,
+      ...(marketSignalsContext !== undefined ? { marketSignals: marketSignalsContext } : {}),
     };
     // AAOS Self-Learning AI Phase A: `IntelligenceService` has no real per-request tenant context
     // yet (same documented limitation `MetaAdsService`'s class doc states) — every read/write in
@@ -561,6 +570,56 @@ export class IntelligenceService {
         anomalies.length === 0
           ? "Tidak ada anomali frequency terdeteksi."
           : `${String(anomalies.length)} iklan dengan frequency tinggi (creative fatigue) terdeteksi.`,
+    };
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 7 Prompt 18 — reads the LATEST already-persisted real
+   * `market_signals` row (`MarketIntelligenceService.getLatest`) rather than re-running that
+   * service's own full aggregation on every `IntelligenceService.refresh()` call: the two run on
+   * genuinely different real cadences (this method's own `SAMANTHA_INTELLIGENCE_REFRESH` is daily,
+   * `MARKET_INTELLIGENCE_REFRESH` is weekly per the spec's own "jalan mingguan" cadence) — calling
+   * `.refresh()` here would silently upgrade Market Intelligence to a daily cadence and duplicate
+   * its own real external calls (Google Trends/Meta Ad Library) for no benefit. Returns `undefined`
+   * (the request DTO's own `marketSignals` field stays entirely absent, never a fabricated
+   * "unavailable" shape for a signal that was simply never generated yet) when no Market
+   * Intelligence run has ever completed for this tenant.
+   */
+  private async buildMarketSignalsContext(): Promise<CampaignStrategyRequestDto["marketSignals"]> {
+    const latest = await this.marketIntelligenceService.getLatest();
+    if (latest === undefined) {
+      return undefined;
+    }
+    return {
+      searchTrend: latest.searchTrend.available
+        ? {
+            available: true,
+            keywords: latest.searchTrend.keywords.map((k) => ({
+              keyword: k.keyword,
+              delta: k.delta,
+            })),
+            reasoning: latest.searchTrend.reasoning,
+          }
+        : { available: false, reasoning: latest.searchTrend.reason },
+      competitorAngleTrend: latest.competitorAngleTrend.available
+        ? {
+            available: true,
+            angleCounts: latest.competitorAngleTrend.angleCounts,
+            ...(latest.competitorAngleTrend.topAngle !== undefined
+              ? { topAngle: latest.competitorAngleTrend.topAngle }
+              : {}),
+            reasoning: latest.competitorAngleTrend.reasoning,
+          }
+        : { available: false, reasoning: latest.competitorAngleTrend.reason },
+      kprRate: latest.kprRate.available
+        ? {
+            available: true,
+            currentPct: latest.kprRate.currentPct,
+            direction: latest.kprRate.direction,
+            reasoning: latest.kprRate.reasoning,
+          }
+        : { available: false, reasoning: latest.kprRate.reason },
+      seasonality: { status: latest.seasonality.status, note: latest.seasonality.note },
     };
   }
 
