@@ -424,6 +424,13 @@ function buildFakePropertyObjectiveService(
 ): PropertyObjectiveService {
   return {
     getCurrentSafe: vi.fn(async () => undefined),
+    // AAOS LOOP UPGRADE, Sprint 8a — real safe defaults (5 / false), the SAME `?? 5`/`?? false`
+    // fallback `PropertyObjectiveService.getAutoLoopSettingsSafe`'s own real implementation uses
+    // for a tenant with no current-period objective row.
+    getAutoLoopSettingsSafe: vi.fn(async () => ({
+      maxAutoBriefsPerDay: 5,
+      autoApproveCreativeBrief: false,
+    })),
     ...overrides,
   } as unknown as PropertyObjectiveService;
 }
@@ -434,6 +441,32 @@ function buildFakeCreativePackageRepository(
   return {
     list: vi.fn(async () => []),
     updateFatigueStatus: vi.fn(async () => undefined),
+    countAutoLoopSince: vi.fn(async () => 0),
+    create: vi.fn(async () => ({
+      id: "cp-auto-1",
+      tenantId: "dss-motor",
+      briefId: "brief-auto-1",
+      vertical: "PROPERTY",
+      listingId: "listing-1",
+      title: "[Auto] Refresh kreatif",
+      angle: "READY_HUNI",
+      reason: "NEED_CREATIVE terdeteksi oleh Samantha.",
+      requestedFormat: "IMAGES_ONLY",
+      primaryMessage: "Listing 1",
+      urgency: "MEDIUM",
+      origin: "SAMANTHA",
+      status: "PENDING_REVIEW",
+      aiRecommended: false,
+      fatigueStatus: "NORMAL",
+      source: "auto_loop",
+      relatedVerdictId: "listing-1",
+      priority: "MEDIUM",
+      sourcePhotoUrls: [],
+      imageUrls: [],
+      copyVariants: [],
+      createdAt: "2026-09-01T00:00:00.000Z",
+      updatedAt: "2026-09-01T00:00:00.000Z",
+    })),
     ...overrides,
   } as unknown as CreativePackageRepository;
 }
@@ -1244,6 +1277,248 @@ describe("SchedulerService.executeEvent", () => {
           propertyCampaignTriggersFired: 0,
         }),
       );
+    });
+  });
+
+  describe("NEED_CREATIVE auto-brief wiring (AAOS LOOP UPGRADE, Sprint 8a — Prompt 19 Steps 2-3)", () => {
+    const propertyTenants = [{ tenant_id: "dss-motor", status: "ACTIVE", vertical: "PROPERTY" }];
+
+    function buildListing(): ListingListResponseDto["listings"][number] {
+      return {
+        id: "listing-1",
+        title: "Rumah Baru Tanpa Campaign",
+        propertyType: "RUMAH",
+        listingStatus: "AKTIF",
+        price: 1_000_000_000,
+        branchId: "BINTARO",
+        highlights: [],
+        photos: [],
+        inKnowledgeBase: false,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      };
+    }
+
+    /** A matched ACTIVE campaign (name contains the listing title) whose one ad carries `verdict`. */
+    function buildMatchedAdAccount(verdict: Verdict): AdAccount {
+      const ad = unwrap(new AdBuilder().withVerdict(verdict).build());
+      const adSet = unwrap(new AdSetBuilder().withAds([ad]).build());
+      const campaign = unwrap(
+        new CampaignBuilder()
+          .withName("Rumah Baru Tanpa Campaign - Product")
+          .withAdSets([adSet])
+          .build(),
+      );
+      return {
+        id: campaign.adSets[0]?.adAccountId,
+        name: "Acc",
+        businessManagerId: "bm",
+        currency: "IDR",
+        timezone: "Asia/Jakarta",
+        campaigns: [campaign],
+        syncedAt: new Date(),
+      } as unknown as AdAccount;
+    }
+
+    /** One `creative_packages` row for `listing-1` whose `fatigueStatus` is NOT `NORMAL` — condition (a)'s real, honest "no NORMAL asset" signal. */
+    function buildNonNormalPackage(
+      fatigueStatus: "WARNING" | "FATIGUED" = "WARNING",
+    ): Record<string, unknown> {
+      return {
+        id: "cp-existing-1",
+        tenantId: "dss-motor",
+        briefId: "brief-1",
+        vertical: "PROPERTY",
+        listingId: "listing-1",
+        title: "Existing",
+        angle: "READY_HUNI",
+        reason: "Manual",
+        requestedFormat: "IMAGES_ONLY",
+        primaryMessage: "Listing 1",
+        urgency: "MEDIUM",
+        origin: "MANUAL",
+        status: "PENDING",
+        aiRecommended: false,
+        fatigueStatus,
+        source: "manual",
+        priority: "MEDIUM",
+        sourcePhotoUrls: [],
+        imageUrls: [],
+        copyVariants: [],
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      };
+    }
+
+    it("SAFETY DEFAULT — DEV mode: a real NEED_CREATIVE trigger inserts a PENDING_REVIEW brief and enqueues a real REVIEW_CREATIVE_BRIEF pending action (never proceeds unattended)", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildNonNormalPackage()]),
+      });
+      const pendingActions = buildFakePendingActionsService();
+      const auditLog = buildFakeAuditLogService();
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildMatchedAdAccount(Verdict.SCALE)),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        pendingActions,
+        auditLog,
+        modeGuard: buildFakeModeGuardService("DEV"),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(creativePackageRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: "auto_loop",
+          listingId: "listing-1",
+          initialStatus: "PENDING_REVIEW",
+        }),
+      );
+      expect(pendingActions.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: "REVIEW_CREATIVE_BRIEF",
+          payload: expect.objectContaining({ listingId: "listing-1" }),
+        }),
+      );
+      expect(auditLog.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: "CREATIVE_BRIEF_CREATED",
+          decidedBy: "ai_auto",
+          mode: "DEV",
+        }),
+      );
+    });
+
+    it("SAFETY DEFAULT — LIVE mode + auto_approve_creative_brief OFF (the real default): still lands on PENDING_REVIEW, still enqueues a real pending action", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildNonNormalPackage()]),
+      });
+      const pendingActions = buildFakePendingActionsService();
+      const propertyObjectiveService = buildFakePropertyObjectiveService({
+        getAutoLoopSettingsSafe: vi.fn(async () => ({
+          maxAutoBriefsPerDay: 5,
+          autoApproveCreativeBrief: false,
+        })),
+      });
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildMatchedAdAccount(Verdict.FIX)),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        pendingActions,
+        propertyObjectiveService,
+        modeGuard: buildFakeModeGuardService("LIVE"),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(creativePackageRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ initialStatus: "PENDING_REVIEW" }),
+      );
+      expect(pendingActions.enqueue).toHaveBeenCalled();
+    });
+
+    it("LIVE mode + auto_approve_creative_brief ON: proceeds without review — DRAFT, no pending action enqueued", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildNonNormalPackage()]),
+      });
+      const pendingActions = buildFakePendingActionsService();
+      const propertyObjectiveService = buildFakePropertyObjectiveService({
+        getAutoLoopSettingsSafe: vi.fn(async () => ({
+          maxAutoBriefsPerDay: 5,
+          autoApproveCreativeBrief: true,
+        })),
+      });
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildMatchedAdAccount(Verdict.SCALE)),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        pendingActions,
+        propertyObjectiveService,
+        modeGuard: buildFakeModeGuardService("LIVE"),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(creativePackageRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ initialStatus: "DRAFT" }),
+      );
+      expect(pendingActions.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("DAILY CAP — no auto-brief is created once autoBriefsToday has reached maxAutoBriefsPerDay", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildNonNormalPackage()]),
+        countAutoLoopSince: vi.fn(async () => 5),
+      });
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildMatchedAdAccount(Verdict.SCALE)),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        modeGuard: buildFakeModeGuardService("DEV"),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(creativePackageRepository.create).not.toHaveBeenCalled();
+    });
+
+    it("no trigger fires for an irrelevant verdict (KEEP) even with a non-NORMAL asset", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildNonNormalPackage()]),
+      });
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildMatchedAdAccount(Verdict.KEEP)),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        modeGuard: buildFakeModeGuardService("DEV"),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(creativePackageRepository.create).not.toHaveBeenCalled();
+    });
+
+    it("no trigger fires when a NORMAL asset already exists for the listing, even with a SCALE verdict", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [
+          buildNonNormalPackage("WARNING"),
+          { ...buildNonNormalPackage("WARNING"), id: "cp-2", fatigueStatus: "NORMAL" },
+        ]),
+      });
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildMatchedAdAccount(Verdict.SCALE)),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        modeGuard: buildFakeModeGuardService("DEV"),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(creativePackageRepository.create).not.toHaveBeenCalled();
     });
   });
 

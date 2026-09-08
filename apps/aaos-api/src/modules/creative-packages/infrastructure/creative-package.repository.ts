@@ -6,6 +6,8 @@ import type {
   CreativePackageFatigueStatus,
   CreativePackageFormat,
   CreativePackageOrigin,
+  CreativePackagePriority,
+  CreativePackageSource,
   CreativePackageStatus,
   CreativePackageUrgency,
   CreativePackageVertical,
@@ -47,6 +49,11 @@ export interface CreativePackageRow {
   readonly ai_recommended: boolean;
   /** Additive, `044_creative_packages_fatigue.sql`. Defaults to `'NORMAL'` at the DB layer for every pre-existing row. */
   readonly fatigue_status: string;
+  /** Additive, `047_creative_packages_auto_loop.sql`. Defaults to `'manual'` at the DB layer for every pre-existing row. */
+  readonly source: string;
+  readonly related_verdict_id: string | null;
+  /** Additive, `047_creative_packages_auto_loop.sql`. Defaults to `'MEDIUM'` at the DB layer for every pre-existing row. */
+  readonly priority: string;
   readonly source_photo_urls: readonly string[];
   readonly video_url: string | null;
   readonly image_urls: readonly string[];
@@ -90,6 +97,9 @@ function toDomain(row: CreativePackageRow): StoredCreativePackage {
     status: row.status as CreativePackageStatus,
     aiRecommended: row.ai_recommended,
     fatigueStatus: row.fatigue_status as CreativePackageFatigueStatus,
+    source: row.source as CreativePackageSource,
+    ...(row.related_verdict_id !== null ? { relatedVerdictId: row.related_verdict_id } : {}),
+    priority: row.priority as CreativePackagePriority,
     sourcePhotoUrls: row.source_photo_urls ?? [],
     ...(row.video_url !== null ? { videoUrl: row.video_url } : {}),
     imageUrls: row.image_urls ?? [],
@@ -147,7 +157,10 @@ export class CreativePackageRepository {
         origin: input.origin,
         ai_recommended: input.aiRecommended ?? false,
         fatigue_status: "NORMAL",
-        status: "DRAFT",
+        source: input.source ?? "manual",
+        related_verdict_id: input.relatedVerdictId ?? null,
+        priority: input.priority ?? "MEDIUM",
+        status: input.initialStatus ?? "DRAFT",
         source_photo_urls: [],
         image_urls: [],
         copy_variants: [],
@@ -237,6 +250,30 @@ export class CreativePackageRepository {
     await this.patch(id, "updateFatigueStatus", { fatigue_status: status });
   }
 
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8a — the real `max_auto_briefs_per_day` daily-cap count, called from
+   * `SchedulerService.runNeedCreativeCheck` BEFORE every real `create()` with `source: 'auto_loop'`.
+   * Counts every `creative_packages` row for this tenant with `source = 'auto_loop'` and
+   * `created_at >= sinceISO` (the caller passes the real start of today, UTC) — same
+   * `.gte("created_at", sinceISO)` real-count-via-list convention `JudgeResultRepository
+   * .listForTenantSince` already establishes in this codebase (no `SupabaseClientLike.count`
+   * capability exists to reach for instead).
+   */
+  async countAutoLoopSince(tenantId: string, sinceISO: string): Promise<number> {
+    const { data, error } = await this.client
+      .from<CreativePackageRow>(TABLE)
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("source", "auto_loop")
+      .gte("created_at", sinceISO);
+    if (error !== null) {
+      throw new CreativePackageRepositoryError(
+        `CreativePackageRepository.countAutoLoopSince failed: ${error.message}`,
+      );
+    }
+    return (data ?? []).length;
+  }
+
   async review(
     id: string,
     status: "APPROVED" | "REJECTED",
@@ -250,6 +287,19 @@ export class CreativePackageRepository {
         ? { selected_copy_variant_id: selectedCopyVariantId }
         : {}),
     });
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8a — the real `PENDING_REVIEW -> DRAFT` write, called from
+   * `PendingActionsService.approve`'s new `REVIEW_CREATIVE_BRIEF` branch when a human approves a
+   * real auto-generated brief. Deliberately NOT `review(id, "APPROVED", ...)` — `APPROVED` on this
+   * table's real status machine means "a human reviewed GENERATED creative output" (003's own
+   * header doc); this is a DIFFERENT real decision (a human approved a PRE-generation brief so it
+   * may now become a normal, sendable `DRAFT`) — reusing `APPROVED` here would conflate two
+   * genuinely different real review moments.
+   */
+  async approveReview(id: string, reviewedAt: string): Promise<void> {
+    await this.patch(id, "approveReview", { status: "DRAFT", reviewed_at: reviewedAt });
   }
 
   private async patch(

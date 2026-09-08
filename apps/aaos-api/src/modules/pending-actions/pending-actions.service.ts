@@ -6,6 +6,7 @@ import { Injectable, Logger, Optional } from "@nestjs/common";
 import { AuditLogService } from "../audit-log/audit-log.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignBodyDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import {
@@ -53,6 +54,15 @@ export class PendingActionsService {
     // approve/reject decision into a failed request.
     private readonly auditLog: AuditLogService,
     private readonly modeGuard: ModeGuardService,
+    /**
+     * AAOS LOOP UPGRADE, Sprint 8a — real writer for the NEW `REVIEW_CREATIVE_BRIEF` action_type's
+     * approve/reject effect (a real `creative_packages.status` transition, `PENDING_REVIEW ->
+     * DRAFT` on approve, `PENDING_REVIEW -> REJECTED` on reject). Injected directly (not via
+     * `CreativePackagesModule`, to avoid importing that module's own `ListingsModule`/
+     * `ActivityLogModule`/etc. graph into this one) — the SAME "provide the leaf repository class
+     * directly" pattern `SchedulerModule` already establishes for this exact repository.
+     */
+    private readonly creativePackageRepository: CreativePackageRepository,
     // Same real bug/fix `LearningDecisionService`/`GoLiveService` document on their own
     // constructors: a bare `Function`-typed param with a default still gets a real DI resolution
     // attempt from Nest without `@Optional()`.
@@ -78,13 +88,21 @@ export class PendingActionsService {
   }
 
   /**
-   * The real Approve write path. Only real, known `action_type` today is
-   * `CREATE_PROPERTY_CAMPAIGN` — its stored `payload` is passed straight through to the SAME real
-   * `CampaignsService.createPropertyCampaign` every other real caller uses (no second, parallel
-   * campaign-creation code path). An unrecognized `action_type` is a real, honest error (never a
-   * silent no-op that would mark the row `APPROVED` without actually doing anything) — this module's
-   * generalized shape anticipates future `action_type`s, but this phase only implements the one real
-   * gated action that exists.
+   * The real Approve write path. Two real, known `action_type`s today:
+   *   - `CREATE_PROPERTY_CAMPAIGN` — its stored `payload` is passed straight through to the SAME
+   *     real `CampaignsService.createPropertyCampaign` every other real caller uses (no second,
+   *     parallel campaign-creation code path).
+   *   - `REVIEW_CREATIVE_BRIEF` (AAOS LOOP UPGRADE, Sprint 8a) — a real, auto-generated
+   *     (`source: 'auto_loop'`) `creative_packages` row the NEED_CREATIVE guardrail chain decided
+   *     needs human review (`SchedulerService.runNeedCreativeCheck`). Approving it moves that row
+   *     `PENDING_REVIEW -> DRAFT` (`CreativePackageRepository.approveReview`) — the SAME real,
+   *     sendable `DRAFT` state a manual brief reaches, still requiring a separate, explicit
+   *     `POST .../generate` before any real Kie AI spend (see `creative-package.ts`'s own doc).
+   *     Never calls `CampaignsService` — `campaignResult` stays `undefined` for this branch, so the
+   *     `CAMPAIGN_PUBLISHED` audit write below is correctly skipped.
+   * An unrecognized `action_type` is a real, honest error (never a silent no-op that would mark the
+   * row `APPROVED` without actually doing anything) — this module's generalized shape anticipates
+   * future `action_type`s, but this phase only implements the 2 real gated actions that exist.
    */
   async approve(
     id: string,
@@ -106,6 +124,17 @@ export class PendingActionsService {
         tenantId,
         payload,
         randomUUID(),
+      );
+    } else if (row.action_type === "REVIEW_CREATIVE_BRIEF") {
+      const creativePackageId = row.payload["creativePackageId"];
+      if (typeof creativePackageId !== "string") {
+        throw new ConflictError(
+          `pending_agent_actions "${id}" has a REVIEW_CREATIVE_BRIEF payload with no real "creativePackageId" — cannot approve.`,
+        );
+      }
+      await this.creativePackageRepository.approveReview(
+        creativePackageId,
+        this.now().toISOString(),
       );
     } else {
       throw new ConflictError(
@@ -165,7 +194,15 @@ export class PendingActionsService {
     return this.requireOwnedByTenant(id, tenantId);
   }
 
-  /** Real Reject write path — touches ONLY `pending_agent_actions`, never `CampaignsService` or Meta. */
+  /**
+   * Real Reject write path — touches ONLY `pending_agent_actions`, never `CampaignsService` or Meta
+   * (`CREATE_PROPERTY_CAMPAIGN` rows: "Reject changes nothing else"). AAOS LOOP UPGRADE, Sprint 8a
+   * — ONE additive exception: a `REVIEW_CREATIVE_BRIEF` row's real `creative_packages` row is moved
+   * `PENDING_REVIEW -> REJECTED` (`review()`, the SAME terminal status a rejected GENERATED package
+   * already reaches) so the brief does not stay stuck in limbo — an orphaned `PENDING_REVIEW` row
+   * with no further real queue reference would be a genuine gap, not a "changes nothing else"
+   * no-op.
+   */
   async reject(
     id: string,
     tenantId: string,
@@ -178,6 +215,21 @@ export class PendingActionsService {
         `pending_agent_actions "${id}" has status "${row.status}" — only a PENDING action can be rejected`,
       );
     }
+    if (row.action_type === "REVIEW_CREATIVE_BRIEF") {
+      const creativePackageId = row.payload["creativePackageId"];
+      if (typeof creativePackageId === "string") {
+        await this.creativePackageRepository.review(
+          creativePackageId,
+          "REJECTED",
+          this.now().toISOString(),
+        );
+      } else {
+        this.logger.warn(
+          `PendingActionsService.reject(${id}): REVIEW_CREATIVE_BRIEF payload has no real "creativePackageId" — the pending_agent_actions row is still rejected, but no creative_packages row was updated.`,
+        );
+      }
+    }
+
     await this.pendingActions.updateDecision(
       id,
       "REJECTED",

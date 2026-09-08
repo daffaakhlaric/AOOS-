@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AuditLogModule } from "../audit-log/audit-log.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
+import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
@@ -35,6 +36,15 @@ import { PendingActionsService } from "./pending-actions.service.js";
       provide: PendingActionRepository,
       useFactory: (client: SupabaseClientLike): PendingActionRepository =>
         new PendingActionRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    // AAOS LOOP UPGRADE, Sprint 8a — real `REVIEW_CREATIVE_BRIEF` approve/reject writer dependency.
+    // Provided directly (not via `CreativePackagesModule`), the SAME "leaf repository, no extra
+    // module graph" pattern `SchedulerModule` already establishes for this exact repository.
+    {
+      provide: CreativePackageRepository,
+      useFactory: (client: SupabaseClientLike): CreativePackageRepository =>
+        new CreativePackageRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

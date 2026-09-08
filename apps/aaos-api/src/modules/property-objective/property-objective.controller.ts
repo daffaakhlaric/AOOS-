@@ -8,11 +8,13 @@ import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import {
   BudgetSuggestionQuerySchema,
   CreatePropertyObjectiveBodySchema,
+  UpdateAutoLoopSettingsBodySchema,
   UpdateBusinessContextBodySchema,
   type BudgetSuggestionQueryDto,
   type BudgetSuggestionResponseDto,
   type CreatePropertyObjectiveBodyDto,
   type PropertyObjectiveResponseDto,
+  type UpdateAutoLoopSettingsBodyDto,
   type UpdateBusinessContextBodyDto,
 } from "./dto/property-objective.dto.js";
 import { PropertyObjectiveService } from "./property-objective.service.js";
@@ -72,5 +74,15 @@ export class PropertyObjectiveController {
     body: UpdateBusinessContextBodyDto,
   ): Promise<PropertyObjectiveResponseDto> {
     return this.service.updateBusinessContext(tenantId, body);
+  }
+
+  /** AAOS LOOP UPGRADE, Sprint 8a — the real NEED_CREATIVE auto-brief guardrail settings write (`max_auto_briefs_per_day`, `auto_approve_creative_brief`, default OFF). */
+  @Patch("auto-loop-settings")
+  async updateAutoLoopSettings(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(UpdateAutoLoopSettingsBodySchema))
+    body: UpdateAutoLoopSettingsBodyDto,
+  ): Promise<PropertyObjectiveResponseDto> {
+    return this.service.updateAutoLoopSettings(tenantId, body);
   }
 }

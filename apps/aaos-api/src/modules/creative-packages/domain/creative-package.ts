@@ -10,18 +10,41 @@
  */
 
 /**
- * `DRAFT` → saved, never sent to Kai (zero Kie AI spend) · `GENERATING` → a human pressed
- * "Kirim ke Kai" and the real pipeline is running · `PENDING` → generated, awaiting review ·
- * `APPROVED`/`REJECTED` → reviewed (terminal) · `FAILED` → the real pipeline errored.
+ * `PENDING_REVIEW` → AAOS LOOP UPGRADE, Sprint 8a (Prompt 19 Step 3) — a real, auto-generated
+ * (`source = 'auto_loop'`) brief the guardrail chain (`scheduler/domain/creative-brief-
+ * guardrail.ts`) decided needs a human decision BEFORE it can even become a normal `DRAFT` —
+ * reviewed via `PendingActionsService`'s real `REVIEW_CREATIVE_BRIEF` action_type (approve moves it
+ * to `DRAFT`, reject moves it to `REJECTED`, both a real human click). Never reachable for a
+ * `source = 'manual'` row. · `DRAFT` → saved, never sent to Kai (zero Kie AI spend) · `GENERATING`
+ * → a human pressed "Kirim ke Kai" and the real pipeline is running · `PENDING` → generated,
+ * awaiting review · `APPROVED`/`REJECTED` → reviewed (terminal) · `FAILED` → the real pipeline
+ * errored.
  *
  * There is deliberately no status reachable without a human action: nothing transitions a package
- * out of `DRAFT` except an explicit `POST .../generate`.
+ * out of `DRAFT` except an explicit `POST .../generate`, and nothing transitions a package OUT of
+ * `PENDING_REVIEW` except a real human Approve/Reject decision (`PendingActionsService`) — even a
+ * `source = 'auto_loop'` row that skips `PENDING_REVIEW` entirely (LIVE mode + the
+ * `auto_approve_creative_brief` toggle ON) lands on the SAME `DRAFT` a manual brief would, still
+ * requiring that same explicit `POST .../generate` click before any real Kie AI spend happens.
  */
 export type CreativePackageStatus =
-  "DRAFT" | "GENERATING" | "PENDING" | "APPROVED" | "REJECTED" | "FAILED";
+  "DRAFT" | "GENERATING" | "PENDING" | "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "FAILED";
 
 /** How the brief came to exist. Both require a human click before Kai/Kie AI ever runs. */
 export type CreativePackageOrigin = "MANUAL" | "SAMANTHA";
+
+/**
+ * AAOS LOOP UPGRADE, Sprint 8a — `047_creative_packages_auto_loop.sql`. Orthogonal to `origin`:
+ * `origin` answers "whose idea was the angle" (a human's, or a Samantha REFRESH recommendation a
+ * human then accepted); `source` answers "did a human click a button to create THIS row, or did the
+ * scheduler insert it unattended". `'manual'` (default — every pre-existing row, and every row
+ * created through the existing manual-brief/Samantha-recommendation forms) | `'auto_loop'` (this
+ * dispatch's new NEED_CREATIVE-triggered auto-insert path, `SchedulerService.runNeedCreativeCheck`).
+ */
+export type CreativePackageSource = "manual" | "auto_loop";
+
+/** AAOS LOOP UPGRADE, Sprint 8a. Brief-level priority — distinct from `urgency` (a generation-level `CreativeUrgency`). Defaults to `MEDIUM`. */
+export type CreativePackagePriority = "LOW" | "MEDIUM" | "HIGH";
 
 /**
  * Which real shape this row carries (K1/K2, `docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`).
@@ -89,6 +112,12 @@ export interface StoredCreativePackage {
   readonly aiRecommended: boolean;
   /** `044_creative_packages_fatigue.sql`. Defaults to `NORMAL` for every pre-existing row. */
   readonly fatigueStatus: CreativePackageFatigueStatus;
+  /** `047_creative_packages_auto_loop.sql`. Defaults to `'manual'` for every pre-existing row. */
+  readonly source: CreativePackageSource;
+  /** `047_creative_packages_auto_loop.sql`. The real `listings.id` a `source: 'auto_loop'` brief's NEED_CREATIVE check fired for — `undefined` for every `manual` row. */
+  readonly relatedVerdictId?: string;
+  /** `047_creative_packages_auto_loop.sql`. Defaults to `MEDIUM` for every pre-existing row. */
+  readonly priority: CreativePackagePriority;
   /** Real `@aos/asset-library` public URLs of the source photos found for `unit` when generation started. An empty array is a real state, not "unknown". */
   readonly sourcePhotoUrls: readonly string[];
   readonly videoUrl?: string;
@@ -129,6 +158,13 @@ export interface CreateCreativePackageInput {
   readonly origin: CreativePackageOrigin;
   /** Defaults to `false` at the call site when the caller (e.g. `create()`, AUTOMOTIVE) has no recommendation concept at all. */
   readonly aiRecommended?: boolean;
+  /** AAOS LOOP UPGRADE, Sprint 8a. Defaults to `'manual'` at the repository layer when omitted — every real caller except `SchedulerService.runNeedCreativeCheck` omits this. */
+  readonly source?: CreativePackageSource;
+  readonly relatedVerdictId?: string;
+  /** AAOS LOOP UPGRADE, Sprint 8a. Defaults to `'MEDIUM'` at the repository layer when omitted. */
+  readonly priority?: CreativePackagePriority;
+  /** AAOS LOOP UPGRADE, Sprint 8a. Defaults to `'DRAFT'` at the repository layer when omitted (every pre-existing real caller's real behavior, unchanged) — `runNeedCreativeCheck` is the only real caller that ever passes `'PENDING_REVIEW'`, per the real guardrail decision (`creative-brief-guardrail.ts`). */
+  readonly initialStatus?: "DRAFT" | "PENDING_REVIEW";
 }
 
 /** The real, measured outcome of one successful `ProcessCreativeBrief` run. */

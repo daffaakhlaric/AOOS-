@@ -293,11 +293,28 @@ describe("AAOS EPIC S Phase S6 — real end-to-end: cron tick -> SchedulerServic
       { record: vi.fn(async () => undefined) } as never,
       // AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — real "no current objective yet" fake, same
       // zero-behavior-change discipline as the other Self-Improving fakes above — this real
-      // end-to-end flow's HIGH_CPL reasoning text stays on the generic-threshold fallback.
-      { getCurrentSafe: vi.fn(async () => undefined) } as never,
+      // end-to-end flow's HIGH_CPL reasoning text stays on the generic-threshold fallback. AAOS
+      // LOOP UPGRADE, Sprint 8a — `getAutoLoopSettingsSafe` added the SAME "no current objective
+      // yet" real fallback (5 / false), unrelated to this real flow's own assertions (this
+      // listing's own NO_ACTIVE_CAMPAIGN trigger has no matching creative_packages row, so
+      // NEED_CREATIVE never fires here regardless).
+      {
+        getCurrentSafe: vi.fn(async () => undefined),
+        getAutoLoopSettingsSafe: vi.fn(async () => ({
+          maxAutoBriefsPerDay: 5,
+          autoApproveCreativeBrief: false,
+        })),
+      } as never,
       // AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real "no creative packages yet" fake, unrelated to
-      // this real flow's own assertions.
-      { list: vi.fn(async () => []), updateFatigueStatus: vi.fn(async () => undefined) } as never,
+      // this real flow's own assertions. AAOS LOOP UPGRADE, Sprint 8a — `countAutoLoopSince`/
+      // `create` added for the SAME reason (`runNeedCreativeCheck`'s real wiring), also unrelated
+      // to this real flow's own assertions (no NEED_CREATIVE trigger fires here).
+      {
+        list: vi.fn(async () => []),
+        updateFatigueStatus: vi.fn(async () => undefined),
+        countAutoLoopSince: vi.fn(async () => 0),
+        create: vi.fn(),
+      } as never,
     );
 
     await service.executeEvent(buildEvent());

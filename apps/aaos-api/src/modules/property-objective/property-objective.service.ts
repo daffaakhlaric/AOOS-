@@ -9,6 +9,7 @@ import {
   type CreatePropertyObjectiveBodyDto,
   type PropertyObjectiveResponseDto,
   type PropertyObjectiveRow,
+  type UpdateAutoLoopSettingsBodyDto,
   type UpdateBusinessContextBodyDto,
 } from "./dto/property-objective.dto.js";
 import { PropertyObjectiveRepository } from "./property-objective.repository.js";
@@ -179,5 +180,45 @@ export class PropertyObjectiveService {
       updatedAt: this.now().toISOString(),
     });
     return toPropertyObjectiveResponseDto(row);
+  }
+
+  /**
+   * `PATCH /api/v1/property-objective/auto-loop-settings` (AAOS LOOP UPGRADE, Sprint 8a). Mirrors
+   * `updateBusinessContext`'s exact real "requires a current-period objective row to attach to"
+   * shape and reasoning — this is an EDIT of an existing tenant setting, not a way to create an
+   * objective.
+   */
+  async updateAutoLoopSettings(
+    tenantId: string,
+    body: UpdateAutoLoopSettingsBodyDto,
+  ): Promise<PropertyObjectiveResponseDto> {
+    const current = await this.get(tenantId);
+    const row = await this.repository.updateAutoLoopSettings(current.id, {
+      ...(body.maxAutoBriefsPerDay !== undefined
+        ? { maxAutoBriefsPerDay: body.maxAutoBriefsPerDay }
+        : {}),
+      ...(body.autoApproveCreativeBrief !== undefined
+        ? { autoApproveCreativeBrief: body.autoApproveCreativeBrief }
+        : {}),
+    });
+    return toPropertyObjectiveResponseDto(row);
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8a — the real, resolved guardrail settings `SchedulerService
+   * .runNeedCreativeCheck` reads before every auto-brief attempt. Honestly degrades to the SAME
+   * safe defaults the DB column itself carries (`max_auto_briefs_per_day = 5`,
+   * `auto_approve_creative_brief = false`) when this tenant has no current-period objective row at
+   * all — see `047_creative_packages_auto_loop.sql`'s own doc for why this is the correct, safe
+   * fallback (never `true`).
+   */
+  async getAutoLoopSettingsSafe(
+    tenantId: string,
+  ): Promise<{ readonly maxAutoBriefsPerDay: number; readonly autoApproveCreativeBrief: boolean }> {
+    const current = await this.getCurrentSafe(tenantId);
+    return {
+      maxAutoBriefsPerDay: current?.maxAutoBriefsPerDay ?? 5,
+      autoApproveCreativeBrief: current?.autoApproveCreativeBrief ?? false,
+    };
   }
 }

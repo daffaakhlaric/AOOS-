@@ -61,7 +61,7 @@ import {
   indexPulledAdAccount,
 } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
-import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
+import { ModeGuardService, type TenantMode } from "../mode-guard/mode-guard.service.js";
 import { PendingActionsService } from "../pending-actions/pending-actions.service.js";
 import { isBusinessContextFilled } from "../property-objective/dto/property-objective.dto.js";
 import { PropertyObjectiveService } from "../property-objective/property-objective.service.js";
@@ -76,7 +76,9 @@ import {
   shouldCreateNewCampaign,
   type CampaignTriggerDecision,
 } from "./domain/campaign-trigger.js";
+import { decideCreativeBriefGuardrail } from "./domain/creative-brief-guardrail.js";
 import { evaluateFatigue } from "./domain/fatigue.js";
+import { evaluateNeedCreative } from "./domain/need-creative.js";
 import type {
   CreateCalendarEventBodyDto,
   GetCalendarQueryDto,
@@ -1007,6 +1009,11 @@ export class SchedulerService {
     // per listing, same discipline as the trigger loop above.
     await this.runFatigueCheck(tenantId, correlationId, perListing);
 
+    // AAOS LOOP UPGRADE, Sprint 8a — real NEED_CREATIVE detection + guardrailed auto-brief
+    // creation (Prompt 19 Steps 2-3), reusing the SAME `perListing` (matched campaign + real
+    // per-ad verdicts) this method already computed above. Best-effort per listing.
+    await this.runNeedCreativeCheck(tenantId, perListing);
+
     return { checked: perListing.length, triggered };
   }
 
@@ -1077,6 +1084,170 @@ export class SchedulerService {
             `SchedulerService.runFatigueCheck: updateFatigueStatus(${pkg.id}) failed: ${String(caught)}`,
           );
         }
+      }
+    }
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8a — Prompt 19 Steps 2-3 real wiring. Run once per
+   * `runPropertyCampaignTriggerCheck` call, the SAME cadence `runFatigueCheck` already uses (real
+   * signals — `matched.verdicts`, `creative_packages` fatigue status — are only ever this fresh at
+   * that cadence).
+   *
+   * For every listing: computes `evaluateNeedCreative`'s real inputs from data already loaded this
+   * pull (`matched.verdicts`, and this listing's own `creative_packages` rows — reusing the SAME
+   * `packages` list `runFatigueCheck` itself loads, via a second `list()` call here since these are
+   * two separate best-effort methods, same "each best-effort method reads its own fresh copy"
+   * discipline `runFatigueCheck`/`runPropertyCampaignTriggerCheck` already establish for their own
+   * repository reads). When `evaluateNeedCreative` triggers, resolves the real guardrail chain
+   * (`decideCreativeBriefGuardrail` — daily cap, DEV/LIVE mode, `auto_approve_creative_brief`
+   * toggle) and, when allowed, inserts ONE real `creative_packages` row (`source: 'auto_loop'`),
+   * writes a real `audit_log` row (`CREATIVE_BRIEF_CREATED`, `decided_by: 'ai_auto'`), and — only
+   * when the guardrail decided `PENDING_REVIEW` — enqueues a real `pending_agent_actions` row
+   * (`action_type: 'REVIEW_CREATIVE_BRIEF'`) so it surfaces in the existing, generic Pending
+   * Actions review queue (`LearningMonitorClient.tsx`'s own "Pending Actions" section — investigated
+   * directly: it already renders ANY `action_type` generically with real Approve/Reject buttons, no
+   * UI change needed for a new row to appear there).
+   *
+   * Best-effort per listing, same "never let a side-check take down the whole handler" discipline
+   * `runFatigueCheck`/`recordCampaignTriggerDecision` already establish.
+   */
+  private async runNeedCreativeCheck(
+    tenantId: string,
+    perListing: readonly {
+      readonly listing: ListingResponseDto;
+      readonly matched: MatchedCampaignSignals;
+    }[],
+  ): Promise<void> {
+    let mode: TenantMode;
+    let maxAutoBriefsPerDay: number;
+    let autoApproveCreativeBrief: boolean;
+    try {
+      mode = await this.modeGuard.resolveMode(tenantId);
+      ({ maxAutoBriefsPerDay, autoApproveCreativeBrief } =
+        await this.propertyObjectiveService.getAutoLoopSettingsSafe(tenantId));
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.runNeedCreativeCheck: resolving mode/guardrail settings for ${tenantId} failed: ${String(caught)}`,
+      );
+      return;
+    }
+
+    let packages: readonly StoredCreativePackage[];
+    try {
+      packages = await this.creativePackageRepository.list(tenantId, { limit: 200 });
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.runNeedCreativeCheck: list(${tenantId}) failed: ${String(caught)}`,
+      );
+      return;
+    }
+
+    const startOfTodayUtc = new Date();
+    startOfTodayUtc.setUTCHours(0, 0, 0, 0);
+    let autoBriefsToday: number;
+    try {
+      autoBriefsToday = await this.creativePackageRepository.countAutoLoopSince(
+        tenantId,
+        startOfTodayUtc.toISOString(),
+      );
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.runNeedCreativeCheck: countAutoLoopSince(${tenantId}) failed: ${String(caught)}`,
+      );
+      return;
+    }
+
+    for (const { listing, matched } of perListing) {
+      const matchingPackages = packages.filter((pkg) => pkg.listingId === listing.id);
+      const hasNormalAsset =
+        matchingPackages.length > 0
+          ? matchingPackages.some((pkg) => pkg.fatigueStatus === "NORMAL")
+          : undefined;
+      const inUseFatigueStatus =
+        matchingPackages.find((pkg) => pkg.fatigueStatus === "FATIGUED")?.fatigueStatus ??
+        matchingPackages.find((pkg) => pkg.fatigueStatus === "WARNING")?.fatigueStatus ??
+        matchingPackages[0]?.fatigueStatus;
+      const relevantVerdict = matched.verdicts.find(
+        (v) => v === Verdict.SCALE || v === Verdict.FIX,
+      );
+
+      const evaluation = evaluateNeedCreative({
+        ...(relevantVerdict !== undefined ? { verdict: relevantVerdict } : {}),
+        ...(hasNormalAsset !== undefined ? { hasNormalAsset } : {}),
+        ...(inUseFatigueStatus !== undefined ? { inUseFatigueStatus } : {}),
+      });
+      if (!evaluation.triggered) {
+        continue;
+      }
+
+      const guardrail = decideCreativeBriefGuardrail({
+        mode,
+        autoApproveEnabled: autoApproveCreativeBrief,
+        autoBriefsToday,
+        maxAutoBriefsPerDay,
+      });
+      if (!guardrail.allowed) {
+        this.logger.log(
+          `SchedulerService.runNeedCreativeCheck: skipped auto-brief for listing ${listing.id} — ${guardrail.reason}`,
+        );
+        continue;
+      }
+
+      // Honest angle basis: reuse the angle of the listing's own most-recently-created matching
+      // package (the real asset this brief is meant to REFRESH) — never a fabricated "recommended"
+      // angle (see `evaluateNeedCreative`'s own doc on why condition (a) cannot honestly compute
+      // one). By construction (both trigger conditions require `matchingPackages.length > 0`),
+      // this is always defined when `evaluation.triggered` is `true`.
+      const angleBasis = matchingPackages[0]?.angle ?? "READY_HUNI";
+
+      try {
+        const pkg = await this.creativePackageRepository.create({
+          id: randomUUID(),
+          tenantId,
+          briefId: randomUUID(),
+          vertical: "PROPERTY",
+          listingId: listing.id,
+          title: `[Auto] Refresh kreatif — ${listing.title}`,
+          angle: angleBasis,
+          reason: evaluation.reason ?? "NEED_CREATIVE terdeteksi oleh Samantha.",
+          requestedFormat: "IMAGES_ONLY",
+          primaryMessage: listing.title,
+          urgency: "MEDIUM",
+          origin: "SAMANTHA",
+          source: "auto_loop",
+          relatedVerdictId: listing.id,
+          priority: relevantVerdict === Verdict.SCALE ? "HIGH" : "MEDIUM",
+          initialStatus: guardrail.status,
+        });
+
+        await this.auditLog.record({
+          tenantId,
+          agent: "SAMANTHA",
+          actionType: "CREATIVE_BRIEF_CREATED",
+          beforeState: null,
+          afterState: { creativePackageId: pkg.id, status: pkg.status },
+          decidedBy: "ai_auto",
+          mode,
+          relatedVerdictId: listing.id,
+          relatedBriefId: pkg.id,
+          reversible: false,
+        });
+
+        if (guardrail.status === "PENDING_REVIEW") {
+          await this.pendingActions.enqueue({
+            tenantId,
+            agent: "SAMANTHA",
+            actionType: "REVIEW_CREATIVE_BRIEF",
+            payload: { listingId: listing.id, creativePackageId: pkg.id },
+          });
+        }
+
+        autoBriefsToday += 1;
+      } catch (caught) {
+        this.logger.warn(
+          `SchedulerService.runNeedCreativeCheck: auto-brief create failed for listing ${listing.id}: ${String(caught)}`,
+        );
       }
     }
   }
@@ -1477,6 +1648,14 @@ interface MatchedCampaignSignals {
   readonly hasActiveCampaign: boolean;
   readonly maxFrequency?: number;
   readonly cplIDR?: number;
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8a — every real per-ad `Verdict` (`ad.verdict`, already computed
+   * upstream, the SAME value `toAnalyzeCampaigns` reports) across this listing's matched active
+   * campaign(s) — the real input `evaluateNeedCreative`'s condition (a) needs. Empty array (not
+   * `undefined`) when a campaign matched but has zero ads; `undefined` semantics are reserved for
+   * "no matched campaign at all", handled by `hasActiveCampaign: false` instead.
+   */
+  readonly verdicts: readonly Verdict[];
 }
 
 /** Pure — matches `listing` against every `AdStatus.ACTIVE` campaign across `adAccounts` whose real `name` contains the listing's real `title` (case-insensitive substring; no `listings.campaign_id` column exists anywhere in this schema to join on instead), and aggregates that campaign's real ad-level `frequency`/spend/lead metrics. */
@@ -1489,6 +1668,7 @@ function matchActiveCampaignForListing(
   let maxFrequency: number | undefined;
   let totalSpend = 0;
   let totalLeads = 0;
+  const verdicts: Verdict[] = [];
 
   const isMatch = (campaign: Campaign): boolean =>
     campaign.status === AdStatus.ACTIVE && campaign.name.toLowerCase().includes(needle);
@@ -1507,6 +1687,7 @@ function matchActiveCampaignForListing(
               : Math.max(maxFrequency, ad.metrics.frequency);
           totalSpend += ad.metrics.spend.toNumber();
           totalLeads += ad.metrics.totalLead;
+          verdicts.push(ad.verdict);
         }
       }
     }
@@ -1517,6 +1698,7 @@ function matchActiveCampaignForListing(
     hasActiveCampaign,
     ...(maxFrequency !== undefined ? { maxFrequency } : {}),
     ...(cplIDR !== undefined ? { cplIDR } : {}),
+    verdicts,
   };
 }
 

@@ -5,6 +5,7 @@ import { createFakeSupabaseClient } from "../../test-support/fake-supabase-clien
 import type { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import {
@@ -30,6 +31,54 @@ function seedPendingAction(
     decision_notes: null,
     decided_at: null,
     created_at: "2026-08-01T00:00:00.000Z",
+    ...overrides,
+  });
+}
+
+/** Minimal real `creative_packages` row, `PENDING_REVIEW` (AAOS LOOP UPGRADE, Sprint 8a) — for `REVIEW_CREATIVE_BRIEF` approve/reject tests. */
+function seedCreativePackage(
+  client: ReturnType<typeof createFakeSupabaseClient>,
+  overrides: Record<string, unknown> = {},
+): void {
+  client.seed("creative_packages", {
+    id: "cp-auto-1",
+    tenant_id: "dss-motor",
+    brief_id: "brief-auto-1",
+    ad_id: null,
+    stable_id: null,
+    vertical: "PROPERTY",
+    listing_id: "listing-1",
+    branch: null,
+    unit: null,
+    unit_model: null,
+    title: "[Auto] Refresh kreatif — Listing 1",
+    angle: "READY_HUNI",
+    target_persona: null,
+    reason: "NEED_CREATIVE terdeteksi oleh Samantha.",
+    requested_format: "IMAGES_ONLY",
+    decided_format: null,
+    primary_message: "Listing 1",
+    urgency: "MEDIUM",
+    origin: "SAMANTHA",
+    status: "PENDING_REVIEW",
+    ai_recommended: false,
+    fatigue_status: "NORMAL",
+    source: "auto_loop",
+    related_verdict_id: "listing-1",
+    priority: "MEDIUM",
+    source_photo_urls: [],
+    video_url: null,
+    image_urls: [],
+    copy_variants: [],
+    ai_model: null,
+    confidence_score: null,
+    generation_ms: null,
+    selected_copy_variant_id: null,
+    error_message: null,
+    generated_at: null,
+    reviewed_at: null,
+    created_at: "2026-09-01T00:00:00.000Z",
+    updated_at: "2026-09-01T00:00:00.000Z",
     ...overrides,
   });
 }
@@ -72,11 +121,13 @@ function buildService(
   auditLog: AuditLogService;
 } {
   const repository = new PendingActionRepository(client);
+  const creativePackageRepository = new CreativePackageRepository(client);
   const service = new PendingActionsService(
     repository,
     campaignsService,
     auditLog,
     buildFakeModeGuardService(),
+    creativePackageRepository,
     () => FIXED_NOW,
   );
   return { service, campaignsService, auditLog };
@@ -203,6 +254,44 @@ describe("PendingActionsService", () => {
       >;
       expect(calls.some(([arg]) => arg.actionType === "CAMPAIGN_PUBLISHED")).toBe(false);
     });
+
+    it("AAOS LOOP UPGRADE Sprint 8a — REVIEW_CREATIVE_BRIEF: approving moves the real creative_packages row PENDING_REVIEW -> DRAFT, never calls CampaignsService", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client, {
+        action_type: "REVIEW_CREATIVE_BRIEF",
+        payload: { listingId: "listing-1", creativePackageId: "cp-auto-1" },
+      });
+      seedCreativePackage(client);
+      const campaignsService = buildFakeCampaignsService();
+      const { service } = buildService(client, campaignsService);
+
+      const result = await service.approve(
+        "pending-1",
+        "dss-motor",
+        "manager@dss-motor.id",
+        undefined,
+      );
+
+      expect(result.status).toBe("APPROVED");
+      expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
+
+      const creativeRepository = new CreativePackageRepository(client);
+      const pkg = await creativeRepository.findById("dss-motor", "cp-auto-1");
+      expect(pkg?.status).toBe("DRAFT");
+    });
+
+    it("REVIEW_CREATIVE_BRIEF approve — throws ConflictError when the payload has no real creativePackageId", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client, {
+        action_type: "REVIEW_CREATIVE_BRIEF",
+        payload: { listingId: "listing-1" },
+      });
+      const { service } = buildService(client);
+
+      await expect(service.approve("pending-1", "dss-motor", undefined, undefined)).rejects.toThrow(
+        ConflictError,
+      );
+    });
   });
 
   describe("reject", () => {
@@ -241,6 +330,29 @@ describe("PendingActionsService", () => {
       await expect(
         service.reject("pending-1", "other-tenant", undefined, undefined),
       ).rejects.toThrow(NotFoundError);
+    });
+
+    it("AAOS LOOP UPGRADE Sprint 8a — REVIEW_CREATIVE_BRIEF: rejecting moves the real creative_packages row PENDING_REVIEW -> REJECTED", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client, {
+        action_type: "REVIEW_CREATIVE_BRIEF",
+        payload: { listingId: "listing-1", creativePackageId: "cp-auto-1" },
+      });
+      seedCreativePackage(client);
+      const { service } = buildService(client);
+
+      const result = await service.reject(
+        "pending-1",
+        "dss-motor",
+        "manager@dss-motor.id",
+        "Tidak relevan",
+      );
+
+      expect(result.status).toBe("REJECTED");
+
+      const creativeRepository = new CreativePackageRepository(client);
+      const pkg = await creativeRepository.findById("dss-motor", "cp-auto-1");
+      expect(pkg?.status).toBe("REJECTED");
     });
 
     it("AAOS LOOP UPGRADE Prompt 17: writes a real VERDICT_REJECTED audit_log row with a null after_state", async () => {

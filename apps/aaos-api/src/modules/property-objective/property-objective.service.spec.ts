@@ -36,6 +36,8 @@ function seedObjective(
     breakeven_cpl: null,
     updated_by: null,
     updated_at: null,
+    max_auto_briefs_per_day: 5,
+    auto_approve_creative_brief: false,
     ...overrides,
   });
 }
@@ -289,6 +291,50 @@ describe("PropertyObjectiveService", () => {
       await expect(service.updateBusinessContext(TENANT_ID, { avgDealValue: 1 })).rejects.toThrow(
         NotFoundError,
       );
+    });
+  });
+
+  describe("updateAutoLoopSettings / getAutoLoopSettingsSafe (AAOS LOOP UPGRADE, Sprint 8a)", () => {
+    it("persists a real maxAutoBriefsPerDay/autoApproveCreativeBrief change", async () => {
+      const client = createFakeSupabaseClient();
+      seedObjective(client);
+      const { service } = buildService(client);
+
+      const result = await service.updateAutoLoopSettings(TENANT_ID, {
+        maxAutoBriefsPerDay: 10,
+        autoApproveCreativeBrief: true,
+      });
+
+      expect(result.maxAutoBriefsPerDay).toBe(10);
+      expect(result.autoApproveCreativeBrief).toBe(true);
+    });
+
+    it("throws NotFoundError when the tenant has no current-period objective to attach the setting to", async () => {
+      const client = createFakeSupabaseClient();
+      const { service } = buildService(client);
+
+      await expect(
+        service.updateAutoLoopSettings(TENANT_ID, { autoApproveCreativeBrief: true }),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it("SAFETY DEFAULT — getAutoLoopSettingsSafe returns maxAutoBriefsPerDay: 5, autoApproveCreativeBrief: false for a tenant with no current-period objective row (never true)", async () => {
+      const client = createFakeSupabaseClient();
+      const { service } = buildService(client);
+
+      const result = await service.getAutoLoopSettingsSafe(TENANT_ID);
+
+      expect(result).toEqual({ maxAutoBriefsPerDay: 5, autoApproveCreativeBrief: false });
+    });
+
+    it("getAutoLoopSettingsSafe returns the real, persisted values when a current-period objective row exists", async () => {
+      const client = createFakeSupabaseClient();
+      seedObjective(client, { max_auto_briefs_per_day: 3, auto_approve_creative_brief: true });
+      const { service } = buildService(client);
+
+      const result = await service.getAutoLoopSettingsSafe(TENANT_ID);
+
+      expect(result).toEqual({ maxAutoBriefsPerDay: 3, autoApproveCreativeBrief: true });
     });
   });
 

@@ -51,6 +51,9 @@ function seedPackage(client: FakeSupabaseClient, overrides: Record<string, unkno
     urgency: "MEDIUM",
     origin: "MANUAL",
     status: "DRAFT",
+    source: "manual",
+    related_verdict_id: null,
+    priority: "MEDIUM",
     source_photo_urls: [],
     video_url: null,
     image_urls: [],
@@ -115,6 +118,36 @@ describe("CreativePackageRepository.create", () => {
     client.forceErrorOnce("creative_packages", "db down");
     const repo = new CreativePackageRepository(client);
     await expect(repo.create(INPUT)).rejects.toThrow(CreativePackageRepositoryError);
+  });
+
+  describe("AAOS LOOP UPGRADE, Sprint 8a — source/priority/relatedVerdictId/initialStatus", () => {
+    it("defaults source to 'manual', priority to 'MEDIUM', status to 'DRAFT' when omitted (every pre-existing real caller)", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new CreativePackageRepository(client);
+      const pkg = await repo.create(INPUT);
+      expect(pkg.source).toBe("manual");
+      expect(pkg.priority).toBe("MEDIUM");
+      expect(pkg.status).toBe("DRAFT");
+      expect(pkg.relatedVerdictId).toBeUndefined();
+    });
+
+    it("persists a real auto_loop brief with PENDING_REVIEW status and a real relatedVerdictId", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new CreativePackageRepository(client);
+      const pkg = await repo.create({
+        ...INPUT,
+        vertical: "PROPERTY",
+        listingId: "listing-1",
+        source: "auto_loop",
+        relatedVerdictId: "listing-1",
+        priority: "HIGH",
+        initialStatus: "PENDING_REVIEW",
+      });
+      expect(pkg.source).toBe("auto_loop");
+      expect(pkg.priority).toBe("HIGH");
+      expect(pkg.relatedVerdictId).toBe("listing-1");
+      expect(pkg.status).toBe("PENDING_REVIEW");
+    });
   });
 });
 
@@ -308,6 +341,49 @@ describe("CreativePackageRepository mutations", () => {
     await expect(repo.fail("pkg-x", "x")).rejects.toThrow(CreativePackageRepositoryError);
     client.forceErrorOnce("creative_packages", "boom");
     await expect(repo.review("pkg-x", "APPROVED", "t")).rejects.toThrow(
+      CreativePackageRepositoryError,
+    );
+  });
+});
+
+describe("CreativePackageRepository — AAOS LOOP UPGRADE, Sprint 8a (approveReview / countAutoLoopSince)", () => {
+  it("approveReview moves a real PENDING_REVIEW row to DRAFT (never APPROVED — see this method's own doc)", async () => {
+    const client = createFakeSupabaseClient();
+    seedPackage(client, { id: "pkg-x", status: "PENDING_REVIEW", source: "auto_loop" });
+    const repo = new CreativePackageRepository(client);
+    await repo.approveReview("pkg-x", "2026-09-08T04:00:00.000Z");
+    const pkg = await repo.findById(TENANT, "pkg-x");
+    expect(pkg?.status).toBe("DRAFT");
+    expect(pkg?.reviewedAt).toBe("2026-09-08T04:00:00.000Z");
+  });
+
+  it("countAutoLoopSince counts only source='auto_loop' rows for this tenant created since sinceISO", async () => {
+    const client = createFakeSupabaseClient();
+    seedPackage(client, {
+      id: "cp-1",
+      source: "auto_loop",
+      created_at: "2026-09-08T01:00:00.000Z",
+    });
+    seedPackage(client, {
+      id: "cp-2",
+      source: "auto_loop",
+      created_at: "2026-09-07T01:00:00.000Z", // before sinceISO — excluded
+    });
+    seedPackage(client, {
+      id: "cp-3",
+      source: "manual", // manual — excluded regardless of date
+      created_at: "2026-09-08T02:00:00.000Z",
+    });
+    const repo = new CreativePackageRepository(client);
+    const count = await repo.countAutoLoopSince(TENANT, "2026-09-08T00:00:00.000Z");
+    expect(count).toBe(1);
+  });
+
+  it("countAutoLoopSince throws CreativePackageRepositoryError on a Supabase error", async () => {
+    const client = createFakeSupabaseClient();
+    client.forceErrorOnce("creative_packages", "boom");
+    const repo = new CreativePackageRepository(client);
+    await expect(repo.countAutoLoopSince(TENANT, "2026-09-08T00:00:00.000Z")).rejects.toThrow(
       CreativePackageRepositoryError,
     );
   });

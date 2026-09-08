@@ -62,6 +62,25 @@ export const UpdateBusinessContextBodySchema = z
   );
 export type UpdateBusinessContextBodyDto = z.infer<typeof UpdateBusinessContextBodySchema>;
 
+/**
+ * `PATCH /api/v1/property-objective/auto-loop-settings` body (AAOS LOOP UPGRADE, Sprint 8a — Prompt
+ * 19 Step 3's own real guardrail settings). Mirrors `UpdateBusinessContextBodySchema`'s shape
+ * exactly (both fields individually optional — a manager may change one at a time).
+ *
+ * CRITICAL SAFETY NOTE (this dispatch's own explicit requirement): `autoApproveCreativeBrief` has
+ * NO `.default()` here on purpose — an omitted field on a PATCH must mean "leave the current value
+ * unchanged", never silently reset to a hardcoded default that could paper over a manager's real
+ * prior choice. The real, honest OFF-by-default guarantee lives at the DB column level
+ * (`047_creative_packages_auto_loop.sql`'s `DEFAULT false`) and at `SchedulerService
+ * .runNeedCreativeCheck`'s own `?? false` fallback for a tenant with no current-period objective row
+ * at all — never here.
+ */
+export const UpdateAutoLoopSettingsBodySchema = z.object({
+  maxAutoBriefsPerDay: z.number().int().positive().optional(),
+  autoApproveCreativeBrief: z.boolean().optional(),
+});
+export type UpdateAutoLoopSettingsBodyDto = z.infer<typeof UpdateAutoLoopSettingsBodySchema>;
+
 /** `GET /api/v1/property-objective/budget-suggestion` query — Finding 4's real budget calculator. */
 export const BudgetSuggestionQuerySchema = z.object({
   targetHotLeads: z.coerce.number().positive(),
@@ -112,6 +131,14 @@ export interface PropertyObjectiveResponseDto {
   readonly breakevenCpl?: number;
   readonly businessContextUpdatedBy?: string;
   readonly businessContextUpdatedAt?: string;
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8a — real, per-tenant NEED_CREATIVE auto-brief guardrail settings
+   * (`047_creative_packages_auto_loop.sql`). Always present (both columns are `NOT NULL DEFAULT`,
+   * never nullable) — unlike the business-context numbers above, these are never "not filled in
+   * yet", they always carry a real, safe value.
+   */
+  readonly maxAutoBriefsPerDay: number;
+  readonly autoApproveCreativeBrief: boolean;
 }
 
 /** Raw `property_objectives` row shape (snake_case) — COLUMN-FOR-COLUMN with `supabase/migrations/032_property_objectives.sql` + `043_property_objectives_business_context.sql`. */
@@ -134,6 +161,8 @@ export interface PropertyObjectiveRow {
   readonly breakeven_cpl: number | null;
   readonly updated_by: string | null;
   readonly updated_at: string | null;
+  readonly max_auto_briefs_per_day: number;
+  readonly auto_approve_creative_brief: boolean;
 }
 
 export function toPropertyObjectiveResponseDto(
@@ -157,6 +186,8 @@ export function toPropertyObjectiveResponseDto(
     ...(row.breakeven_cpl !== null ? { breakevenCpl: row.breakeven_cpl } : {}),
     ...(row.updated_by !== null ? { businessContextUpdatedBy: row.updated_by } : {}),
     ...(row.updated_at !== null ? { businessContextUpdatedAt: row.updated_at } : {}),
+    maxAutoBriefsPerDay: row.max_auto_briefs_per_day,
+    autoApproveCreativeBrief: row.auto_approve_creative_brief,
   };
 }
 
