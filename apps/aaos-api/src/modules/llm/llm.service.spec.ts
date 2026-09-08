@@ -21,6 +21,7 @@ import { PromptOverrideService } from "../prompt-override/prompt-override.servic
 import { ResponseCache } from "./cache/ResponseCache.js";
 import type { AnalyzeRequestDto } from "./dto/analyze.dto.js";
 import type { AssetInsightRequestDto } from "./dto/asset-insight.dto.js";
+import type { CampaignInsightRequestDto } from "./dto/campaign-insight.dto.js";
 import type { CampaignStrategyRequestDto } from "./dto/campaign-strategy.dto.js";
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
 import type { DailyInsightRequestDto } from "./dto/daily-insight.dto.js";
@@ -1383,6 +1384,89 @@ describe("LlmService", () => {
       const first = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
       mswServer.resetHandlers(); // no handler registered — a second real call would fail
       const second = await service.generateDailyInsight(TENANT_ID, validDailyInsightBody);
+      expect(second).toEqual(first);
+    });
+  });
+
+  describe("campaignInsight", () => {
+    const validCampaignInsightBody: CampaignInsightRequestDto = {
+      campaignId: "camp-1",
+      campaignName: "Xpander Bintaro",
+      verdict: "SCALE",
+      spend: 2_500_000,
+      totalLead: 12,
+      clicks: 340,
+      impressions: 15_000,
+      maxFrequency: 2.1,
+      adCount: 4,
+      adSetCount: 2,
+      cpl: 208_333,
+      benchmarkCplIDR: 250_000,
+    };
+
+    const validCampaignInsightLlmJson = JSON.stringify({
+      narrative: "Campaign ini SCALE-worthy, CPL Rp208rb masih di bawah benchmark Rp250rb.",
+      actions: [
+        { priority: "SEGERA", text: "Naikkan budget 20% mumpung CPL efisien." },
+        { priority: "MINGGU_INI", text: "Pantau frequency, masih aman di 2.1." },
+      ],
+    });
+
+    it("returns available:true with a real, Zod-validated narrative + actions from a mocked OpenAI response", async () => {
+      registerOpenAiChatHandler(validCampaignInsightLlmJson);
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validCampaignInsightLlmJson) });
+    });
+
+    it("returns NO_API_KEY (no fabricated narrative) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns PROVIDER_ERROR (no fabricated narrative) when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE (no fabricated narrative) when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validCampaignInsightLlmJson);
+      const service = buildService();
+      const first = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
       expect(second).toEqual(first);
     });
   });

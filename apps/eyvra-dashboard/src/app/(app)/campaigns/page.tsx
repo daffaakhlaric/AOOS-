@@ -1,26 +1,24 @@
 import { CampaignsHubClient } from "@/components/campaigns/CampaignsHubClient";
 
 /**
- * EYVRA MENU RESTRUCTURE Sprint 2 (PROMPT 3) — real "Campaign" hub: consolidates every Samantha
- * (Meta Ads) feature into one tabbed page. Each tab renders the REAL, already-existing Client
- * component untouched since Sprint 1's redirect stubs (`MetaAdsClient`/`StrategiClient`/
- * `AnalisaClient`/`AbTestingClient`/`AuditClient`/`LookalikeClient`/`ObjectiveClient`) — nothing
- * rebuilt from scratch. `?tab=` matches Sprint 1's own real redirect targets exactly (confirmed
- * against `tests/app/redirects.test.tsx`: `verdict`, `ab`, `anggaran`; the plain `/campaigns` with
- * no query — from `/meta-ads` and `/meta-ads/lookalike` — lands on the default "aktif" tab).
+ * AAOS-CAMPAIGNS-UNIFIED-PAGE — the real `/campaigns` page, REBUILT from `02c475f`'s tabbed
+ * structure (Metrics/Aktif/Verdict/A-B Testing/Anggaran/Objective) into one tab-less, vertical-
+ * scroll page per the user's own spec. See `CampaignsHubClient.tsx`'s own extensive doc for the
+ * full real layout/data-source/honest-degrade rationale.
  *
- * `tab=objective` is a Sprint 2 ADDITION beyond Sprint 1's own redirect map: the user's PROMPT 3
- * spec explicitly asks for an "Objective" tab inside this hub (target stepper, strategy preview),
- * and the real `ObjectiveClient` is the exact real component for that feature — even though Sprint
- * 1's OWN separate `/objective` redirect stub points at `/settings?tab=objective` instead (a real,
- * deliberate, differently-scoped decision documented in that stub's own comment: full Settings
- * hub rebuild is Prompt 8, a later sprint). Both real entry points now honestly reach the same real
- * `ObjectiveClient` until Prompt 8 lands and this hub's tab can be retired in favor of Settings'.
+ * `?view=ab-testing` is the one remaining query param this route reads — a real, deliberate
+ * escape hatch to the retired "A/B Testing" tab's still-real `AbTestingClient` (see
+ * `CampaignsHubClient.tsx`'s own "A/B TESTING TAB DECISION" doc for why it stays reachable rather
+ * than silently dropped). Every other `?tab=` value the pre-rebuild route used to accept
+ * (`verdict`/`ab`/`anggaran`/`objective`/`metrics`) no longer has a distinct destination — the
+ * unified page shows everything on one scroll, so those old links now simply land on the bare
+ * unified page (a real, honest behavior change, not a broken link — the content they used to point
+ * at is still on this same page, just not behind a tab anymore).
  */
 export default function CampaignsPage({
   searchParams,
 }: {
-  readonly searchParams: { readonly tab?: string };
+  readonly searchParams: { readonly view?: string };
 }): React.ReactElement {
-  return <CampaignsHubClient initialTab={searchParams.tab} />;
+  return <CampaignsHubClient initialView={searchParams.view} />;
 }

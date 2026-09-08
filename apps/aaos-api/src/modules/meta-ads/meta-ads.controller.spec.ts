@@ -2,6 +2,8 @@ import "reflect-metadata";
 
 import { describe, expect, it, vi } from "vitest";
 
+import type { CampaignInsightResponseDto } from "../llm/dto/campaign-insight.dto.js";
+
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
@@ -26,6 +28,14 @@ function buildFakeService(): MetaAdsService {
       async () => [{ id: "act_1", name: "DSS Motor" }] as readonly AdAccountOptionDto[],
     ),
     getAssetDetail: vi.fn(async () => ({ assetId: "hash-A" }) as unknown as AssetDetailResponseDto),
+    getCampaignInsight: vi.fn(
+      async () =>
+        ({
+          available: true,
+          narrative: "Campaign ini SCALE-worthy.",
+          actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
+        }) as unknown as CampaignInsightResponseDto,
+    ),
   } as unknown as MetaAdsService;
 }
 
@@ -84,6 +94,32 @@ describe("MetaAdsController", () => {
       "tenant-a",
     );
     expect(result).toEqual({ assetId: "hash-A" });
+  });
+
+  it("POST /api/v1/campaigns/insight delegates to MetaAdsService.getCampaignInsight with the body + real per-request tenant id", async () => {
+    const service = buildFakeService();
+    const controller = new MetaAdsController(service);
+    const body = {
+      campaignId: "camp-1",
+      campaignName: "Xpander Bintaro",
+      verdict: "SCALE",
+      spend: 2_500_000,
+      totalLead: 12,
+      clicks: 340,
+      impressions: 15_000,
+      maxFrequency: 2.1,
+      adCount: 4,
+      adSetCount: 2,
+      cpl: 208_333,
+      benchmarkCplIDR: 250_000,
+    } as const;
+    const result = await controller.getCampaignInsight(body, "tenant-a");
+    expect(service.getCampaignInsight).toHaveBeenCalledWith("tenant-a", body);
+    expect(result).toEqual({
+      available: true,
+      narrative: "Campaign ini SCALE-worthy.",
+      actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
+    });
   });
 
   it("guards the whole controller with ApiKeyGuard", () => {

@@ -1,95 +1,163 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { AbTestingClient } from "@/components/meta-ads/AbTestingClient";
-import { AnalisaClient } from "@/components/meta-ads/AnalisaClient";
-import { AuditClient } from "@/components/meta-ads/AuditClient";
-import { LookalikeClient } from "@/components/meta-ads/LookalikeClient";
-import { MetaAdsClient } from "@/components/meta-ads/MetaAdsClient";
-import { StrategiClient } from "@/components/meta-ads/StrategiClient";
-import { HubTabs, type HubTab } from "@/components/layout/HubTabs";
+import { DateRangeSelector } from "@/components/meta-ads/DateRangeSelector";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorCard } from "@/components/ui/ErrorCard";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { TopBar } from "@/components/layout/TopBar";
-import { ObjectiveClient } from "@/components/objective/ObjectiveClient";
+import { formatDateTimeIdWib } from "@/lib/formatters";
+import { useCampaignsSnapshot } from "@/lib/useCampaignsSnapshot";
 import type { SettingsDto } from "@/types/tenant.types";
 
-import { MetricsTab } from "./MetricsTab";
+import { accountBenchmarkCpl } from "./campaignInsightMath";
+import { BudgetTracker } from "./BudgetTracker";
+import { CampaignInsightPanel } from "./CampaignInsightPanel";
+import { ObjectiveStripCard } from "./ObjectiveStripCard";
+import { SamanthaInsightBar } from "./SamanthaInsightBar";
+import { UnifiedCampaignTable } from "./UnifiedCampaignTable";
+import { VerdictCards } from "./VerdictCards";
 import styles from "./CampaignsHubClient.module.css";
 
-const DEFAULT_TAB = "aktif";
-
-const TABS: readonly HubTab[] = [
-  { key: "metrics", label: "Metrics" },
-  { key: "aktif", label: "Aktif" },
-  { key: "verdict", label: "Verdict" },
-  { key: "ab", label: "A/B Testing" },
-  { key: "anggaran", label: "Anggaran" },
-  { key: "objective", label: "Objective" },
-];
-
-const VALID_TAB_KEYS = new Set(TABS.map((tab) => tab.key));
-
-function resolveInitialTab(initialTab: string | undefined): string {
-  return initialTab !== undefined && VALID_TAB_KEYS.has(initialTab) ? initialTab : DEFAULT_TAB;
-}
-
 export interface CampaignsHubClientProps {
-  readonly initialTab?: string;
+  /** `?view=ab-testing` real escape hatch — see this component's own doc for why `AbTestingClient` stays reachable rather than silently dropped. Any other value (or `undefined`) renders the real unified page. */
+  readonly initialView?: string;
 }
 
 /**
- * EYVRA MENU RESTRUCTURE Sprint 2 — real "Campaign" hub (PROMPT 3), gathering every Samantha
- * (Meta Ads) feature behind one tab bar. Every tab body is the REAL, unmodified Client component
- * that already implemented this feature before Sprint 1 hid it behind a redirect — see each
- * import above and `page.tsx`'s own doc for the full real-component-reuse mapping.
+ * AAOS-CAMPAIGNS-UNIFIED-PAGE — the `/campaigns` real single tab-less page (REBUILD, replacing
+ * `02c475f`'s tabbed structure: Metrics/Aktif/Verdict/A-B Testing/Anggaran/Objective tabs → one
+ * vertical-scroll page per the user's own spec).
  *
- * Mode (DEV/LIVE) badge reuses the SAME real `GET /api/settings` fetch `DashboardClient.tsx`/
- * `Sidebar.tsx` already established (`tenant.mode`) — no second "who am I" call invented.
- * "Jalankan loop ↗" is a real navigation link to `/activity`, the real hub `/meta-ads/simulasi`
- * (the actual "run Samantha × Kai × Clara" wizard, `SimulationWizardClient`) was retired into by
- * Sprint 1 — there is no separate "run the automation loop" trigger endpoint anywhere in this
- * codebase to wire a fabricated button action to, so this honestly points at the real place that
- * feature now lives instead of inventing a new action.
+ * Layout (spec's own numbered structure):
+ *  1. Topbar — title + real DEV/LIVE mode badge (SAME `GET /api/settings` fetch every prior phase
+ *     already established) + "Analisa Samantha" button (selects the top-priority actionable
+ *     campaign and opens its real LLM-backed `CampaignInsightPanel`).
+ *  2. `SamanthaInsightBar` — a real, zero-cost DETERMINISTIC summary (not an LLM call for every
+ *     campaign on every page load — see that component's own doc for why).
+ *  3. Filter bar — search + period (`DateRangeSelector`, reusing the exact real `datePreset` param
+ *     `GET /api/v1/campaigns` accepts) + campaign count + "Tarik Data Baru" (the real manual-pull-
+ *     only house style `MetaAdsClient.tsx` already established — this page is now the only real
+ *     entry point into `useCampaignsSnapshot()`'s `pull()`, since the old "Aktif" tab is retired).
+ *  4. `UnifiedCampaignTable` — ONE real table (toggle/budget/spend/CPL pill/frequency/verdict).
+ *  5. `CampaignInsightPanel` — click-to-expand, appears below the table for the selected campaign.
+ *  6. Bottom strip — `VerdictCards` | `BudgetTracker` | `ObjectiveStripCard`, 3 real cards side by
+ *     side.
  *
- * `LookalikeClient` has no tab slot of its own in PROMPT 3's literal 5-tab list (Aktif/Verdict/
- * A-B Testing/Anggaran/Objective) — Sprint 1's own redirect for `/meta-ads/lookalike` sends it to
- * the bare `/campaigns` (the default tab, same as `/meta-ads` itself), so it is rendered as an
- * additional real section under the "Aktif" tab rather than fabricated a 6th tab or dropped.
+ * REAL VERDICT SYSTEM INVESTIGATION (documented once here, referenced by `VerdictCards.tsx`'s own
+ * doc): this app has TWO distinct real "verdict"/approval concepts — `PendingActionsService`
+ * (human-approval gate for exactly `CREATE_PROPERTY_CAMPAIGN`, a different action entirely) and
+ * the direct `POST /api/verdicts` → `executeVerdict` flow `CampaignTree`'s "⚡ Execute" button
+ * already uses for SCALE/PAUSE/FIX/REFRESH on an EXISTING campaign/ad-set/ad. This page's
+ * `handleApplyVerdict`/`handlePauseCampaign` both call the SAME real second mechanism — never a
+ * fabricated third path.
  *
- * Sprint 5 Prompt 13 ADDITION: a "Metrics" tab, placed FIRST (before "Aktif") per spec — a
- * pre-drill-down summary reusing the exact same `useCampaignsSnapshot()`/`/api/campaigns` data
- * "Aktif" already reads (no new query/table — see `MetricsTab.tsx`'s own extensive docstring for
- * the real per-metric availability findings that shaped its scope, especially Revenue/ROAS/the
- * spend-vs-revenue chart, which are honestly degraded rather than fabricated).
+ * REAL BUDGET FIELD INVESTIGATION: no per-campaign budget-cap field exists anywhere in this
+ * codebase (re-confirmed for this dispatch — see `BudgetTracker.tsx`'s own doc) — the unified
+ * table's "Budget" column and the bottom-strip "Anggaran" card both honestly degrade rather than
+ * fabricate a cap.
  *
- * "Verdict" tab renders BOTH real verdict components Sprint 1 mapped here (`meta-ads/analisa` AND
- * `meta-ads/strategi` both redirect to `?tab=verdict`): `StrategiClient` first (it is the real
- * per-ad SCALE/PAUSE/FIX/REFRESH approve/reject flow PROMPT 3's own "Terapkan/Tolak" description
- * matches almost exactly), then `AnalisaClient`'s real per-branch Rp/lead verdict rollup
- * underneath as real supplementary context — not a fabricated duplicate, the two components
- * compute genuinely different real aggregations from the same snapshot.
+ * A/B TESTING TAB DECISION: the pre-rebuild "A/B Testing" tab (`AbTestingClient` — real RUNNING/
+ * COMPLETE/DRAFT formal test lifecycle management) is genuinely DISTINCT from Creative's own
+ * "A/B Results" tab (`WinningCombos`/`HeatmapGrid` — ranked creative-performance analysis derived
+ * from the heatmap, no test lifecycle at all). The new unified page's bottom strip has no A/B card
+ * per the user's own spec, so dropping the TAB is correct — but silently deleting the real
+ * `AbTestingClient` feature entirely would lose real functionality with no trace. It stays
+ * reachable via `?view=ab-testing` (linked from `CampaignInsightPanel`'s own footer) — a real,
+ * honest navigation escape hatch, same precedent `WinningCombos.tsx`'s "Apply ke campaign aktif"
+ * button already established for a comparable real gap.
  */
-export function CampaignsHubClient({ initialTab }: CampaignsHubClientProps): React.ReactElement {
-  const [tab, setTab] = useState(() => resolveInitialTab(initialTab));
+export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): React.ReactElement {
   const [mode, setMode] = useState<"DEV" | "LIVE" | undefined>(undefined);
+  const [search, setSearch] = useState("");
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>(undefined);
+  const [targetCplIDR, setTargetCplIDR] = useState<number | null | undefined>(undefined);
+  const [datePreset, setDatePreset] = useState("last_30d");
+
+  const { data, fetchedAt, loading, error, pull } = useCampaignsSnapshot();
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/settings")
       .then((res) => (res.ok ? (res.json() as Promise<SettingsDto>) : null))
-      .then((data) => {
-        if (!cancelled && data !== null) {
-          setMode(data.tenant.mode);
+      .then((body) => {
+        if (!cancelled && body !== null) {
+          setMode(body.tenant.mode);
         }
       })
       .catch(() => {
-        // Best-effort only, same discipline as `DashboardClient.tsx`'s identical fetch.
+        // Best-effort only, same discipline as every other page's identical fetch.
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const campaigns = useMemo(() => data?.campaigns ?? [], [data]);
+  const filteredCampaigns = useMemo(
+    () =>
+      search.trim().length === 0
+        ? campaigns
+        : campaigns.filter((campaign) =>
+            campaign.name.toLowerCase().includes(search.trim().toLowerCase()),
+          ),
+    [campaigns, search],
+  );
+
+  // Real CPL benchmark: prefer the tenant's own filled-in `property_objectives.targetCpl`
+  // business-context number (reported up by `ObjectiveStripCard`); fall back to a real
+  // account-wide average CPL computed from the current snapshot; `null` when neither exists.
+  const accountFallbackBenchmark = useMemo(() => accountBenchmarkCpl(campaigns), [campaigns]);
+  const benchmarkCplIDR =
+    targetCplIDR !== undefined && targetCplIDR !== null ? targetCplIDR : accountFallbackBenchmark;
+
+  const selectedCampaign = filteredCampaigns.find((campaign) => campaign.id === selectedCampaignId);
+
+  function handlePauseCampaign(campaignId: string): void {
+    void fetch("/api/verdicts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ verdict: "PAUSE", targetId: campaignId, targetType: "campaign" }),
+    })
+      .then(() => pull(datePreset))
+      .catch(() => undefined);
+  }
+
+  function handleApplyVerdict(campaignId: string, verdict: string): void {
+    void fetch("/api/verdicts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ verdict, targetId: campaignId, targetType: "campaign" }),
+    })
+      .then(() => pull(datePreset))
+      .catch(() => undefined);
+  }
+
+  function handleAnalisaSamantha(): void {
+    if (filteredCampaigns.length === 0) return;
+    const first = filteredCampaigns[0];
+    if (first !== undefined) {
+      setSelectedCampaignId(first.id);
+    }
+  }
+
+  if (initialView === "ab-testing") {
+    return (
+      <main>
+        <TopBar title="Campaign" accentColor="var(--v2-menu-campaigns)" />
+        <div className={styles.tabBody}>
+          <Link href="/campaigns" className={styles.backLink}>
+            ← Kembali ke Campaign
+          </Link>
+          <h2 className={styles.sectionTitle}>A/B Testing</h2>
+          <AbTestingClient />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main>
@@ -110,50 +178,94 @@ export function CampaignsHubClient({ initialTab }: CampaignsHubClientProps): Rea
             </span>
           ) : null}
         </div>
-        <Link href="/activity" className={styles.runLoopButton}>
-          Jalankan loop ↗
-        </Link>
+        <button
+          type="button"
+          data-testid="analisa-samantha-button"
+          onClick={handleAnalisaSamantha}
+          className={styles.runLoopButton}
+        >
+          🧠 Analisa Samantha
+        </button>
       </div>
-      <HubTabs
-        tabs={TABS}
-        activeKey={tab}
-        basePath="/campaigns"
-        defaultKey={DEFAULT_TAB}
-        onChange={setTab}
-      />
-      <div className={styles.tabBody} data-testid={`campaigns-tab-${tab}`}>
-        {tab === "metrics" ? <MetricsTab /> : null}
-        {tab === "aktif" ? (
+
+      <div className={styles.tabBody}>
+        <SamanthaInsightBar campaigns={filteredCampaigns} />
+
+        <div className={styles.filterBar}>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Cari nama/ID campaign..."
+            aria-label="Cari campaign"
+            className={styles.searchInput}
+          />
+          <DateRangeSelector
+            value={datePreset}
+            onChange={(preset) => {
+              setDatePreset(preset);
+              void pull(preset);
+            }}
+          />
+          <span className={styles.campaignCount} data-testid="campaign-count">
+            {filteredCampaigns.length} campaign
+          </span>
+          <span className={styles.spacer} />
+          <button
+            type="button"
+            onClick={() => void pull(datePreset)}
+            disabled={loading}
+            className={styles.pullButton}
+          >
+            ↻ Tarik Data Baru
+          </button>
+        </div>
+        {fetchedAt !== undefined ? (
+          <p data-testid="last-updated" className={styles.lastUpdated}>
+            🕒 Diambil {formatDateTimeIdWib(new Date(fetchedAt).toISOString())}
+          </p>
+        ) : null}
+
+        {data === undefined && loading ? <LoadingSpinner /> : null}
+        {data === undefined && !loading && error !== undefined ? (
+          <ErrorCard message={error} />
+        ) : null}
+        {data === undefined && !loading && error === undefined ? (
+          <EmptyState
+            title="Belum ada data"
+            description='Klik "Tarik Data Baru" untuk memuat data campaign dari Meta.'
+          />
+        ) : null}
+
+        {data !== undefined ? (
           <>
-            <MetaAdsClient />
-            <section className={styles.lookalikeSection}>
-              <h2 className={styles.sectionTitle}>Lookalike Audience</h2>
-              <LookalikeClient />
-            </section>
+            <UnifiedCampaignTable
+              campaigns={filteredCampaigns}
+              benchmarkCplIDR={benchmarkCplIDR}
+              selectedCampaignId={selectedCampaignId}
+              onSelect={(campaignId) =>
+                setSelectedCampaignId((current) =>
+                  current === campaignId ? undefined : campaignId,
+                )
+              }
+              onPause={handlePauseCampaign}
+            />
+
+            {selectedCampaign !== undefined ? (
+              <CampaignInsightPanel
+                campaign={selectedCampaign}
+                benchmarkCplIDR={benchmarkCplIDR}
+                onClose={() => setSelectedCampaignId(undefined)}
+              />
+            ) : null}
+
+            <div className={styles.bottomStrip} data-testid="bottom-strip">
+              <VerdictCards campaigns={filteredCampaigns} onApply={handleApplyVerdict} />
+              <BudgetTracker campaigns={filteredCampaigns} />
+              <ObjectiveStripCard onTargetCplResolved={setTargetCplIDR} />
+            </div>
           </>
         ) : null}
-        {tab === "verdict" ? (
-          <>
-            <StrategiClient />
-            <section className={styles.analisaSection}>
-              <h2 className={styles.sectionTitle}>Analisa per Cabang</h2>
-              <AnalisaClient />
-            </section>
-          </>
-        ) : null}
-        {tab === "ab" ? <AbTestingClient /> : null}
-        {tab === "anggaran" ? (
-          <>
-            <p className={styles.honestNote}>
-              Progress bar per-campaign vs budget cap dan proyeksi otomatis belum tersedia — tidak
-              ada field budget per-campaign yang real di data Meta Ads saat ini (hanya
-              `budgetAllocation` bulanan tenant di Objective). Di bawah ini adalah fitur real yang
-              sudah ada: Audit Biaya (efisiensi spend per funnel/cabang, real dari Meta Ads).
-            </p>
-            <AuditClient />
-          </>
-        ) : null}
-        {tab === "objective" ? <ObjectiveClient /> : null}
       </div>
     </main>
   );

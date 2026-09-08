@@ -69,6 +69,11 @@ function buildFakeLlmService() {
       reason: "NO_API_KEY" as const,
       message: "test",
     })),
+    campaignInsight: vi.fn(async () => ({
+      available: true as const,
+      narrative: "Campaign ini SCALE-worthy.",
+      actions: [{ priority: "SEGERA" as const, text: "Naikkan budget." }],
+    })),
   };
 }
 
@@ -190,6 +195,34 @@ describe("MetaAdsService", () => {
         ),
       ).rejects.toBeInstanceOf(NotFoundError);
       expect(llmService.assetInsight).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getCampaignInsight", () => {
+    it("delegates straight to LlmService.campaignInsight with the real tenant id, no Meta re-pull", async () => {
+      const llmService = buildFakeLlmService();
+      const service = buildService(false, buildFakeActivityLogger(), llmService);
+      const body = {
+        campaignId: "camp-1",
+        campaignName: "Xpander Bintaro",
+        verdict: "SCALE",
+        spend: 2_500_000,
+        totalLead: 12,
+        clicks: 340,
+        impressions: 15_000,
+        maxFrequency: 2.1,
+        adCount: 4,
+        adSetCount: 2,
+        cpl: 208_333,
+        benchmarkCplIDR: 250_000,
+      } as const;
+      const result = await service.getCampaignInsight(DEFAULT_TENANT_ID, body as never);
+      expect(llmService.campaignInsight).toHaveBeenCalledWith(DEFAULT_TENANT_ID, body);
+      expect(result).toEqual({
+        available: true,
+        narrative: "Campaign ini SCALE-worthy.",
+        actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
+      });
     });
   });
 

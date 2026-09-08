@@ -8,8 +8,8 @@ import { describe, expect, it, vi } from "vitest";
  * server-reads-once convention `ClaraInboxPage`'s own `initialLeadId` already established.
  */
 vi.mock("@/components/campaigns/CampaignsHubClient", () => ({
-  CampaignsHubClient: ({ initialTab }: { readonly initialTab?: string }) => (
-    <div data-testid="campaigns-hub-client">{initialTab ?? "undefined"}</div>
+  CampaignsHubClient: ({ initialView }: { readonly initialView?: string }) => (
+    <div data-testid="campaigns-hub-client">{initialView ?? "undefined"}</div>
   ),
 }));
 vi.mock("@/components/leads/LeadsHubClient", () => ({
@@ -43,12 +43,12 @@ import LeadsPage from "@/app/(app)/leads/page";
 import SettingsPage from "@/app/(app)/settings/page";
 
 describe("Sprint 2 real hub pages — searchParams threading", () => {
-  it("/campaigns passes searchParams.tab through to CampaignsHubClient", () => {
-    render(<CampaignsPage searchParams={{ tab: "verdict" }} />);
-    expect(screen.getByTestId("campaigns-hub-client")).toHaveTextContent("verdict");
+  it("/campaigns passes searchParams.view through to CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE's real ?view=ab-testing escape hatch)", () => {
+    render(<CampaignsPage searchParams={{ view: "ab-testing" }} />);
+    expect(screen.getByTestId("campaigns-hub-client")).toHaveTextContent("ab-testing");
   });
 
-  it("/campaigns with no tab passes undefined (defaults inside the client)", () => {
+  it("/campaigns with no view passes undefined (renders the unified page by default)", () => {
     render(<CampaignsPage searchParams={{}} />);
     expect(screen.getByTestId("campaigns-hub-client")).toHaveTextContent("undefined");
   });

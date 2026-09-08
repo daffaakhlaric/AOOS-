@@ -3,6 +3,11 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "
 import { CorrelationId } from "../../common/correlation.js";
 import { TenantId } from "../../common/tenant-context.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
+import {
+  CampaignInsightRequestSchema,
+  type CampaignInsightRequestDto,
+  type CampaignInsightResponseDto,
+} from "../llm/dto/campaign-insight.dto.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
@@ -111,5 +116,20 @@ export class MetaAdsController {
     @TenantId() tenantId: string,
   ): Promise<ExecuteVerdictResponseDto> {
     return this.metaAdsService.executeVerdict(body, correlationId, tenantId);
+  }
+
+  /**
+   * `POST /api/v1/campaigns/insight` — AAOS-CAMPAIGNS-UNIFIED-PAGE, the unified `/campaigns`
+   * page's `CampaignInsightPanel`. See `MetaAdsService.getCampaignInsight`'s own doc for why this
+   * is a dedicated pass-through endpoint (the caller already has the campaign tree loaded and
+   * pre-aggregated, unlike `getAssetDetail`'s in-process `assetInsight` call).
+   */
+  @Post("campaigns/insight")
+  @HttpCode(200)
+  async getCampaignInsight(
+    @Body(new ZodValidationPipe(CampaignInsightRequestSchema)) body: CampaignInsightRequestDto,
+    @TenantId() tenantId: string,
+  ): Promise<CampaignInsightResponseDto> {
+    return this.metaAdsService.getCampaignInsight(tenantId, body);
   }
 }

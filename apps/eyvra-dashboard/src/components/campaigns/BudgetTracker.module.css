@@ -1,0 +1,61 @@
+.section {
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 16px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--v2-text-1, #0f172a);
+  margin: 0 0 10px;
+}
+
+.honestNote {
+  font-size: 11px;
+  color: var(--v2-text-2, #64748b);
+  background: var(--v2-warm-tint, #fffbeb);
+  border: 1px solid var(--v2-warm-light, #fde68a);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 10px;
+}
+
+.total {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v2-text-1, #0f172a);
+  margin: 0 0 10px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--v2-text-1, #0f172a);
+}
+
+.spend {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--v2-text-1, #0f172a);
+}

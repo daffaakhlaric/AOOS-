@@ -94,6 +94,43 @@ export interface AdAccountSummaryDto {
   readonly adCount: number;
 }
 
+/**
+ * AAOS-CAMPAIGNS-UNIFIED-PAGE — `POST /api/campaign-insight` request body (proxies `aaos-api`'s
+ * real `POST /api/v1/campaigns/insight`). Composed CLIENT-SIDE from one selected campaign's
+ * already-loaded real aggregate metrics — see `aaos-api`'s `CampaignInsightRequestSchema` (the
+ * server-side Zod trust boundary this shape mirrors) for the full field-by-field real-source doc.
+ */
+export interface CampaignInsightRequestDto {
+  readonly campaignId: string;
+  readonly campaignName: string;
+  readonly verdict: string;
+  readonly spend: number;
+  readonly totalLead: number;
+  readonly clicks: number;
+  readonly impressions: number | null;
+  readonly maxFrequency: number;
+  readonly adCount: number;
+  readonly adSetCount: number;
+  readonly cpl: number | null;
+  readonly benchmarkCplIDR: number | null;
+}
+
+export type CampaignInsightActionPriority = "SEGERA" | "MINGGU_INI" | "BULAN_INI";
+
+export interface CampaignInsightActionDto {
+  readonly priority: CampaignInsightActionPriority;
+  readonly text: string;
+}
+
+/** Mirrors `aaos-api`'s `CampaignInsightResponseDto` — a discriminated union on `available`, same `LlmUnavailableResponseDto` shape every other real `llm` endpoint in this app can return (never a fabricated narrative when `available: false`). */
+export type CampaignInsightResponseDto =
+  | {
+      readonly available: true;
+      readonly narrative: string;
+      readonly actions: readonly CampaignInsightActionDto[];
+    }
+  | { readonly available: false; readonly reason: string; readonly message: string };
+
 /** `GET /api/v1/meta-ads/accounts` proxy response entry (AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE coordinator note #6) — powers the multi-account pill selector on "Lead & Spend per Cabang × Source". */
 export interface AdAccountOptionDto {
   readonly id: string;

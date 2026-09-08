@@ -22,6 +22,11 @@ import {
   type AssetInsightResponseDto,
 } from "./dto/asset-insight.dto.js";
 import {
+  CampaignInsightLlmPayloadSchema,
+  type CampaignInsightRequestDto,
+  type CampaignInsightResponseDto,
+} from "./dto/campaign-insight.dto.js";
+import {
   CampaignStrategyLlmPayloadSchema,
   type CampaignStrategyRequestDto,
   type CampaignStrategyResponseDto,
@@ -115,6 +120,9 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
   "generate_daily_insight",
   // AAOS Self-Improving, Phase SI-3 — `LlmService.selfAnalyze`'s prompt key.
   "self_analyze_gap",
+  // AAOS-CAMPAIGNS-UNIFIED-PAGE — `LlmService.campaignInsight`'s prompt key (the unified
+  // `/campaigns` page's per-campaign `CampaignInsightPanel` narrative + action list).
+  "campaign_insight",
 ];
 
 /**
@@ -491,6 +499,37 @@ Format response JSON:
     "kai": "satu kalimat ringkasan untuk Kai",
     "clara": "satu kalimat ringkasan untuk Clara"
   }
+}`;
+
+/**
+ * AAOS-CAMPAIGNS-UNIFIED-PAGE — `LlmService.campaignInsight`'s system prompt. Powers the unified
+ * `/campaigns` page's click-to-expand `CampaignInsightPanel`: a real narrative + prioritized
+ * (SEGERA/MINGGU_INI/BULAN_INI) action list for ONE selected campaign, built from that campaign's
+ * own already-loaded real aggregate metrics (`CampaignInsightRequestDto` — see that DTO's own doc
+ * for exactly which real, already-fetched numbers each field mirrors; nothing here is re-pulled
+ * from Meta). Same static-persona-plus-JSON-user-message shape as `DAILY_INSIGHT_SYSTEM_PROMPT`.
+ */
+const CAMPAIGN_INSIGHT_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk tenant AAOS. Kamu menulis analisa singkat untuk SATU campaign Meta Ads yang baru saja diklik oleh pemilik bisnis di dashboard.
+
+Kamu diberi data campaign ini (JSON di pesan user):
+- "campaignName", "verdict" (SCALE/KEEP/REVIEW/PAUSE/FIX/REFRESH — verdict nyata dari VerdictEngine, sudah dihitung, JANGAN dihitung ulang).
+- "spend", "totalLead", "clicks", "impressions" (bisa null jika tidak tersedia), "maxFrequency", "adCount", "adSetCount".
+- "cpl" (cost per lead nyata, spend/totalLead — bisa null jika totalLead 0).
+- "benchmarkCplIDR" (CPL benchmark nyata untuk dibandingkan — bisa null jika belum ada data pembanding).
+
+ATURAN KERAS:
+- HANYA gunakan angka yang benar-benar ada di data JSON di atas. JANGAN mengarang angka, revenue, ROAS, atau metrik lain yang tidak ada di data.
+- Jika sebuah field bernilai null, JANGAN mengarang angka untuk itu — lewati saja di narasimu.
+- Narasi 2-4 kalimat, bahasa Indonesia, casual tapi actionable, merujuk verdict dan angka nyata di atas.
+- Action list: 1-5 item, masing-masing punya "priority" (SEGERA = butuh aksi hari ini/besok, MINGGU_INI, atau BULAN_INI) dan "text" singkat, actionable, merujuk data nyata (mis. frequency tinggi → "Refresh creative, frequency sudah X" bukan saran generik tanpa angka).
+
+Format response JSON:
+{
+  "narrative": "2-4 kalimat analisa campaign ini",
+  "actions": [
+    { "priority": "SEGERA", "text": "aksi konkret 1" },
+    { "priority": "MINGGU_INI", "text": "aksi konkret 2" }
+  ]
 }`;
 
 /**
@@ -1396,6 +1435,56 @@ export class LlmService {
 
     const response: DailyInsightResponseDto = { available: true, ...validated.data };
     this.cache.set("generate-daily-insight", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS-CAMPAIGNS-UNIFIED-PAGE — `POST /api/v1/campaigns/insight`'s real backend
+   * (`MetaAdsService.getCampaignInsight`, a thin pass-through — see that method's own doc for why
+   * this genuinely needs a dedicated endpoint, unlike `assetInsight`'s in-process-only call). Same
+   * cache/gate/call/validate/cache composition as every other method on this service.
+   */
+  async campaignInsight(
+    tenantId: string,
+    body: CampaignInsightRequestDto,
+  ): Promise<CampaignInsightResponseDto> {
+    const cached = this.cache.get("campaign-insight", body) as
+      CampaignInsightResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "campaign_insight",
+      CAMPAIGN_INSIGHT_SYSTEM_PROMPT,
+    );
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : CampaignInsightLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: CampaignInsightResponseDto = { available: true, ...validated.data };
+    this.cache.set("campaign-insight", body, response);
     return response;
   }
 

@@ -4,6 +4,10 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import type {
+  CampaignInsightRequestDto,
+  CampaignInsightResponseDto,
+} from "../llm/dto/campaign-insight.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
@@ -157,6 +161,26 @@ export class MetaAdsService {
     });
 
     return { ...probe, insight };
+  }
+
+  /**
+   * `POST /api/v1/campaigns/insight` — AAOS-CAMPAIGNS-UNIFIED-PAGE, the unified `/campaigns`
+   * page's `CampaignInsightPanel`. UNLIKE `getAssetDetail`'s in-process `assetInsight` call, this
+   * is a dedicated, thin pass-through endpoint: the caller (the dashboard) already has the full
+   * campaign→ad-set→ad tree loaded client-side (`AdAccountSummaryDto` from `GET /api/v1/campaigns`,
+   * the SAME snapshot `MetricsTab.tsx`/`CampaignTable` already render) and has already aggregated
+   * the ONE selected campaign's real metrics itself — re-pulling from Meta here to recompute the
+   * exact same numbers server-side would be a second, redundant live Meta call for data the caller
+   * already has (the same "don't fetch ulang ke Meta" discipline `CampaignDetailDrawer.tsx`
+   * documents). `CampaignInsightRequestSchema`'s Zod validation is the real trust boundary — every
+   * field is bounded/typed, so this never blindly forwards arbitrary caller-supplied numbers to the
+   * LLM without at least shape validation.
+   */
+  async getCampaignInsight(
+    tenantId: string,
+    body: CampaignInsightRequestDto,
+  ): Promise<CampaignInsightResponseDto> {
+    return this.llmService.campaignInsight(tenantId, body);
   }
 
   private async pullAdAccount(

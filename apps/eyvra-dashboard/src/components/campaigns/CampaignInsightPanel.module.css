@@ -1,0 +1,126 @@
+.panel {
+  margin-top: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--v2-text-1, #0f172a);
+  margin: 0;
+}
+
+.closeButton {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--v2-text-2, #64748b);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.closeButton:hover {
+  background: var(--v2-card-flat, #f1f5f9);
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.aiBlock {
+  border-top: 1px solid var(--v2-border, #e2e8f0);
+  padding-top: 16px;
+}
+
+.aiTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--v2-text-1, #0f172a);
+  margin: 0 0 10px;
+}
+
+.narrative {
+  font-size: 13px;
+  color: var(--v2-text-1, #0f172a);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.unavailable {
+  font-size: 13px;
+  color: var(--v2-text-2, #64748b);
+  background: var(--v2-warm-tint, #fffbeb);
+  border: 1px solid var(--v2-warm-light, #fde68a);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0;
+}
+
+.actionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.actionItem {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--v2-text-1, #0f172a);
+}
+
+.priorityBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.prioritySEGERA {
+  background: var(--red-light, #fef2f2);
+  color: var(--red, #dc2626);
+}
+
+.priorityMINGGU_INI {
+  background: var(--amber-light, #fffbeb);
+  color: var(--amber, #d97706);
+}
+
+.priorityBULAN_INI {
+  background: var(--green-light, #f0fdf4);
+  color: var(--green, #16a34a);
+}
+
+.abTestingLink {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--v2-blue, #1e6fd9);
+  text-decoration: none;
+}
+
+.abTestingLink:hover {
+  text-decoration: underline;
+}
