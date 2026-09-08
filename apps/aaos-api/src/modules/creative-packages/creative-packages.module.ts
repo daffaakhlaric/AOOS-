@@ -5,6 +5,7 @@ import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
+import { AuditLogModule } from "../audit-log/audit-log.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
@@ -43,6 +44,11 @@ import { CreativePackageRepository } from "./infrastructure/creative-package.rep
     ActivityLogModule,
     AgentRunsModule,
     AiJudgeModule,
+    // AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4h) — so CreativePackagesService can inject the
+    // exported AuditLogService for its own real `CREATIVE_GENERATED` writer
+    // (`runGenerationPropertyWithQaRetry`, reached only via `triggerAutoLoopGeneration`). No
+    // circular-import risk: `AuditLogModule` only imports `MetaAdsModule` (verified directly).
+    AuditLogModule,
   ],
   controllers: [CreativePackagesController],
   providers: [

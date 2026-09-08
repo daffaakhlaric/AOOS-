@@ -9,6 +9,7 @@ import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
 import { AuditLogModule } from "../audit-log/audit-log.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
+import { CreativePackagesModule } from "../creative-packages/creative-packages.module.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import { IntelligenceModule } from "../intelligence/intelligence.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
@@ -107,6 +108,12 @@ import { SchedulerService } from "./scheduler.service.js";
     // wiring — see `calendar-event.ts`'s doc for why this reuses the existing due-window cron
     // rather than a second, parallel `@Cron`).
     MarketIntelligenceModule,
+    // AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — so SchedulerService can inject the exported
+    // CreativePackagesService for its own real `triggerAutoLoopGeneration` auto-trigger call
+    // (`runNeedCreativeCheck`'s auto-approved-DRAFT branch — see that method's own doc). No
+    // circular-import risk (verified directly — see `CreativePackagesService`'s constructor doc for
+    // this injection).
+    CreativePackagesModule,
   ],
   controllers: [SchedulerController],
   providers: [

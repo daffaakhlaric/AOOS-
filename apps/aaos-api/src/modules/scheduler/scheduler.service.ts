@@ -47,6 +47,7 @@ import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import { AuditLogService } from "../audit-log/audit-log.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
+import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import type { StoredCreativePackage } from "../creative-packages/domain/creative-package.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import { IntelligenceService } from "../intelligence/intelligence.service.js";
@@ -202,6 +203,18 @@ export class SchedulerService {
      * mirrors every other Supabase-backed repository's composition, see `CreativePackagesModule`).
      */
     private readonly creativePackageRepository: CreativePackageRepository,
+    /**
+     * AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — the real, honest auto-trigger this dispatch
+     * adds: `runNeedCreativeCheck`'s auto-approved-DRAFT branch (below) calls
+     * `CreativePackagesService.triggerAutoLoopGeneration` immediately after inserting the row,
+     * rather than waiting for a second cron tick or a separate queue — the row is already
+     * known-fresh in this same request, so this is the most immediate, honest trigger point (see
+     * this dispatch's own coordinator note for the "immediate vs. cron" investigation this
+     * decision is based on). No circular-import risk: `CreativePackagesModule`'s own import graph
+     * (`ListingsModule`/`ModeGuardModule`/`ActivityLogModule`/`AgentRunsModule`/`AiJudgeModule`/
+     * `AuditLogModule`) does not import `SchedulerModule` (verified directly).
+     */
+    private readonly creativePackagesService: CreativePackagesService,
   ) {}
 
   /**
@@ -1241,6 +1254,22 @@ export class SchedulerService {
             actionType: "REVIEW_CREATIVE_BRIEF",
             payload: { listingId: listing.id, creativePackageId: pkg.id },
           });
+        } else {
+          // AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — real auto-trigger, per the user's
+          // explicit full-auto-trigger decision (see this dispatch's own coordinator note): a
+          // `guardrail.status === "DRAFT"` row (LIVE mode + `auto_approve_creative_brief` ON) is
+          // picked up for real Kie AI generation right here, with no further manual click.
+          // Best-effort, same "never let a side-effect take down the whole listing loop" discipline
+          // every other write in this method already follows — `triggerAutoLoopGeneration` itself
+          // returns as soon as the row is `GENERATING` (the real Kie AI pipeline runs detached, same
+          // as every other real generation call in `CreativePackagesService`), so this await is fast.
+          try {
+            await this.creativePackagesService.triggerAutoLoopGeneration(tenantId, pkg.id);
+          } catch (caught) {
+            this.logger.warn(
+              `SchedulerService.runNeedCreativeCheck: triggerAutoLoopGeneration(${pkg.id}) failed to start: ${String(caught)}`,
+            );
+          }
         }
 
         autoBriefsToday += 1;

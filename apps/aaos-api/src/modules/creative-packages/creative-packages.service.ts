@@ -33,9 +33,10 @@ import {
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
+import { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
-import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
+import { ModeGuardService, type TenantMode } from "../mode-guard/mode-guard.service.js";
 
 import { buildCreativeBrief } from "./domain/creative-brief.factory.js";
 import type { CreativeLogJson } from "./domain/creative-log.js";
@@ -45,6 +46,7 @@ import type {
   StoredCopyVariant,
   StoredCreativePackage,
 } from "./domain/creative-package.js";
+import { runQaChecks } from "./domain/creative-qa.js";
 import type {
   CreatePackageBodyDto,
   GetLogsQueryDto,
@@ -75,6 +77,15 @@ const MS_PER_HOUR = 3_600_000;
  * documents for this codebase.
  */
 const MAX_SOURCE_PHOTOS = 2;
+
+/**
+ * AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4e) — the spec's own literal cap: "retry generate max
+ * 2x". 1 initial attempt + 2 retries = 3 total real Kie AI generation attempts before a real,
+ * honest `FAILED` state. Used only by `triggerAutoLoopGeneration`'s QA/retry loop — the pre-existing
+ * manual `generate()`/`generateProperty()` paths are unchanged (no QA, no retry, exactly as before
+ * this dispatch).
+ */
+const MAX_GENERATION_ATTEMPTS = 3;
 
 const propertyFormatDecider = new PropertyFormatDecider();
 const propertyPromptBuilder = new PropertyPromptBuilder();
@@ -159,6 +170,15 @@ export class CreativePackagesService {
      * Injected the same way `agentRunsService` above already is.
      */
     private readonly aiJudgeService: AiJudgeService,
+    /**
+     * AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — real `audit_log` writer for the
+     * `CREATIVE_GENERATED` action_type `045_audit_log.sql` reserved for this real generation-
+     * completion writer. Injected the same way `activityLogger` above already is (a small,
+     * standalone `AuditLogModule` this module now imports) — used only by
+     * `triggerAutoLoopGeneration`'s QA/retry pipeline (`runGenerationPropertyWithQaRetry`), never by
+     * the pre-existing manual `generate()`/`generateProperty()` paths.
+     */
+    private readonly auditLog: AuditLogService,
   ) {}
 
   private get tenantId(): string {
@@ -362,7 +382,11 @@ export class CreativePackagesService {
    * AUTOMOTIVE `CreativeBrief` and does its own unit-keyed photo lookup internally, so it cannot be
    * driven by an already-resolved PROPERTY `sourcePhotoUrls` list.
    */
-  async generateProperty(tenantId: string, id: string): Promise<CreativePackageResponseDto> {
+  async generateProperty(
+    tenantId: string,
+    id: string,
+    options?: { readonly qaAndRetry?: boolean },
+  ): Promise<CreativePackageResponseDto> {
     const pkg = await this.findOrThrowScoped(tenantId, id);
     if (pkg.status === "GENERATING") {
       throw new ValidationError(`Creative package "${id}" is already generating`);
@@ -468,21 +492,85 @@ export class CreativePackagesService {
     const accepted = await this.findOrThrowScoped(tenantId, id);
 
     // Detached on purpose — not awaited, same discipline as `generate()`'s `runGeneration`.
-    void this.runGenerationProperty(
-      id,
-      tenantId,
-      sourcePhotoUrls,
-      decidedFormat,
-      videoPrompt,
-      videoSpec,
-      imagePrompts,
-      imageSpec,
-      copyVariants,
-      Date.now(),
-      kai,
-    );
+    // AAOS LOOP UPGRADE, Sprint 8b — `options.qaAndRetry` is set ONLY by
+    // `triggerAutoLoopGeneration` (the new real auto-trigger for a `source: 'auto_loop'` DRAFT
+    // package). Every pre-existing caller (the manual `POST .../property/:id/generate` endpoint,
+    // `create({ generate: true })`) omits it, so this branch is unreachable for them — zero
+    // behavior change to the real, already-tested manual pipeline.
+    if (options?.qaAndRetry === true) {
+      void this.runGenerationPropertyWithQaRetry(
+        id,
+        tenantId,
+        pkg,
+        sourcePhotoUrls,
+        decidedFormat,
+        videoPrompt,
+        videoSpec,
+        imagePrompts,
+        imageSpec,
+        copyVariants,
+        Date.now(),
+        kai,
+      );
+    } else {
+      void this.runGenerationProperty(
+        id,
+        tenantId,
+        sourcePhotoUrls,
+        decidedFormat,
+        videoPrompt,
+        videoSpec,
+        imagePrompts,
+        imageSpec,
+        copyVariants,
+        Date.now(),
+        kai,
+      );
+    }
 
     return toCreativePackageResponseDto(accepted);
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — the real, honest AUTO-TRIGGER this dispatch
+   * adds. Per the user's explicit, informed decision (see this dispatch's own coordinator note): a
+   * `source: 'auto_loop'` `creative_packages` row that has reached `DRAFT` — either directly from
+   * Sprint 8a's own guardrail chain (LIVE mode + `auto_approve_creative_brief` ON,
+   * `decideCreativeBriefGuardrail` returning `status: "DRAFT"`), or via a human approving a
+   * `PENDING_REVIEW` row (`PendingActionsService.approve`'s `REVIEW_CREATIVE_BRIEF` branch,
+   * `approveReview` moving it `PENDING_REVIEW -> DRAFT`) — is picked up and processed through the
+   * REAL Kie AI generation pipeline WITHOUT a further manual `POST .../generate` click.
+   *
+   * Two real call sites reach this method (both documented in full at their own call site):
+   *   1. `SchedulerService.runNeedCreativeCheck`, immediately after inserting a `DRAFT` row (the
+   *      guardrail's own auto-approved branch) — the most immediate, honest trigger point (no
+   *      separate cron/queue needed; the row is already known-fresh in that same request).
+   *   2. `PendingActionsService.approve`, immediately after `approveReview` (the human-approved
+   *      branch) — same real reasoning: once a human approves, the brief is functionally ready the
+   *      same way an auto-approved DRAFT is, per the spec's own "PENDING atau APPROVED" wording.
+   *
+   * SAFETY GUARDS (never weakened by this method): only ever runs for `source === 'auto_loop'` —
+   * throws for any `manual` row, so a bug in a future caller can never accidentally auto-trigger
+   * real Kie AI spend for a package a human never even asked the scheduler to create. Only ever runs
+   * for `status === 'DRAFT'` — an already-`GENERATING`/terminal row is rejected by
+   * `generateProperty`'s own existing guard.
+   */
+  async triggerAutoLoopGeneration(
+    tenantId: string,
+    id: string,
+  ): Promise<CreativePackageResponseDto> {
+    const pkg = await this.findOrThrowScoped(tenantId, id);
+    if (pkg.source !== "auto_loop") {
+      throw new ValidationError(
+        `Creative package "${id}" has source="${pkg.source}" — triggerAutoLoopGeneration only ever runs for a real, scheduler-inserted "auto_loop" brief, never a manual one.`,
+      );
+    }
+    if (pkg.status !== "DRAFT") {
+      throw new ValidationError(
+        `Creative package "${id}" is ${pkg.status}; only a DRAFT auto_loop package can be auto-triggered for generation.`,
+      );
+    }
+    return this.generateProperty(tenantId, id, { qaAndRetry: true });
   }
 
   /**
@@ -649,6 +737,265 @@ export class CreativePackagesService {
         tenantId,
       );
     }
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4c-h) — the real, QA-gated, retrying sibling of
+   * `runGenerationProperty`, reached ONLY through `triggerAutoLoopGeneration` (a `source: 'auto_loop'`
+   * package). Reuses the exact same real Kie AI call (`kai.orchestratorService.orchestrate`) and the
+   * exact same real GCS persistence (`persistGeneratedMedia`) `runGenerationProperty` already uses —
+   * no second, parallel Kie AI integration.
+   *
+   * Step 4c/4d: one real `orchestrate()` call per attempt (Kie AI's own async polling already lives
+   * inside `CreativeOrchestratorService.orchestrate` — this method awaits its real result, same as
+   * `runGenerationProperty`).
+   * Step 4e: `runQaChecks` (`domain/creative-qa.ts`) inspects the REAL returned buffers — real
+   * non-zero size, real file-signature, and (for the real JPEG images this pipeline produces) real
+   * measured resolution + aspect-ratio vs. the SPECIFIC `imageSpec.aspectRatio` Kai requested (see
+   * that module's own doc for exactly what is, and is NOT, honestly checked). A failed orchestration
+   * OR a failed QA pass both count as one "attempt" — up to `MAX_GENERATION_ATTEMPTS` (3: 1 initial +
+   * 2 retries, the spec's own literal cap) real attempts are made before this method gives up.
+   * Step 4f/4g: QA passing writes the SAME real `repository.complete` (`status: "PENDING"`, ready for
+   * the existing human review queue) `runGenerationProperty` already writes — "Asset Library" in the
+   * spec's own words maps onto this app's real GCS-backed `image_urls`/`video_url` columns (K1/K2's
+   * own real, already-established shape — see `creative-package.ts`'s doc), never a fabricated second
+   * asset store.
+   * Step 4e (failure branch): every attempt exhausted → `recordFailure` (the SAME real
+   * `repository.fail` → `status: "FAILED"` `runGenerationProperty`'s own catch block already uses —
+   * `FAILED` already exists on `CreativePackageStatus`, no migration needed) — explicitly does NOT
+   * proceed to anything resembling Step 5 (no Meta call is ever made anywhere in this class).
+   * Step 4h: a real `audit_log` `CREATIVE_GENERATED` row (success OR failure — `after_state` honestly
+   * reflects which) and a real `agent_activities` row (`CREATIVE_AUTO_GENERATE`) are written exactly
+   * once, describing "Generate creative [angle] untuk brief #[id] (asal: auto_loop)" in real,
+   * structured form (`input`/`output` JSON, not a hardcoded narration string — this app's own
+   * `agent_activities` convention, matching every other real writer in this file).
+   */
+  private async runGenerationPropertyWithQaRetry(
+    id: string,
+    tenantId: string,
+    pkg: StoredCreativePackage,
+    sourcePhotoUrls: readonly string[],
+    decidedFormat: CreativeFormat,
+    videoPrompt: string | undefined,
+    videoSpec: VideoSpec | undefined,
+    imagePrompts: readonly string[],
+    imageSpec: ImageSpec,
+    copyVariants: readonly PropertyCopyVariant[],
+    startedAtMs: number,
+    kai: KaiAgentRuntime,
+  ): Promise<void> {
+    const mode: TenantMode = await this.modeGuard.resolveMode(tenantId).catch((caught: unknown) => {
+      this.logger.warn(
+        `CreativePackagesService.runGenerationPropertyWithQaRetry(${id}): resolveMode failed, tagging DEV: ${String(caught)}`,
+      );
+      return "DEV";
+    });
+    const activityId = await this.activityLogger.start({
+      tenantId,
+      agent: "KAI",
+      actionType: "CREATIVE_AUTO_GENERATE",
+      mode,
+      input: {
+        creativePackageId: id,
+        angle: pkg.angle,
+        source: pkg.source,
+        relatedVerdictId: pkg.relatedVerdictId ?? null,
+        maxAttempts: MAX_GENERATION_ATTEMPTS,
+      },
+    });
+
+    const attemptSummaries: string[] = [];
+    for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
+      let orchestrationResult: Awaited<
+        ReturnType<KaiAgentRuntime["orchestratorService"]["orchestrate"]>
+      >;
+      try {
+        orchestrationResult = await kai.orchestratorService.orchestrate({
+          sourcePhotoUrls,
+          ...(videoPrompt !== undefined ? { videoPrompt } : {}),
+          ...(videoSpec !== undefined ? { videoSpec } : {}),
+          imagePrompts,
+          imageSpec,
+          correlationId: id,
+        });
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : String(caught);
+        attemptSummaries.push(
+          `Percobaan ${String(attempt)}: orchestrate melempar error — ${message}`,
+        );
+        await this.appendLog({
+          packageId: id,
+          fromAgent: "KIE_AI",
+          toAgent: "KAI",
+          eventType: "ERROR",
+          message: `Generate percobaan ${String(attempt)}/${String(MAX_GENERATION_ATTEMPTS)} gagal (exception): ${message}`,
+          error: message,
+        });
+        continue;
+      }
+
+      if (!orchestrationResult.ok) {
+        attemptSummaries.push(`Percobaan ${String(attempt)}: ${orchestrationResult.error.message}`);
+        await this.appendLog({
+          packageId: id,
+          fromAgent: "KIE_AI",
+          toAgent: "KAI",
+          eventType: "ERROR",
+          message: `Generate percobaan ${String(attempt)}/${String(MAX_GENERATION_ATTEMPTS)} gagal: ${orchestrationResult.error.message}`,
+          error: orchestrationResult.error.message,
+        });
+        continue;
+      }
+
+      const generated = orchestrationResult.value;
+      const persisted = await this.persistGeneratedMedia(tenantId, id, generated);
+      if (generated.imageBuffers.length > 0 && persisted.imageUrls.length === 0) {
+        attemptSummaries.push(
+          `Percobaan ${String(attempt)}: Kie AI generate gambar tapi upload ke storage gagal semua.`,
+        );
+        await this.appendLog({
+          packageId: id,
+          fromAgent: "KIE_AI",
+          toAgent: "KAI",
+          eventType: "ERROR",
+          message: `Generate percobaan ${String(attempt)}/${String(MAX_GENERATION_ATTEMPTS)} gagal — upload gambar ke storage gagal semua.`,
+          error: "persist_images_failed",
+        });
+        continue;
+      }
+
+      const qa = runQaChecks({
+        imageBuffers: generated.imageBuffers,
+        ...(generated.videoBuffer !== undefined ? { videoBuffer: generated.videoBuffer } : {}),
+        requestedImageCount: imageSpec.count,
+        imageAspectRatio: imageSpec.aspectRatio,
+        videoRequested: videoSpec !== undefined,
+      });
+      await this.appendLog({
+        packageId: id,
+        fromAgent: "SYSTEM",
+        toAgent: "KAI",
+        eventType: qa.passed ? "COMPLETE" : "ERROR",
+        message: qa.passed
+          ? `QA lolos (percobaan ${String(attempt)}/${String(MAX_GENERATION_ATTEMPTS)}): ${String(qa.checks.length)} pemeriksaan real dijalankan.`
+          : `QA gagal (percobaan ${String(attempt)}/${String(MAX_GENERATION_ATTEMPTS)}): ${qa.reasons.join("; ")}`,
+        metadata: {
+          qaPassed: qa.passed,
+          qaChecks: qa.checks.map((check): CreativeLogJson => ({
+            check: check.check,
+            passed: check.passed,
+            detail: check.detail,
+          })),
+        },
+      });
+
+      if (!qa.passed) {
+        attemptSummaries.push(`Percobaan ${String(attempt)}: QA gagal — ${qa.reasons.join("; ")}`);
+        continue;
+      }
+
+      // QA lolos — Step 4f/4g: real completion, the SAME shape `runGenerationProperty` writes.
+      const aiModel = describeModel(videoSpec?.model, imageSpec.model);
+      const confidenceScore = ConfidenceScore.compute({
+        imageUrlCount: persisted.imageUrls.length,
+        requestedImageCount: imageSpec.count,
+        videoRequested: videoSpec !== undefined,
+        videoDelivered: persisted.videoUrl !== undefined,
+      });
+      const decidedFormatOutcome: CreativePackageFormat =
+        decidedFormat === CreativeFormat.VIDEO_AND_IMAGES && persisted.videoUrl !== undefined
+          ? "VIDEO_AND_IMAGES"
+          : "IMAGES_ONLY";
+      const outcome: CreativeGenerationOutcome = {
+        decidedFormat: decidedFormatOutcome,
+        sourcePhotoUrls,
+        ...(persisted.videoUrl !== undefined ? { videoUrl: persisted.videoUrl } : {}),
+        imageUrls: persisted.imageUrls,
+        copyVariants: copyVariants.map(toStoredCopyVariantFromProperty),
+        aiModel,
+        confidenceScore: confidenceScore.toNumber(),
+        generationMs: Date.now() - startedAtMs,
+      };
+      await this.repository.complete(id, outcome, new Date().toISOString());
+      await this.appendLog({
+        packageId: id,
+        fromAgent: "KIE_AI",
+        toAgent: "KAI",
+        eventType: "COMPLETE",
+        message: `Selesai (percobaan ${String(attempt)}/${String(MAX_GENERATION_ATTEMPTS)}): ${outcome.videoUrl !== undefined ? "1 video, " : ""}${String(outcome.imageUrls.length)} gambar, ${String(outcome.copyVariants.length)} varian copy.`,
+        result: {
+          videoUrl: outcome.videoUrl ?? null,
+          imageUrls: [...outcome.imageUrls],
+          copyVariants: outcome.copyVariants.map((variant) => ({ ...variant })),
+        },
+        metadata: {
+          decidedFormat: outcome.decidedFormat,
+          model: outcome.aiModel ?? null,
+          confidenceScore: outcome.confidenceScore ?? null,
+          durationMs: outcome.generationMs ?? null,
+          sourcePhotoSkippedReason: generated.sourcePhotoSkippedReason ?? null,
+          attempts: attempt,
+        },
+      });
+      await this.recordAgentRun(id, tenantId);
+
+      // Step 4h — real audit_log write, the real `CREATIVE_GENERATED` action_type
+      // `045_audit_log.sql` reserved for exactly this real writer.
+      await this.auditLog.record({
+        tenantId,
+        agent: "KAI",
+        actionType: "CREATIVE_GENERATED",
+        beforeState: { status: "DRAFT", source: pkg.source, angle: pkg.angle },
+        afterState: {
+          creativePackageId: id,
+          status: "PENDING",
+          decidedFormat: outcome.decidedFormat,
+          imageCount: outcome.imageUrls.length,
+          hasVideo: outcome.videoUrl !== undefined,
+          attempts: attempt,
+        },
+        decidedBy: "ai_auto",
+        mode,
+        relatedBriefId: id,
+        ...(pkg.relatedVerdictId !== undefined ? { relatedVerdictId: pkg.relatedVerdictId } : {}),
+        reversible: false,
+      });
+      await this.activityLogger.complete(activityId, {
+        status: "SUCCESS",
+        output: {
+          creativePackageId: id,
+          angle: pkg.angle,
+          attempts: attempt,
+          imageCount: outcome.imageUrls.length,
+          hasVideo: outcome.videoUrl !== undefined,
+          message: `Generate creative ${pkg.angle} untuk brief #${id} (asal: ${pkg.source}).`,
+        },
+      });
+      return;
+    }
+
+    // Step 4e failure branch — every real attempt exhausted. Real, honest FAILED state; explicitly
+    // does NOT proceed to anything resembling Step 5 (no code path here ever calls Meta).
+    const message = `Auto-loop generation gagal setelah ${String(MAX_GENERATION_ATTEMPTS)} percobaan real: ${attemptSummaries.join(" | ")}`;
+    await this.recordFailure(id, message, tenantId);
+    await this.auditLog.record({
+      tenantId,
+      agent: "KAI",
+      actionType: "CREATIVE_GENERATED",
+      beforeState: { status: "DRAFT", source: pkg.source, angle: pkg.angle },
+      afterState: {
+        creativePackageId: id,
+        status: "FAILED",
+        attempts: MAX_GENERATION_ATTEMPTS,
+        attemptSummaries,
+      },
+      decidedBy: "ai_auto",
+      mode,
+      relatedBriefId: id,
+      ...(pkg.relatedVerdictId !== undefined ? { relatedVerdictId: pkg.relatedVerdictId } : {}),
+      reversible: false,
+    });
+    await this.activityLogger.fail(activityId, new Error(message));
   }
 
   /**

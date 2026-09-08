@@ -15,6 +15,7 @@ import type { ActivityLogger } from "../activity-log/activity-logger.service.js"
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
+import type { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
@@ -89,6 +90,12 @@ interface Harness {
   readonly activityLogger: ReturnType<typeof buildFakeActivityLogger>;
   readonly agentRunsService: AgentRunsService;
   readonly aiJudgeService: AiJudgeService;
+  readonly auditLog: ReturnType<typeof buildFakeAuditLog>;
+}
+
+/** AAOS LOOP UPGRADE, Sprint 8b — minimal `AuditLogService` test double for the new `CREATIVE_GENERATED` writer (`runGenerationPropertyWithQaRetry`). */
+function buildFakeAuditLog() {
+  return { record: vi.fn(async () => undefined) };
 }
 
 /** A fake `AiJudgeService` — `judgeRun`'s own real behavior is exercised on its own in `modules/ai-judge/ai-judge.service.spec.ts`; here we only need to verify `CreativePackagesService`'s real WIRING. */
@@ -243,6 +250,7 @@ function buildHarness(
   const activityLogger = buildFakeActivityLogger();
   const agentRunsService = new AgentRunsService(new AgentRunRepository(client));
   const aiJudgeService = options.aiJudgeService ?? buildFakeAiJudgeService();
+  const auditLog = buildFakeAuditLog();
 
   const service = new CreativePackagesService(
     buildTestConfig(),
@@ -256,6 +264,7 @@ function buildHarness(
     activityLogger as unknown as ActivityLogger,
     agentRunsService,
     aiJudgeService,
+    auditLog as unknown as AuditLogService,
   );
   return {
     service,
@@ -269,6 +278,7 @@ function buildHarness(
     activityLogger,
     agentRunsService,
     aiJudgeService,
+    auditLog,
   };
 }
 
@@ -1041,5 +1051,273 @@ describe("CreativePackagesService — AAOS-AI-JUDGE-SELF-IMPROVING Phase J1 (PRO
       .rows("creative_packages")
       .filter((r) => r["id"] === created.id) as Array<Record<string, unknown>>;
     expect(row?.["status"]).toBe("PENDING");
+  });
+});
+
+// =================================================================================================
+// AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — `triggerAutoLoopGeneration` real auto-trigger +
+// QA/retry pipeline.
+// =================================================================================================
+
+/** Builds a real, minimal-but-structurally-valid JPEG buffer with a genuine SOF0 marker — the exact real bytes `runQaChecks`' JPEG parser reads. Mirrors `domain/creative-qa.spec.ts`'s own helper. */
+function buildJpegBuffer(width: number, height: number, totalSize = 6_000): Buffer {
+  const soi = Buffer.from([0xff, 0xd8]);
+  const app0 = Buffer.from([
+    0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01,
+    0x00, 0x00,
+  ]);
+  const sof0 = Buffer.alloc(13);
+  sof0[0] = 0xff;
+  sof0[1] = 0xc0;
+  sof0.writeUInt16BE(11, 2);
+  sof0[4] = 0x08;
+  sof0.writeUInt16BE(height, 5);
+  sof0.writeUInt16BE(width, 7);
+  sof0[9] = 0x01;
+  sof0[10] = 0x01;
+  sof0[11] = 0x11;
+  sof0[12] = 0x00;
+  const eoi = Buffer.from([0xff, 0xd9]);
+  const headerLen = soi.length + app0.length + sof0.length + eoi.length;
+  const padding = Buffer.alloc(Math.max(0, totalSize - headerLen), 0x00);
+  return Buffer.concat([soi, app0, sof0, padding, eoi]);
+}
+
+/** A real 1080x1080 (1:1) JPEG — matches `PropertyFormatDecider.decideImageSpec`'s real default `aspectRatio` (SQUARE) for every non-VIRTUAL_TOUR angle, e.g. the real `READY_HUNI` default `SchedulerService.runNeedCreativeCheck` uses for an auto-loop brief. */
+function buildQaPassingImage(): Buffer {
+  return buildJpegBuffer(1080, 1080);
+}
+
+/** A real, undersized (300x300) JPEG — fails `runQaChecks`' real Meta-minimum-resolution floor. */
+function buildQaFailingImage(): Buffer {
+  return buildJpegBuffer(300, 300);
+}
+
+/** Seeds a real raw `creative_packages` row (snake_case, column-for-column with `CreativePackageRow`) — the exact shape `SchedulerService.runNeedCreativeCheck`'s real `source: 'auto_loop'` insert produces, bypassing the DTO-level `createProperty` (which has no `source` field — only the real scheduler writer does). */
+function seedAutoLoopPackage(
+  client: FakeSupabaseClient,
+  overrides: Record<string, unknown> = {},
+): void {
+  client.seed("creative_packages", {
+    id: "cp-auto-1",
+    tenant_id: TENANT_A,
+    brief_id: "brief-auto-1",
+    ad_id: null,
+    stable_id: null,
+    vertical: "PROPERTY",
+    listing_id: "listing-1",
+    branch: null,
+    unit: null,
+    unit_model: null,
+    title: "[Auto] Refresh kreatif — Rumah Minimalis BSD",
+    angle: PropertyAdAngle.READY_HUNI,
+    target_persona: null,
+    reason: "NEED_CREATIVE terdeteksi oleh Samantha.",
+    requested_format: "IMAGES_ONLY",
+    decided_format: null,
+    primary_message: "Rumah Minimalis BSD",
+    urgency: "MEDIUM",
+    origin: "SAMANTHA",
+    status: "DRAFT",
+    ai_recommended: false,
+    fatigue_status: "NORMAL",
+    source: "auto_loop",
+    related_verdict_id: "listing-1",
+    priority: "MEDIUM",
+    source_photo_urls: [],
+    video_url: null,
+    image_urls: [],
+    copy_variants: [],
+    ai_model: null,
+    confidence_score: null,
+    generation_ms: null,
+    selected_copy_variant_id: null,
+    error_message: null,
+    generated_at: null,
+    reviewed_at: null,
+    created_at: "2026-09-01T00:00:00.000Z",
+    updated_at: "2026-09-01T00:00:00.000Z",
+    ...overrides,
+  });
+}
+
+describe("CreativePackagesService.triggerAutoLoopGeneration (Sprint 8b)", () => {
+  it("throws ValidationError for a manual (non-auto_loop) package — never auto-triggers real Kie AI spend for a row a human didn't ask the scheduler to create", async () => {
+    const harness = buildHarness({
+      listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+    });
+    seedAutoLoopPackage(harness.client, { source: "manual" });
+
+    await expect(harness.service.triggerAutoLoopGeneration(TENANT_A, "cp-auto-1")).rejects.toThrow(
+      ValidationError,
+    );
+    expect(harness.orchestrate).not.toHaveBeenCalled();
+  });
+
+  it("throws ValidationError for a non-DRAFT auto_loop package (e.g. still PENDING_REVIEW)", async () => {
+    const harness = buildHarness({
+      listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+    });
+    seedAutoLoopPackage(harness.client, { status: "PENDING_REVIEW" });
+
+    await expect(harness.service.triggerAutoLoopGeneration(TENANT_A, "cp-auto-1")).rejects.toThrow(
+      ValidationError,
+    );
+    expect(harness.orchestrate).not.toHaveBeenCalled();
+  });
+
+  it("404s for an unknown package", async () => {
+    const harness = buildHarness();
+    await expect(harness.service.triggerAutoLoopGeneration(TENANT_A, "nope")).rejects.toThrow(
+      NotFoundError,
+    );
+  });
+
+  it("QA passes on the first real attempt: completes PENDING, writes a real CREATIVE_GENERATED audit_log row and a real CREATIVE_AUTO_GENERATE activity row", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+      orchestrateResult: {
+        ok: true,
+        value: { imageBuffers: [buildQaPassingImage()], imageSpecs: [], videoDelivered: false },
+      },
+    });
+    seedAutoLoopPackage(harness.client);
+
+    const result = await harness.service.triggerAutoLoopGeneration(TENANT_A, "cp-auto-1");
+    expect(result.status).toBe("GENERATING");
+    await settle();
+
+    expect(harness.orchestrate).toHaveBeenCalledTimes(1);
+    const [row] = harness.client
+      .rows("creative_packages")
+      .filter((r) => r["id"] === "cp-auto-1") as Array<Record<string, unknown>>;
+    expect(row?.["status"]).toBe("PENDING");
+    expect((row?.["image_urls"] as string[]).length).toBe(1);
+
+    expect(harness.auditLog.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_A,
+        agent: "KAI",
+        actionType: "CREATIVE_GENERATED",
+        decidedBy: "ai_auto",
+        relatedBriefId: "cp-auto-1",
+        relatedVerdictId: "listing-1",
+        reversible: false,
+        afterState: expect.objectContaining({ status: "PENDING", attempts: 1 }) as unknown,
+      }),
+    );
+    expect(harness.activityLogger.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_A,
+        agent: "KAI",
+        actionType: "CREATIVE_AUTO_GENERATE",
+      }),
+    );
+    expect(harness.activityLogger.complete).toHaveBeenCalledWith(
+      "activity-1",
+      expect.objectContaining({ status: "SUCCESS" }),
+    );
+  });
+
+  it("QA fails on attempts 1-2 (real undersized image), passes on real attempt 3 — completes PENDING after 2 real retries", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+    });
+    seedAutoLoopPackage(harness.client);
+    harness.orchestrate
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { imageBuffers: [buildQaFailingImage()], imageSpecs: [], videoDelivered: false },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { imageBuffers: [buildQaFailingImage()], imageSpecs: [], videoDelivered: false },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { imageBuffers: [buildQaPassingImage()], imageSpecs: [], videoDelivered: false },
+      });
+
+    await harness.service.triggerAutoLoopGeneration(TENANT_A, "cp-auto-1");
+    await settle();
+
+    expect(harness.orchestrate).toHaveBeenCalledTimes(3);
+    const [row] = harness.client
+      .rows("creative_packages")
+      .filter((r) => r["id"] === "cp-auto-1") as Array<Record<string, unknown>>;
+    expect(row?.["status"]).toBe("PENDING");
+    expect(harness.auditLog.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "CREATIVE_GENERATED",
+        afterState: expect.objectContaining({ status: "PENDING", attempts: 3 }) as unknown,
+      }),
+    );
+  });
+
+  it("QA fails on all 3 real attempts — real, honest FAILED state (never a fabricated success), real CREATIVE_GENERATED audit_log write describing the failure, never proceeds to any Meta call", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+      orchestrateResult: {
+        ok: true,
+        value: { imageBuffers: [buildQaFailingImage()], imageSpecs: [], videoDelivered: false },
+      },
+    });
+    seedAutoLoopPackage(harness.client);
+
+    await harness.service.triggerAutoLoopGeneration(TENANT_A, "cp-auto-1");
+    await settle();
+
+    expect(harness.orchestrate).toHaveBeenCalledTimes(3);
+    const [row] = harness.client
+      .rows("creative_packages")
+      .filter((r) => r["id"] === "cp-auto-1") as Array<Record<string, unknown>>;
+    expect(row?.["status"]).toBe("FAILED");
+    expect(row?.["error_message"]).toEqual(expect.stringContaining("3 percobaan"));
+
+    expect(harness.auditLog.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "CREATIVE_GENERATED",
+        decidedBy: "ai_auto",
+        afterState: expect.objectContaining({ status: "FAILED", attempts: 3 }) as unknown,
+      }),
+    );
+    expect(harness.activityLogger.fail).toHaveBeenCalledWith("activity-1", expect.any(Error));
+  });
+
+  it("a real Kie AI orchestration failure (not just a QA failure) also counts toward the real retry cap", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+      orchestrateResult: err(new GenerationError("Kie AI timeout after 15 minutes")),
+    });
+    seedAutoLoopPackage(harness.client);
+
+    await harness.service.triggerAutoLoopGeneration(TENANT_A, "cp-auto-1");
+    await settle();
+
+    expect(harness.orchestrate).toHaveBeenCalledTimes(3);
+    const [row] = harness.client
+      .rows("creative_packages")
+      .filter((r) => r["id"] === "cp-auto-1") as Array<Record<string, unknown>>;
+    expect(row?.["status"]).toBe("FAILED");
   });
 });

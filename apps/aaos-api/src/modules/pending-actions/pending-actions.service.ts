@@ -6,6 +6,7 @@ import { Injectable, Logger, Optional } from "@nestjs/common";
 import { AuditLogService } from "../audit-log/audit-log.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignBodyDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
@@ -63,6 +64,16 @@ export class PendingActionsService {
      * directly" pattern `SchedulerModule` already establishes for this exact repository.
      */
     private readonly creativePackageRepository: CreativePackageRepository,
+    /**
+     * AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — the real, honest auto-trigger this dispatch
+     * adds for the human-approved path: right after `approveReview` moves a real
+     * `REVIEW_CREATIVE_BRIEF` row's `creative_packages` `PENDING_REVIEW -> DRAFT`, `approve()`
+     * (below) calls `CreativePackagesService.triggerAutoLoopGeneration` on that SAME real package —
+     * per the user's explicit full-auto-trigger decision, a human approving this brief is enough;
+     * no SECOND, separate manual "Kirim ke Kai" click is required. Injected the same way
+     * `campaignsService` above already is.
+     */
+    private readonly creativePackagesService: CreativePackagesService,
     // Same real bug/fix `LearningDecisionService`/`GoLiveService` document on their own
     // constructors: a bare `Function`-typed param with a default still gets a real DI resolution
     // attempt from Nest without `@Optional()`.
@@ -136,6 +147,18 @@ export class PendingActionsService {
         creativePackageId,
         this.now().toISOString(),
       );
+      // AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — real auto-trigger, human-approved path.
+      // Best-effort: a failure to START real generation here must never turn an otherwise-successful
+      // human Approve decision into a failed HTTP request — the package still safely sits at
+      // `DRAFT` and can be retried (a future `run-now`-style retry, or a manual `POST
+      // .../property/:id/generate`, is out of scope for this dispatch but the row is never stuck).
+      try {
+        await this.creativePackagesService.triggerAutoLoopGeneration(tenantId, creativePackageId);
+      } catch (caught) {
+        this.logger.warn(
+          `PendingActionsService.approve(${id}): triggerAutoLoopGeneration(${creativePackageId}) failed to start: ${String(caught)}`,
+        );
+      }
     } else {
       throw new ConflictError(
         `pending_agent_actions "${id}" has an unsupported action_type "${row.action_type}" — cannot approve.`,

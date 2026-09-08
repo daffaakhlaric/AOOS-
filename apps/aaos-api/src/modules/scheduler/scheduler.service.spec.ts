@@ -31,6 +31,7 @@ import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import type { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import type { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import type { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import type { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { ListingListResponseDto } from "../listings/dto/listing.dto.js";
@@ -471,6 +472,17 @@ function buildFakeCreativePackageRepository(
   } as unknown as CreativePackageRepository;
 }
 
+function buildFakeCreativePackagesService(
+  overrides: Partial<CreativePackagesService> = {},
+): CreativePackagesService {
+  return {
+    triggerAutoLoopGeneration: vi.fn(
+      async () => ({}) as Awaited<ReturnType<CreativePackagesService["triggerAutoLoopGeneration"]>>,
+    ),
+    ...overrides,
+  } as unknown as CreativePackagesService;
+}
+
 function buildService(
   options: {
     repository?: CalendarEventRepository;
@@ -498,6 +510,7 @@ function buildService(
     auditLog?: AuditLogService;
     propertyObjectiveService?: PropertyObjectiveService;
     creativePackageRepository?: CreativePackageRepository;
+    creativePackagesService?: CreativePackagesService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -541,6 +554,7 @@ function buildService(
     options.auditLog ?? buildFakeAuditLogService(),
     options.propertyObjectiveService ?? buildFakePropertyObjectiveService(),
     options.creativePackageRepository ?? buildFakeCreativePackageRepository(),
+    options.creativePackagesService ?? buildFakeCreativePackagesService(),
   );
 }
 
@@ -1425,7 +1439,7 @@ describe("SchedulerService.executeEvent", () => {
       expect(pendingActions.enqueue).toHaveBeenCalled();
     });
 
-    it("LIVE mode + auto_approve_creative_brief ON: proceeds without review — DRAFT, no pending action enqueued", async () => {
+    it("LIVE mode + auto_approve_creative_brief ON: proceeds without review — DRAFT, no pending action enqueued, and the REAL auto-trigger fires immediately", async () => {
       const repository = buildFakeRepository();
       const listingsService = buildFakeListingsService([buildListing()]);
       const creativePackageRepository = buildFakeCreativePackageRepository({
@@ -1438,6 +1452,7 @@ describe("SchedulerService.executeEvent", () => {
           autoApproveCreativeBrief: true,
         })),
       });
+      const creativePackagesService = buildFakeCreativePackagesService();
       const service = buildService({
         repository,
         listingsService,
@@ -1447,6 +1462,7 @@ describe("SchedulerService.executeEvent", () => {
         pendingActions,
         propertyObjectiveService,
         modeGuard: buildFakeModeGuardService("LIVE"),
+        creativePackagesService,
       });
 
       await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
@@ -1455,6 +1471,49 @@ describe("SchedulerService.executeEvent", () => {
         expect.objectContaining({ initialStatus: "DRAFT" }),
       );
       expect(pendingActions.enqueue).not.toHaveBeenCalled();
+      // AAOS LOOP UPGRADE, Sprint 8b — the real auto-trigger: an auto-approved DRAFT row is picked
+      // up for real generation right here, with no further manual click.
+      expect(creativePackagesService.triggerAutoLoopGeneration).toHaveBeenCalledWith(
+        "dss-motor",
+        "cp-auto-1",
+      );
+    });
+
+    it("AAOS LOOP UPGRADE Sprint 8b — a triggerAutoLoopGeneration failure to START is swallowed, never aborts the rest of runNeedCreativeCheck", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildNonNormalPackage()]),
+      });
+      const propertyObjectiveService = buildFakePropertyObjectiveService({
+        getAutoLoopSettingsSafe: vi.fn(async () => ({
+          maxAutoBriefsPerDay: 5,
+          autoApproveCreativeBrief: true,
+        })),
+      });
+      const creativePackagesService = buildFakeCreativePackagesService({
+        triggerAutoLoopGeneration: vi.fn(async () => {
+          throw new Error("Kai (creative generation) is not configured on this deployment");
+        }),
+      });
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildMatchedAdAccount(Verdict.SCALE)),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        propertyObjectiveService,
+        modeGuard: buildFakeModeGuardService("LIVE"),
+        creativePackagesService,
+      });
+
+      // Real, honest expectation: the whole event still completes (DONE), never FAILED, because a
+      // best-effort auto-trigger start failure must never abort the rest of the loop.
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(repository.markFailed).not.toHaveBeenCalled();
+      expect(repository.markDone).toHaveBeenCalled();
+      expect(creativePackagesService.triggerAutoLoopGeneration).toHaveBeenCalled();
     });
 
     it("DAILY CAP — no auto-brief is created once autoBriefsToday has reached maxAutoBriefsPerDay", async () => {

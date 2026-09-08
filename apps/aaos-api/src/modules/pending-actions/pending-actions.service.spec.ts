@@ -5,6 +5,7 @@ import { createFakeSupabaseClient } from "../../test-support/fake-supabase-clien
 import type { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import type { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
@@ -111,14 +112,29 @@ function buildFakeModeGuardService(): ModeGuardService {
   return { resolveMode: vi.fn(async () => "DEV") } as unknown as ModeGuardService;
 }
 
+/** AAOS LOOP UPGRADE, Sprint 8b — real fake for the new `triggerAutoLoopGeneration` auto-trigger dependency. Resolves to a minimal stub response by default; real per-test overrides (spy/reject) are passed in directly. */
+function buildFakeCreativePackagesService(
+  impl?: CreativePackagesService["triggerAutoLoopGeneration"],
+): CreativePackagesService {
+  return {
+    triggerAutoLoopGeneration: vi.fn(
+      impl ??
+        (async () =>
+          ({}) as Awaited<ReturnType<CreativePackagesService["triggerAutoLoopGeneration"]>>),
+    ),
+  } as unknown as CreativePackagesService;
+}
+
 function buildService(
   client: ReturnType<typeof createFakeSupabaseClient>,
   campaignsService: CampaignsService = buildFakeCampaignsService(),
   auditLog: AuditLogService = buildFakeAuditLogService(),
+  creativePackagesService: CreativePackagesService = buildFakeCreativePackagesService(),
 ): {
   service: PendingActionsService;
   campaignsService: CampaignsService;
   auditLog: AuditLogService;
+  creativePackagesService: CreativePackagesService;
 } {
   const repository = new PendingActionRepository(client);
   const creativePackageRepository = new CreativePackageRepository(client);
@@ -128,9 +144,10 @@ function buildService(
     auditLog,
     buildFakeModeGuardService(),
     creativePackageRepository,
+    creativePackagesService,
     () => FIXED_NOW,
   );
-  return { service, campaignsService, auditLog };
+  return { service, campaignsService, auditLog, creativePackagesService };
 }
 
 describe("PendingActionsService", () => {
@@ -263,7 +280,13 @@ describe("PendingActionsService", () => {
       });
       seedCreativePackage(client);
       const campaignsService = buildFakeCampaignsService();
-      const { service } = buildService(client, campaignsService);
+      const creativePackagesService = buildFakeCreativePackagesService();
+      const { service } = buildService(
+        client,
+        campaignsService,
+        buildFakeAuditLogService(),
+        creativePackagesService,
+      );
 
       const result = await service.approve(
         "pending-1",
@@ -275,6 +298,39 @@ describe("PendingActionsService", () => {
       expect(result.status).toBe("APPROVED");
       expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
 
+      const creativeRepository = new CreativePackageRepository(client);
+      const pkg = await creativeRepository.findById("dss-motor", "cp-auto-1");
+      expect(pkg?.status).toBe("DRAFT");
+
+      // AAOS LOOP UPGRADE, Sprint 8b — the real auto-trigger: approving a REVIEW_CREATIVE_BRIEF row
+      // immediately calls triggerAutoLoopGeneration for the SAME real package, no second manual
+      // click required (the human-approved path).
+      expect(creativePackagesService.triggerAutoLoopGeneration).toHaveBeenCalledWith(
+        "dss-motor",
+        "cp-auto-1",
+      );
+    });
+
+    it("AAOS LOOP UPGRADE Sprint 8b — REVIEW_CREATIVE_BRIEF approve: a triggerAutoLoopGeneration failure is swallowed, the Approve decision still succeeds", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client, {
+        action_type: "REVIEW_CREATIVE_BRIEF",
+        payload: { listingId: "listing-1", creativePackageId: "cp-auto-1" },
+      });
+      seedCreativePackage(client);
+      const creativePackagesService = buildFakeCreativePackagesService(async () => {
+        throw new Error("Kie AI unavailable");
+      });
+      const { service } = buildService(
+        client,
+        buildFakeCampaignsService(),
+        buildFakeAuditLogService(),
+        creativePackagesService,
+      );
+
+      const result = await service.approve("pending-1", "dss-motor", undefined, undefined);
+
+      expect(result.status).toBe("APPROVED");
       const creativeRepository = new CreativePackageRepository(client);
       const pkg = await creativeRepository.findById("dss-motor", "cp-auto-1");
       expect(pkg?.status).toBe("DRAFT");
