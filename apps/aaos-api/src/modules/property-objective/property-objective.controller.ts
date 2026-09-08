@@ -9,12 +9,14 @@ import {
   BudgetSuggestionQuerySchema,
   CreatePropertyObjectiveBodySchema,
   UpdateAutoLoopSettingsBodySchema,
+  UpdateAutoPublishSettingsBodySchema,
   UpdateBusinessContextBodySchema,
   type BudgetSuggestionQueryDto,
   type BudgetSuggestionResponseDto,
   type CreatePropertyObjectiveBodyDto,
   type PropertyObjectiveResponseDto,
   type UpdateAutoLoopSettingsBodyDto,
+  type UpdateAutoPublishSettingsBodyDto,
   type UpdateBusinessContextBodyDto,
 } from "./dto/property-objective.dto.js";
 import { PropertyObjectiveService } from "./property-objective.service.js";
@@ -84,5 +86,15 @@ export class PropertyObjectiveController {
     body: UpdateAutoLoopSettingsBodyDto,
   ): Promise<PropertyObjectiveResponseDto> {
     return this.service.updateAutoLoopSettings(tenantId, body);
+  }
+
+  /** AAOS LOOP UPGRADE, Sprint 8c — the real campaign-publish guardrail settings write (`auto_publish_campaign` default OFF, `max_budget_increase_pct` default 20). */
+  @Patch("auto-publish-settings")
+  async updateAutoPublishSettings(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(UpdateAutoPublishSettingsBodySchema))
+    body: UpdateAutoPublishSettingsBodyDto,
+  ): Promise<PropertyObjectiveResponseDto> {
+    return this.service.updateAutoPublishSettings(tenantId, body);
   }
 }

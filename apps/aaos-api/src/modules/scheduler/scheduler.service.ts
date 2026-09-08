@@ -72,6 +72,7 @@ import { TenantRepository } from "../superadmin/infrastructure/tenant.repository
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import { isSupportedCalendarEventType } from "./domain/calendar-event.js";
+import { decideCampaignPublishGuardrail } from "./domain/campaign-publish-guardrail.js";
 import {
   HIGH_CPL_MULTIPLIER,
   shouldCreateNewCampaign,
@@ -86,6 +87,7 @@ import type {
   UpdateCalendarEventBodyDto,
 } from "./dto/calendar-event.dto.js";
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
+import { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
 
 /** How far back `checkAndRunDueEvents` looks for a `PENDING` event it might have missed on a prior tick — matches the spec's own 1-minute cron cadence. */
 const DUE_WINDOW_MS = 60_000;
@@ -215,6 +217,14 @@ export class SchedulerService {
      * `AuditLogModule`) does not import `SchedulerModule` (verified directly).
      */
     private readonly creativePackagesService: CreativePackagesService,
+    /**
+     * AAOS LOOP UPGRADE, Sprint 8c (Prompt 19 Steps 5-6) — real `loop_runs` writer
+     * (`runPropertyCampaignTriggerCheck`'s own end-of-cycle summary insert). Injected directly (the
+     * SAME "provide the leaf repository class directly" pattern `creativePackageRepository` above
+     * already establishes) rather than via a small standalone module, since this repository has no
+     * real dependents outside this class.
+     */
+    private readonly loopRunRepository: LoopRunRepository,
   ) {}
 
   /**
@@ -535,10 +545,13 @@ export class SchedulerService {
     // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4 — PROPERTY-only campaign-creation trigger
     // check, gated by ModeGuardService and logged by ActivityLogger. No-ops (checked: 0) for
     // AUTOMOTIVE tenants (see `runPropertyCampaignTriggerCheck`'s own doc).
+    // AAOS LOOP UPGRADE, Sprint 8c — real per-ad verdict count for this cycle's `loop_runs.total_verdicts`
+    // (PAUSE + SCALE, the SAME real classification already computed above for the digest summary).
     const propertyCampaignTriggers = await this.runPropertyCampaignTriggerCheck(
       tenantId,
       correlationId,
       adAccounts,
+      pause + scale,
     );
 
     return {
@@ -605,10 +618,16 @@ export class SchedulerService {
     // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase C point 4 — same PROPERTY-only campaign-creation
     // trigger check as `runSamanthaAnalyze` (see that method's comment / `runPropertyCampaignTriggerCheck`'s
     // own doc for why both handlers run it — the design doc names both as the real wiring point).
+    // AAOS LOOP UPGRADE, Sprint 8c — this handler's own real per-ad decision count for
+    // `loop_runs.total_verdicts`: the number of ads that decided REFRESH this cycle (`refreshNeeded`,
+    // an honest, real count distinct from `runSamanthaAnalyze`'s PAUSE+SCALE count — see
+    // `runPropertyCampaignTriggerCheck`'s own doc for why no single true "verdict count" exists at
+    // this shared call site).
     const propertyCampaignTriggers = await this.runPropertyCampaignTriggerCheck(
       tenantId,
       correlationId,
       adAccounts,
+      refreshedAdNames.length,
     );
 
     return {
@@ -903,7 +922,12 @@ export class SchedulerService {
     tenantId: string,
     correlationId: string,
     adAccounts: readonly AdAccount[],
+    verdictCount: number,
   ): Promise<{ readonly checked: number; readonly triggered: number }> {
+    // AAOS LOOP UPGRADE, Sprint 8c — real Step 6 loop-run boundary: this method is the real,
+    // shared per-cycle entry point both `runSamanthaAnalyze`/`runKaiRefreshCheck` already call once
+    // per tick, so its own start/end is the real, honest "one loop run" the spec's Step 6 describes.
+    const cycleStartedAt = new Date();
     let tenant;
     try {
       tenant = await this.tenants.findByTenantId(tenantId);
@@ -1025,9 +1049,239 @@ export class SchedulerService {
     // AAOS LOOP UPGRADE, Sprint 8a — real NEED_CREATIVE detection + guardrailed auto-brief
     // creation (Prompt 19 Steps 2-3), reusing the SAME `perListing` (matched campaign + real
     // per-ad verdicts) this method already computed above. Best-effort per listing.
-    await this.runNeedCreativeCheck(tenantId, perListing);
+    const needCreativeResult = await this.runNeedCreativeCheck(tenantId, perListing);
+
+    // AAOS LOOP UPGRADE, Sprint 8c — real Step 5: Samantha builds/publishes a campaign from a
+    // freshly Kai/Kie-AI-generated asset, reusing the SAME `perListing` this method already
+    // computed above (`matched.hasActiveCampaign` is the real guardrail input this check needs).
+    // Best-effort per listing, same discipline as every other check in this method.
+    const campaignPublishResult = await this.runCampaignPublishCheck(
+      tenantId,
+      correlationId,
+      perListing,
+      tenant.operating_mode ?? "FULL_CONTROL",
+    );
+
+    // AAOS LOOP UPGRADE, Sprint 8c — real Step 6: one `loop_runs` summary row per real cycle.
+    // Best-effort (mirrors `AuditLogService.record`'s own "a logging failure must never fail the
+    // real action it describes" discipline) — a failure to write this summary row must never abort
+    // (or retroactively fail) a loop cycle whose real work (triggers/briefs/assets/campaigns above)
+    // already completed.
+    const completedAt = new Date();
+    try {
+      await this.loopRunRepository.insert({
+        id: correlationId,
+        tenantId,
+        startedAt: cycleStartedAt.toISOString(),
+        completedAt: completedAt.toISOString(),
+        durationMs: completedAt.getTime() - cycleStartedAt.getTime(),
+        totalVerdicts: verdictCount,
+        totalBriefsAutoGenerated: needCreativeResult.briefsCreated,
+        totalAssetsGenerated: campaignPublishResult.assetsConsidered,
+        // HONEST, DOCUMENTED PARTIAL COUNT: only Step 5's own real campaign-publish attempts
+        // (DEV-simulated or real LIVE) are counted here — the pre-existing HIGH_CPL trigger loop
+        // above (`triggered`) also sometimes results in a real `createPropertyCampaign` call, but
+        // that loop's own `triggered` counter conflates "a trigger decision was recorded" (which
+        // includes the real `APPROVAL`-mode branch, where NO campaign is created yet) with "a
+        // campaign was actually published" — reusing it here would overcount. Correctly splitting
+        // that counter is out of scope for this dispatch; see this method's own coordinator note.
+        totalCampaignsPublished: campaignPublishResult.campaignsPublished,
+      });
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.runPropertyCampaignTriggerCheck: loopRunRepository.insert(${correlationId}) failed: ${String(caught)}`,
+      );
+    }
 
     return { checked: perListing.length, triggered };
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8c (Prompt 19 Step 5) — real, guardrailed trigger: Samantha builds/
+   * publishes a real Meta campaign using a freshly Kai/Kie-AI-generated asset.
+   *
+   * HONEST TRIGGER DEFINITION (documented deviation from the spec's literal wording): the spec says
+   * "ada asset GENERATED" — this app's real `CreativePackageStatus` enum has no `GENERATED` value; a
+   * successfully completed generation lands on `PENDING` ("generated, awaiting review", see
+   * `creative-package.ts`'s own status doc). This method therefore treats a `creative_packages` row
+   * with `source === 'auto_loop'`, `status === 'PENDING'`, a real `relatedVerdictId` matching this
+   * listing, and `campaignPublishStatus === undefined` (not yet considered — see
+   * `048_campaign_auto_publish.sql`'s own doc) as the honest analog of "GENERATED". Only the single
+   * most-recently-created matching package per listing is considered per cycle (avoids building two
+   * campaigns for two assets generated in quick succession for the same listing).
+   *
+   * HONEST, DOCUMENTED SCOPE LIMIT: `decideCampaignPublishGuardrail` always routes a listing with
+   * `matched.hasActiveCampaign === true` to `PENDING_REVIEW` — no real "increase an EXISTING
+   * campaign's budget" Meta API mutation exists anywhere in this codebase (verified directly against
+   * `@aos/meta-ads-connector` — only `CreateCampaign` exists), so this method never guesses at one.
+   * Every real call this method makes is the SAME, already-proven, already-audited
+   * `CampaignsService.createPropertyCampaign` (a brand-new campaign, DEV-safe/LIVE-real exactly like
+   * `recordCampaignTriggerDecision`'s own FULL_CONTROL branch) — never a second, parallel
+   * campaign-mutation code path.
+   *
+   * `operatingMode === 'APPROVAL'` (the tenant-level gate, same real precedent
+   * `recordCampaignTriggerDecision` already establishes) forces `PENDING_REVIEW` regardless of the
+   * guardrail's own decision — a SECOND, independent real reason a human must approve, on top of
+   * `auto_publish_campaign`/`max_budget_increase_pct`.
+   *
+   * Best-effort per listing (same "never let a side-check take down the whole handler" discipline
+   * every other check in this class already establishes): a failure marks the package `SKIPPED` (best
+   * effort itself — a failure to even mark it is logged and moved past) rather than left forever
+   * re-triggerable, so a human reviewing the Creative Hub can still see and act on it manually.
+   */
+  private async runCampaignPublishCheck(
+    tenantId: string,
+    correlationId: string,
+    perListing: readonly {
+      readonly listing: ListingResponseDto;
+      readonly matched: MatchedCampaignSignals;
+    }[],
+    operatingMode: string,
+  ): Promise<{ readonly assetsConsidered: number; readonly campaignsPublished: number }> {
+    let mode: TenantMode;
+    let autoPublishCampaign: boolean;
+    let maxBudgetIncreasePct: number;
+    try {
+      mode = await this.modeGuard.resolveMode(tenantId);
+      ({ autoPublishCampaign, maxBudgetIncreasePct } =
+        await this.propertyObjectiveService.getAutoPublishSettingsSafe(tenantId));
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.runCampaignPublishCheck: resolving mode/guardrail settings for ${tenantId} failed: ${String(caught)}`,
+      );
+      return { assetsConsidered: 0, campaignsPublished: 0 };
+    }
+
+    let packages: readonly StoredCreativePackage[];
+    try {
+      packages = await this.creativePackageRepository.list(tenantId, {
+        status: "PENDING",
+        limit: 200,
+      });
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.runCampaignPublishCheck: list(${tenantId}) failed: ${String(caught)}`,
+      );
+      return { assetsConsidered: 0, campaignsPublished: 0 };
+    }
+
+    let assetsConsidered = 0;
+    let campaignsPublished = 0;
+
+    for (const { listing, matched } of perListing) {
+      const candidates = packages
+        .filter(
+          (pkg) =>
+            pkg.source === "auto_loop" &&
+            pkg.relatedVerdictId === listing.id &&
+            pkg.campaignPublishStatus === undefined,
+        )
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const pkg = candidates[0];
+      if (pkg === undefined) {
+        continue;
+      }
+      assetsConsidered += 1;
+
+      const activityId = await this.activityLogger.start({
+        tenantId,
+        agent: "SAMANTHA",
+        actionType: "CAMPAIGN_PUBLISH_FROM_ASSET",
+        mode,
+        loopId: correlationId,
+        input: {
+          listingId: listing.id,
+          listingTitle: listing.title,
+          creativePackageId: pkg.id,
+          hasActiveCampaign: matched.hasActiveCampaign,
+        },
+      });
+
+      try {
+        const guardrail =
+          operatingMode === "APPROVAL"
+            ? ({
+                allowed: false,
+                status: "PENDING_REVIEW",
+                reason:
+                  "Tenant ini di operating_mode APPROVAL — publish campaign butuh approve manual, terlepas dari toggle auto-publish.",
+              } as const)
+            : decideCampaignPublishGuardrail({
+                mode,
+                autoPublishEnabled: autoPublishCampaign,
+                hasActiveCampaign: matched.hasActiveCampaign,
+                maxBudgetIncreasePct,
+              });
+
+        if (!guardrail.allowed) {
+          const pendingActionId = await this.pendingActions.enqueue({
+            tenantId,
+            agent: "SAMANTHA",
+            actionType: "PUBLISH_CAMPAIGN_FROM_ASSET",
+            payload: { listingId: listing.id, creativePackageId: pkg.id },
+          });
+          await this.creativePackageRepository.markCampaignPublishStatus(pkg.id, "PENDING_REVIEW");
+          await this.activityLogger.escalate(activityId, {
+            output: {
+              status: "PENDING_APPROVAL",
+              pendingActionId,
+              listingId: listing.id,
+              creativePackageId: pkg.id,
+              reason: guardrail.reason,
+            },
+          });
+          continue;
+        }
+
+        const result = await this.campaignsService.createPropertyCampaign(
+          tenantId,
+          { listingId: listing.id },
+          correlationId,
+        );
+        await this.creativePackageRepository.markCampaignPublishStatus(pkg.id, "PUBLISHED");
+        await this.activityLogger.complete(activityId, {
+          status: result.simulated ? "SIMULATED" : "SUCCESS",
+          ...(result.simulated ? { devPreview: result } : { output: result }),
+        });
+
+        // Same real `CAMPAIGN_PUBLISHED` audit_log writer `recordCampaignTriggerDecision` already
+        // uses — reused here, not forked (see this method's own doc).
+        if (!result.simulated && result.campaignId !== undefined) {
+          await this.auditLog.record({
+            tenantId,
+            agent: "SAMANTHA",
+            actionType: "CAMPAIGN_PUBLISHED",
+            beforeState: null,
+            afterState: result,
+            decidedBy: "ai_auto",
+            mode,
+            relatedVerdictId: activityId,
+            relatedBriefId: pkg.id,
+            reversible: true,
+          });
+          campaignsPublished += 1;
+        } else if (result.simulated) {
+          // DEV-mode draft preview — a real, honest "attempted" publish, counted the same way
+          // `recordCampaignTriggerDecision`'s own `SIMULATED` branch is (no real Meta call, no
+          // audit_log row — nothing real happened yet to audit).
+          campaignsPublished += 1;
+        }
+      } catch (caught) {
+        this.logger.warn(
+          `SchedulerService.runCampaignPublishCheck: publish failed for listing ${listing.id}, package ${pkg.id}: ${String(caught)}`,
+        );
+        await this.activityLogger.fail(activityId, caught);
+        try {
+          await this.creativePackageRepository.markCampaignPublishStatus(pkg.id, "SKIPPED");
+        } catch (markCaught) {
+          this.logger.warn(
+            `SchedulerService.runCampaignPublishCheck: markCampaignPublishStatus(${pkg.id}, SKIPPED) failed: ${String(markCaught)}`,
+          );
+        }
+      }
+    }
+
+    return { assetsConsidered, campaignsPublished };
   }
 
   /**
@@ -1131,7 +1385,7 @@ export class SchedulerService {
       readonly listing: ListingResponseDto;
       readonly matched: MatchedCampaignSignals;
     }[],
-  ): Promise<void> {
+  ): Promise<{ readonly briefsCreated: number }> {
     let mode: TenantMode;
     let maxAutoBriefsPerDay: number;
     let autoApproveCreativeBrief: boolean;
@@ -1143,7 +1397,7 @@ export class SchedulerService {
       this.logger.warn(
         `SchedulerService.runNeedCreativeCheck: resolving mode/guardrail settings for ${tenantId} failed: ${String(caught)}`,
       );
-      return;
+      return { briefsCreated: 0 };
     }
 
     let packages: readonly StoredCreativePackage[];
@@ -1153,7 +1407,7 @@ export class SchedulerService {
       this.logger.warn(
         `SchedulerService.runNeedCreativeCheck: list(${tenantId}) failed: ${String(caught)}`,
       );
-      return;
+      return { briefsCreated: 0 };
     }
 
     const startOfTodayUtc = new Date();
@@ -1168,8 +1422,12 @@ export class SchedulerService {
       this.logger.warn(
         `SchedulerService.runNeedCreativeCheck: countAutoLoopSince(${tenantId}) failed: ${String(caught)}`,
       );
-      return;
+      return { briefsCreated: 0 };
     }
+
+    // AAOS LOOP UPGRADE, Sprint 8c — real, honest count of `creative_packages` rows this cycle
+    // actually inserted, for `loop_runs.total_briefs_auto_generated` (Step 6).
+    let briefsCreated = 0;
 
     for (const { listing, matched } of perListing) {
       const matchingPackages = packages.filter((pkg) => pkg.listingId === listing.id);
@@ -1273,12 +1531,15 @@ export class SchedulerService {
         }
 
         autoBriefsToday += 1;
+        briefsCreated += 1;
       } catch (caught) {
         this.logger.warn(
           `SchedulerService.runNeedCreativeCheck: auto-brief create failed for listing ${listing.id}: ${String(caught)}`,
         );
       }
     }
+
+    return { briefsCreated };
   }
 
   /**

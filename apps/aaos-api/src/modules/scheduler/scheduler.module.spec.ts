@@ -23,6 +23,7 @@ import { PropertyObjectiveModule } from "../property-objective/property-objectiv
 import { RecyclingModule } from "../recycling/recycling.module.js";
 
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
+import { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
 import { SchedulerController } from "./scheduler.controller.js";
 import { SchedulerModule } from "./scheduler.module.js";
 import { SchedulerService } from "./scheduler.service.js";
@@ -75,5 +76,14 @@ describe("SchedulerModule", () => {
     expect(provider?.inject).toEqual([SUPABASE_CLIENT]);
     const fakeClient = { from: () => undefined, channel: () => undefined } as never;
     expect(provider?.useFactory?.(fakeClient)).toBeInstanceOf(CalendarEventRepository);
+  });
+
+  it("AAOS LOOP UPGRADE, Sprint 8c — provides LoopRunRepository from the SHARED SUPABASE_CLIENT (not a second connection)", () => {
+    const metadata = Reflect.getMetadata("providers", SchedulerModule) as FactoryProvider[];
+    const provider = metadata.find((p) => p.provide === LoopRunRepository);
+    expect(provider).toBeDefined();
+    expect(provider?.inject).toEqual([SUPABASE_CLIENT]);
+    const fakeClient = { from: () => undefined, channel: () => undefined } as never;
+    expect(provider?.useFactory?.(fakeClient)).toBeInstanceOf(LoopRunRepository);
   });
 });

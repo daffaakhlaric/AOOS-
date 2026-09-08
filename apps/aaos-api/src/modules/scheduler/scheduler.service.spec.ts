@@ -49,6 +49,7 @@ import type { TenantRepository } from "../superadmin/infrastructure/tenant.repos
 
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import type { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
+import type { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
 import { SchedulerService, nextOccurrence, resolveCalendarRange } from "./scheduler.service.js";
 
 function unwrap<T>(result: { ok: boolean; value?: T; error?: unknown }): T {
@@ -432,6 +433,13 @@ function buildFakePropertyObjectiveService(
       maxAutoBriefsPerDay: 5,
       autoApproveCreativeBrief: false,
     })),
+    // AAOS LOOP UPGRADE, Sprint 8c — real safe defaults (false / 20), the SAME `?? false`/`?? 20`
+    // fallback `PropertyObjectiveService.getAutoPublishSettingsSafe`'s own real implementation uses
+    // for a tenant with no current-period objective row.
+    getAutoPublishSettingsSafe: vi.fn(async () => ({
+      autoPublishCampaign: false,
+      maxBudgetIncreasePct: 20,
+    })),
     ...overrides,
   } as unknown as PropertyObjectiveService;
 }
@@ -443,6 +451,8 @@ function buildFakeCreativePackageRepository(
     list: vi.fn(async () => []),
     updateFatigueStatus: vi.fn(async () => undefined),
     countAutoLoopSince: vi.fn(async () => 0),
+    // AAOS LOOP UPGRADE, Sprint 8c — real idempotency-marker write fake for `runCampaignPublishCheck`.
+    markCampaignPublishStatus: vi.fn(async () => undefined),
     create: vi.fn(async () => ({
       id: "cp-auto-1",
       tenantId: "dss-motor",
@@ -483,6 +493,14 @@ function buildFakeCreativePackagesService(
   } as unknown as CreativePackagesService;
 }
 
+function buildFakeLoopRunRepository(overrides: Partial<LoopRunRepository> = {}): LoopRunRepository {
+  return {
+    insert: vi.fn(async () => ({}) as Awaited<ReturnType<LoopRunRepository["insert"]>>),
+    listForTenant: vi.fn(async () => []),
+    ...overrides,
+  } as unknown as LoopRunRepository;
+}
+
 function buildService(
   options: {
     repository?: CalendarEventRepository;
@@ -511,6 +529,7 @@ function buildService(
     propertyObjectiveService?: PropertyObjectiveService;
     creativePackageRepository?: CreativePackageRepository;
     creativePackagesService?: CreativePackagesService;
+    loopRunRepository?: LoopRunRepository;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -555,6 +574,7 @@ function buildService(
     options.propertyObjectiveService ?? buildFakePropertyObjectiveService(),
     options.creativePackageRepository ?? buildFakeCreativePackageRepository(),
     options.creativePackagesService ?? buildFakeCreativePackagesService(),
+    options.loopRunRepository ?? buildFakeLoopRunRepository(),
   );
 }
 
@@ -1578,6 +1598,348 @@ describe("SchedulerService.executeEvent", () => {
       await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
 
       expect(creativePackageRepository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Campaign publish from asset (AAOS LOOP UPGRADE, Sprint 8c — Prompt 19 Steps 5-6)", () => {
+    const propertyTenants = [{ tenant_id: "dss-motor", status: "ACTIVE", vertical: "PROPERTY" }];
+
+    function buildListing(): ListingListResponseDto["listings"][number] {
+      return {
+        id: "listing-1",
+        title: "Rumah Baru Tanpa Campaign",
+        propertyType: "RUMAH",
+        listingStatus: "AKTIF",
+        price: 1_000_000_000,
+        branchId: "BINTARO",
+        highlights: [],
+        photos: [],
+        inKnowledgeBase: false,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      };
+    }
+
+    /** An ad account with NO campaign matching the listing's title — `hasActiveCampaign: false`. */
+    function buildNoCampaignAdAccount(): AdAccount {
+      return {
+        id: "act_1",
+        name: "Acc",
+        businessManagerId: "bm",
+        currency: "IDR",
+        timezone: "Asia/Jakarta",
+        campaigns: [],
+        syncedAt: new Date(),
+      } as unknown as AdAccount;
+    }
+
+    /** A matched ACTIVE campaign (name contains the listing title) — `hasActiveCampaign: true`. */
+    function buildActiveCampaignAdAccount(): AdAccount {
+      const ad = unwrap(new AdBuilder().withVerdict(Verdict.SCALE).build());
+      const adSet = unwrap(new AdSetBuilder().withAds([ad]).build());
+      const campaign = unwrap(
+        new CampaignBuilder()
+          .withName("Rumah Baru Tanpa Campaign - Product")
+          .withAdSets([adSet])
+          .build(),
+      );
+      return {
+        id: campaign.adSets[0]?.adAccountId,
+        name: "Acc",
+        businessManagerId: "bm",
+        currency: "IDR",
+        timezone: "Asia/Jakarta",
+        campaigns: [campaign],
+        syncedAt: new Date(),
+      } as unknown as AdAccount;
+    }
+
+    /** A real, freshly-generated `auto_loop` asset (`status: PENDING`) ready for Step 5 to consider. */
+    function buildGeneratedAutoLoopPackage(
+      overrides: Record<string, unknown> = {},
+    ): Record<string, unknown> {
+      return {
+        id: "cp-generated-1",
+        tenantId: "dss-motor",
+        briefId: "brief-auto-1",
+        vertical: "PROPERTY",
+        listingId: "listing-1",
+        title: "[Auto] Refresh kreatif — Rumah Baru Tanpa Campaign",
+        angle: "READY_HUNI",
+        reason: "NEED_CREATIVE terdeteksi oleh Samantha.",
+        requestedFormat: "IMAGES_ONLY",
+        primaryMessage: "Rumah Baru Tanpa Campaign",
+        urgency: "MEDIUM",
+        origin: "SAMANTHA",
+        status: "PENDING",
+        aiRecommended: false,
+        fatigueStatus: "NORMAL",
+        source: "auto_loop",
+        relatedVerdictId: "listing-1",
+        priority: "MEDIUM",
+        sourcePhotoUrls: [],
+        imageUrls: ["https://cdn.example.com/1.jpg"],
+        copyVariants: [],
+        createdAt: "2026-09-01T00:00:00.000Z",
+        updatedAt: "2026-09-01T00:00:00.000Z",
+        campaignPublishStatus: undefined,
+        ...overrides,
+      };
+    }
+
+    it("SAFETY DEFAULT — LIVE mode + auto_publish_campaign OFF (the real default): lands on PENDING_REVIEW, enqueues a real pending action, NEVER calls createPropertyCampaign unattended", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildGeneratedAutoLoopPackage()]),
+      });
+      const pendingActions = buildFakePendingActionsService();
+      const campaignsService = buildFakeCampaignsService();
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildNoCampaignAdAccount()),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        pendingActions,
+        campaignsService,
+        modeGuard: buildFakeModeGuardService("LIVE"),
+        propertyObjectiveService: buildFakePropertyObjectiveService({
+          getAutoPublishSettingsSafe: vi.fn(async () => ({
+            autoPublishCampaign: false,
+            maxBudgetIncreasePct: 20,
+          })),
+        }),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      // NOTE: `campaignsService.createPropertyCampaign` is NOT asserted "not called" here — this
+      // fixture's listing has no active campaign, which ALSO independently fires the pre-existing
+      // HIGH_CPL/NO_ACTIVE_CAMPAIGN trigger (`recordCampaignTriggerDecision`'s own FULL_CONTROL
+      // branch, unrelated to this test's own Step 5 safety proof). The precise, load-bearing proof
+      // that Step 5's OWN guardrail never published THIS asset's campaign unattended is the 2
+      // assertions below: the asset is marked PENDING_REVIEW (never PUBLISHED) and a real
+      // PUBLISH_CAMPAIGN_FROM_ASSET pending action is enqueued for it.
+      expect(pendingActions.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: "PUBLISH_CAMPAIGN_FROM_ASSET",
+          payload: expect.objectContaining({
+            listingId: "listing-1",
+            creativePackageId: "cp-generated-1",
+          }),
+        }),
+      );
+      expect(creativePackageRepository.markCampaignPublishStatus).toHaveBeenCalledWith(
+        "cp-generated-1",
+        "PENDING_REVIEW",
+      );
+      expect(creativePackageRepository.markCampaignPublishStatus).not.toHaveBeenCalledWith(
+        "cp-generated-1",
+        "PUBLISHED",
+      );
+    });
+
+    it("DEV MODE — real trigger creates a DEV-safe (simulated) campaign draft, marks the asset PUBLISHED, never writes a real CAMPAIGN_PUBLISHED audit row", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildGeneratedAutoLoopPackage()]),
+      });
+      const campaignsService = buildFakeCampaignsService(async () => ({
+        simulated: true,
+        resolvedCities: ["Jakarta Selatan"],
+        note: "DEV mode — real Meta geo-search and campaign creation were not performed.",
+      }));
+      const auditLog = buildFakeAuditLogService();
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildNoCampaignAdAccount()),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        campaignsService,
+        auditLog,
+        modeGuard: buildFakeModeGuardService("DEV"),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(campaignsService.createPropertyCampaign).toHaveBeenCalledWith(
+        "dss-motor",
+        { listingId: "listing-1" },
+        expect.any(String),
+      );
+      expect(creativePackageRepository.markCampaignPublishStatus).toHaveBeenCalledWith(
+        "cp-generated-1",
+        "PUBLISHED",
+      );
+      expect(auditLog.record).not.toHaveBeenCalledWith(
+        expect.objectContaining({ actionType: "CAMPAIGN_PUBLISHED" }),
+      );
+    });
+
+    it("LIVE + auto_publish_campaign ON + no existing campaign — publishes for real and writes a real CAMPAIGN_PUBLISHED audit row (reversible: true)", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildGeneratedAutoLoopPackage()]),
+      });
+      const campaignsService = buildFakeCampaignsService(async () => ({
+        simulated: false,
+        campaignId: "camp-real-1",
+        adSetId: "as-real-1",
+        resolvedCities: ["Jakarta Selatan"],
+        matchedCities: ["Jakarta Selatan"],
+        unresolvedCities: [],
+      }));
+      const auditLog = buildFakeAuditLogService();
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildNoCampaignAdAccount()),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        campaignsService,
+        auditLog,
+        modeGuard: buildFakeModeGuardService("LIVE"),
+        propertyObjectiveService: buildFakePropertyObjectiveService({
+          getAutoPublishSettingsSafe: vi.fn(async () => ({
+            autoPublishCampaign: true,
+            maxBudgetIncreasePct: 20,
+          })),
+        }),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(campaignsService.createPropertyCampaign).toHaveBeenCalled();
+      expect(creativePackageRepository.markCampaignPublishStatus).toHaveBeenCalledWith(
+        "cp-generated-1",
+        "PUBLISHED",
+      );
+      expect(auditLog.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: "CAMPAIGN_PUBLISHED",
+          decidedBy: "ai_auto",
+          mode: "LIVE",
+          reversible: true,
+        }),
+      );
+    });
+
+    it("HAS ACTIVE CAMPAIGN — even LIVE + auto_publish_campaign ON never auto-publishes a budget change for an existing campaign; falls back to PENDING_REVIEW", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildGeneratedAutoLoopPackage()]),
+      });
+      const pendingActions = buildFakePendingActionsService();
+      const campaignsService = buildFakeCampaignsService();
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildActiveCampaignAdAccount()),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        pendingActions,
+        campaignsService,
+        modeGuard: buildFakeModeGuardService("LIVE"),
+        propertyObjectiveService: buildFakePropertyObjectiveService({
+          getAutoPublishSettingsSafe: vi.fn(async () => ({
+            autoPublishCampaign: true,
+            maxBudgetIncreasePct: 20,
+          })),
+        }),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(pendingActions.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: "PUBLISH_CAMPAIGN_FROM_ASSET",
+          payload: expect.objectContaining({ creativePackageId: "cp-generated-1" }),
+        }),
+      );
+      expect(creativePackageRepository.markCampaignPublishStatus).toHaveBeenCalledWith(
+        "cp-generated-1",
+        "PENDING_REVIEW",
+      );
+      expect(creativePackageRepository.markCampaignPublishStatus).not.toHaveBeenCalledWith(
+        "cp-generated-1",
+        "PUBLISHED",
+      );
+    });
+
+    it("already-considered asset (campaignPublishStatus already set) is never re-processed on a later tick", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [
+          buildGeneratedAutoLoopPackage({ campaignPublishStatus: "PUBLISHED" }),
+        ]),
+      });
+      const campaignsService = buildFakeCampaignsService();
+      const pendingActions = buildFakePendingActionsService();
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildNoCampaignAdAccount()),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        campaignsService,
+        pendingActions,
+        modeGuard: buildFakeModeGuardService("LIVE"),
+        propertyObjectiveService: buildFakePropertyObjectiveService({
+          getAutoPublishSettingsSafe: vi.fn(async () => ({
+            autoPublishCampaign: true,
+            maxBudgetIncreasePct: 20,
+          })),
+        }),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      // The already-`PUBLISHED` asset is never re-marked and never re-enqueued for
+      // PUBLISH_CAMPAIGN_FROM_ASSET — Step 5's own idempotency marker excluded it from
+      // `candidates` entirely (this test's real, precise proof; `createPropertyCampaign` is not
+      // asserted "not called" for the same pre-existing-legacy-trigger reason documented in the
+      // SAFETY DEFAULT test above).
+      expect(creativePackageRepository.markCampaignPublishStatus).not.toHaveBeenCalledWith(
+        "cp-generated-1",
+        expect.anything(),
+      );
+      expect(pendingActions.enqueue).not.toHaveBeenCalledWith(
+        expect.objectContaining({ actionType: "PUBLISH_CAMPAIGN_FROM_ASSET" }),
+      );
+    });
+
+    it("Step 6 — inserts a real loop_runs summary row once per cycle", async () => {
+      const repository = buildFakeRepository();
+      const listingsService = buildFakeListingsService([buildListing()]);
+      const creativePackageRepository = buildFakeCreativePackageRepository({
+        list: vi.fn(async () => [buildGeneratedAutoLoopPackage()]),
+      });
+      const loopRunRepository = buildFakeLoopRunRepository();
+      const service = buildService({
+        repository,
+        listingsService,
+        connector: buildFakeConnector(buildNoCampaignAdAccount()),
+        tenants: buildFakeTenantRepository(propertyTenants),
+        creativePackageRepository,
+        loopRunRepository,
+        modeGuard: buildFakeModeGuardService("DEV"),
+      });
+
+      await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+      expect(loopRunRepository.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId: "dss-motor",
+          totalAssetsGenerated: 1,
+          totalCampaignsPublished: 1,
+        }),
+      );
     });
   });
 

@@ -78,6 +78,7 @@ function seedCreativePackage(
     error_message: null,
     generated_at: null,
     reviewed_at: null,
+    campaign_publish_status: null,
     created_at: "2026-09-01T00:00:00.000Z",
     updated_at: "2026-09-01T00:00:00.000Z",
     ...overrides,
@@ -348,6 +349,60 @@ describe("PendingActionsService", () => {
         ConflictError,
       );
     });
+
+    it("AAOS LOOP UPGRADE Sprint 8c — PUBLISH_CAMPAIGN_FROM_ASSET: approving calls the real CampaignsService.createPropertyCampaign, marks the asset PUBLISHED, and writes a real CAMPAIGN_PUBLISHED audit row for a non-simulated result", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client, {
+        action_type: "PUBLISH_CAMPAIGN_FROM_ASSET",
+        payload: { listingId: "listing-1", creativePackageId: "cp-auto-1" },
+      });
+      seedCreativePackage(client, { status: "PENDING" });
+      const campaignsService = buildFakeCampaignsService(async () => ({
+        simulated: false,
+        resolvedCities: ["Jakarta Selatan"],
+        campaignId: "campaign-real-1",
+        adSetId: "adset-real-1",
+      }));
+      const auditLog = buildFakeAuditLogService();
+      const { service } = buildService(client, campaignsService, auditLog);
+
+      const result = await service.approve(
+        "pending-1",
+        "dss-motor",
+        "manager@dss-motor.id",
+        undefined,
+      );
+
+      expect(result.status).toBe("APPROVED");
+      expect(campaignsService.createPropertyCampaign).toHaveBeenCalledWith(
+        "dss-motor",
+        { listingId: "listing-1" },
+        expect.any(String),
+      );
+      const creativeRepository = new CreativePackageRepository(client);
+      const pkg = await creativeRepository.findById("dss-motor", "cp-auto-1");
+      expect(pkg?.campaignPublishStatus).toBe("PUBLISHED");
+      expect(auditLog.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: "CAMPAIGN_PUBLISHED",
+          decidedBy: "user_manual",
+          reversible: true,
+        }),
+      );
+    });
+
+    it("PUBLISH_CAMPAIGN_FROM_ASSET approve — throws ConflictError when the payload has no real creativePackageId", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client, {
+        action_type: "PUBLISH_CAMPAIGN_FROM_ASSET",
+        payload: { listingId: "listing-1" },
+      });
+      const { service } = buildService(client);
+
+      await expect(service.approve("pending-1", "dss-motor", undefined, undefined)).rejects.toThrow(
+        ConflictError,
+      );
+    });
   });
 
   describe("reject", () => {
@@ -409,6 +464,31 @@ describe("PendingActionsService", () => {
       const creativeRepository = new CreativePackageRepository(client);
       const pkg = await creativeRepository.findById("dss-motor", "cp-auto-1");
       expect(pkg?.status).toBe("REJECTED");
+    });
+
+    it("AAOS LOOP UPGRADE Sprint 8c — PUBLISH_CAMPAIGN_FROM_ASSET: rejecting marks the real creative_packages row campaignPublishStatus SKIPPED, never calls CampaignsService", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client, {
+        action_type: "PUBLISH_CAMPAIGN_FROM_ASSET",
+        payload: { listingId: "listing-1", creativePackageId: "cp-auto-1" },
+      });
+      seedCreativePackage(client, { status: "PENDING" });
+      const campaignsService = buildFakeCampaignsService();
+      const { service } = buildService(client, campaignsService);
+
+      const result = await service.reject(
+        "pending-1",
+        "dss-motor",
+        "manager@dss-motor.id",
+        "Belum yakin",
+      );
+
+      expect(result.status).toBe("REJECTED");
+      expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
+
+      const creativeRepository = new CreativePackageRepository(client);
+      const pkg = await creativeRepository.findById("dss-motor", "cp-auto-1");
+      expect(pkg?.campaignPublishStatus).toBe("SKIPPED");
     });
 
     it("AAOS LOOP UPGRADE Prompt 17: writes a real VERDICT_REJECTED audit_log row with a null after_state", async () => {

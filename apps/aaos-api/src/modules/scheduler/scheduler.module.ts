@@ -25,6 +25,7 @@ import { RecyclingModule } from "../recycling/recycling.module.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
+import { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
 import { SchedulerController } from "./scheduler.controller.js";
 import { SchedulerService } from "./scheduler.service.js";
 
@@ -144,6 +145,14 @@ import { SchedulerService } from "./scheduler.service.js";
       provide: CreativePackageRepository,
       useFactory: (client: SupabaseClientLike): CreativePackageRepository =>
         new CreativePackageRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    // AAOS LOOP UPGRADE, Sprint 8c (Prompt 19 Step 6) — same "each module composes its own
+    // instance of a shared repository class over one shared connection" pattern as
+    // `CreativePackageRepository` above.
+    {
+      provide: LoopRunRepository,
+      useFactory: (client: SupabaseClientLike): LoopRunRepository => new LoopRunRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

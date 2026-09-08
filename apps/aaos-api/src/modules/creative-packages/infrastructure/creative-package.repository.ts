@@ -3,6 +3,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import type {
   CreateCreativePackageInput,
   CreativeGenerationOutcome,
+  CreativePackageCampaignPublishStatus,
   CreativePackageFatigueStatus,
   CreativePackageFormat,
   CreativePackageOrigin,
@@ -65,6 +66,8 @@ export interface CreativePackageRow {
   readonly error_message: string | null;
   readonly generated_at: string | null;
   readonly reviewed_at: string | null;
+  /** Additive, `048_campaign_auto_publish.sql`. NULL for every pre-existing row and every row not yet considered by Step 5's real campaign-publish check. */
+  readonly campaign_publish_status: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -113,6 +116,12 @@ function toDomain(row: CreativePackageRow): StoredCreativePackage {
     ...(row.error_message !== null ? { errorMessage: row.error_message } : {}),
     ...(row.generated_at !== null ? { generatedAt: row.generated_at } : {}),
     ...(row.reviewed_at !== null ? { reviewedAt: row.reviewed_at } : {}),
+    ...(row.campaign_publish_status !== null
+      ? {
+          campaignPublishStatus:
+            row.campaign_publish_status as CreativePackageCampaignPublishStatus,
+        }
+      : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -300,6 +309,21 @@ export class CreativePackageRepository {
    */
   async approveReview(id: string, reviewedAt: string): Promise<void> {
     await this.patch(id, "approveReview", { status: "DRAFT", reviewed_at: reviewedAt });
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8c — the real idempotency-marker write for Step 5's campaign-publish
+   * check (`SchedulerService.runCampaignPublishCheck`), called exactly once per real asset once it
+   * has been considered (published, escalated to human review, or best-effort skipped) — see
+   * `048_campaign_auto_publish.sql`'s own doc for why this exists (without it, the same freshly-
+   * generated asset would be re-evaluated, and potentially re-published as a second campaign, on
+   * every subsequent loop tick).
+   */
+  async markCampaignPublishStatus(
+    id: string,
+    status: CreativePackageCampaignPublishStatus,
+  ): Promise<void> {
+    await this.patch(id, "markCampaignPublishStatus", { campaign_publish_status: status });
   }
 
   private async patch(

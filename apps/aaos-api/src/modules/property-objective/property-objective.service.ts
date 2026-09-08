@@ -10,6 +10,7 @@ import {
   type PropertyObjectiveResponseDto,
   type PropertyObjectiveRow,
   type UpdateAutoLoopSettingsBodyDto,
+  type UpdateAutoPublishSettingsBodyDto,
   type UpdateBusinessContextBodyDto,
 } from "./dto/property-objective.dto.js";
 import { PropertyObjectiveRepository } from "./property-objective.repository.js";
@@ -219,6 +220,45 @@ export class PropertyObjectiveService {
     return {
       maxAutoBriefsPerDay: current?.maxAutoBriefsPerDay ?? 5,
       autoApproveCreativeBrief: current?.autoApproveCreativeBrief ?? false,
+    };
+  }
+
+  /**
+   * `PATCH /api/v1/property-objective/auto-publish-settings` (AAOS LOOP UPGRADE, Sprint 8c). Mirrors
+   * `updateAutoLoopSettings`'s exact real "requires a current-period objective row to attach to"
+   * shape and reasoning.
+   */
+  async updateAutoPublishSettings(
+    tenantId: string,
+    body: UpdateAutoPublishSettingsBodyDto,
+  ): Promise<PropertyObjectiveResponseDto> {
+    const current = await this.get(tenantId);
+    const row = await this.repository.updateAutoPublishSettings(current.id, {
+      ...(body.autoPublishCampaign !== undefined
+        ? { autoPublishCampaign: body.autoPublishCampaign }
+        : {}),
+      ...(body.maxBudgetIncreasePct !== undefined
+        ? { maxBudgetIncreasePct: body.maxBudgetIncreasePct }
+        : {}),
+    });
+    return toPropertyObjectiveResponseDto(row);
+  }
+
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8c — the real, resolved campaign-publish guardrail settings
+   * `SchedulerService.runCampaignPublishCheck` reads before every real campaign-publish attempt.
+   * Honestly degrades to the SAME safe defaults the DB column itself carries
+   * (`auto_publish_campaign = false`, `max_budget_increase_pct = 20`) when this tenant has no
+   * current-period objective row at all — mirrors `getAutoLoopSettingsSafe`'s exact reasoning (never
+   * `true` for the safety toggle).
+   */
+  async getAutoPublishSettingsSafe(
+    tenantId: string,
+  ): Promise<{ readonly autoPublishCampaign: boolean; readonly maxBudgetIncreasePct: number }> {
+    const current = await this.getCurrentSafe(tenantId);
+    return {
+      autoPublishCampaign: current?.autoPublishCampaign ?? false,
+      maxBudgetIncreasePct: current?.maxBudgetIncreasePct ?? 20,
     };
   }
 }

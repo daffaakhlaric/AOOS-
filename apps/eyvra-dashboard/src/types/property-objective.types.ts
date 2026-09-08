@@ -36,6 +36,13 @@ export interface PropertyObjectiveDto {
   readonly breakevenCpl?: number;
   readonly businessContextUpdatedBy?: string;
   readonly businessContextUpdatedAt?: string;
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8c — real, per-tenant campaign-publish guardrail settings. Always
+   * present (both real DB columns are `NOT NULL DEFAULT`, never nullable) — `autoPublishCampaign`
+   * defaults to `false` (the real, user-confirmed safety default), `maxBudgetIncreasePct` to `20`.
+   */
+  readonly autoPublishCampaign: boolean;
+  readonly maxBudgetIncreasePct: number;
 }
 
 /** `PATCH /api/property-objective/business-context` body — mirrors `UpdateBusinessContextBodyDto`. */
@@ -43,6 +50,12 @@ export interface UpdateBusinessContextInput {
   readonly avgDealValue?: number;
   readonly targetCpl?: number;
   readonly breakevenCpl?: number;
+}
+
+/** `PATCH /api/property-objective/auto-publish-settings` body — mirrors `UpdateAutoPublishSettingsBodyDto` (AAOS LOOP UPGRADE, Sprint 8c). */
+export interface UpdateAutoPublishSettingsInput {
+  readonly autoPublishCampaign?: boolean;
+  readonly maxBudgetIncreasePct?: number;
 }
 
 /** Real, honest check mirroring `apps/aaos-api`'s `isBusinessContextFilled` exactly — used by the dashboard to decide whether to show the "belum diisi" banner. */

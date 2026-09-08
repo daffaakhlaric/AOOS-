@@ -38,6 +38,8 @@ function seedObjective(
     updated_at: null,
     max_auto_briefs_per_day: 5,
     auto_approve_creative_brief: false,
+    auto_publish_campaign: false,
+    max_budget_increase_pct: 20,
     ...overrides,
   });
 }
@@ -335,6 +337,50 @@ describe("PropertyObjectiveService", () => {
       const result = await service.getAutoLoopSettingsSafe(TENANT_ID);
 
       expect(result).toEqual({ maxAutoBriefsPerDay: 3, autoApproveCreativeBrief: true });
+    });
+  });
+
+  describe("updateAutoPublishSettings / getAutoPublishSettingsSafe (AAOS LOOP UPGRADE, Sprint 8c)", () => {
+    it("persists a real autoPublishCampaign/maxBudgetIncreasePct change", async () => {
+      const client = createFakeSupabaseClient();
+      seedObjective(client);
+      const { service } = buildService(client);
+
+      const result = await service.updateAutoPublishSettings(TENANT_ID, {
+        autoPublishCampaign: true,
+        maxBudgetIncreasePct: 30,
+      });
+
+      expect(result.autoPublishCampaign).toBe(true);
+      expect(result.maxBudgetIncreasePct).toBe(30);
+    });
+
+    it("throws NotFoundError when the tenant has no current-period objective to attach the setting to", async () => {
+      const client = createFakeSupabaseClient();
+      const { service } = buildService(client);
+
+      await expect(
+        service.updateAutoPublishSettings(TENANT_ID, { autoPublishCampaign: true }),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it("SAFETY DEFAULT — getAutoPublishSettingsSafe returns autoPublishCampaign: false, maxBudgetIncreasePct: 20 for a tenant with no current-period objective row (never true)", async () => {
+      const client = createFakeSupabaseClient();
+      const { service } = buildService(client);
+
+      const result = await service.getAutoPublishSettingsSafe(TENANT_ID);
+
+      expect(result).toEqual({ autoPublishCampaign: false, maxBudgetIncreasePct: 20 });
+    });
+
+    it("getAutoPublishSettingsSafe returns the real, persisted values when a current-period objective row exists", async () => {
+      const client = createFakeSupabaseClient();
+      seedObjective(client, { auto_publish_campaign: true, max_budget_increase_pct: 15 });
+      const { service } = buildService(client);
+
+      const result = await service.getAutoPublishSettingsSafe(TENANT_ID);
+
+      expect(result).toEqual({ autoPublishCampaign: true, maxBudgetIncreasePct: 15 });
     });
   });
 

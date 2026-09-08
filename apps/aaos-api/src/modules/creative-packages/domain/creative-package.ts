@@ -47,6 +47,13 @@ export type CreativePackageSource = "manual" | "auto_loop";
 export type CreativePackagePriority = "LOW" | "MEDIUM" | "HIGH";
 
 /**
+ * AAOS LOOP UPGRADE, Sprint 8c (`048_campaign_auto_publish.sql`) — real idempotency marker for
+ * `SchedulerService.runCampaignPublishCheck`'s Step 5 trigger, so the SAME freshly-generated asset is
+ * never re-considered on a later loop tick. `undefined` (NULL) = not yet considered.
+ */
+export type CreativePackageCampaignPublishStatus = "PUBLISHED" | "PENDING_REVIEW" | "SKIPPED";
+
+/**
  * Which real shape this row carries (K1/K2, `docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`).
  * `AUTOMOTIVE` is the pre-existing shape (`unit`/`branch`/`AdAngle`/`targetPersona` all populated).
  * `PROPERTY` populates `listingId`/`angle` (a real `PropertyAdAngle` member) instead — `unit`,
@@ -132,6 +139,8 @@ export interface StoredCreativePackage {
   readonly errorMessage?: string;
   readonly generatedAt?: string;
   readonly reviewedAt?: string;
+  /** `048_campaign_auto_publish.sql`. `undefined` = not yet considered by Step 5's real campaign-publish check. */
+  readonly campaignPublishStatus?: CreativePackageCampaignPublishStatus;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

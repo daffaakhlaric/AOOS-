@@ -111,9 +111,19 @@ export class PendingActionsService {
    *     `POST .../generate` before any real Kie AI spend (see `creative-package.ts`'s own doc).
    *     Never calls `CampaignsService` — `campaignResult` stays `undefined` for this branch, so the
    *     `CAMPAIGN_PUBLISHED` audit write below is correctly skipped.
+   *   - `PUBLISH_CAMPAIGN_FROM_ASSET` (AAOS LOOP UPGRADE, Sprint 8c) — a real, freshly Kai/Kie-AI-
+   *     generated `auto_loop` asset whose campaign-publish guardrail
+   *     (`decideCampaignPublishGuardrail`) decided a human must approve (`auto_publish_campaign`
+   *     OFF, an over-cap budget increase, an existing active campaign, or tenant `operating_mode
+   *     === 'APPROVAL'`). Approving it calls the SAME real `CampaignsService.createPropertyCampaign`
+   *     the `CREATE_PROPERTY_CAMPAIGN` branch above already uses (never a second, parallel
+   *     campaign-mutation path) and marks the real asset `PUBLISHED`
+   *     (`CreativePackageRepository.markCampaignPublishStatus`) so `SchedulerService
+   *     .runCampaignPublishCheck` never re-considers it on a later tick.
+   *
    * An unrecognized `action_type` is a real, honest error (never a silent no-op that would mark the
    * row `APPROVED` without actually doing anything) — this module's generalized shape anticipates
-   * future `action_type`s, but this phase only implements the 2 real gated actions that exist.
+   * future `action_type`s, but this phase only implements the 3 real gated actions that exist.
    */
   async approve(
     id: string,
@@ -159,6 +169,26 @@ export class PendingActionsService {
           `PendingActionsService.approve(${id}): triggerAutoLoopGeneration(${creativePackageId}) failed to start: ${String(caught)}`,
         );
       }
+    } else if (row.action_type === "PUBLISH_CAMPAIGN_FROM_ASSET") {
+      const listingId = row.payload["listingId"];
+      const creativePackageId = row.payload["creativePackageId"];
+      if (typeof creativePackageId !== "string" || typeof listingId !== "string") {
+        throw new ConflictError(
+          `pending_agent_actions "${id}" has a PUBLISH_CAMPAIGN_FROM_ASSET payload with no real "listingId"/"creativePackageId" — cannot approve.`,
+        );
+      }
+      campaignResult = await this.campaignsService.createPropertyCampaign(
+        tenantId,
+        { listingId },
+        randomUUID(),
+      );
+      // AAOS LOOP UPGRADE, Sprint 8c — the SAME real idempotency-marker write
+      // `SchedulerService.runCampaignPublishCheck` uses for its own FULL_CONTROL/DEV path, so this
+      // asset is never re-considered by a later loop tick after a human approves it here.
+      await this.creativePackageRepository.markCampaignPublishStatus(
+        creativePackageId,
+        "PUBLISHED",
+      );
     } else {
       throw new ConflictError(
         `pending_agent_actions "${id}" has an unsupported action_type "${row.action_type}" — cannot approve.`,
@@ -249,6 +279,22 @@ export class PendingActionsService {
       } else {
         this.logger.warn(
           `PendingActionsService.reject(${id}): REVIEW_CREATIVE_BRIEF payload has no real "creativePackageId" — the pending_agent_actions row is still rejected, but no creative_packages row was updated.`,
+        );
+      }
+    } else if (row.action_type === "PUBLISH_CAMPAIGN_FROM_ASSET") {
+      // AAOS LOOP UPGRADE, Sprint 8c — ONE additive exception, mirrors REVIEW_CREATIVE_BRIEF's own
+      // real reasoning exactly: a rejected asset is marked `SKIPPED` (never `PUBLISHED`) so it does
+      // not stay stuck as an orphaned `campaignPublishStatus: undefined` row that
+      // `SchedulerService.runCampaignPublishCheck` would otherwise keep re-considering forever.
+      const creativePackageId = row.payload["creativePackageId"];
+      if (typeof creativePackageId === "string") {
+        await this.creativePackageRepository.markCampaignPublishStatus(
+          creativePackageId,
+          "SKIPPED",
+        );
+      } else {
+        this.logger.warn(
+          `PendingActionsService.reject(${id}): PUBLISH_CAMPAIGN_FROM_ASSET payload has no real "creativePackageId" — the pending_agent_actions row is still rejected, but no creative_packages row was updated.`,
         );
       }
     }

@@ -47,6 +47,14 @@ export class PropertyObjectiveRepository {
         // requirement demands — never `true`.
         max_auto_briefs_per_day: 5,
         auto_approve_creative_brief: false,
+        // AAOS LOOP UPGRADE, Sprint 8c — same explicit-write convention as the 2 columns above
+        // (not left to the DB column default, for the exact same real-in-memory-test-client
+        // reason). `false` for `auto_publish_campaign` is the load-bearing, user-confirmed safety
+        // default this dispatch's own requirement demands — never `true`. `20` for
+        // `max_budget_increase_pct` matches the real DB column default (`048_campaign_auto_publish
+        // .sql`) and the spec's own literal suggested value.
+        auto_publish_campaign: false,
+        max_budget_increase_pct: 20,
       })
       .select("*")
       .single();
@@ -128,6 +136,35 @@ export class PropertyObjectiveRepository {
     if (error !== null || data === null) {
       throw new PropertyObjectiveRepositoryError(
         `PropertyObjectiveRepository.updateAutoLoopSettings failed: ${error?.message ?? "no row returned"}`,
+      );
+    }
+    return data;
+  }
+
+  /** AAOS LOOP UPGRADE, Sprint 8c — the real campaign-publish guardrail settings write, mirrors `updateAutoLoopSettings`'s exact shape (partial update, `id` = the tenant's real current-period objective row). */
+  async updateAutoPublishSettings(
+    id: string,
+    input: {
+      readonly autoPublishCampaign?: boolean;
+      readonly maxBudgetIncreasePct?: number;
+    },
+  ): Promise<PropertyObjectiveRow> {
+    const { data, error } = await this.client
+      .from<PropertyObjectiveRow>(TABLE)
+      .update({
+        ...(input.autoPublishCampaign !== undefined
+          ? { auto_publish_campaign: input.autoPublishCampaign }
+          : {}),
+        ...(input.maxBudgetIncreasePct !== undefined
+          ? { max_budget_increase_pct: input.maxBudgetIncreasePct }
+          : {}),
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error !== null || data === null) {
+      throw new PropertyObjectiveRepositoryError(
+        `PropertyObjectiveRepository.updateAutoPublishSettings failed: ${error?.message ?? "no row returned"}`,
       );
     }
     return data;

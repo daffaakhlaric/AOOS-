@@ -81,6 +81,27 @@ export const UpdateAutoLoopSettingsBodySchema = z.object({
 });
 export type UpdateAutoLoopSettingsBodyDto = z.infer<typeof UpdateAutoLoopSettingsBodySchema>;
 
+/**
+ * `PATCH /api/v1/property-objective/auto-publish-settings` body (AAOS LOOP UPGRADE, Sprint 8c —
+ * Prompt 19 Step 5's own real campaign-publish guardrail settings). Mirrors
+ * `UpdateAutoLoopSettingsBodySchema`'s exact shape/reasoning (both fields individually optional — a
+ * manager may change one at a time).
+ *
+ * CRITICAL SAFETY NOTE (this dispatch's own explicit, user-confirmed requirement — mirrors
+ * `UpdateAutoLoopSettingsBodySchema`'s own note): `autoPublishCampaign` has NO `.default()` here on
+ * purpose — an omitted field on a PATCH must mean "leave the current value unchanged", never
+ * silently reset to a hardcoded default that could paper over a manager's real prior choice. The
+ * real, honest OFF-by-default guarantee lives at the DB column level
+ * (`048_campaign_auto_publish.sql`'s `DEFAULT false`) and at `PropertyObjectiveService
+ * .getAutoPublishSettingsSafe`'s own `?? false` fallback for a tenant with no current-period
+ * objective row at all — never here.
+ */
+export const UpdateAutoPublishSettingsBodySchema = z.object({
+  autoPublishCampaign: z.boolean().optional(),
+  maxBudgetIncreasePct: z.number().int().positive().optional(),
+});
+export type UpdateAutoPublishSettingsBodyDto = z.infer<typeof UpdateAutoPublishSettingsBodySchema>;
+
 /** `GET /api/v1/property-objective/budget-suggestion` query — Finding 4's real budget calculator. */
 export const BudgetSuggestionQuerySchema = z.object({
   targetHotLeads: z.coerce.number().positive(),
@@ -139,6 +160,14 @@ export interface PropertyObjectiveResponseDto {
    */
   readonly maxAutoBriefsPerDay: number;
   readonly autoApproveCreativeBrief: boolean;
+  /**
+   * AAOS LOOP UPGRADE, Sprint 8c — real, per-tenant campaign-publish guardrail settings
+   * (`048_campaign_auto_publish.sql`). Always present (both columns are `NOT NULL DEFAULT`, never
+   * nullable) — same "always a real, safe value" discipline `maxAutoBriefsPerDay`/
+   * `autoApproveCreativeBrief` above already establish.
+   */
+  readonly autoPublishCampaign: boolean;
+  readonly maxBudgetIncreasePct: number;
 }
 
 /** Raw `property_objectives` row shape (snake_case) — COLUMN-FOR-COLUMN with `supabase/migrations/032_property_objectives.sql` + `043_property_objectives_business_context.sql`. */
@@ -163,6 +192,8 @@ export interface PropertyObjectiveRow {
   readonly updated_at: string | null;
   readonly max_auto_briefs_per_day: number;
   readonly auto_approve_creative_brief: boolean;
+  readonly auto_publish_campaign: boolean;
+  readonly max_budget_increase_pct: number;
 }
 
 export function toPropertyObjectiveResponseDto(
@@ -188,6 +219,8 @@ export function toPropertyObjectiveResponseDto(
     ...(row.updated_at !== null ? { businessContextUpdatedAt: row.updated_at } : {}),
     maxAutoBriefsPerDay: row.max_auto_briefs_per_day,
     autoApproveCreativeBrief: row.auto_approve_creative_brief,
+    autoPublishCampaign: row.auto_publish_campaign,
+    maxBudgetIncreasePct: row.max_budget_increase_pct,
   };
 }
 

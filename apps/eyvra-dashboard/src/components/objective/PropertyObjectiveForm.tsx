@@ -83,6 +83,63 @@ export function PropertyObjectiveForm({
   const [businessContextSaving, setBusinessContextSaving] = useState(false);
   const [businessContextSaved, setBusinessContextSaved] = useState(false);
 
+  // AAOS LOOP UPGRADE, Sprint 8c — "Automasi Campaign" card state. `autoPublishCampaign` defaults
+  // to the real, user-confirmed safety default (`false`) whenever `existingObjective` is
+  // `undefined` OR the field itself is somehow missing — never defaults to `true` client-side, same
+  // "never silently default to the unsafe value" discipline `PropertyObjectiveService
+  // .getAutoPublishSettingsSafe`'s own `?? false` fallback establishes server-side.
+  const [autoPublishCampaign, setAutoPublishCampaign] = useState(
+    existingObjective?.autoPublishCampaign ?? false,
+  );
+  const [maxBudgetIncreasePct, setMaxBudgetIncreasePct] = useState(
+    String(existingObjective?.maxBudgetIncreasePct ?? 20),
+  );
+  const [autoPublishError, setAutoPublishError] = useState<string | undefined>(undefined);
+  const [autoPublishSaving, setAutoPublishSaving] = useState(false);
+  const [autoPublishSaved, setAutoPublishSaved] = useState(false);
+
+  async function saveAutoPublishSettings(nextAutoPublishCampaign: boolean): Promise<void> {
+    setAutoPublishError(undefined);
+    setAutoPublishSaved(false);
+    const pct = maxBudgetIncreasePct.trim() === "" ? undefined : Number(maxBudgetIncreasePct);
+    if (pct !== undefined && (!Number.isFinite(pct) || pct <= 0)) {
+      setAutoPublishError("Batas kenaikan budget harus angka lebih dari 0.");
+      return;
+    }
+    setAutoPublishSaving(true);
+    try {
+      const res = await fetch("/api/property-objective/auto-publish-settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          autoPublishCampaign: nextAutoPublishCampaign,
+          ...(pct !== undefined ? { maxBudgetIncreasePct: pct } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const responseBody = (await res.json().catch(() => ({}))) as {
+          error?: { message?: string };
+        };
+        throw new Error(responseBody.error?.message ?? "Gagal menyimpan pengaturan automasi.");
+      }
+      const responseBody = (await res.json()) as { objective: PropertyObjectiveDto };
+      setAutoPublishCampaign(responseBody.objective.autoPublishCampaign);
+      setMaxBudgetIncreasePct(String(responseBody.objective.maxBudgetIncreasePct));
+      setAutoPublishSaved(true);
+      onBusinessContextSaved?.(responseBody.objective);
+    } catch (caught) {
+      // Real, honest rollback: a failed save must never leave the toggle showing a state that was
+      // not actually persisted (the exact class of bug this whole safety-critical dispatch exists
+      // to prevent — a UI silently implying auto-publish is on/off when the real DB row disagrees).
+      setAutoPublishCampaign(existingObjective?.autoPublishCampaign ?? false);
+      setAutoPublishError(
+        caught instanceof Error ? caught.message : "Gagal menyimpan pengaturan automasi.",
+      );
+    } finally {
+      setAutoPublishSaving(false);
+    }
+  }
+
   async function saveBusinessContext(): Promise<void> {
     setBusinessContextError(undefined);
     setBusinessContextSaved(false);
@@ -338,6 +395,77 @@ export function PropertyObjectiveForm({
                 </span>
               ) : null}
             </div>
+          </>
+        )}
+      </section>
+
+      {/* AAOS LOOP UPGRADE, Sprint 8c (Prompt 19 Steps 5-6) — "Automasi Campaign" card: the real
+          Settings UI this dispatch's own coordinator note requires for `auto_publish_campaign`
+          (real DB default OFF) / `max_budget_increase_pct` (real DB default 20%). Rendered right
+          after Konteks Bisnis, same "own PATCH endpoint, own error/saved state, gated on an
+          existing objective" shape that card already establishes — these settings likewise attach
+          to the tenant's real current-period `property_objectives` row. */}
+      <section
+        className={styles.businessContextCard}
+        data-testid="auto-publish-settings-card"
+        aria-label="Automasi Campaign"
+      >
+        <h3 className={styles.businessContextTitle}>🚀 Automasi Campaign</h3>
+        <p className={styles.hint}>
+          Kalau ada asset kreatif baru dari Kai untuk listing yang belum punya campaign aktif,
+          Samantha bisa langsung publish campaign-nya di mode LIVE — TANPA toggle ini aktif, publish
+          tetap butuh approve manual kamu dulu.
+        </p>
+        {existingObjective === undefined ? (
+          <p className={styles.hint} data-testid="auto-publish-settings-no-objective">
+            Set Objective bulan ini dulu di bawah sebelum mengatur automasi campaign.
+          </p>
+        ) : (
+          <>
+            <div className={styles.row}>
+              <label className={styles.field}>
+                <input
+                  type="checkbox"
+                  checked={autoPublishCampaign}
+                  disabled={autoPublishSaving}
+                  data-testid="auto-publish-campaign-toggle"
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setAutoPublishCampaign(next);
+                    void saveAutoPublishSettings(next);
+                  }}
+                />{" "}
+                Izinkan Samantha publish campaign otomatis di mode LIVE (default: nonaktif)
+              </label>
+              <label className={styles.field}>
+                Batas maksimal kenaikan budget harian (%)
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="cth. 20"
+                  value={maxBudgetIncreasePct}
+                  disabled={autoPublishSaving}
+                  data-testid="max-budget-increase-pct-input"
+                  onChange={(event) => setMaxBudgetIncreasePct(event.target.value)}
+                  onBlur={() => void saveAutoPublishSettings(autoPublishCampaign)}
+                  className={styles.input}
+                />
+                <span className={styles.hint}>
+                  Kenaikan budget di atas batas ini SELALU butuh approve manual, walau toggle di
+                  atas aktif.
+                </span>
+              </label>
+            </div>
+            {autoPublishError !== undefined ? (
+              <p className={styles.error} data-testid="auto-publish-settings-error">
+                {autoPublishError}
+              </p>
+            ) : null}
+            {autoPublishSaved ? (
+              <span data-testid="auto-publish-settings-saved" className={styles.hint}>
+                Tersimpan.
+              </span>
+            ) : null}
           </>
         )}
       </section>

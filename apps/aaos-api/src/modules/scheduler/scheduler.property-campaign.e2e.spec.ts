@@ -304,17 +304,41 @@ describe("AAOS EPIC S Phase S6 — real end-to-end: cron tick -> SchedulerServic
           maxAutoBriefsPerDay: 5,
           autoApproveCreativeBrief: false,
         })),
+        // AAOS LOOP UPGRADE, Sprint 8c — real "no current objective yet" fallback (false / 20),
+        // unrelated to this real flow's own assertions (this real flow's own trigger is the
+        // HIGH_CPL/NO_ACTIVE_CAMPAIGN path via `recordCampaignTriggerDecision`, not Step 5's
+        // asset-driven `runCampaignPublishCheck` — no matching `creative_packages` row exists here
+        // for that check to find).
+        getAutoPublishSettingsSafe: vi.fn(async () => ({
+          autoPublishCampaign: false,
+          maxBudgetIncreasePct: 20,
+        })),
       } as never,
       // AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real "no creative packages yet" fake, unrelated to
       // this real flow's own assertions. AAOS LOOP UPGRADE, Sprint 8a — `countAutoLoopSince`/
       // `create` added for the SAME reason (`runNeedCreativeCheck`'s real wiring), also unrelated
-      // to this real flow's own assertions (no NEED_CREATIVE trigger fires here).
+      // to this real flow's own assertions (no NEED_CREATIVE trigger fires here). AAOS LOOP
+      // UPGRADE, Sprint 8c — `markCampaignPublishStatus` added for `runCampaignPublishCheck`'s real
+      // wiring, also unrelated here (`list` returns empty, so that check finds nothing to publish).
       {
         list: vi.fn(async () => []),
         updateFatigueStatus: vi.fn(async () => undefined),
         countAutoLoopSince: vi.fn(async () => 0),
         create: vi.fn(),
+        markCampaignPublishStatus: vi.fn(async () => undefined),
       } as never,
+      // AAOS LOOP UPGRADE, Sprint 8b (Prompt 19 Step 4) — real "never actually called" fake: this
+      // real flow's own trigger (HIGH_CPL/NO_ACTIVE_CAMPAIGN) never reaches NEED_CREATIVE (no
+      // matching `creative_packages` row — see the fake above), so `triggerAutoLoopGeneration` is
+      // never invoked. PRE-EXISTING GAP this dispatch's own investigation found and fixes: this
+      // constructor argument was missing entirely before this change (Sprint 8b added the
+      // parameter but this particular e2e spec was never updated to supply it) — added now as part
+      // of this dispatch's own Sprint 8c constructor-argument change, since a missing required
+      // positional argument here would fail typecheck outright.
+      { triggerAutoLoopGeneration: vi.fn(async () => undefined) } as never,
+      // AAOS LOOP UPGRADE, Sprint 8c — real `loop_runs` writer fake (best-effort at the call site,
+      // unrelated to this real flow's own assertions).
+      { insert: vi.fn(async () => undefined) } as never,
     );
 
     await service.executeEvent(buildEvent());
