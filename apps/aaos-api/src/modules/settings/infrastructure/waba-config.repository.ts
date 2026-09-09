@@ -14,14 +14,41 @@ export interface WabaConfigRow {
   readonly status: string;
   readonly last_tested_at: string | null;
   readonly last_test_result: string | null;
+  /**
+   * EYVRA-META-OAUTH-WHATSAPP-SETUP (Sprint 1 foundation, Sprint 2 first real reader/writer) —
+   * additive, nullable/defaulted columns from `049_meta_oauth_foundation.sql`. `access_token`
+   * above remains PLAIN TEXT even for an `embedded_signup`-sourced row — see
+   * `modules/meta-oauth/wa-oauth.service.ts`'s own class doc for why encrypting it would break
+   * `WhatsAppConnectorRegistry.resolve()`, which this sprint must not modify.
+   */
+  readonly config_source: "manual" | "embedded_signup";
+  readonly webhook_verified: boolean;
+  readonly webhook_verified_at: string | null;
+  readonly fb_user_id: string | null;
+  readonly fb_user_name: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
 
 export type WabaConfigInsert = Omit<
   WabaConfigRow,
-  "id" | "created_at" | "updated_at" | "last_tested_at" | "last_test_result"
->;
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "last_tested_at"
+  | "last_test_result"
+  | "config_source"
+  | "webhook_verified"
+  | "webhook_verified_at"
+  | "fb_user_id"
+  | "fb_user_name"
+> &
+  Partial<
+    Pick<
+      WabaConfigRow,
+      "config_source" | "webhook_verified" | "webhook_verified_at" | "fb_user_id" | "fb_user_name"
+    >
+  >;
 /** Callers explicitly set `updated_at` on every real patch (no DB trigger backs it), so it stays a settable field here, unlike `id`/`tenant_id`/`created_at`. */
 export type WabaConfigUpdate = Partial<Omit<WabaConfigRow, "id" | "tenant_id" | "created_at">>;
 

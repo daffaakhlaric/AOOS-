@@ -141,7 +141,12 @@ describe("AppModule.forRoot", () => {
     // SUPABASE_CLIENT, same pattern IntelligenceModule already establishes; IntelligenceModule
     // itself now imports this module directly to thread `market_signals` into
     // `LlmService.campaignStrategy`'s context, not a new global provider here).
-    expect(dynamicModule.imports).toHaveLength(33);
+    // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 2: +1 import (MetaOAuthModule, the new real
+    // `/oauth/*` HTTP surface) — no new global provider (composes its own TenantRepository/
+    // WabaConfigRepository/EncryptionService/MetaOAuthConfigService locally from the existing
+    // SUPABASE_CLIENT/AAOS_API_CONFIG, same "each module composes its own instance" pattern
+    // SettingsModule/SosmedModule already establish).
+    expect(dynamicModule.imports).toHaveLength(34);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

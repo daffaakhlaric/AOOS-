@@ -88,6 +88,7 @@ import { MarketIntelligenceModule } from "./modules/market-intelligence/market-i
 import { MetaAdsConnectorRegistry } from "./modules/meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
+import { MetaOAuthModule } from "./modules/meta-oauth/meta-oauth.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { OverviewModule } from "./modules/overview/overview.module.js";
 import { PropertyObjectiveModule } from "./modules/property-objective/property-objective.module.js";
@@ -441,6 +442,14 @@ export class AppModule {
         // Listing form's cascading picker. No new global provider — `RegionService` composes its
         // own in-memory cache and calls the public API directly, no `SUPABASE_CLIENT` involved.
         RegionModule,
+        // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 2 — new `meta-oauth` module (`/oauth/*`: real
+        // Meta Ads Facebook Login OAuth + WhatsApp Embedded Signup/manual setup). Builds its own
+        // `TenantRepository`/`WabaConfigRepository`/`EncryptionService`/`MetaOAuthConfigService`
+        // instances from the shared `SUPABASE_CLIENT`/`AAOS_API_CONFIG` global tokens (see that
+        // module's own doc) — does NOT modify `MetaAdsConnectorRegistry`/`WhatsAppConnectorRegistry`
+        // above, or read/write any column either of them reads; wiring those registries to the new
+        // OAuth columns is explicitly Sprint 3's job.
+        MetaOAuthModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

@@ -35,6 +35,18 @@ export interface TenantRow {
   readonly operating_mode: string;
   readonly operating_mode_changed_at: string | null;
   readonly operating_mode_changed_by: string | null;
+  /**
+   * EYVRA-META-OAUTH-WHATSAPP-SETUP (Sprint 1 foundation, Sprint 2 first real reader/writer) —
+   * additive, nullable OAuth-specific columns from `049_meta_oauth_foundation.sql`. Genuinely
+   * separate from `meta_access_token` above (the pre-existing plain-text manual-entry fallback,
+   * still read by `MetaAdsConnectorRegistry.resolve()`, untouched by this sprint) — see that
+   * migration's own header for the full "additive, not a replacement" rationale.
+   */
+  readonly meta_access_token_encrypted: string | null;
+  readonly meta_token_expires_at: string | null;
+  readonly meta_connection_source: "manual" | "oauth";
+  readonly meta_fb_user_id: string | null;
+  readonly meta_fb_user_name: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -60,6 +72,11 @@ export type TenantInsert = Omit<
   | "operating_mode"
   | "operating_mode_changed_at"
   | "operating_mode_changed_by"
+  | "meta_access_token_encrypted"
+  | "meta_token_expires_at"
+  | "meta_connection_source"
+  | "meta_fb_user_id"
+  | "meta_fb_user_name"
 > &
   Partial<
     Pick<
@@ -70,6 +87,15 @@ export type TenantInsert = Omit<
       | "operating_mode"
       | "operating_mode_changed_at"
       | "operating_mode_changed_by"
+      // EYVRA-META-OAUTH-WHATSAPP-SETUP — same "DB column default already gives every new row the
+      // correct value" rationale as `mode` above (`meta_connection_source DEFAULT 'manual'`, every
+      // other new OAuth column nullable) — a brand-new tenant is never created already
+      // OAuth-connected.
+      | "meta_access_token_encrypted"
+      | "meta_token_expires_at"
+      | "meta_connection_source"
+      | "meta_fb_user_id"
+      | "meta_fb_user_name"
     >
   >;
 /** Callers explicitly set `updated_at` on every real patch (no DB trigger backs it — see `SuperadminService.update`/`SettingsService.updateMeta`), so it stays a settable field here, unlike `id`/`tenant_id`/`created_at`. */
