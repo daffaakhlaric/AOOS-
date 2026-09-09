@@ -55,4 +55,14 @@ export interface CreatePropertyCampaignResponseDto {
   readonly matchedCities?: readonly MatchedPropertyCity[];
   readonly unresolvedCities?: readonly string[];
   readonly note?: string;
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — real Meta ad ids created for a matched `creative_packages` row's
+   * `copyVariants` (up to 3, one real ad per variant, same AdSet — see `CampaignsService.
+   * createPropertyCampaign`'s own doc). Present only for a real LIVE creation (`simulated: false`)
+   * that was called with a `creativePackageId` AND actually created at least one real ad — absent
+   * (never an empty array) for the manual endpoint (no `creativePackageId`), DEV mode, or a
+   * best-effort publish that created zero ads (see `publishPropertyAds`'s own real, honest degrade
+   * conditions).
+   */
+  readonly adIds?: readonly string[];
 }

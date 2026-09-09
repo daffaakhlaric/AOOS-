@@ -36,6 +36,7 @@ import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
+import { LlmService } from "../llm/llm.service.js";
 import { ModeGuardService, type TenantMode } from "../mode-guard/mode-guard.service.js";
 
 import { buildCreativeBrief } from "./domain/creative-brief.factory.js";
@@ -179,10 +180,32 @@ export class CreativePackagesService {
      * the pre-existing manual `generate()`/`generateProperty()` paths.
      */
     private readonly auditLog: AuditLogService,
+    /**
+     * AAOS-SAMANTHA-LLM-AD-COPY — real, shared `LlmService.generateAdCopyVariants` (the SAME
+     * OpenAI-backed service `MetaAdsService`/`SimulationService`/etc. already inject, never a
+     * bespoke composition) used by `generateProperty` below to replace the deterministic
+     * `PropertyCopyBuilder` templates with genuinely LLM-generated, varied copy — with an honest,
+     * mandatory fallback to those same deterministic templates on any LLM/schema failure (see
+     * `buildPropertyCopyVariants`'s own doc).
+     */
+    private readonly llmService: LlmService,
   ) {}
 
   private get tenantId(): string {
     return this.config.AAOS_TENANT_ID;
+  }
+
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — the real, tenant-scoped lookup `CampaignsService.
+   * createPropertyCampaign` uses to fetch the matched `creative_packages` row (its real
+   * Kai/Kie-AI-generated media + `copyVariants`) when publishing a real multi-ad campaign, rather
+   * than reaching into `CreativePackageRepository` directly (which `CreativePackagesModule` does
+   * not export — same "reuse the real service, never a second read path" discipline this module's
+   * own class doc already establishes for `AbTestingModule`). Real `NotFoundError` for a
+   * missing/foreign-tenant id, same as `findOrThrowScoped`.
+   */
+  async getForCampaignPublish(tenantId: string, id: string): Promise<StoredCreativePackage> {
+    return this.findOrThrowScoped(tenantId, id);
   }
 
   async list(query: GetPackagesQueryDto): Promise<readonly CreativePackageResponseDto[]> {
@@ -452,7 +475,17 @@ export class CreativePackagesService {
       });
       throw copyResult.error;
     }
-    const copyVariants = copyResult.value;
+    // AAOS-SAMANTHA-LLM-AD-COPY — real LLM-generated copy is the preferred source; the
+    // deterministic `PropertyCopyBuilder` result computed above is kept ONLY as the honest,
+    // mandatory fallback (see `buildPropertyCopyVariants`'s own doc for exactly when/why it is
+    // used). A package is never left with zero copy: this call always resolves to 3 real variants,
+    // one way or the other.
+    const copyVariants = await this.buildPropertyCopyVariants(
+      tenantId,
+      id,
+      brief,
+      copyResult.value,
+    );
 
     await this.appendLog({
       packageId: id,
@@ -649,6 +682,57 @@ export class CreativePackagesService {
     }
   }
 
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — resolves the real `copyVariants` for a PROPERTY package's
+   * `generateProperty` run: tries `LlmService.generateAdCopyVariants` first (genuinely varied,
+   * LLM-generated Indonesian copy — see that method's own doc), and on ANY failure (`available:
+   * false` for whatever reason, or the call itself throwing) falls back HONESTLY to the
+   * deterministic `PropertyCopyBuilder` templates already computed by the caller
+   * (`deterministicFallback`, `PropertyCopyVariant[]`) — never leaves a package with empty/broken
+   * copy. `callToAction` is never asked of the LLM (see `AdCopyVariantsLlmPayloadSchema`'s own
+   * doc) — filled in deterministically here from `PropertyCopyBuilder`'s own real 2-CTA
+   * vocabulary (`CTA_DIRECT` for A/C, `CTA_LEARN` for B, mirroring that builder's own convention),
+   * matched positionally to `deterministicFallback`'s own labels rather than re-declaring a THIRD
+   * copy of Meta's real CTA-type string.
+   */
+  private async buildPropertyCopyVariants(
+    tenantId: string,
+    id: string,
+    brief: PropertyCreativeBrief,
+    deterministicFallback: ReadonlyArray<PropertyCopyVariant>,
+  ): Promise<readonly StoredCopyVariant[]> {
+    try {
+      const llmResult = await this.llmService.generateAdCopyVariants(tenantId, {
+        listingTitle: brief.listingTitle,
+        propertyType: brief.propertyType,
+        angle: brief.angle,
+        ...(brief.price !== undefined ? { price: brief.price } : {}),
+        ...(brief.city !== undefined ? { city: brief.city } : {}),
+        ...(brief.highlights !== undefined && brief.highlights.length > 0
+          ? { highlights: [...brief.highlights] }
+          : {}),
+      });
+      if (llmResult.available) {
+        return llmResult.variants.map((variant) => ({
+          id: randomUUID(),
+          variantLabel: variant.variantLabel,
+          primaryText: variant.primaryText,
+          headline: variant.headline,
+          callToAction: ctaForVariantLabel(variant.variantLabel),
+          description: variant.description,
+        }));
+      }
+      this.logger.warn(
+        `CreativePackagesService.buildPropertyCopyVariants(${id}): LLM generation unavailable (${llmResult.reason}), falling back to deterministic PropertyCopyBuilder templates.`,
+      );
+    } catch (caught) {
+      this.logger.warn(
+        `CreativePackagesService.buildPropertyCopyVariants(${id}): LLM generation threw, falling back to deterministic PropertyCopyBuilder templates: ${caught instanceof Error ? caught.message : String(caught)}`,
+      );
+    }
+    return deterministicFallback.map(toStoredCopyVariantFromProperty);
+  }
+
   /** The detached PROPERTY pipeline body — real Kie AI calls via the shared `CreativeOrchestratorService`, real GCS persistence of the generated media via the SAME `IAssetStorage` adapter `ListingsService.addPhoto`/`addDocument` already establish bypassing `@aos/asset-library`'s `assets` table (Finding 7 — a generated PROPERTY creative has no `unit_id`/`Branch`-shaped home there either). */
   private async runGenerationProperty(
     id: string,
@@ -659,7 +743,7 @@ export class CreativePackagesService {
     videoSpec: VideoSpec | undefined,
     imagePrompts: readonly string[],
     imageSpec: ImageSpec,
-    copyVariants: readonly PropertyCopyVariant[],
+    copyVariants: readonly StoredCopyVariant[],
     startedAtMs: number,
     kai: KaiAgentRuntime,
   ): Promise<void> {
@@ -704,7 +788,7 @@ export class CreativePackagesService {
         sourcePhotoUrls,
         ...(persisted.videoUrl !== undefined ? { videoUrl: persisted.videoUrl } : {}),
         imageUrls: persisted.imageUrls,
-        copyVariants: copyVariants.map(toStoredCopyVariantFromProperty),
+        copyVariants,
         aiModel,
         confidenceScore: confidenceScore.toNumber(),
         generationMs: Date.now() - startedAtMs,
@@ -780,7 +864,7 @@ export class CreativePackagesService {
     videoSpec: VideoSpec | undefined,
     imagePrompts: readonly string[],
     imageSpec: ImageSpec,
-    copyVariants: readonly PropertyCopyVariant[],
+    copyVariants: readonly StoredCopyVariant[],
     startedAtMs: number,
     kai: KaiAgentRuntime,
   ): Promise<void> {
@@ -911,7 +995,7 @@ export class CreativePackagesService {
         sourcePhotoUrls,
         ...(persisted.videoUrl !== undefined ? { videoUrl: persisted.videoUrl } : {}),
         imageUrls: persisted.imageUrls,
-        copyVariants: copyVariants.map(toStoredCopyVariantFromProperty),
+        copyVariants,
         aiModel,
         confidenceScore: confidenceScore.toNumber(),
         generationMs: Date.now() - startedAtMs,
@@ -1351,6 +1435,19 @@ function briefToJson(pkg: StoredCreativePackage): CreativeLogJson {
     reason: pkg.reason,
     origin: pkg.origin,
   };
+}
+
+/**
+ * AAOS-SAMANTHA-LLM-AD-COPY — the real CTA text `buildPropertyCopyVariants` applies to an
+ * LLM-generated variant, mirroring `PropertyCopyBuilder`'s own real A/C="Tanya Sekarang"/
+ * B="Pelajari Selanjutnya" convention (that builder's `CTA_DIRECT`/`CTA_LEARN` constants are not
+ * exported, so this is a small, deliberately duplicated local constant — same "small deterministic
+ * constant stays local to each real caller" discipline `MAX_SOURCE_PHOTOS` above already
+ * documents), never an LLM-invented CTA string Meta might not support as a real
+ * `call_to_action.type`.
+ */
+function ctaForVariantLabel(variantLabel: "A" | "B" | "C"): string {
+  return variantLabel === "B" ? "Pelajari Selanjutnya" : "Tanya Sekarang";
 }
 
 function toStoredCopyVariantFromProperty(variant: PropertyCopyVariant): StoredCopyVariant {

@@ -17,6 +17,7 @@ import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repos
 import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import type { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { ListingsService } from "../listings/listings.service.js";
+import type { LlmService } from "../llm/llm.service.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import { CreativePackagesService } from "./creative-packages.service.js";
@@ -91,6 +92,7 @@ interface Harness {
   readonly agentRunsService: AgentRunsService;
   readonly aiJudgeService: AiJudgeService;
   readonly auditLog: ReturnType<typeof buildFakeAuditLog>;
+  readonly generateAdCopyVariants: ReturnType<typeof vi.fn>;
 }
 
 /** AAOS LOOP UPGRADE, Sprint 8b — minimal `AuditLogService` test double for the new `CREATIVE_GENERATED` writer (`runGenerationPropertyWithQaRetry`). */
@@ -151,6 +153,15 @@ function buildHarness(
     readonly agentRunInsertFails?: boolean;
     /** AAOS-AI-JUDGE-SELF-IMPROVING (Phase J2) — a real (fake, `vi.fn`-backed) `AiJudgeService`; override to assert wiring or simulate a `judgeRun` rejection. */
     readonly aiJudgeService?: AiJudgeService;
+    /**
+     * AAOS-SAMANTHA-LLM-AD-COPY — a real (fake, `vi.fn`-backed) `LlmService.generateAdCopyVariants`
+     * result for `generateProperty`'s new copy-generation step. `undefined` (the default) makes
+     * `generateAdCopyVariants` return a real `available: false` degrade (`NO_API_KEY`), exercising
+     * the honest fallback-to-`PropertyCopyBuilder` path every pre-existing PROPERTY test above
+     * implicitly relies on.
+     */
+    readonly llmAdCopyResult?: unknown;
+    readonly llmAdCopyThrows?: Error;
   } = {},
 ): Harness {
   const client = createFakeSupabaseClient();
@@ -251,6 +262,19 @@ function buildHarness(
   const agentRunsService = new AgentRunsService(new AgentRunRepository(client));
   const aiJudgeService = options.aiJudgeService ?? buildFakeAiJudgeService();
   const auditLog = buildFakeAuditLog();
+  const generateAdCopyVariants = vi.fn(async () => {
+    if (options.llmAdCopyThrows !== undefined) {
+      throw options.llmAdCopyThrows;
+    }
+    return (
+      options.llmAdCopyResult ?? {
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      }
+    );
+  });
+  const llmService = { generateAdCopyVariants } as unknown as LlmService;
 
   const service = new CreativePackagesService(
     buildTestConfig(),
@@ -265,6 +289,7 @@ function buildHarness(
     agentRunsService,
     aiJudgeService,
     auditLog as unknown as AuditLogService,
+    llmService,
   );
   return {
     service,
@@ -279,6 +304,7 @@ function buildHarness(
     agentRunsService,
     aiJudgeService,
     auditLog,
+    generateAdCopyVariants,
   };
 }
 
@@ -965,6 +991,122 @@ describe("CreativePackagesService.generateProperty (K2)", () => {
     expect((row?.["image_urls"] as string[])[0]).toContain("creative-property/");
     expect((row?.["copy_variants"] as unknown[]).length).toBeGreaterThan(0);
     expect(harness.assetStorageUpload).toHaveBeenCalled();
+  });
+
+  describe("AAOS-SAMANTHA-LLM-AD-COPY — real LLM-generated copy + honest fallback", () => {
+    const LLM_VARIANTS = {
+      available: true,
+      variants: [
+        {
+          variantLabel: "A",
+          primaryText: "DP ringan mulai sekarang, cek Rumah Minimalis BSD!",
+          headline: "BSD DP Ringan",
+          description: "3KT, carport 2 mobil",
+        },
+        {
+          variantLabel: "B",
+          primaryText: "Lokasi strategis, siap huni untuk keluarga.",
+          headline: "BSD Siap Huni",
+          description: "Dekat akses tol",
+        },
+        {
+          variantLabel: "C",
+          primaryText: "Sudah dipercaya banyak keluarga bahagia.",
+          headline: "BSD Terverifikasi",
+          description: "Unit siap survey",
+        },
+      ],
+    };
+
+    it("uses the real LLM-generated 3 variants (with description) when generateAdCopyVariants succeeds", async () => {
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Rumah Minimalis BSD",
+          photos: ["https://gcs/listing-1/foto-1.jpg"],
+        },
+        llmAdCopyResult: LLM_VARIANTS,
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      await settle();
+
+      expect(harness.generateAdCopyVariants).toHaveBeenCalledTimes(1);
+      // `byId` reads `AAOS_API_CONFIG.AAOS_TENANT_ID`, not the real per-request `tenantId` this
+      // PROPERTY row was persisted under (same pre-existing gap the test right above this describe
+      // block already documents) — asserted directly against the raw row instead.
+      const [row] = harness.client
+        .rows("creative_packages")
+        .filter((r) => r["id"] === created.id) as Array<Record<string, unknown>>;
+      const copyVariants = row?.["copy_variants"] as Array<Record<string, unknown>>;
+      expect(copyVariants).toHaveLength(3);
+      expect(copyVariants.map((v) => v["variantLabel"])).toEqual(["A", "B", "C"]);
+      expect(copyVariants.map((v) => v["primaryText"])).toEqual(
+        LLM_VARIANTS.variants.map((v) => v.primaryText),
+      );
+      expect(copyVariants.map((v) => v["description"])).toEqual(
+        LLM_VARIANTS.variants.map((v) => v.description),
+      );
+      // callToAction is filled in deterministically (never asked of the LLM), A/C get the real
+      // "direct" CTA and B gets the real "learn more" CTA, mirroring PropertyCopyBuilder's own
+      // convention.
+      expect(copyVariants.map((v) => v["callToAction"])).toEqual([
+        "Tanya Sekarang",
+        "Pelajari Selanjutnya",
+        "Tanya Sekarang",
+      ]);
+    });
+
+    it("falls back HONESTLY to the deterministic PropertyCopyBuilder templates (no description, still 3 real variants) when the LLM degrades (e.g. NO_API_KEY)", async () => {
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Rumah Minimalis BSD",
+          photos: ["https://gcs/listing-1/foto-1.jpg"],
+        },
+        // default llmAdCopyResult is undefined -> generateAdCopyVariants fake returns available:false
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      await settle();
+
+      expect(harness.generateAdCopyVariants).toHaveBeenCalledTimes(1);
+      const [row] = harness.client
+        .rows("creative_packages")
+        .filter((r) => r["id"] === created.id) as Array<Record<string, unknown>>;
+      const copyVariants = row?.["copy_variants"] as Array<Record<string, unknown>>;
+      // Never left with zero copy — the deterministic PropertyCopyBuilder templates always produce
+      // exactly 3 real variants (A/B/C).
+      expect(copyVariants).toHaveLength(3);
+      expect(copyVariants.map((v) => v["variantLabel"])).toEqual(["A", "B", "C"]);
+      // The deterministic fallback never fabricates a `description` field.
+      for (const variant of copyVariants) {
+        expect(variant["description"]).toBeUndefined();
+      }
+    });
+
+    it("falls back HONESTLY to the deterministic templates when generateAdCopyVariants THROWS (never lets a package end up with zero copy)", async () => {
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Rumah Minimalis BSD",
+          photos: ["https://gcs/listing-1/foto-1.jpg"],
+        },
+        llmAdCopyThrows: new Error("openai network error"),
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      await settle();
+
+      const [row] = harness.client
+        .rows("creative_packages")
+        .filter((r) => r["id"] === created.id) as Array<Record<string, unknown>>;
+      expect(row?.["status"]).toBe("PENDING");
+      expect((row?.["copy_variants"] as unknown[]).length).toBe(3);
+    });
   });
 
   it("404s for an unknown package", async () => {

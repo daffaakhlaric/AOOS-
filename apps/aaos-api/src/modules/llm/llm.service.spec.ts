@@ -19,6 +19,7 @@ import { PromptOverrideRepository } from "../prompt-override/infrastructure/prom
 import { PromptOverrideService } from "../prompt-override/prompt-override.service.js";
 
 import { ResponseCache } from "./cache/ResponseCache.js";
+import type { AdCopyVariantsRequestDto } from "./dto/ad-copy-variants.dto.js";
 import type { AnalyzeRequestDto } from "./dto/analyze.dto.js";
 import type { AssetInsightRequestDto } from "./dto/asset-insight.dto.js";
 import type { CampaignInsightRequestDto } from "./dto/campaign-insight.dto.js";
@@ -1467,6 +1468,120 @@ describe("LlmService", () => {
       const first = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
       mswServer.resetHandlers(); // no handler registered — a second real call would fail
       const second = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(second).toEqual(first);
+    });
+  });
+
+  describe("generateAdCopyVariants", () => {
+    const validAdCopyVariantsBody: AdCopyVariantsRequestDto = {
+      listingTitle: "Cluster Anggrek 2 Bintaro",
+      propertyType: "Rumah",
+      angle: "DP_RINGAN",
+      price: 850_000_000,
+      city: "Bintaro",
+      highlights: ["3 kamar tidur", "carport 2 mobil"],
+    };
+
+    const validAdCopyVariantsLlmJson = JSON.stringify({
+      variants: [
+        {
+          variantLabel: "A",
+          primaryText: "DP ringan mulai Rp850jt untuk Cluster Anggrek 2 Bintaro!",
+          headline: "Cluster Anggrek DP Ringan",
+          description: "3KT, carport 2 mobil",
+        },
+        {
+          variantLabel: "B",
+          primaryText: "Lokasi strategis di Bintaro, siap huni nyaman untuk keluarga.",
+          headline: "Anggrek 2 Bintaro Nyaman",
+          description: "Dekat akses tol & sekolah",
+        },
+        {
+          variantLabel: "C",
+          primaryText: "Sudah dipercaya banyak keluarga — cek unit contoh sekarang.",
+          headline: "Anggrek 2 Terverifikasi",
+          description: "Unit siap survey kapan saja",
+        },
+      ],
+    });
+
+    it("returns available:true with exactly 3 real, Zod-validated variants from a mocked OpenAI response", async () => {
+      registerOpenAiChatHandler(validAdCopyVariantsLlmJson);
+      const service = buildService();
+      const result = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validAdCopyVariantsLlmJson) });
+    });
+
+    it("returns NO_API_KEY (no fabricated copy) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns PROVIDER_ERROR (no fabricated copy) when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE (no fabricated copy) when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns fewer than 3 variants (real Zod .length(3) check)", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          variants: [
+            {
+              variantLabel: "A",
+              primaryText: "Only one variant",
+              headline: "Only One",
+              description: "Not enough",
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validAdCopyVariantsLlmJson);
+      const service = buildService();
+      const first = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
       expect(second).toEqual(first);
     });
   });

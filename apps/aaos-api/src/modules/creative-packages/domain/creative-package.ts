@@ -77,6 +77,18 @@ export interface StoredCopyVariant {
   readonly primaryText: string;
   readonly headline: string;
   readonly callToAction: string;
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — Meta's real ad-creative `link_description` field
+   * (`object_story_spec.link_data.description` for an image ad, `.video_data.link_description` for
+   * a video ad — see `IMetaAdsClient.CreateAdCreativeImageSpec`/`CreateAdCreativeVideoSpec`'s own
+   * doc for the exact wire shape). Additive/optional: every pre-existing `copyVariants` row (the
+   * deterministic `CopyBuilder`/`PropertyCopyBuilder` templates, which have never produced this
+   * field) has no `description` and stays `undefined` — never a fabricated empty string. Populated
+   * only by `LlmService.generateAdCopyVariants`'s real LLM output (see that method's own doc).
+   * `copy_variants` is a JSONB column (`003_creative_packages.sql`) so this is a pure additive
+   * TypeScript-shape change — no migration required.
+   */
+  readonly description?: string;
 }
 
 export interface StoredCreativePackage {

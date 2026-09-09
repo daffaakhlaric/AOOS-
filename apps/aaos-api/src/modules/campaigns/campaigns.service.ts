@@ -1,13 +1,24 @@
 import { UnavailableError } from "@aos/errors";
-import { AdAccountId, Branch, Funnel, HOUSING_SPECIAL_AD_CATEGORY } from "@aos/meta-ads-connector";
-import { Inject, Injectable } from "@nestjs/common";
+import {
+  AdAccountId,
+  Branch,
+  Funnel,
+  HOUSING_SPECIAL_AD_CATEGORY,
+  type CreateAdCreativeSpec,
+} from "@aos/meta-ads-connector";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import { AAOS_API_CONFIG, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
+import type { StoredCreativePackage } from "../creative-packages/domain/creative-package.js";
 import { ListingsService } from "../listings/listings.service.js";
 import { LocationResolverService } from "../location-resolver/location-resolver.service.js";
-import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
+import type {
+  MetaAdsConnectorContext,
+  MetaAdsConnectorRegistry,
+} from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import { resolvePropertyTargeting } from "./domain/property-targeting.builder.js";
@@ -36,6 +47,8 @@ import type {
  */
 @Injectable()
 export class CampaignsService {
+  private readonly logger = new Logger(CampaignsService.name);
+
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(META_ADS_CONNECTOR_REGISTRY)
@@ -44,6 +57,13 @@ export class CampaignsService {
     private readonly activityLogger: ActivityLogger,
     private readonly listings: ListingsService,
     private readonly locationResolver: LocationResolverService,
+    /**
+     * AAOS-SAMANTHA-LLM-AD-COPY — the real, tenant-scoped `CreativePackagesService.
+     * getForCampaignPublish` lookup used to fetch the matched `creative_packages` row's real
+     * Kai/Kie-AI-generated media + `copyVariants` when publishing multiple real Meta ads (see
+     * `createPropertyCampaign`'s own doc for the full real multi-ad-publish mechanism).
+     */
+    private readonly creativePackages: CreativePackagesService,
   ) {}
 
   /**
@@ -161,12 +181,36 @@ export class CampaignsService {
    * call. DEV mode can never hit this path (it never calls `SearchAdLocations`), so a DEV preview
    * always succeeds regardless of whether the real cities would have resolved.
    */
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — `creativePackageId` is an optional, internal-only 4th parameter
+   * (deliberately NOT added to `CreatePropertyCampaignBodyDto`/the HTTP body — the manual
+   * `POST /api/v1/campaigns/property` endpoint keeps behaving exactly as before: campaign+adset
+   * only, zero ads, byte-for-byte unchanged). Only `SchedulerService.runCampaignPublishCheck`
+   * (Sprint 8c's real auto-publish flow) passes it — it already resolves the matched `pkg` for a
+   * listing before calling this method, so it is threaded straight through rather than making this
+   * method re-derive the same match a second, possibly-drifting way.
+   *
+   * When present, AFTER the real AdSet is created (inside the SAME `executeFn` the campaign/adset
+   * creation already runs in — see `ModeGuardService.executeOrSimulate`'s doc: DEV's `simulateFn`
+   * never enters `executeFn` at all, so DEV mode makes ZERO real Meta `createAd`/upload calls
+   * either, matching this method's own pre-existing `createCampaign` DEV/LIVE discipline exactly),
+   * the matched package's `copyVariants` (up to 3) are each published as a real, separate Meta Ad
+   * in the SAME AdSet — real Meta-native A/B testing (multiple ads sharing one AdSet's budget, not
+   * 3x spend). Every ad reuses the SAME uploaded video/image asset (Kai/Kie-AI-generated); only the
+   * copy text differs per ad. Best-effort per ad (see `publishPropertyAds`'s own doc) — one failing
+   * `createAd` call never fails the whole campaign-creation call.
+   */
   async createPropertyCampaign(
     tenantId: string,
     body: CreatePropertyCampaignBodyDto,
     correlationId: string,
+    creativePackageId?: string,
   ): Promise<CreatePropertyCampaignResponseDto> {
     const listing = await this.listings.getById(tenantId, body.listingId);
+    const creativePackage =
+      creativePackageId !== undefined
+        ? await this.creativePackages.getForCampaignPublish(tenantId, creativePackageId)
+        : undefined;
 
     const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {
@@ -234,12 +278,29 @@ export class CampaignsService {
           if (!executed.ok) {
             throw executed.error;
           }
+
+          // AAOS-SAMANTHA-LLM-AD-COPY — real, best-effort multi-ad publish. Only attempted when a
+          // matched creative package was supplied (see this method's own doc) — the manual
+          // endpoint (no `creativePackageId`) is completely unaffected.
+          const adIds =
+            creativePackage !== undefined
+              ? await this.publishPropertyAds(
+                  connector,
+                  adAccountIdResult.value,
+                  executed.value.adSetId,
+                  listing.waNumber,
+                  creativePackage,
+                  connector.accessToken,
+                )
+              : [];
+
           return {
             ...executed.value,
             simulated: false,
             resolvedCities: resolvedLocation.cities,
             matchedCities: propertyTargeting.matchedCities,
             unresolvedCities: propertyTargeting.unresolvedCities,
+            ...(adIds.length > 0 ? { adIds } : {}),
           };
         },
         () =>
@@ -262,5 +323,160 @@ export class CampaignsService {
       await this.activityLogger.fail(activityId, error);
       throw error;
     }
+  }
+
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — real, best-effort multi-ad publish: up to 3 real Meta Ads (one per
+   * `creativePackage.copyVariants` entry, capped at 3), all in the SAME real `adSetId` just
+   * created by `createPropertyCampaign` — real Meta-native A/B testing (multiple ads sharing one
+   * AdSet's budget, never 3x spend). Every ad reuses the SAME uploaded video/image asset; only the
+   * copy text (`primaryText`/`headline`→ad name/`description`) differs per ad.
+   *
+   * REAL, HONEST LIMITS:
+   * - Requires `AaosApiConfig.META_PAGE_ID` to be configured (same real requirement
+   *   `GoLiveService.execute` already has for any real ad creation) — empty/unset degrades to
+   *   real, logged "0 ads created", never a fabricated ad.
+   * - Requires a real `https://wa.me/<number>` destination for an IMAGE creative's `link_data.link`
+   *   — sourced from the listing's own real `waNumber` (same real field `PropertyCreativeBrief`
+   *   already threads through to Kai's prompt), never a placeholder. Missing `waNumber` degrades to
+   *   real, logged "0 ads created" for an IMAGE-only package (a VIDEO package's `video_data` does
+   *   not need this field, so it can still proceed).
+   * - A VIDEO creative needs a real thumbnail image URL (Meta's own requirement) — uses the
+   *   package's first `imageUrls` entry when present; a video-only package with zero images
+   *   degrades to real, logged "0 ads created" rather than fabricating a thumbnail URL.
+   * - The shared video/image asset is uploaded to Meta ONCE (`uploadCreativeAsset.execute`) and
+   *   reused across all `createAd` calls — an upload failure is a real, hard stop for this package
+   *   (no ad can be created without it), but NEVER fails `createPropertyCampaign` itself: the real
+   *   campaign+adset this method's caller already created stays valid regardless.
+   * - Each `createAd` call is independently best-effort: a failure logs a warning and the loop
+   *   continues to the next variant — one bad ad never blocks the other up-to-2.
+   */
+  private async publishPropertyAds(
+    connector: MetaAdsConnectorContext,
+    adAccountId: AdAccountId,
+    adSetId: string,
+    waNumber: string | undefined,
+    creativePackage: StoredCreativePackage,
+    accessToken: string,
+  ): Promise<readonly string[]> {
+    const pageId = this.config.META_PAGE_ID;
+    if (pageId.length === 0) {
+      this.logger.warn(
+        `CampaignsService.publishPropertyAds(${creativePackage.id}): META_PAGE_ID is not configured — skipping real ad creation.`,
+      );
+      return [];
+    }
+    const variants = creativePackage.copyVariants.slice(0, 3);
+    if (variants.length === 0) {
+      this.logger.warn(
+        `CampaignsService.publishPropertyAds(${creativePackage.id}): package has no copyVariants — skipping real ad creation.`,
+      );
+      return [];
+    }
+
+    const firstImageUrl = creativePackage.imageUrls[0];
+    const hasVideo = creativePackage.videoUrl !== undefined;
+
+    let baseCreative:
+      | { readonly kind: "VIDEO"; readonly videoId: string; readonly thumbnailUrl: string }
+      | { readonly kind: "IMAGE"; readonly imageHash: string; readonly linkUrl: string }
+      | undefined;
+    try {
+      if (hasVideo) {
+        if (firstImageUrl === undefined) {
+          this.logger.warn(
+            `CampaignsService.publishPropertyAds(${creativePackage.id}): video package has no image to use as a real Meta thumbnail — skipping real ad creation.`,
+          );
+          return [];
+        }
+        const uploaded = await connector.uploadCreativeAsset.execute({
+          adAccountId,
+          assetType: "VIDEO",
+          hostedUrl: creativePackage.videoUrl as string,
+          accessToken,
+        });
+        if (!uploaded.ok) {
+          throw uploaded.error;
+        }
+        baseCreative = {
+          kind: "VIDEO",
+          videoId: uploaded.value.assetId,
+          thumbnailUrl: firstImageUrl,
+        };
+      } else {
+        if (firstImageUrl === undefined) {
+          this.logger.warn(
+            `CampaignsService.publishPropertyAds(${creativePackage.id}): package has no image/video asset — skipping real ad creation.`,
+          );
+          return [];
+        }
+        if (waNumber === undefined || waNumber.length === 0) {
+          this.logger.warn(
+            `CampaignsService.publishPropertyAds(${creativePackage.id}): listing has no real waNumber — cannot build a real WhatsApp link, skipping real ad creation.`,
+          );
+          return [];
+        }
+        const uploaded = await connector.uploadCreativeAsset.execute({
+          adAccountId,
+          assetType: "IMAGE",
+          hostedUrl: firstImageUrl,
+          accessToken,
+        });
+        if (!uploaded.ok) {
+          throw uploaded.error;
+        }
+        baseCreative = {
+          kind: "IMAGE",
+          imageHash: uploaded.value.assetId,
+          linkUrl: `https://wa.me/${waNumber.replace(/[^\d]/g, "")}`,
+        };
+      }
+    } catch (caught) {
+      this.logger.warn(
+        `CampaignsService.publishPropertyAds(${creativePackage.id}): uploading the shared creative asset failed — skipping real ad creation: ${caught instanceof Error ? caught.message : String(caught)}`,
+      );
+      return [];
+    }
+
+    const adIds: string[] = [];
+    for (const variant of variants) {
+      try {
+        const creative: CreateAdCreativeSpec =
+          baseCreative.kind === "VIDEO"
+            ? {
+                kind: "VIDEO",
+                videoId: baseCreative.videoId,
+                thumbnailUrl: baseCreative.thumbnailUrl,
+                message: variant.primaryText,
+                callToActionType: "WHATSAPP_MESSAGE",
+                ...(variant.description !== undefined ? { description: variant.description } : {}),
+              }
+            : {
+                kind: "IMAGE",
+                imageHash: baseCreative.imageHash,
+                linkUrl: baseCreative.linkUrl,
+                message: variant.primaryText,
+                callToActionType: "WHATSAPP_MESSAGE",
+                ...(variant.description !== undefined ? { description: variant.description } : {}),
+              };
+        const created = await connector.createAd.execute({
+          adAccountId,
+          adSetId,
+          name: `${creativePackage.title} · ${variant.variantLabel}`,
+          pageId,
+          creative,
+          accessToken,
+        });
+        if (!created.ok) {
+          throw created.error;
+        }
+        adIds.push(created.value.adId);
+      } catch (caught) {
+        this.logger.warn(
+          `CampaignsService.publishPropertyAds(${creativePackage.id}): createAd failed for variant "${variant.variantLabel}", continuing with the remaining variants: ${caught instanceof Error ? caught.message : String(caught)}`,
+        );
+      }
+    }
+    return adIds;
   }
 }

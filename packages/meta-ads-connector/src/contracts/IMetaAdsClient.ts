@@ -115,6 +115,14 @@ export interface CreateAdCreativeVideoSpec {
   readonly message: string;
   /** e.g. `"WHATSAPP_MESSAGE"` — CTWA's real call-to-action type. */
   readonly callToActionType: string;
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — optional real Meta `video_data.link_description` field (verified
+   * against Meta's Marketing API "Ad Creative" reference: `video_data` accepts the same
+   * `link_description` sibling field `link_data` accepts as `description`). Additive/optional —
+   * every pre-existing caller (e.g. `GoLiveService`, which sends only `message`) omits this and the
+   * wire payload is byte-for-byte unchanged.
+   */
+  readonly description?: string;
 }
 
 /**
@@ -129,6 +137,15 @@ export interface CreateAdCreativeImageSpec {
   readonly message: string;
   /** e.g. `"WHATSAPP_MESSAGE"` — CTWA's real call-to-action type. */
   readonly callToActionType: string;
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — optional real Meta `link_data.description` field, verified against
+   * Meta's Marketing API "Ad Creative" reference (developers.facebook.com/docs/marketing-api/
+   * reference/ad-creative-link-data): `link_data.description` is the real, Meta-supported field for
+   * an image/link ad's secondary descriptive text. Additive/optional — every pre-existing caller
+   * (e.g. `GoLiveService`, which sends only `message`) omits this and the wire payload is
+   * byte-for-byte unchanged.
+   */
+  readonly description?: string;
 }
 
 export type CreateAdCreativeSpec = CreateAdCreativeVideoSpec | CreateAdCreativeImageSpec;

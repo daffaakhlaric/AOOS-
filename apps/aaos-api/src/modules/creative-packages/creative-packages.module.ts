@@ -7,6 +7,7 @@ import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
 import { AuditLogModule } from "../audit-log/audit-log.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
+import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
@@ -49,6 +50,10 @@ import { CreativePackageRepository } from "./infrastructure/creative-package.rep
     // (`runGenerationPropertyWithQaRetry`, reached only via `triggerAutoLoopGeneration`). No
     // circular-import risk: `AuditLogModule` only imports `MetaAdsModule` (verified directly).
     AuditLogModule,
+    // AAOS-SAMANTHA-LLM-AD-COPY — so CreativePackagesService.generateProperty can inject the real
+    // LlmService for `generateAdCopyVariants`, the same shared OpenAI-backed service every other
+    // real LLM call in this app already goes through (never a second, bespoke LLM composition).
+    LlmModule,
   ],
   controllers: [CreativePackagesController],
   providers: [

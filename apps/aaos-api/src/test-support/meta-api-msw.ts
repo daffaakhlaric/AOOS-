@@ -174,6 +174,50 @@ export function registerCreateCampaignErrorHandler(status: number, code?: number
 }
 
 /**
+ * AAOS-SAMANTHA-LLM-AD-COPY: registers `POST /{ad-account}/adimages` -> a real Meta image-upload
+ * response shape, `POST /{ad-account}/advideos` -> `{id: newVideoId}`, and `POST /{ad-account}/ads`
+ * -> `{id: newAdId}` (a fresh id per call, `${newAdIdPrefix}-N`, since `CampaignsService.
+ * publishPropertyAds` calls `createAd` up to 3 times) — for `CampaignsService.
+ * createPropertyCampaign`'s real multi-ad-publish tests.
+ */
+export function registerCreateAdMswHandlers(
+  options: {
+    readonly newImageHash?: string;
+    readonly newVideoId?: string;
+    readonly newAdIdPrefix?: string;
+  } = {},
+): void {
+  const newImageHash = options.newImageHash ?? "fake-image-hash";
+  const newVideoId = options.newVideoId ?? "fake-video-id";
+  const newAdIdPrefix = options.newAdIdPrefix ?? "120000000000900";
+  let adCounter = 0;
+  mswServer.use(
+    http.post(`${BASE}/:adAccountId/adimages`, () =>
+      HttpResponse.json({
+        images: { bytes: { hash: newImageHash, url: "https://example.com/x.jpg" } },
+      }),
+    ),
+    http.post(`${BASE}/:adAccountId/advideos`, () => HttpResponse.json({ id: newVideoId })),
+    http.post(`${BASE}/:adAccountId/ads`, () => {
+      adCounter += 1;
+      return HttpResponse.json({ id: `${newAdIdPrefix}${String(adCounter)}` });
+    }),
+  );
+}
+
+/** AAOS-SAMANTHA-LLM-AD-COPY: registers a failing `POST /{ad-account}/ads` handler, for `createAd` per-variant error-path tests. */
+export function registerCreateAdErrorHandler(status: number, code?: number): void {
+  mswServer.use(
+    http.post(`${BASE}/:adAccountId/ads`, () =>
+      HttpResponse.json(
+        { error: { message: "Meta API error", type: "OAuthException", code: code ?? 1 } },
+        { status },
+      ),
+    ),
+  );
+}
+
+/**
  * AAOS EPIC S, Phase S3/S4: registers `GET /search?type=adgeolocation&...` -> `{data: [...]}` for
  * `CampaignsService.createPropertyCampaign`'s real geo-search step. `citiesByQuery` maps a free-text
  * `q` value to the real Meta location rows it should resolve to — a query with no entry (or an

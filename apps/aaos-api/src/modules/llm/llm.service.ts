@@ -12,6 +12,11 @@ import { PromptOverrideService } from "../prompt-override/prompt-override.servic
 
 import type { ResponseCache } from "./cache/ResponseCache.js";
 import {
+  AdCopyVariantsLlmPayloadSchema,
+  type AdCopyVariantsRequestDto,
+  type AdCopyVariantsResponseDto,
+} from "./dto/ad-copy-variants.dto.js";
+import {
   AnalyzeLlmPayloadSchema,
   type AnalyzeRequestDto,
   type AnalyzeResponseDto,
@@ -123,6 +128,8 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
   // AAOS-CAMPAIGNS-UNIFIED-PAGE — `LlmService.campaignInsight`'s prompt key (the unified
   // `/campaigns` page's per-campaign `CampaignInsightPanel` narrative + action list).
   "campaign_insight",
+  // AAOS-SAMANTHA-LLM-AD-COPY — `LlmService.generateAdCopyVariants`'s prompt key.
+  "generate_ad_copy_variants",
 ];
 
 /**
@@ -537,6 +544,36 @@ Format response JSON:
   "actions": [
     { "priority": "SEGERA", "text": "aksi konkret 1" },
     { "priority": "MINGGU_INI", "text": "aksi konkret 2" }
+  ]
+}`;
+
+/**
+ * AAOS-SAMANTHA-LLM-AD-COPY — `LlmService.generateAdCopyVariants`'s system prompt. Real,
+ * PROPERTY-vertical listing data (`AdCopyVariantsRequestDto`) is sent as the user message's
+ * `JSON.stringify(body)`, same static-persona-plus-JSON-user-message shape every other prompt in
+ * this file uses. The 3 requested variants deliberately vary REAL angle/emphasis (not just
+ * word-shuffling the same sentence) so the resulting Meta ads genuinely test different creative
+ * hypotheses against each other — the whole point of publishing all 3 as separate ads in the same
+ * ad set (real Meta-native A/B testing, see `CampaignsService.createPropertyCampaign`'s own doc).
+ */
+const AD_COPY_VARIANTS_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk platform properti (PROPERTY) di Indonesia.
+
+Tugasmu: tulis TEPAT 3 varian copy iklan Meta Ads (A, B, C) untuk SATU listing properti (data JSON di pesan user — listingTitle, propertyType, angle, price jika ada, city jika ada, highlights jika ada).
+
+ATURAN KERAS:
+- Tepat 3 varian, label "A", "B", "C" — masing-masing HARUS punya sudut pandang/penekanan yang BERBEDA secara nyata (misalnya: A menonjolkan harga/DP, B menonjolkan lokasi/kenyamanan, C menonjolkan bukti sosial/urgency) — jangan hanya menulis ulang kalimat yang sama dengan kata berbeda. Ini penting karena ketiga varian akan dipasang sebagai 3 iklan Meta terpisah untuk A/B testing nyata.
+- "primaryText" maksimal 125 karakter, Bahasa Indonesia, natural dan actionable, sesuai angle yang diberikan.
+- "headline" maksimal 40 karakter, ringkas, menyebut nama listing atau sudut pandang variannya.
+- "description" adalah teks pendukung singkat (maksimal sekitar 30 karakter agar tetap terbaca penuh di iklan Meta), melengkapi primaryText, JANGAN mengulang primaryText kata-per-kata.
+- HANYA gunakan angka harga/highlight yang benar-benar ada di data JSON — JANGAN mengarang harga, lokasi, atau fitur yang tidak disebutkan.
+- Semua teks Bahasa Indonesia yang natural untuk pasar properti Indonesia.
+
+Format response JSON:
+{
+  "variants": [
+    { "variantLabel": "A", "primaryText": "...", "headline": "...", "description": "..." },
+    { "variantLabel": "B", "primaryText": "...", "headline": "...", "description": "..." },
+    { "variantLabel": "C", "primaryText": "...", "headline": "...", "description": "..." }
   ]
 }`;
 
@@ -1493,6 +1530,64 @@ export class LlmService {
 
     const response: CampaignInsightResponseDto = { available: true, ...validated.data };
     this.cache.set("campaign-insight", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS-SAMANTHA-LLM-AD-COPY — real, LLM-generated 3-variant (A/B/C) ad copy for ONE PROPERTY
+   * listing, replacing (with an honest fallback — see below) `PropertyCopyBuilder`'s deterministic
+   * string-template variants as the real source of a `creative_packages` row's `copyVariants`. Same
+   * cache/gate/call/validate/cache shape as every other method on this service — no bespoke
+   * composition.
+   *
+   * Real caller: `CreativePackagesService.generateProperty`. On ANY failure here (`available:
+   * false`, whatever the reason), the caller's own documented, honest fallback is to build
+   * `copyVariants` from the existing deterministic `PropertyCopyBuilder.buildVariants` templates
+   * instead — this method itself never fabricates copy text, and never throws (same "typed
+   * `available: false`, never an exception" discipline as `analyze`/`creativeBrief`/every other
+   * method here).
+   */
+  async generateAdCopyVariants(
+    tenantId: string,
+    body: AdCopyVariantsRequestDto,
+  ): Promise<AdCopyVariantsResponseDto> {
+    const cached = this.cache.get("generate-ad-copy-variants", body) as
+      AdCopyVariantsResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "generate_ad_copy_variants",
+      AD_COPY_VARIANTS_SYSTEM_PROMPT,
+    );
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : AdCopyVariantsLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: AdCopyVariantsResponseDto = { available: true, ...validated.data };
+    this.cache.set("generate-ad-copy-variants", body, response);
     return response;
   }
 

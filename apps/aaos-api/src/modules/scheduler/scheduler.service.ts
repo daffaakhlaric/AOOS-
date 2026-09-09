@@ -1233,10 +1233,14 @@ export class SchedulerService {
           continue;
         }
 
+        // AAOS-SAMANTHA-LLM-AD-COPY — `pkg.id` is threaded through so `createPropertyCampaign` can
+        // publish up to 3 real Meta Ads (one per `pkg.copyVariants` entry) in the same AdSet it
+        // creates, reusing this SAME matched package rather than re-deriving the match a second way.
         const result = await this.campaignsService.createPropertyCampaign(
           tenantId,
           { listingId: listing.id },
           correlationId,
+          pkg.id,
         );
         await this.creativePackageRepository.markCampaignPublishStatus(pkg.id, "PUBLISHED");
         await this.activityLogger.complete(activityId, {

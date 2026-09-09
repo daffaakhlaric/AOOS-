@@ -308,6 +308,9 @@ export class MetaApiClient implements IMetaAdsClient {
               image_url: params.creative.thumbnailUrl,
               message: params.creative.message,
               call_to_action: { type: params.creative.callToActionType },
+              ...(params.creative.description !== undefined
+                ? { link_description: params.creative.description }
+                : {}),
             },
           }
         : {
@@ -317,6 +320,9 @@ export class MetaApiClient implements IMetaAdsClient {
               link: params.creative.linkUrl,
               message: params.creative.message,
               call_to_action: { type: params.creative.callToActionType },
+              ...(params.creative.description !== undefined
+                ? { description: params.creative.description }
+                : {}),
             },
           };
     const responseResult = await this.doFetch(MetaApiRequestBuilder.createAdUrl(adAccountId), {

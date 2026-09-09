@@ -9,10 +9,13 @@ import { createFakePublisher } from "../../test-support/fake-publisher.js";
 import { buildTestConfig } from "../../test-support/fixtures.js";
 import {
   mswServer,
+  registerCreateAdMswHandlers,
   registerCreateCampaignErrorHandler,
   registerCreateCampaignMswHandlers,
   registerSearchAdLocationsMswHandler,
 } from "../../test-support/meta-api-msw.js";
+import type { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
+import type { StoredCreativePackage } from "../creative-packages/domain/creative-package.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type {
   LocationResolverService,
@@ -82,12 +85,32 @@ function buildFakeLocationResolver(
   return { resolve: vi.fn(async () => resolved) } as unknown as LocationResolverService;
 }
 
+/**
+ * AAOS-SAMANTHA-LLM-AD-COPY — fake, tenant-scoped `CreativePackagesService.getForCampaignPublish`
+ * lookup. `undefined` (the default) means no `creativePackageId` should be passed in a given test's
+ * `createPropertyCampaign` call at all (the pre-existing manual-endpoint behavior, completely
+ * unaffected) — this fake exists only for the new multi-ad-publish describe block below.
+ */
+function buildFakeCreativePackages(
+  pkg: StoredCreativePackage | undefined = undefined,
+): CreativePackagesService {
+  return {
+    getForCampaignPublish: vi.fn(async (_tenantId: string, id: string) => {
+      if (pkg === undefined || pkg.id !== id) {
+        throw new NotFoundError(`No creative package found for id "${id}"`);
+      }
+      return pkg;
+    }),
+  } as unknown as CreativePackagesService;
+}
+
 function buildService(
   dev = false,
   activityLogger: ReturnType<typeof buildFakeActivityLogger> = buildFakeActivityLogger(),
   options: {
     readonly listings?: ListingsService;
     readonly locationResolver?: LocationResolverService;
+    readonly creativePackages?: CreativePackagesService;
   } = {},
 ): CampaignsService {
   const config = buildTestConfig();
@@ -114,6 +137,7 @@ function buildService(
     activityLogger as never,
     options.listings ?? buildFakeListings(),
     options.locationResolver ?? buildFakeLocationResolver(),
+    options.creativePackages ?? buildFakeCreativePackages(),
   );
 }
 
@@ -478,5 +502,233 @@ describe("CampaignsService.createPropertyCampaign (AAOS EPIC S, Phase S3/S4)", (
       expect(activityLogger.fail).toHaveBeenCalledWith("activity-1", expect.any(ValidationError));
       expect(activityLogger.complete).not.toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * AAOS-SAMANTHA-LLM-AD-COPY — real multi-ad-publish tests for `CampaignsService.
+ * createPropertyCampaign`'s new `creativePackageId` 4th parameter (only `SchedulerService.
+ * runCampaignPublishCheck` ever passes it — the manual endpoint never does, so those pre-existing
+ * tests above are completely unaffected, verified directly since none of them pass a 4th argument).
+ */
+describe("CampaignsService.createPropertyCampaign — multi-ad publish (AAOS-SAMANTHA-LLM-AD-COPY)", () => {
+  const LISTING_WITH_WA = { ...DEFAULT_LISTING, waNumber: "081234567890" };
+
+  const IMAGE_PACKAGE: StoredCreativePackage = {
+    id: "pkg-1",
+    tenantId: "dss-motor",
+    briefId: "brief-1",
+    vertical: "PROPERTY",
+    listingId: "listing-1",
+    title: "Rumah Minimalis Bintaro",
+    angle: "DP_RINGAN",
+    reason: "test fixture",
+    requestedFormat: "IMAGES_ONLY",
+    decidedFormat: "IMAGES_ONLY",
+    primaryMessage: "test",
+    urgency: "MEDIUM",
+    origin: "MANUAL",
+    status: "PENDING",
+    aiRecommended: false,
+    fatigueStatus: "NORMAL",
+    source: "auto_loop",
+    priority: "MEDIUM",
+    sourcePhotoUrls: [],
+    imageUrls: ["https://example.com/listing-1/image-1.jpg"],
+    copyVariants: [
+      {
+        id: "cv-a",
+        variantLabel: "A",
+        primaryText: "DP ringan mulai sekarang!",
+        headline: "Rumah Bintaro DP Ringan",
+        callToAction: "Tanya Sekarang",
+        description: "3KT, carport 2 mobil",
+      },
+      {
+        id: "cv-b",
+        variantLabel: "B",
+        primaryText: "Lokasi strategis, siap huni.",
+        headline: "Rumah Bintaro Siap Huni",
+        callToAction: "Pelajari Selanjutnya",
+        description: "Dekat akses tol",
+      },
+      {
+        id: "cv-c",
+        variantLabel: "C",
+        primaryText: "Sudah dipercaya banyak keluarga.",
+        headline: "Rumah Bintaro Terverifikasi",
+        callToAction: "Tanya Sekarang",
+        description: "Unit siap survey",
+      },
+    ],
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+  };
+
+  function registerFullLivePipeline(): void {
+    registerSearchAdLocationsMswHandler({
+      "Tangerang Selatan": [{ key: "2360586", name: "Tangerang Selatan, Banten" }],
+    });
+    registerCreateCampaignMswHandlers();
+    registerCreateAdMswHandlers();
+  }
+
+  it("DEV mode creates zero real Meta ads (no uploadImage/uploadVideo/createAd call) even with a matched creative package", async () => {
+    // No MSW handler registered at all — any real HTTP call (including the new upload/createAd
+    // calls this dispatch adds) fails this test outright.
+    const service = buildService(true, buildFakeActivityLogger(), {
+      listings: buildFakeListings(LISTING_WITH_WA),
+      creativePackages: buildFakeCreativePackages(IMAGE_PACKAGE),
+    });
+    const dto = await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-multiad-dev",
+      "pkg-1",
+    );
+    expect(dto.simulated).toBe(true);
+    expect(dto.adIds).toBeUndefined();
+  });
+
+  it("LIVE mode publishes up to 3 real Meta Ads (one per copyVariant) in the same real AdSet", async () => {
+    registerFullLivePipeline();
+    const capturedAdBodies: unknown[] = [];
+    mswServer.use(
+      http.post("https://graph.facebook.com/v21.0/:adAccountId/ads", async ({ request }) => {
+        capturedAdBodies.push(await request.json());
+        return HttpResponse.json({ id: `120000000000${String(900 + capturedAdBodies.length)}` });
+      }),
+    );
+    const service = buildService(false, buildFakeActivityLogger(), {
+      listings: buildFakeListings(LISTING_WITH_WA),
+      creativePackages: buildFakeCreativePackages(IMAGE_PACKAGE),
+    });
+    const dto = await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-multiad-live",
+      "pkg-1",
+    );
+
+    expect(dto.simulated).toBe(false);
+    expect(dto.adIds).toHaveLength(3);
+    expect(capturedAdBodies).toHaveLength(3);
+    // All 3 ads share the SAME real AdSet (real Meta-native A/B testing — not 3x spend).
+    for (const body of capturedAdBodies) {
+      expect(body).toMatchObject({ adset_id: dto.adSetId });
+    }
+    // Only the copy text differs per ad — same shared uploaded image hash/link every time.
+    const messages = capturedAdBodies.map(
+      (body) =>
+        (body as { creative: { object_story_spec: { link_data: { message: string } } } }).creative
+          .object_story_spec.link_data.message,
+    );
+    expect(messages).toEqual([
+      "DP ringan mulai sekarang!",
+      "Lokasi strategis, siap huni.",
+      "Sudah dipercaya banyak keluarga.",
+    ]);
+    const descriptions = capturedAdBodies.map(
+      (body) =>
+        (body as { creative: { object_story_spec: { link_data: { description: string } } } })
+          .creative.object_story_spec.link_data.description,
+    );
+    expect(descriptions).toEqual(["3KT, carport 2 mobil", "Dekat akses tol", "Unit siap survey"]);
+  });
+
+  it("the manual endpoint (no creativePackageId) never attempts real ad creation", async () => {
+    registerFullLivePipeline();
+    let adCreateCalled = false;
+    mswServer.use(
+      http.post("https://graph.facebook.com/v21.0/:adAccountId/ads", () => {
+        adCreateCalled = true;
+        return HttpResponse.json({ id: "120000000000999" });
+      }),
+    );
+    const service = buildService(false, buildFakeActivityLogger(), {
+      listings: buildFakeListings(LISTING_WITH_WA),
+      creativePackages: buildFakeCreativePackages(IMAGE_PACKAGE),
+    });
+    const dto = await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-multiad-manual",
+      // no creativePackageId — matches the real manual `POST /api/v1/campaigns/property` call site
+    );
+    expect(dto.simulated).toBe(false);
+    expect(dto.adIds).toBeUndefined();
+    expect(adCreateCalled).toBe(false);
+  });
+
+  it("one failing createAd call does not block the other variants or fail the whole campaign-creation call", async () => {
+    registerFullLivePipeline();
+    // Fails deterministically for variant "B" specifically (matched by the ad `name`, which stays
+    // the same across `ExponentialBackoffRetry`'s retries of that same request) — a count-based
+    // failure would get "fixed" by a later successful retry of the SAME logical request, silently
+    // hiding the real per-ad failure this test exists to verify.
+    let adCounter = 0;
+    mswServer.use(
+      http.post("https://graph.facebook.com/v21.0/:adAccountId/ads", async ({ request }) => {
+        const body = (await request.json()) as { name: string };
+        if (body.name.includes("· B")) {
+          return HttpResponse.json(
+            { error: { message: "Meta API error", type: "OAuthException", code: 1 } },
+            { status: 400 },
+          );
+        }
+        adCounter += 1;
+        return HttpResponse.json({ id: `120000000000${String(900 + adCounter)}` });
+      }),
+    );
+    const service = buildService(false, buildFakeActivityLogger(), {
+      listings: buildFakeListings(LISTING_WITH_WA),
+      creativePackages: buildFakeCreativePackages(IMAGE_PACKAGE),
+    });
+    const dto = await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-multiad-partial-fail",
+      "pkg-1",
+    );
+    expect(dto.simulated).toBe(false);
+    // The campaign itself still succeeded (campaignId/adSetId present) despite one bad ad.
+    expect(dto.campaignId).toBeDefined();
+    expect(dto.adSetId).toBeDefined();
+    // 2 of 3 ads created — the middle one's failure did not block the 3rd.
+    expect(dto.adIds).toHaveLength(2);
+  });
+
+  it("a package with no real waNumber and an IMAGE-only asset creates zero ads (never a fabricated wa.me link)", async () => {
+    registerFullLivePipeline();
+    const service = buildService(false, buildFakeActivityLogger(), {
+      listings: buildFakeListings(DEFAULT_LISTING), // no waNumber
+      creativePackages: buildFakeCreativePackages(IMAGE_PACKAGE),
+    });
+    const dto = await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-multiad-no-wa",
+      "pkg-1",
+    );
+    expect(dto.simulated).toBe(false);
+    expect(dto.campaignId).toBeDefined();
+    expect(dto.adIds).toBeUndefined();
+  });
+
+  it("a package with no copyVariants creates zero ads (never a fabricated ad)", async () => {
+    registerFullLivePipeline();
+    const service = buildService(false, buildFakeActivityLogger(), {
+      listings: buildFakeListings(LISTING_WITH_WA),
+      creativePackages: buildFakeCreativePackages({ ...IMAGE_PACKAGE, copyVariants: [] }),
+    });
+    const dto = await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-multiad-no-copy",
+      "pkg-1",
+    );
+    expect(dto.simulated).toBe(false);
+    expect(dto.campaignId).toBeDefined();
+    expect(dto.adIds).toBeUndefined();
   });
 });
