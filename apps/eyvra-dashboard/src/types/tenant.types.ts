@@ -127,6 +127,31 @@ export interface WabaConfigDto {
   readonly updatedAt: string;
 }
 
+/**
+ * EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — `GET /api/oauth/status`, proxying `apps/aaos-api`'s
+ * real `GET /oauth/status/:tenantId` (`OAuthStatusResponseDto`, `modules/meta-oauth/dto/
+ * meta-oauth.dto.ts`) column-for-column. Powers the "Koneksi" tab's new Meta/WhatsApp OAuth status
+ * blocks — additive, alongside (never replacing) `SettingsDto`/`WabaConfigDto` above.
+ */
+export interface OAuthStatusDto {
+  readonly meta: {
+    readonly connected: boolean;
+    readonly source: "manual" | "oauth";
+    readonly fbUserName?: string;
+    readonly tokenExpiresAt?: string;
+    readonly adAccountId?: string;
+  };
+  readonly whatsapp: {
+    readonly connected: boolean;
+    readonly configs: ReadonlyArray<{
+      readonly id: string;
+      readonly branchId: string;
+      readonly source: "manual" | "embedded_signup";
+      readonly webhookVerified: boolean;
+    }>;
+  };
+}
+
 export interface CreateWabaConfigInput {
   readonly branchId: string;
   readonly phoneNumber: string;

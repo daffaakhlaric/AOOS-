@@ -1,12 +1,21 @@
 import { MetaAdsConnectorFactory, type MetaAdsConnector } from "@aos/meta-ads-connector";
 import { describe, expect, it, vi } from "vitest";
 
+import { EncryptionService } from "../../../common/encryption.service.js";
 import { toConnectorConfig } from "../../../config/to-connector-config.js";
 import { createFakePublisher } from "../../../test-support/fake-publisher.js";
 import { createFakeSupabaseClient } from "../../../test-support/fake-supabase-client.js";
 import { buildTestConfig } from "../../../test-support/fixtures.js";
 import { TenantRepository } from "../../superadmin/infrastructure/tenant.repository.js";
 import type { WebhookSecretsService } from "../../webhook-config/webhook-secrets.service.js";
+
+// EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — a fixed, non-secret 64-hex-char test key (never a
+// real secret), same "explicit dummy key for TOKEN_ENCRYPTION_KEY in tests" precedent
+// `common/encryption.service.spec.ts` already establishes.
+const TEST_ENCRYPTION_KEY = "a".repeat(64);
+function buildTestEncryptionService(): EncryptionService {
+  return new EncryptionService({ TOKEN_ENCRYPTION_KEY: TEST_ENCRYPTION_KEY });
+}
 
 import {
   ConnectorNotConfiguredError,
@@ -300,5 +309,126 @@ describe("MetaAdsConnectorRegistry", () => {
     registry.invalidate("other-tenant");
     await registry.resolve("other-tenant");
     expect(findSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — the new, additive OAuth-preferring branch.
+  describe("OAuth-preferring fallback (Sprint 3)", () => {
+    it("prefers the decrypted OAuth token over the plain meta_access_token column when meta_connection_source is 'oauth'", async () => {
+      const config = buildTestConfig();
+      const client = createFakeSupabaseClient();
+      const tenants = new TenantRepository(client);
+      const encryption = buildTestEncryptionService();
+      const encryptedToken = encryption.encrypt("real-oauth-token");
+      await seedTenant(tenants, {
+        meta_access_token: "stale-manual-token",
+        meta_ad_account_id: "act_222222222222222",
+        meta_connection_source: "oauth",
+        meta_access_token_encrypted: encryptedToken,
+      });
+      const staticConnector = buildStaticConnector();
+      const registry = new MetaAdsConnectorRegistry(
+        tenants,
+        config,
+        createFakePublisher(),
+        staticConnector,
+        buildFakeWebhookSecrets(),
+        encryption,
+      );
+
+      const result = await registry.resolve("other-tenant");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.accessToken).toBe("real-oauth-token");
+        expect(result.value.adAccountIds).toEqual(["act_222222222222222"]);
+      }
+    });
+
+    it("honestly degrades to the plain meta_access_token column, without throwing, when the encrypted OAuth token is corrupted/undecryptable", async () => {
+      const config = buildTestConfig();
+      const client = createFakeSupabaseClient();
+      const tenants = new TenantRepository(client);
+      const encryption = buildTestEncryptionService();
+      await seedTenant(tenants, {
+        meta_access_token: "fallback-manual-token",
+        meta_ad_account_id: "act_333333333333333",
+        meta_connection_source: "oauth",
+        meta_access_token_encrypted: "not-a-real-ciphertext-envelope",
+      });
+      const staticConnector = buildStaticConnector();
+      const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() };
+      const registry = new MetaAdsConnectorRegistry(
+        tenants,
+        config,
+        createFakePublisher(),
+        staticConnector,
+        buildFakeWebhookSecrets(),
+        encryption,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- minimal Logger test double
+        logger as any,
+      );
+
+      const result = await registry.resolve("other-tenant");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.accessToken).toBe("fallback-manual-token");
+      }
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it("a 'manual' meta_connection_source tenant is completely unaffected — never attempts decryption, resolves via the plain column exactly as before", async () => {
+      const config = buildTestConfig();
+      const client = createFakeSupabaseClient();
+      const tenants = new TenantRepository(client);
+      const encryption = buildTestEncryptionService();
+      const decryptSpy = vi.spyOn(encryption, "decrypt");
+      await seedTenant(tenants, {
+        meta_access_token: "manual-token",
+        meta_ad_account_id: "act_444444444444444",
+        meta_connection_source: "manual",
+        meta_access_token_encrypted: encryption.encrypt("unused-oauth-token"),
+      });
+      const staticConnector = buildStaticConnector();
+      const registry = new MetaAdsConnectorRegistry(
+        tenants,
+        config,
+        createFakePublisher(),
+        staticConnector,
+        buildFakeWebhookSecrets(),
+        encryption,
+      );
+
+      const result = await registry.resolve("other-tenant");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.accessToken).toBe("manual-token");
+      }
+      expect(decryptSpy).not.toHaveBeenCalled();
+    });
+
+    it("a tenant with no encryption service supplied (5-arg construction, matching every pre-Sprint-3 call site) resolves exactly as before, ignoring meta_connection_source", async () => {
+      const config = buildTestConfig();
+      const client = createFakeSupabaseClient();
+      const tenants = new TenantRepository(client);
+      await seedTenant(tenants, {
+        meta_access_token: "plain-token",
+        meta_ad_account_id: "act_555555555555555",
+        meta_connection_source: "oauth",
+        meta_access_token_encrypted: "irrelevant-without-an-encryption-service",
+      });
+      const staticConnector = buildStaticConnector();
+      const registry = new MetaAdsConnectorRegistry(
+        tenants,
+        config,
+        createFakePublisher(),
+        staticConnector,
+        buildFakeWebhookSecrets(),
+      );
+
+      const result = await registry.resolve("other-tenant");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.accessToken).toBe("plain-token");
+      }
+    });
   });
 });

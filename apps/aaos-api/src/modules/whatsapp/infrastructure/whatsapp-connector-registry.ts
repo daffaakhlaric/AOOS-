@@ -64,6 +64,21 @@ export class ConnectorNotConfiguredError extends UnavailableError {
  * query + avoid a live-traffic behavior change on ship day" — that justification no longer holds:
  * `dss-motor` genuinely has no DB-backed alternative to `.env` yet, so this reorder is a no-op for
  * it today while remaining ready for the day rows are added.)
+ *
+ * EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — investigated first, per this sprint's own explicit
+ * "verify directly, do not assume" instruction: unlike `tenants.meta_access_token_encrypted`
+ * (`MetaAdsConnectorRegistry`'s new OAuth-preferring branch), `waba_configs.access_token` has NO
+ * encrypted sibling column and Sprint 2's `WaOAuthService.handleEmbeddedSignupToken` writes the
+ * real Embedded-Signup-obtained token into this SAME plain-text `access_token` column a manual
+ * `setupManual()` save uses — see that file's own class doc (its "DELIBERATE DEVIATION FROM THE
+ * PASTED SPEC" section) for the full investigation and why encrypting only this column would have
+ * silently broken every tenant's outbound sending. Because both connection methods already share
+ * one column, this class's `resolve()` ALREADY reads an OAuth (`config_source: 'embedded_signup'`)
+ * row's token through the exact same code path as a manual row's — no additive
+ * "prefer-the-OAuth-column" branch is needed or added here (there is only one token column to
+ * prefer between). `resolve()` therefore has NO functional change this sprint; see
+ * `whatsapp-connector-registry.spec.ts`'s new `config_source: 'embedded_signup'` test for the
+ * regression guard proving this.
  */
 export class WhatsAppConnectorRegistry {
   private readonly cache = new Map<string, WhatsAppConnector>();

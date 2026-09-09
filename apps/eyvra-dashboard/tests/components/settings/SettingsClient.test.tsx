@@ -236,6 +236,16 @@ describe("SettingsClient", () => {
       new Response(JSON.stringify(SETTINGS_RESPONSE), { status: 200 }),
       wabaListResponse(),
       new Response(JSON.stringify({ competitors: [] }), { status: 200 }),
+      // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — the component now also loads
+      // `GET /api/oauth/status` on mount (4th real fetch), so this sequential mock needs a 4th
+      // response here to keep every later index correctly aligned with its intended call.
+      new Response(
+        JSON.stringify({
+          meta: { connected: false, source: "manual" },
+          whatsapp: { connected: false, configs: [] },
+        }),
+        { status: 200 },
+      ),
       new Response(JSON.stringify({ success: true, message: "Terhubung — DSS Motor Bintaro" }), {
         status: 200,
       }),

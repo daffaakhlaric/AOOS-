@@ -8,6 +8,7 @@ import {
   type MetaAdsConnector,
 } from "@aos/meta-ads-connector";
 
+import type { EncryptionService } from "../../../common/encryption.service.js";
 import type { AaosApiConfig } from "../../../config/aaos-api.config.js";
 import type { TenantRepository } from "../../superadmin/infrastructure/tenant.repository.js";
 import type { WebhookSecretsService } from "../../webhook-config/webhook-secrets.service.js";
@@ -63,6 +64,23 @@ export interface MetaAdsConnectorContext extends MetaAdsConnector {
  * (Historical note: the original Phase 1B/Phase 3 version of this doc justified the unconditional
  * short-circuit as "avoid a redundant query + avoid a live-traffic behavior change on ship day" —
  * that justification no longer holds now that `dss-motor`'s DB row is real and correctly set.)
+ *
+ * EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — additive OAuth-preferring fallback (`encryption`
+ * param, both new, optional, appended at the END of the constructor so every pre-existing 5-arg
+ * call site — every real caller in `app.module.ts` plus every existing test in this file's own
+ * `.spec.ts` — continues to compile and behave byte-for-byte identically; `encryption` simply
+ * stays `undefined` for them, which the branch below treats exactly like "not OAuth-connected").
+ * When `tenant.meta_connection_source === 'oauth'` AND a real `EncryptionService` was supplied AND
+ * `tenant.meta_access_token_encrypted` is present, `resolve()` now prefers the DECRYPTED
+ * OAuth-obtained token over the plain `meta_access_token` column. A tenant that is
+ * `'manual'` (or has the column simply unset/null, matching every pre-Sprint-1 fixture/tenant) is
+ * completely unaffected — `hasOAuthConfig` short-circuits `false` before ever touching
+ * `EncryptionService`, so the existing `hasRealDbConfig`/plain-token path below runs EXACTLY as
+ * before. A corrupted/undecryptable encrypted token (wrong/rotated `TOKEN_ENCRYPTION_KEY`,
+ * tampered ciphertext) is caught explicitly — logged as a warning, never thrown — and honestly
+ * degrades to the same plain-`meta_access_token` path a `'manual'` tenant already uses, so a
+ * broken OAuth token can never break campaign creation for a tenant that also has a working manual
+ * token saved.
  */
 export class MetaAdsConnectorRegistry {
   private readonly cache = new Map<string, MetaAdsConnectorContext>();
@@ -74,6 +92,7 @@ export class MetaAdsConnectorRegistry {
     private readonly publisher: IPublisher,
     private readonly staticConnector: MetaAdsConnector,
     private readonly webhookSecrets: WebhookSecretsService,
+    private readonly encryption?: EncryptionService,
     logger?: Logger,
   ) {
     this.logger = logger ?? createLogger({ serviceName: "meta-ads-connector-registry" });
@@ -102,7 +121,35 @@ export class MetaAdsConnectorRegistry {
       );
       tenant = undefined;
     }
+    // OAuth-preferring branch (Sprint 3, additive) — see class doc. Never throws: a decrypt
+    // failure is caught and logged, honestly degrading to the plain `meta_access_token` path below
+    // exactly as if this tenant had never connected via OAuth at all.
+    let oauthAccessToken: string | undefined;
+    if (
+      tenant !== undefined &&
+      this.encryption !== undefined &&
+      tenant.meta_connection_source === "oauth" &&
+      tenant.meta_access_token_encrypted !== null &&
+      tenant.meta_access_token_encrypted.length > 0
+    ) {
+      try {
+        oauthAccessToken = this.encryption.decrypt(tenant.meta_access_token_encrypted);
+      } catch (caught) {
+        this.logger.warn(
+          { tenantId, error: caught instanceof Error ? caught.message : String(caught) },
+          "MetaAdsConnectorRegistry: failed to decrypt OAuth-obtained meta_access_token_encrypted — falling back to the manual meta_access_token column",
+        );
+        oauthAccessToken = undefined;
+      }
+    }
+    const hasOAuthConfig =
+      oauthAccessToken !== undefined &&
+      tenant !== undefined &&
+      tenant.meta_ad_account_id !== null &&
+      tenant.meta_ad_account_id.length > 0;
+
     const hasRealDbConfig =
+      !hasOAuthConfig &&
       tenant !== undefined &&
       tenant.meta_access_token !== null &&
       tenant.meta_access_token.length > 0 &&
@@ -118,12 +165,14 @@ export class MetaAdsConnectorRegistry {
     // with the real, live-editable secret pair is still correct and cheap (cached by
     // `WebhookSecretsService` itself).
     let dbResult: ReturnType<typeof parseMetaAdsConnectorConfig> | undefined;
-    if (hasRealDbConfig && tenant !== undefined) {
+    if ((hasOAuthConfig || hasRealDbConfig) && tenant !== undefined) {
       const webhookSecrets = await this.webhookSecrets.getMetaSecrets();
       dbResult = parseMetaAdsConnectorConfig({
         apiVersion: tenant.meta_api_version ?? this.config.META_API_VERSION,
         baseUrl: META_BASE_URL,
-        accessToken: tenant.meta_access_token as string,
+        accessToken: hasOAuthConfig
+          ? (oauthAccessToken as string)
+          : (tenant.meta_access_token as string),
         adAccountIds: [tenant.meta_ad_account_id as string],
         webhookVerifyToken: webhookSecrets.verifyToken,
         webhookAppSecret: webhookSecrets.appSecret,

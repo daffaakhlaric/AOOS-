@@ -7,10 +7,76 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import type { CompetitorPageDto } from "@/types/dashboard.types";
-import type { SettingsDto, TestConnectionResultDto, WabaConfigDto } from "@/types/tenant.types";
+import type {
+  OAuthStatusDto,
+  SettingsDto,
+  TestConnectionResultDto,
+  WabaConfigDto,
+} from "@/types/tenant.types";
 
 import styles from "./SettingsClient.module.css";
 import { WabaConfigModal } from "./WabaConfigModal";
+
+const FACEBOOK_SDK_SCRIPT_ID = "facebook-jssdk";
+const META_GRAPH_API_VERSION = "v21.0";
+
+// EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — minimal, honest typing for the real Facebook JS SDK
+// global (`window.FB`/`window.fbAsyncInit`), Meta's own documented shape
+// (developers.facebook.com/docs/javascript/reference/FB.init). No `@types/facebook-js-sdk`
+// package is installed (would be a real new dependency for one narrow use), so this is typed
+// loosely, same "minimal, file-local `any`-adjacent test double for an external SDK shape"
+// precedent already used elsewhere in this codebase (`webhook-secrets.service.ts`'s own doc, and
+// every `as any` minimal-double comment in `apps/aaos-api`'s specs).
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- real external Facebook JS SDK global, no first-party types package installed for this one narrow use
+    FB?: any;
+    fbAsyncInit?: () => void;
+  }
+}
+
+/**
+ * Loads the real Facebook JS SDK script (`connect.facebook.net/en_US/sdk.js`) and calls
+ * `FB.init`, exactly matching Meta's own documented embed snippet — idempotent (a second call
+ * while already loading/loaded resolves once the existing load finishes, never double-injects the
+ * script tag). Used ONLY by the WhatsApp Embedded Signup button below; the "Connect dengan
+ * Facebook" (Meta Ads OAuth) button never touches this — that flow is a plain server-side
+ * redirect (`GET /oauth/meta/connect`), not a client-side SDK call.
+ */
+let facebookSdkLoadPromise: Promise<void> | undefined;
+function ensureFacebookSdkLoaded(appId: string): Promise<void> {
+  if (window.FB !== undefined) {
+    return Promise.resolve();
+  }
+  if (facebookSdkLoadPromise !== undefined) {
+    return facebookSdkLoadPromise;
+  }
+  facebookSdkLoadPromise = new Promise<void>((resolve, reject) => {
+    window.fbAsyncInit = (): void => {
+      window.FB?.init({
+        appId,
+        autoLogAppUser: false,
+        xfbml: false,
+        version: META_GRAPH_API_VERSION,
+      });
+      resolve();
+    };
+    if (document.getElementById(FACEBOOK_SDK_SCRIPT_ID) !== null) {
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = FACEBOOK_SDK_SCRIPT_ID;
+    script.src = "https://connect.facebook.net/en_US/sdk.js";
+    script.async = true;
+    script.defer = true;
+    script.crossOrigin = "anonymous";
+    script.onerror = (): void => {
+      reject(new Error("Gagal memuat Facebook JS SDK."));
+    };
+    document.body.appendChild(script);
+  });
+  return facebookSdkLoadPromise;
+}
 
 function useSignOut(): { readonly email: string | undefined; readonly onSignOut: () => void } {
   const [email, setEmail] = useState<string | undefined>(undefined);
@@ -78,6 +144,17 @@ export function SettingsClient({
   const [operatingModeSaving, setOperatingModeSaving] = useState(false);
   const [operatingModeError, setOperatingModeError] = useState<string | undefined>(undefined);
 
+  const [oauthStatus, setOauthStatus] = useState<OAuthStatusDto | undefined>(undefined);
+  const [oauthError, setOauthError] = useState<string | undefined>(undefined);
+  const [metaConnecting, setMetaConnecting] = useState(false);
+  const [metaDisconnecting, setMetaDisconnecting] = useState(false);
+
+  const [waEmbeddedBranchId, setWaEmbeddedBranchId] = useState("");
+  const [waEmbeddedBusy, setWaEmbeddedBusy] = useState(false);
+  const [waEmbeddedResult, setWaEmbeddedResult] = useState<
+    { readonly success: boolean; readonly message: string } | undefined
+  >(undefined);
+
   const [competitors, setCompetitors] = useState<readonly CompetitorPageDto[] | undefined>(
     undefined,
   );
@@ -141,11 +218,166 @@ export function SettingsClient({
       });
   }, []);
 
+  const loadOAuthStatus = useCallback(() => {
+    fetch("/api/oauth/status")
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+          throw new Error(body.error?.message ?? "Gagal memuat status koneksi OAuth.");
+        }
+        return (await res.json()) as OAuthStatusDto;
+      })
+      .then((data) => setOauthStatus(data))
+      .catch((caught: unknown) => {
+        setOauthError(
+          caught instanceof Error ? caught.message : "Gagal memuat status koneksi OAuth.",
+        );
+      });
+  }, []);
+
   useEffect(() => {
     loadSettings();
     loadWaba();
     loadCompetitors();
-  }, [loadSettings, loadWaba, loadCompetitors]);
+    loadOAuthStatus();
+  }, [loadSettings, loadWaba, loadCompetitors, loadOAuthStatus]);
+
+  /** Meta Ads Configuration card's "Connect dengan Facebook" — real `GET /oauth/meta/connect`, then a plain browser navigation to Meta's own consent-dialog URL. */
+  async function handleConnectMeta(): Promise<void> {
+    setMetaConnecting(true);
+    setOauthError(undefined);
+    try {
+      const response = await fetch("/api/oauth/meta/connect");
+      const body = (await response.json().catch(() => ({}))) as
+        { authorizeUrl?: string } | { error?: { message?: string } };
+      if (!response.ok || !("authorizeUrl" in body) || body.authorizeUrl === undefined) {
+        const message =
+          "error" in body
+            ? (body.error?.message ?? "Gagal memulai koneksi Meta.")
+            : "Gagal memulai koneksi Meta.";
+        throw new Error(message);
+      }
+      window.location.href = body.authorizeUrl;
+    } catch (caught) {
+      setOauthError(caught instanceof Error ? caught.message : "Gagal memulai koneksi Meta.");
+      setMetaConnecting(false);
+    }
+  }
+
+  /** Meta Ads Configuration card's "Disconnect" — reverts to `meta_connection_source: 'manual'`; the existing manual token below (if any) keeps working immediately after. */
+  async function handleDisconnectMeta(): Promise<void> {
+    const confirmed = window.confirm(
+      "Putuskan koneksi Meta Ads OAuth? Tenant ini akan kembali memakai token manual (jika ada) di bawah.",
+    );
+    if (!confirmed) {
+      return;
+    }
+    setMetaDisconnecting(true);
+    setOauthError(undefined);
+    try {
+      const response = await fetch("/api/oauth/meta/disconnect", { method: "DELETE" });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? "Gagal memutuskan koneksi Meta.");
+      }
+      loadOAuthStatus();
+      loadSettings();
+    } catch (caught) {
+      setOauthError(caught instanceof Error ? caught.message : "Gagal memutuskan koneksi Meta.");
+    } finally {
+      setMetaDisconnecting(false);
+    }
+  }
+
+  /**
+   * WhatsApp Business card's "Connect dengan WhatsApp (Embedded Signup)" — real `FB.login` call
+   * per Meta's documented WhatsApp Embedded Signup shape, forwarding the resulting token to the
+   * real `POST /oauth/wa/embedded-signup` backend endpoint.
+   *
+   * HONEST SANDBOX LIMITATION (documented per this sprint's own discipline, also in the commit
+   * message): live end-to-end verification of this exact button — a real Meta App's
+   * `NEXT_PUBLIC_META_APP_ID` + a real WhatsApp Embedded Signup configuration ID
+   * (`NEXT_PUBLIC_META_WA_EMBEDDED_SIGNUP_CONFIG_ID`, created in the Meta App dashboard) — is not
+   * provisionable in this sandbox. The button, the SDK wiring, and the backend endpoint it calls
+   * are all real and wired per Meta's own documented API shape; only a live `FB.login` popup
+   * round-trip against a real registered Meta App could not be exercised here.
+   */
+  async function handleStartEmbeddedSignup(): Promise<void> {
+    if (waEmbeddedBranchId.trim().length === 0) {
+      setWaEmbeddedResult({ success: false, message: "Cabang wajib diisi sebelum menghubungkan." });
+      return;
+    }
+    const appId = process.env.NEXT_PUBLIC_META_APP_ID;
+    const configId = process.env.NEXT_PUBLIC_META_WA_EMBEDDED_SIGNUP_CONFIG_ID;
+    if (
+      appId === undefined ||
+      appId.length === 0 ||
+      configId === undefined ||
+      configId.length === 0
+    ) {
+      setWaEmbeddedResult({
+        success: false,
+        message:
+          "Embedded Signup belum dikonfigurasi — NEXT_PUBLIC_META_APP_ID/NEXT_PUBLIC_META_WA_EMBEDDED_SIGNUP_CONFIG_ID belum di-set. Gunakan form manual di bawah untuk sekarang.",
+      });
+      return;
+    }
+
+    setWaEmbeddedBusy(true);
+    setWaEmbeddedResult(undefined);
+    try {
+      await ensureFacebookSdkLoaded(appId);
+      const token = await new Promise<string>((resolve, reject) => {
+        window.FB?.login(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- real Facebook JS SDK callback shape, no first-party types installed
+          (response: any) => {
+            const accessToken: string | undefined = response?.authResponse?.accessToken;
+            if (accessToken === undefined || accessToken.length === 0) {
+              reject(new Error("Login WhatsApp Embedded Signup dibatalkan atau gagal."));
+              return;
+            }
+            resolve(accessToken);
+          },
+          {
+            config_id: configId,
+            response_type: "code",
+            override_default_response_type: true,
+            extras: { feature: "whatsapp_embedded_signup", sessionInfoVersion: "3" },
+          },
+        );
+      });
+
+      const response = await fetch("/api/oauth/wa/embedded-signup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token, branchId: waEmbeddedBranchId.trim() }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        error?: { message?: string };
+      };
+      if (!response.ok) {
+        throw new Error(body.error?.message ?? "Gagal menghubungkan WhatsApp via Embedded Signup.");
+      }
+      setWaEmbeddedResult({
+        success: body.success ?? false,
+        message: body.message ?? "Selesai.",
+      });
+      loadWaba();
+      loadOAuthStatus();
+    } catch (caught) {
+      setWaEmbeddedResult({
+        success: false,
+        message:
+          caught instanceof Error
+            ? caught.message
+            : "Gagal menghubungkan WhatsApp via Embedded Signup.",
+      });
+    } finally {
+      setWaEmbeddedBusy(false);
+    }
+  }
 
   async function handleSaveMeta(): Promise<void> {
     setMetaSaving(true);
@@ -342,6 +574,11 @@ export function SettingsClient({
   }
 
   const Wrapper = embedded ? "div" : "main";
+  // Defensive: `oauthStatus` may come back with an unexpected/partial shape (e.g. a test double, or
+  // a real upstream degrade) — every read below goes through this, never a bare `oauthStatus.meta`,
+  // so a malformed response can never crash the render.
+  const metaOauth = oauthStatus?.meta;
+  const metaOauthConnected = metaOauth?.source === "oauth" && metaOauth.connected;
 
   return (
     <Wrapper>
@@ -356,6 +593,65 @@ export function SettingsClient({
       <div className={styles.page}>
         <section className={styles.card}>
           <span className={styles.cardTitle}>Meta Ads Configuration</span>
+
+          {/* EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — real Facebook Login (Meta Ads OAuth) block, an
+              ALTERNATIVE to the manual Ad Account ID/Access Token form below, not a replacement for it
+              (Prompt 9's own "manual connection for existing tenants" requirement). */}
+          <div className={styles.accountRow}>
+            {metaOauth !== undefined ? (
+              <span
+                className={`${styles.statusPill} ${
+                  metaOauthConnected ? styles.statusPillActive : styles.statusPillInactive
+                }`}
+              >
+                {metaOauth.source === "oauth"
+                  ? metaOauthConnected
+                    ? "OAuth — Terhubung"
+                    : "OAuth — Terputus"
+                  : "Manual"}
+              </span>
+            ) : null}
+            {metaOauthConnected ? (
+              <button
+                type="button"
+                className={styles.smallButton}
+                onClick={() => void handleDisconnectMeta()}
+                disabled={metaDisconnecting}
+              >
+                {metaDisconnecting ? "Memutuskan..." : "Disconnect"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={() => void handleConnectMeta()}
+                disabled={metaConnecting}
+              >
+                {metaConnecting ? "Mengalihkan ke Facebook..." : "Connect dengan Facebook"}
+              </button>
+            )}
+          </div>
+          {metaOauthConnected ? (
+            <div className={styles.infoGrid}>
+              <div>
+                <div className={styles.infoLabel}>Akun Facebook</div>
+                <div className={styles.infoValue}>{metaOauth?.fbUserName ?? "-"}</div>
+              </div>
+              <div>
+                <div className={styles.infoLabel}>Ad Account</div>
+                <div className={styles.infoValue}>{metaOauth?.adAccountId ?? "-"}</div>
+              </div>
+              <div>
+                <div className={styles.infoLabel}>Token Berlaku Sampai</div>
+                <div className={styles.infoValue}>{metaOauth?.tokenExpiresAt ?? "-"}</div>
+              </div>
+            </div>
+          ) : null}
+          {oauthError !== undefined ? <p className={styles.error}>{oauthError}</p> : null}
+
+          <p className={styles.hint}>
+            Atau, hubungkan secara manual dengan Ad Account ID + Access Token di bawah ini:
+          </p>
           <div className={styles.row}>
             <div className={styles.formGroup}>
               <label htmlFor="meta-ad-account" className={styles.formLabel}>
@@ -442,6 +738,45 @@ export function SettingsClient({
               + Tambah WABA
             </button>
           </div>
+
+          {/* EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — real WhatsApp Embedded Signup block, an
+              ALTERNATIVE to "+ Tambah WABA"'s manual form below, not a replacement for it. See
+              `handleStartEmbeddedSignup`'s own doc for the honest sandbox limitation on live
+              `FB.login` verification. */}
+          <div className={styles.row}>
+            <div className={styles.formGroup}>
+              <label htmlFor="wa-embedded-branch" className={styles.formLabel}>
+                Cabang (untuk Embedded Signup)
+              </label>
+              <input
+                id="wa-embedded-branch"
+                className={styles.formInput}
+                value={waEmbeddedBranchId}
+                onChange={(e) => setWaEmbeddedBranchId(e.target.value)}
+                placeholder="BINTARO"
+              />
+            </div>
+            <button
+              type="button"
+              className={styles.smallButton}
+              onClick={() => void handleStartEmbeddedSignup()}
+              disabled={waEmbeddedBusy}
+            >
+              {waEmbeddedBusy ? "Menghubungkan..." : "Connect dengan WhatsApp (Embedded Signup)"}
+            </button>
+          </div>
+          {waEmbeddedResult !== undefined ? (
+            <p
+              className={`${styles.testResult} ${
+                waEmbeddedResult.success ? styles.testResultSuccess : styles.testResultFailure
+              }`}
+            >
+              {waEmbeddedResult.success ? "✓ " : "✕ "}
+              {waEmbeddedResult.message}
+            </p>
+          ) : null}
+          <p className={styles.hint}>Atau tambahkan/kelola WABA secara manual di bawah ini:</p>
+
           {wabaConfigs.length === 0 ? (
             <p className={styles.emptyState}>Belum ada WABA yang dikonfigurasi.</p>
           ) : (

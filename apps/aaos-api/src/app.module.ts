@@ -25,6 +25,7 @@ import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { createClient } from "@supabase/supabase-js";
 
+import { EncryptionService } from "./common/encryption.service.js";
 import type { AaosApiConfig } from "./config/aaos-api.config.js";
 import {
   isAssetLibraryConfigured,
@@ -216,12 +217,21 @@ export class AppModule {
     // SAME `connector`/`publisher` this file already composes (the `dss-motor` fallback + shared
     // event bus — see `MetaAdsConnectorRegistry`'s own class doc for why).
     const tenantRepository = new TenantRepository(leadStoreSupabaseClient);
+    // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — real, stateless AES-256-GCM decrypt for a
+    // tenant's OAuth-obtained `meta_access_token_encrypted`. Composed here (not reused from
+    // `MetaOAuthModule`'s own Nest-DI-provided instance, which is a SEPARATE object — this file's
+    // registries are plain-constructed, not Nest-injected) — cheap and side-effect-free
+    // (`EncryptionService`'s constructor just parses `TOKEN_ENCRYPTION_KEY`), so a second instance
+    // is not a real cost. See `MetaAdsConnectorRegistry`'s own class doc for the additive
+    // OAuth-preferring fallback this enables.
+    const encryptionService = new EncryptionService(config);
     const metaAdsConnectorRegistry = new MetaAdsConnectorRegistry(
       tenantRepository,
       config,
       publisher,
       connector,
       webhookSecretsService,
+      encryptionService,
     );
     // AAOS-CHAT-ROOM-JESSY: `GET /leads/:id/scoring-history`'s thin read over the real
     // `scoring_events` table — same composition pattern as `messageRepository`/`closingRepository`

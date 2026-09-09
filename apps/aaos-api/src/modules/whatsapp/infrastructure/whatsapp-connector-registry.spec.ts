@@ -308,4 +308,36 @@ describe("WhatsAppConnectorRegistry", () => {
     await registry.resolve(config.AAOS_TENANT_ID);
     expect(listSpy).toHaveBeenCalledTimes(2);
   });
+
+  // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 3 — regression guard for the class doc's investigation:
+  // `waba_configs.access_token` stays plain text for BOTH `config_source` values, so a real
+  // Embedded-Signup (OAuth)-obtained row must resolve through the exact same path a manual row
+  // does, with no separate decrypt/preference branch.
+  it("resolves a config_source: 'embedded_signup' (OAuth-obtained) row through the same plain-text access_token path as a manual row", async () => {
+    const config = buildTestConfig();
+    const client = createFakeSupabaseClient();
+    client.seed(
+      "waba_configs",
+      seedRow({
+        config_source: "embedded_signup",
+        access_token: "embedded-signup-token",
+        webhook_verified: true,
+      }),
+    );
+    const wabaConfigs = new WabaConfigRepository(client);
+    const staticConnector = buildStaticConnector();
+    const registry = new WhatsAppConnectorRegistry(
+      wabaConfigs,
+      config,
+      createFakePublisher(),
+      staticConnector,
+      buildFakeWebhookSecrets(),
+    );
+
+    const result = await registry.resolve("other-tenant");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).not.toBe(staticConnector);
+    }
+  });
 });
