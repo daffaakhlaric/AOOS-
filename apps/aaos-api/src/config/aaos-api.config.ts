@@ -198,6 +198,33 @@ export interface AaosApiConfig {
   readonly MARKET_INTEL_KPR_RATE_PCT: string;
   readonly MARKET_INTEL_KPR_RATE_DIRECTION: "NAIK" | "TURUN" | "STABIL" | "";
   readonly MARKET_INTEL_KPR_RATE_AS_OF: string;
+
+  /**
+   * EYVRA-META-OAUTH-WHATSAPP-SETUP (Sprint 1 — Foundation) — the symmetric key
+   * `common/encryption.service.ts`'s `EncryptionService` uses for AES-256-GCM encrypt/decrypt of
+   * sensitive third-party tokens (a tenant's OAuth-obtained Meta access token, the global Meta
+   * App's client secret). 64 hex characters = 32 raw bytes, `EncryptionService`'s own constructor
+   * validates that length and throws when it's set but malformed. Deliberately allowed to be an
+   * empty string here (NOT `.min(1, ...)`), same graceful-degradation discipline as
+   * `KIE_AI_API_KEY`/`META_APP_ID` above: this app must still boot and run every test/every other
+   * endpoint on a deployment (or in CI) where no encryption key has been provisioned yet — nothing
+   * in this sprint's scope calls `EncryptionService.encrypt`/`.decrypt` from a real request path,
+   * so there is nothing yet that NEEDS a configured key to boot. `EncryptionService.encrypt`/
+   * `.decrypt` themselves throw an honest, explicit error naming this var when it's empty and a
+   * caller actually tries to use them — never a silent no-op or a fabricated ciphertext.
+   */
+  readonly TOKEN_ENCRYPTION_KEY: string;
+
+  /**
+   * EYVRA-META-OAUTH-WHATSAPP-SETUP (Sprint 1 — Foundation) — the WhatsApp Embedded Signup
+   * "Configuration ID" Meta issues per Meta App (distinct from `META_APP_ID`/`META_APP_SECRET`,
+   * which identify the App itself). Stored here purely as this deployment's `.env` fallback for
+   * `system_meta_oauth_config.wa_config_id` (same NULL-means-fall-back-to-env semantics
+   * `WebhookSecretsService`/`system_webhook_config` already establish) — no real consumer reads
+   * this yet in THIS sprint (the WhatsApp Embedded Signup flow itself is a later sprint), same
+   * "allowed empty, wired in a later phase" discipline as `META_APP_ID` was when it first landed.
+   */
+  readonly WA_CONFIG_ID: string;
 }
 
 export const AaosApiConfigSchema = z.object({
@@ -294,6 +321,12 @@ export const AaosApiConfigSchema = z.object({
   MARKET_INTEL_KPR_RATE_PCT: z.string().default(""),
   MARKET_INTEL_KPR_RATE_DIRECTION: z.enum(["NAIK", "TURUN", "STABIL", ""]).default(""),
   MARKET_INTEL_KPR_RATE_AS_OF: z.string().default(""),
+
+  // EYVRA-META-OAUTH-WHATSAPP-SETUP (Sprint 1). Intentionally NOT `.min(1, ...)`/`.length(64, ...)`
+  // — see the `AaosApiConfig.TOKEN_ENCRYPTION_KEY` doc comment above. `EncryptionService`'s own
+  // constructor is the real place that validates hex-length when this IS set.
+  TOKEN_ENCRYPTION_KEY: z.string().default(""),
+  WA_CONFIG_ID: z.string().default(""),
 });
 
 /**

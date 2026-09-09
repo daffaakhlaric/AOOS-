@@ -84,6 +84,12 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     MARKET_INTEL_KPR_RATE_PCT: "",
     MARKET_INTEL_KPR_RATE_DIRECTION: "",
     MARKET_INTEL_KPR_RATE_AS_OF: "",
+    // EYVRA-META-OAUTH-WHATSAPP-SETUP (Sprint 1) — empty by default, same rationale as
+    // `META_APP_ID`/`KIE_AI_API_KEY`: most tests exercise the "encryption not configured" /
+    // "no WA Configuration ID" paths. `EncryptionService` specs needing a real key pass
+    // `TOKEN_ENCRYPTION_KEY` explicitly (a fixed 64-hex-char test key, never a real secret).
+    TOKEN_ENCRYPTION_KEY: "",
+    WA_CONFIG_ID: "",
     ...overrides,
   };
 }
