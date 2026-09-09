@@ -100,10 +100,39 @@ function seedCache(): void {
   writeCampaignsCache({ data: SNAPSHOT, fetchedAt: Date.now(), period: "last_30d" });
 }
 
+const EMPTY_SNAPSHOT: AdAccountSummaryDto = {
+  id: "act_1",
+  name: "Mobix Main",
+  syncedAt: "2026-08-11T00:00:00.000Z",
+  campaigns: [],
+  ads: [],
+  totals: {
+    spend: 0,
+    clicks: 0,
+    frequency: 0,
+    conversations: 0,
+    d2: 0,
+    d3: 0,
+    d5: 0,
+    leadForm: 0,
+    totalLead: 0,
+    rphD3: null,
+    rphLead: null,
+  },
+  campaignCount: 0,
+  adCount: 0,
+};
+
 function mockSettingsFetch(mode: "DEV" | "LIVE" = "DEV"): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn(async (url: string) => {
     if (url === "/api/settings") {
       return new Response(JSON.stringify({ tenant: { mode } }), { status: 200 });
+    }
+    if (typeof url === "string" && url.startsWith("/api/campaigns")) {
+      // Real bug fix (AAOS-CAMPAIGNS-AUTO-PULL): the hub now auto-pulls on mount when there's no
+      // fresh cached snapshot — every test that doesn't `seedCache()` needs this endpoint mocked
+      // with a real, honest (empty) response rather than falling through to the catch-all below.
+      return new Response(JSON.stringify(EMPTY_SNAPSHOT), { status: 200 });
     }
     return new Response(JSON.stringify({}), { status: 200 });
   });
@@ -140,10 +169,25 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     await waitFor(() => expect(screen.getByTestId("mode-badge")).toHaveTextContent("LIVE"));
   });
 
-  it("shows an honest empty state with no cached data", () => {
-    mockSettingsFetch();
+  it("auto-pulls once on mount when there's no fresh cached snapshot, replacing the permanently-frozen empty state with the real, honestly-empty result (AAOS-CAMPAIGNS-AUTO-PULL — the real bug fix: a first-time visit no longer shows Rp 0/CPL '—' cards forever, it self-heals via a real fetch)", async () => {
+    const fetchMock = mockSettingsFetch();
     render(<CampaignsHubClient />);
-    expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/campaigns")),
+    );
+    // Once the auto-pull resolves (even with a real, honestly-empty account), `data` is no longer
+    // `undefined` — the real table renders with its own honest "0 campaigns", not the old
+    // `empty-state` marker, which only appears before the very first pull has ever completed.
+    await waitFor(() =>
+      expect(screen.getByTestId("real-unified-table")).toHaveTextContent("0 campaigns"),
+    );
+  });
+
+  it("does NOT auto-pull when a fresh cached snapshot already exists — a repeat visit within the TTL renders instantly with zero network call", () => {
+    seedCache();
+    const fetchMock = mockSettingsFetch();
+    render(<CampaignsHubClient />);
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/campaigns"));
   });
 
   it("clicking a row opens the real CampaignInsightPanel for that campaign", async () => {

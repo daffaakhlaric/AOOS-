@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { TopBar } from "@/components/layout/TopBar";
+import { isCacheFresh, readCampaignsCache } from "@/lib/campaignsCache";
 import { formatDateTimeIdWib } from "@/lib/formatters";
 import { useCampaignsSnapshot } from "@/lib/useCampaignsSnapshot";
 import type { SettingsDto } from "@/types/tenant.types";
@@ -39,9 +40,19 @@ export interface CampaignsHubClientProps {
  *  2. `SamanthaInsightBar` — a real, zero-cost DETERMINISTIC summary (not an LLM call for every
  *     campaign on every page load — see that component's own doc for why).
  *  3. Filter bar — search + period (`DateRangeSelector`, reusing the exact real `datePreset` param
- *     `GET /api/v1/campaigns` accepts) + campaign count + "Tarik Data Baru" (the real manual-pull-
- *     only house style `MetaAdsClient.tsx` already established — this page is now the only real
- *     entry point into `useCampaignsSnapshot()`'s `pull()`, since the old "Aktif" tab is retired).
+ *     `GET /api/v1/campaigns` accepts) + campaign count + "Tarik Data Baru" (the real manual-pull
+ *     house style `MetaAdsClient.tsx` already established — this page is now the only real entry
+ *     point into `useCampaignsSnapshot()`'s `pull()`, since the old "Aktif" tab is retired).
+ *
+ * REAL BUG FIX (AAOS-CAMPAIGNS-AUTO-PULL): being this page's ONLY real entry point into `pull()`
+ * meant a first-time visit — or a visit after the shared 60-minute `localStorage` TTL lapsed —
+ * rendered whatever stale/absent snapshot was cached, with every Verdict/spend/CPL card frozen at
+ * "Rp 0"/"—" until the user knew to click "Tarik Data Baru" themselves (reported live: verdict
+ * cards looked permanently static). This page now auto-pulls ONCE on mount, but ONLY when there is
+ * no cached snapshot or it has gone stale (`isCacheFresh`) — a fresh cache still renders instantly
+ * with zero network call, so this does not turn into an auto-refresh-on-every-visit and does not
+ * change the deliberate manual-pull house style the other `/meta-ads` pages still rely on (this
+ * fix is scoped to this component only, not to the shared `useCampaignsSnapshot()` hook).
  *  4. `UnifiedCampaignTable` — ONE real table (toggle/budget/spend/CPL pill/frequency/verdict).
  *  5. `CampaignInsightPanel` — click-to-expand, appears below the table for the selected campaign.
  *  6. Bottom strip — `VerdictCards` | `BudgetTracker` | `ObjectiveStripCard`, 3 real cards side by
@@ -95,6 +106,27 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
       cancelled = true;
     };
   }, []);
+
+  // Real bug fix: this page is the primary landing view for Verdict/spend/CPL analysis, but
+  // `useCampaignsSnapshot()` never auto-fetches (a deliberate manual-pull-only house style shared
+  // with `/meta-ads`'s pages — see that hook's own doc). A first-time visit, or a visit after the
+  // 60-minute localStorage TTL has lapsed, therefore rendered whatever was last pulled (or nothing
+  // at all — Rp 0 spend, "—" CPL on every card) until the user knew to click "Tarik Data Baru".
+  // Auto-pull ONCE on mount, but only when there's no cached snapshot or it's gone stale — a fresh
+  // cache still renders instantly with zero network call, matching every other page's behavior.
+  useEffect(() => {
+    // The `?view=ab-testing` escape hatch renders none of the unified page's campaign/Verdict UI
+    // (see the early `return` below) — no reason to fire a real Meta pull nothing on that view
+    // will read.
+    if (initialView === "ab-testing") {
+      return;
+    }
+    const cached = readCampaignsCache();
+    if (cached === undefined || !isCacheFresh(cached)) {
+      void pull(datePreset);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialView]);
 
   const campaigns = useMemo(() => data?.campaigns ?? [], [data]);
   const filteredCampaigns = useMemo(
