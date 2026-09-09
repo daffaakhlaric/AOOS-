@@ -38,9 +38,9 @@
     "@aos/testing": "workspace:*",
     "@aos/tsconfig": "workspace:*",
     "@aos/vitest-config": "workspace:*",
-    "@types/node": "^20.14.0",
-    "@vitest/coverage-v8": "^2.0.5",
-    "typescript": "^5.5.4",
+    "@types/node": "^26.4.1",
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^7.0.2",
     "vitest": "^2.0.5"
   }
 }

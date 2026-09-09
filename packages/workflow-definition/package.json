@@ -40,10 +40,10 @@
     "@aos/tsconfig": "workspace:*",
     "@aos/vitest-config": "workspace:*",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^20.14.0",
-    "@types/semver": "^7.5.8",
-    "@vitest/coverage-v8": "^2.0.5",
-    "typescript": "^5.5.4",
+    "@types/node": "^26.4.1",
+    "@types/semver": "^7.8.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^7.0.2",
     "vitest": "^2.0.5"
   }
 }
