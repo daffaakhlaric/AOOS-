@@ -48,6 +48,20 @@ function insightsExpansion(datePreset: string, fields: string): string {
   return `insights.date_preset(${datePreset}){${fields}}`;
 }
 
+/**
+ * N+1-fanout fix (real, currently-broken-in-production "User request limit reached" incident) —
+ * how many child rows each nested edge (`adsets` under a campaign, `ads` under an adset) requests
+ * per page inside a single field-expansion call. Verified against Meta's real, documented
+ * `.limit(N)` pagination-modifier syntax on a nested edge (Marketing API "Field Expansion" guide):
+ * `adsets.limit(50){...}` is the exact real grammar Meta's own docs use in their nested-edge
+ * example. 50 is chosen to comfortably cover the overwhelming majority of real ad accounts'
+ * adset-per-campaign / ad-per-adset counts in one page while keeping a single response body a
+ * reasonable size; any campaign/adset whose real child count exceeds this is NOT silently
+ * dropped — see `MetaCampaignExpandedSchema`'s docstring in `types/MetaApiTypes.ts` for the
+ * honest `paging.next`-triggered fallback `PullCampaignData` performs for that overflow case.
+ */
+const NESTED_EXPANSION_LIMIT = 50;
+
 /** Pure, side-effect-free URL builders for the Meta Marketing Graph API — no `fetch` here, so they're trivially unit-testable and reusable by `MetaApiClient`. */
 export class MetaApiRequestBuilder {
   static campaignsUrl(
@@ -68,6 +82,52 @@ export class MetaApiRequestBuilder {
   static adSetsUrl(campaignId: string, accessToken: string, cursor?: PageCursor): string {
     const fields = `${ADSET_FIELDS},${insightsExpansion("last_30d", "spend")}`;
     return MetaApiRequestBuilder.buildGetUrl(`${campaignId}/adsets`, accessToken, fields, cursor);
+  }
+
+  /**
+   * N+1-fanout fix — `PullCampaignData`'s new primary campaign-tree pull. Requests the full
+   * campaign→adset→ad hierarchy (each level's own `insights`) in ONE Graph API call using Meta's
+   * real, documented nested-field-expansion + `.limit(N)`-on-nested-edge syntax
+   * (developers.facebook.com/docs/graph-api/guides/field-expansion), instead of the old
+   * `campaignsUrl` + per-campaign `adSetsUrl` + per-adset `adsUrl` fanout (still kept below,
+   * unmodified, as the real fallback for a campaign/adset whose child count overflows this
+   * expansion's own page size — see `types/MetaApiTypes.ts`'s `MetaCampaignExpandedSchema` doc).
+   *
+   * Real shape, one campaign row:
+   * `.../act_X/campaigns?fields=id,name,objective,status,created_time,
+   *   insights.date_preset(last_30d){spend,...},
+   *   adsets.limit(50){id,name,status,daily_budget,targeting,insights.date_preset(last_30d){spend},
+   *     ads.limit(50){id,name,status,created_time,creative{image_hash,video_id},
+   *       insights.date_preset(last_30d){spend,...}}}`
+   *
+   * The nested `ads` insights window intentionally uses the SAME `datePreset` the caller passed
+   * for the top-level campaign pull (matching the pre-existing `adsUrl` behavior exactly) — only
+   * the nested `adsets` insights window stays hardcoded `last_30d` (matching the pre-existing
+   * `adSetsUrl` behavior exactly, which only ever reads `spend` for adset-level rollups). Neither
+   * nested insights window's semantics change from what the old 3-call fanout already requested —
+   * this is purely an HTTP-shape optimization, not a data-semantics change.
+   */
+  static campaignsExpandedUrl(
+    adAccountId: string,
+    accessToken: string,
+    datePreset: string,
+    cursor?: PageCursor,
+    nestedLimit: number = NESTED_EXPANSION_LIMIT,
+  ): string {
+    const adSetFields = `${ADSET_FIELDS},${insightsExpansion("last_30d", "spend")}`;
+    const adFields = `${AD_FIELDS},${insightsExpansion(datePreset, INSIGHTS_METRIC_FIELDS)}`;
+    const nestedAds = `ads.limit(${nestedLimit}){${adFields}}`;
+    const nestedAdSets = `adsets.limit(${nestedLimit}){${adSetFields},${nestedAds}}`;
+    const fields = `${CAMPAIGN_FIELDS},${insightsExpansion(
+      datePreset,
+      INSIGHTS_METRIC_FIELDS,
+    )},${nestedAdSets}`;
+    return MetaApiRequestBuilder.buildGetUrl(
+      `${adAccountId}/campaigns`,
+      accessToken,
+      fields,
+      cursor,
+    );
   }
 
   static adsUrl(

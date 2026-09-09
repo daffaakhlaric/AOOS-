@@ -167,6 +167,56 @@ export const MetaAdListResponseSchema = z.object({
 });
 export type MetaAdListResponse = z.infer<typeof MetaAdListResponseSchema>;
 
+/**
+ * Meta Graph API "Field Expansion" response shapes (developers.facebook.com/docs/graph-api/
+ * guides/field-expansion) — the N+1-fanout fix (real, currently-broken-in-production "User
+ * request limit reached" incident). Instead of `PullCampaignData` issuing one `getCampaigns` call
+ * then a separate `getAdSets` call per campaign then a separate `getAds` call per adset (an
+ * account with 20 campaigns × 3 adsets ≈ 81 sequential real Meta calls for ONE pull), a single
+ * `campaigns?fields=...,adsets.limit(N){...,ads.limit(M){...}}` request asks Meta to inline the
+ * whole campaign→adset→ad tree (each level's own `insights` included) in one HTTP round trip.
+ * This is Meta's own documented, recommended pattern for exactly this N+1 problem — not a hack.
+ *
+ * Each nested edge (`adsets`, `ads`) is requested with its own `.limit(N)` pagination modifier and
+ * comes back with its own `paging` object, exactly like a top-level edge — so a campaign/adset
+ * whose real child count exceeds that page size is honestly detectable (`paging.next` present)
+ * rather than silently dropped. `PullCampaignData`'s `extractOrFetch` helper (see
+ * `meta-api-call-helpers.ts`) is the real, honest fallback for that overflow case: it re-fetches
+ * that one campaign's/adset's full child list via the pre-existing dedicated `getAdSets`/`getAds`
+ * paginated edge calls, so a >N-adset campaign or >N-ad adset never loses data — the fanout this
+ * fix eliminates is only ever paid again for the rare overflowing branch, not the whole tree.
+ *
+ * `MetaAdSetExpandedSchema`/`MetaCampaignExpandedSchema` are `.extend()`-ed from the pre-existing
+ * flat `MetaAdSetSchema`/`MetaCampaignSchema` (this file, above) — every field the flat schemas
+ * already validate is unchanged; only the new nested edge field is added. This keeps
+ * `MetaResponseMapper.mapCampaigns`/`mapAdSets`/`mapAds` (which only ever read the flat fields)
+ * fully reusable, unmodified, against the expanded rows — the real domain-entity output shape
+ * (`Campaign`/`AdSet`/`Ad`) is byte-for-byte unchanged by this HTTP-shape optimization.
+ */
+export const MetaAdSetExpandedSchema = MetaAdSetSchema.extend({
+  ads: MetaAdListResponseSchema.optional(),
+});
+export type MetaAdSetExpanded = z.infer<typeof MetaAdSetExpandedSchema>;
+
+export const MetaAdSetExpandedEdgeSchema = z.object({
+  data: z.array(MetaAdSetExpandedSchema),
+  paging: MetaPagingSchema.optional(),
+});
+export type MetaAdSetExpandedEdge = z.infer<typeof MetaAdSetExpandedEdgeSchema>;
+
+export const MetaCampaignExpandedSchema = MetaCampaignSchema.extend({
+  adsets: MetaAdSetExpandedEdgeSchema.optional(),
+});
+export type MetaCampaignExpanded = z.infer<typeof MetaCampaignExpandedSchema>;
+
+export const MetaCampaignExpandedListResponseSchema = z.object({
+  data: z.array(MetaCampaignExpandedSchema),
+  paging: MetaPagingSchema.optional(),
+});
+export type MetaCampaignExpandedListResponse = z.infer<
+  typeof MetaCampaignExpandedListResponseSchema
+>;
+
 /** Response of `POST /{ad-id}`, `POST /{adset-id}`, `POST /{campaign-id}` action calls. Meta returns `{ success: true }` for status/field updates. */
 export const MetaUpdateResponseSchema = z
   .object({

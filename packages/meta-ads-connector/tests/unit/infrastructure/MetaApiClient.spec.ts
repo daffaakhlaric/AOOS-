@@ -1,5 +1,5 @@
 import { HttpResponse, http } from "msw";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   AuthError,
@@ -57,6 +57,49 @@ describe("MetaApiClient", () => {
     const client = new MetaApiClient();
     const result = await client.getAds("adset-1", "TOKEN", "last_30d");
     expect(unwrap(result).data[0]?.id).toBe("ad1");
+  });
+
+  /** N+1-fanout fix — `getCampaignsExpanded` parses the nested `adsets{ads{...}}` tree in one response. */
+  it("getCampaignsExpanded() parses a nested campaign -> adsets -> ads tree from a single response", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_123/campaigns`, () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: "c1",
+              name: "Campaign 1",
+              objective: "OUTCOME_ENGAGEMENT",
+              status: "ACTIVE",
+              adsets: {
+                data: [
+                  {
+                    id: "as1",
+                    name: "AdSet 1",
+                    status: "ACTIVE",
+                    ads: {
+                      data: [
+                        {
+                          id: "ad1",
+                          name: "Ad 1",
+                          status: "ACTIVE",
+                          created_time: "2026-01-01T00:00:00+0000",
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.getCampaignsExpanded("act_123", "TOKEN", "last_30d");
+    const campaign = unwrap(result).data[0];
+    expect(campaign?.id).toBe("c1");
+    expect(campaign?.adsets?.data[0]?.id).toBe("as1");
+    expect(campaign?.adsets?.data[0]?.ads?.data[0]?.id).toBe("ad1");
   });
 
   it("getAdAccount() parses a valid { id, name } response", async () => {
@@ -800,6 +843,141 @@ describe("MetaApiClient", () => {
     expect(unwrapErr(await client.getCampaigns("act_123", "TOKEN", "last_30d"))).toBeInstanceOf(
       ApiServerError,
     );
+  });
+
+  /**
+   * Real fix for the live "User request limit reached" incident — this exact failure came back
+   * as HTTP 503 carrying Meta's real error code 17, which used to fall through to the generic
+   * `httpStatus === 503` branch (`ApiServerError`, blind exponential retry, no cooldown honored).
+   */
+  it('maps HTTP 503 with Meta error code 17 ("User request limit reached") to RateLimitError — the live incident\'s real fix', async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_123/campaigns`, () =>
+        HttpResponse.json(
+          { error: { message: "User request limit reached", code: 17 } },
+          { status: 503, headers: { "retry-after": "20" } },
+        ),
+      ),
+    );
+    const client = new MetaApiClient();
+    const error = unwrapErr(await client.getCampaigns("act_123", "TOKEN", "last_30d"));
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect((error as RateLimitError).retryAfterMs).toBe(20000);
+    expect(error.message).toBe("User request limit reached");
+  });
+
+  it("still maps a plain HTTP 503 with no Meta error code 17 to ApiServerError — the fix only WIDENS the 429 case, it never narrows the pre-existing 503 fallback", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_123/campaigns`, () =>
+        HttpResponse.json({ error: { message: "internal error", code: 2 } }, { status: 503 }),
+      ),
+    );
+    const client = new MetaApiClient();
+    expect(unwrapErr(await client.getCampaigns("act_123", "TOKEN", "last_30d"))).toBeInstanceOf(
+      ApiServerError,
+    );
+  });
+
+  it("maps Meta error code 17 to RateLimitError even on a differently-shaped HTTP status (matched on the structured code, not the HTTP status)", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_123/campaigns`, () =>
+        HttpResponse.json(
+          { error: { message: "User request limit reached", code: 17 } },
+          { status: 400 },
+        ),
+      ),
+    );
+    const client = new MetaApiClient();
+    expect(unwrapErr(await client.getCampaigns("act_123", "TOKEN", "last_30d"))).toBeInstanceOf(
+      RateLimitError,
+    );
+  });
+
+  /** Real, currently-broken-in-production "User request limit reached" fix — proactive throttling via Meta's real `X-Business-Use-Case-Usage` header. */
+  it("parses a real X-Business-Use-Case-Usage header and forwards it via onUsageHeader on a SUCCESSFUL response", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_123/campaigns`, () =>
+        HttpResponse.json(
+          { data: [] },
+          {
+            headers: {
+              "x-business-use-case-usage": JSON.stringify({
+                "biz-1": [
+                  {
+                    type: "ads_management",
+                    call_count: 42,
+                    total_cputime: 91,
+                    total_time: 30,
+                    estimated_time_to_regain_access: 0,
+                  },
+                ],
+              }),
+            },
+          },
+        ),
+      ),
+    );
+    const onUsageHeader = vi.fn();
+    const client = new MetaApiClient({ onUsageHeader });
+    await client.getCampaigns("act_123", "TOKEN", "last_30d");
+    expect(onUsageHeader).toHaveBeenCalledTimes(1);
+    expect(onUsageHeader).toHaveBeenCalledWith({
+      maxPercent: 91,
+      estimatedTimeToRegainAccessMinutes: 0,
+    });
+  });
+
+  it("parses the usage header on a FAILING response too (a rate-limited/errored call still legitimately reports real usage)", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_123/campaigns`, () =>
+        HttpResponse.json(
+          { error: { message: "User request limit reached", code: 17 } },
+          {
+            status: 503,
+            headers: {
+              "x-business-use-case-usage": JSON.stringify({
+                "biz-1": [{ type: "ads_management", call_count: 100, total_time: 100 }],
+              }),
+            },
+          },
+        ),
+      ),
+    );
+    const onUsageHeader = vi.fn();
+    const client = new MetaApiClient({ onUsageHeader });
+    await client.getCampaigns("act_123", "TOKEN", "last_30d");
+    expect(onUsageHeader).toHaveBeenCalledWith({
+      maxPercent: 100,
+      estimatedTimeToRegainAccessMinutes: 0,
+    });
+  });
+
+  it("never calls onUsageHeader when the response carries no X-Business-Use-Case-Usage header", async () => {
+    mswServer.use(http.get(`${BASE}/act_123/campaigns`, () => HttpResponse.json({ data: [] })));
+    const onUsageHeader = vi.fn();
+    const client = new MetaApiClient({ onUsageHeader });
+    await client.getCampaigns("act_123", "TOKEN", "last_30d");
+    expect(onUsageHeader).not.toHaveBeenCalled();
+  });
+
+  it("behaves byte-for-byte as before when onUsageHeader is not supplied (additive, optional)", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_123/campaigns`, () =>
+        HttpResponse.json(
+          { data: [] },
+          {
+            headers: {
+              "x-business-use-case-usage": JSON.stringify({
+                "biz-1": [{ type: "ads_management", call_count: 99 }],
+              }),
+            },
+          },
+        ),
+      ),
+    );
+    const client = new MetaApiClient();
+    const result = await client.getCampaigns("act_123", "TOKEN", "last_30d");
+    expect(result.ok).toBe(true);
   });
 
   it("maps a non-JSON error body to a generic MetaApiError with the HTTP status", async () => {

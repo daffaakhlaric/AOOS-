@@ -7,6 +7,7 @@ import type {
   MetaAdListResponse,
   MetaAdLocationSearchResponse,
   MetaAdSetListResponse,
+  MetaCampaignExpandedListResponse,
   MetaCampaignListResponse,
   MetaCustomAudienceCreateResponse,
   MetaCustomAudienceUsersResponse,
@@ -222,6 +223,26 @@ export interface IMetaAdsClient {
     accessToken: string,
     cursor?: PageCursor,
   ): Promise<Result<MetaAdSetListResponse, MetaApiError>>;
+
+  /**
+   * N+1-fanout fix (real, currently-broken-in-production "User request limit reached" incident) —
+   * `PullCampaignData`'s new primary campaign-tree pull. A single Meta Graph API call using real,
+   * documented nested-field-expansion + `.limit(N)`-on-nested-edge syntax
+   * (`campaigns?fields=...,adsets.limit(N){...,ads.limit(M){...}}`) that returns the WHOLE
+   * campaign→adset→ad hierarchy (each level's own `insights` inline) instead of the old
+   * `getCampaigns` + per-campaign `getAdSets` + per-adset `getAds` fanout — see
+   * `MetaApiRequestBuilder.campaignsExpandedUrl`'s own docstring for the exact real request shape.
+   * `getCampaigns`/`getAdSets`/`getAds` above are all kept, unmodified — `PullCampaignData` still
+   * uses them as the real, honest per-campaign/per-adset fallback when a nested edge's own
+   * `paging.next` shows it overflowed this call's `.limit(N)` page size (see
+   * `types/MetaApiTypes.ts`'s `MetaCampaignExpandedSchema` doc).
+   */
+  getCampaignsExpanded(
+    adAccountId: string,
+    accessToken: string,
+    datePreset: string,
+    cursor?: PageCursor,
+  ): Promise<Result<MetaCampaignExpandedListResponse, MetaApiError>>;
 
   getAds(
     adSetId: string,

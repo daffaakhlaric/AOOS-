@@ -54,3 +54,26 @@ export async function fetchAllPages<T>(
   }
   return ok(all);
 }
+
+/**
+ * N+1-fanout fix's real, honest pagination-overflow (and "not present at all") handling.
+ * `PullCampaignData`'s new field-expansion pull (`getCampaignsExpanded`) inlines each campaign's
+ * `adsets` (and each adset's `ads`) as a nested edge — but that nested edge is only ONE page
+ * (`.limit(N)`, see `MetaApiRequestBuilder`'s docstring), so a campaign/adset whose real child
+ * count exceeds `N` would silently lose data if the nested page were trusted blindly. This helper
+ * is the single, shared decision point: use the nested page as-is when it's genuinely the WHOLE
+ * list (no `paging.next`); otherwise (a real overflow, OR the nested edge being absent entirely —
+ * e.g. an older/differently-shaped mocked response in a test) fall back to `fetchFn`, which the
+ * caller wires to the pre-existing, already-correct, fully-paginated dedicated edge call
+ * (`getAdSets`/`getAds`) for that ONE campaign/adset — so the fallback fanout, when it does
+ * happen, is scoped to the rare overflowing branch, never the whole tree.
+ */
+export async function extractOrFetch<T>(
+  nested: { readonly data: ReadonlyArray<T>; readonly paging?: MetaPaging } | undefined,
+  fetchFn: () => Promise<Result<T[], MetaApiError>>,
+): Promise<Result<T[], MetaApiError>> {
+  if (nested !== undefined && nested.paging?.next === undefined) {
+    return ok([...nested.data]);
+  }
+  return fetchFn();
+}

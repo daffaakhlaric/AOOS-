@@ -132,4 +132,67 @@ describe("MetaApiRequestBuilder", () => {
       `${BASE}/audience-1/users`,
     );
   });
+
+  /**
+   * N+1-fanout fix — the real field-expansion request shape `PullCampaignData` now issues instead
+   * of the old campaigns-then-per-campaign-adsets-then-per-adset-ads fanout. Verified against
+   * Meta's real, documented nested-field-expansion + `.limit(N)`-on-nested-edge grammar.
+   */
+  describe("campaignsExpandedUrl (N+1-fanout fix)", () => {
+    it("requests the same top-level campaign fields/insights as the pre-existing campaignsUrl", () => {
+      const url = new URL(
+        MetaApiRequestBuilder.campaignsExpandedUrl("act_123", "TOKEN", "last_30d"),
+      );
+      expect(url.origin + url.pathname).toBe(`${BASE}/act_123/campaigns`);
+      expect(url.searchParams.get("limit")).toBe("100");
+      const fields = url.searchParams.get("fields") ?? "";
+      expect(fields).toContain("id,name,objective,status,created_time");
+      expect(fields).toContain(
+        "insights.date_preset(last_30d){spend,impressions,reach,frequency,clicks,actions}",
+      );
+    });
+
+    it("nests the adsets edge with a `.limit(N)` pagination modifier and its own spend-only last_30d insights", () => {
+      const url = new URL(
+        MetaApiRequestBuilder.campaignsExpandedUrl("act_123", "TOKEN", "last_30d"),
+      );
+      const fields = url.searchParams.get("fields") ?? "";
+      expect(fields).toContain("adsets.limit(50){");
+      expect(fields).toContain("id,name,status,daily_budget,targeting");
+      expect(fields).toContain("insights.date_preset(last_30d){spend}");
+    });
+
+    it("nests the ads edge (inside adsets) with its own `.limit(N)`, creative expansion, and the CALLER's datePreset insights", () => {
+      const url = new URL(MetaApiRequestBuilder.campaignsExpandedUrl("act_123", "TOKEN", "today"));
+      const fields = url.searchParams.get("fields") ?? "";
+      expect(fields).toContain("ads.limit(50){");
+      expect(fields).toContain("creative{image_hash,video_id}");
+      // The nested ad-level insights window follows the caller's real requested datePreset
+      // ("today" here), NOT hardcoded — matching the pre-existing adsUrl(datePreset) behavior.
+      expect(fields).toContain(
+        "insights.date_preset(today){spend,impressions,reach,frequency,clicks,actions}",
+      );
+      // ...while the nested adset-level insights window stays hardcoded last_30d, matching the
+      // pre-existing adSetsUrl behavior exactly (unaffected by the top-level datePreset).
+      expect(fields).toContain("insights.date_preset(last_30d){spend}");
+    });
+
+    it("accepts a custom nestedLimit override", () => {
+      const url = new URL(
+        MetaApiRequestBuilder.campaignsExpandedUrl("act_123", "TOKEN", "last_30d", undefined, 10),
+      );
+      const fields = url.searchParams.get("fields") ?? "";
+      expect(fields).toContain("adsets.limit(10){");
+      expect(fields).toContain("ads.limit(10){");
+    });
+
+    it("honors a pagination cursor exactly like campaignsUrl", () => {
+      const url = new URL(
+        MetaApiRequestBuilder.campaignsExpandedUrl("act_123", "TOKEN", "last_30d", {
+          after: "cursor-1",
+        }),
+      );
+      expect(url.searchParams.get("after")).toBe("cursor-1");
+    });
+  });
 });

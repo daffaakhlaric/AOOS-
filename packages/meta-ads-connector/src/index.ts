@@ -181,7 +181,12 @@ export type {
   MetaImageUploadResponse,
   MetaCustomAudienceCreateResponse,
   MetaCustomAudienceUsersResponse,
+  MetaCampaignExpanded,
+  MetaCampaignExpandedListResponse,
+  MetaAdSetExpanded,
 } from "./types/MetaApiTypes.js";
+export { parseBusinessUseCaseUsage } from "./infrastructure/meta-api/UsageHeaderParser.js";
+export type { BusinessUseCaseUsage } from "./infrastructure/meta-api/UsageHeaderParser.js";
 export { MetaAdInterestSchema, MetaAdInterestSearchResponseSchema } from "./types/MetaApiTypes.js";
 export { MetaAdLocationSchema, MetaAdLocationSearchResponseSchema } from "./types/MetaApiTypes.js";
 export type { ILeadWebhookParser, RawLeadData } from "./contracts/ILeadWebhookParser.js";

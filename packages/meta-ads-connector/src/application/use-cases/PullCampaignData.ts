@@ -8,17 +8,39 @@ import type { Ad } from "../../domain/entities/Ad.js";
 import { AdAccount } from "../../domain/entities/AdAccount.js";
 import type { AdSet } from "../../domain/entities/AdSet.js";
 import type { Campaign } from "../../domain/entities/Campaign.js";
-import { MetaApiError } from "../../domain/errors/index.js";
+import { MetaApiError, RateLimitError } from "../../domain/errors/index.js";
 import type { MetaAdsConnectorEvents } from "../../domain/events/MetaAdsConnectorEvents.js";
 import { evaluateVerdict } from "../../domain/services/VerdictEngine.js";
 import type { AdAccountId } from "../../domain/value-objects/AdAccountId.js";
 import { MetaResponseMapper } from "../../infrastructure/meta-api/MetaResponseMapper.js";
 import type { ExponentialBackoffRetry } from "../../infrastructure/retry/ExponentialBackoffRetry.js";
 import type { AdAccountRegistry } from "../../registry/AdAccountRegistry.js";
-import type { MetaAd, MetaAdSet, MetaCampaign } from "../../types/MetaApiTypes.js";
+import type {
+  MetaAd,
+  MetaAdSet,
+  MetaAdSetExpanded,
+  MetaCampaignExpanded,
+} from "../../types/MetaApiTypes.js";
 import { assignCampaignStableIds } from "../../utils/StableIdAssigner.js";
 
-import { callMetaApi, fetchAllPages } from "./meta-api-call-helpers.js";
+import { callMetaApi, extractOrFetch, fetchAllPages } from "./meta-api-call-helpers.js";
+
+/**
+ * Real, currently-broken-in-production compounding-pulls fix — the minimum real time that must
+ * pass between two Meta pulls for the SAME ad account before this use case will start a new one.
+ * `PullCampaignData.execute` is the single real choke point every call site in `apps/aaos-api`
+ * goes through for a live Meta pull (`MetaSyncService.syncCampaign`'s realtime post-action hook,
+ * `MetaSyncService.syncOnce`'s 15-minute cron sweep AND daily snapshot, and
+ * `MetaAdsService.pullAdAccount`'s manual "Tarik Data Baru"/dashboard-mount pull — verified by
+ * reading every one of those call sites, all of which call `connector.pullCampaignData.execute`
+ * and nothing else) — so guarding HERE, once, is the real fix for those 3+ independent triggers
+ * compounding into near-simultaneous real Meta traffic for one tenant, rather than trying to
+ * coordinate each call site separately. 60s is deliberately short relative to the 15-minute cron
+ * cadence — it only needs to collapse triggers landing within the same short burst (e.g. a
+ * dashboard auto-pull-on-mount firing seconds after a cron tick, or a user's manual click landing
+ * right after `syncCampaign`'s post-create hook), not to throttle legitimately-spaced-out pulls.
+ */
+const DEFAULT_MIN_PULL_INTERVAL_MS = 60_000;
 
 /** Local alias avoiding a direct `@opentelemetry/api` dependency (not in this package's `package.json` — `@aos/telemetry` is the sanctioned entry point per the Technical Requirements). */
 export type Tracer = ReturnType<typeof getTracer>;
@@ -66,6 +88,16 @@ const VALID_DATE_PRESETS: ReadonlySet<string> = new Set([
  * emit SyncCompleted → return AdAccount).
  */
 export class PullCampaignData {
+  /**
+   * Real, currently-broken-in-production compounding-pulls fix — real wall-clock time (ms since
+   * epoch, via the injected `now` clock) each ad account's most recent pull ATTEMPT started.
+   * In-memory/per-instance is the correct scope: `MetaAdsConnectorRegistry.resolve(tenantId)`
+   * (`apps/aaos-api`) caches exactly ONE `MetaAdsConnector` — and therefore one `PullCampaignData`
+   * instance — per tenant for the lifetime of the process, so this map is naturally
+   * per-tenant-per-process, matching the real single choke point this guard exists to protect.
+   */
+  private readonly lastPullStartedAtMs = new Map<string, number>();
+
   constructor(
     private readonly client: IMetaAdsClient,
     private readonly rateLimiter: IRateLimiter,
@@ -75,6 +107,7 @@ export class PullCampaignData {
     private readonly logger: Logger,
     private readonly tracer: Tracer,
     private readonly now: () => Date = () => new Date(),
+    private readonly minPullIntervalMs: number = DEFAULT_MIN_PULL_INTERVAL_MS,
   ) {}
 
   async execute(input: PullCampaignDataInput): Promise<Result<AdAccount, MetaApiError>> {
@@ -111,19 +144,17 @@ export class PullCampaignData {
       );
     }
 
-    this.logger.info(
-      { adAccountId: input.adAccountId.toString() },
-      "meta-ads-connector: sync starting",
-    );
+    const adAccountKey = input.adAccountId.toString();
+    const throttleResult = this.checkPullInterval(adAccountKey);
+    if (!throttleResult.ok) {
+      return throttleResult;
+    }
 
-    const rawCampaignsResult = await fetchAllPages<MetaCampaign>((cursor) =>
+    this.logger.info({ adAccountId: adAccountKey }, "meta-ads-connector: sync starting");
+
+    const rawCampaignsResult = await fetchAllPages<MetaCampaignExpanded>((cursor) =>
       callMetaApi(this.rateLimiter, this.retry, () =>
-        this.client.getCampaigns(
-          input.adAccountId.toString(),
-          input.accessToken,
-          input.datePreset,
-          cursor,
-        ),
+        this.client.getCampaignsExpanded(adAccountKey, input.accessToken, input.datePreset, cursor),
       ),
     );
     if (!rawCampaignsResult.ok) {
@@ -139,8 +170,13 @@ export class PullCampaignData {
     }
 
     const hydratedCampaigns: Campaign[] = [];
-    for (const campaign of campaignsResult.value) {
-      const hydratedResult = await this.hydrateCampaign(campaign, input);
+    for (let i = 0; i < campaignsResult.value.length; i += 1) {
+      const campaign = campaignsResult.value[i];
+      const rawCampaign = rawCampaignsResult.value[i];
+      if (campaign === undefined || rawCampaign === undefined) {
+        continue;
+      }
+      const hydratedResult = await this.hydrateCampaign(campaign, rawCampaign, input);
       if (!hydratedResult.ok) {
         return hydratedResult;
       }
@@ -198,13 +234,23 @@ export class PullCampaignData {
     return ok(adAccountResult.value);
   }
 
+  /**
+   * N+1-fanout fix — `rawCampaign.adsets` is the nested `adsets.limit(N){...}` edge already
+   * returned by the single `getCampaignsExpanded` call in `run()`. `extractOrFetch` uses it
+   * directly when it's genuinely the WHOLE list (no `paging.next`); only when it overflowed that
+   * page size (or is absent — see `extractOrFetch`'s own doc) does this fall back to the
+   * pre-existing, fully-paginated `getAdSets` edge call, scoped to just this one campaign.
+   */
   private async hydrateCampaign(
     campaign: Campaign,
+    rawCampaign: MetaCampaignExpanded,
     input: PullCampaignDataInput,
   ): Promise<Result<Campaign, MetaApiError>> {
-    const rawAdSetsResult = await fetchAllPages<MetaAdSet>((cursor) =>
-      callMetaApi(this.rateLimiter, this.retry, () =>
-        this.client.getAdSets(campaign.metaId, input.accessToken, cursor),
+    const rawAdSetsResult = await extractOrFetch<MetaAdSetExpanded>(rawCampaign.adsets, () =>
+      fetchAllPages<MetaAdSet>((cursor) =>
+        callMetaApi(this.rateLimiter, this.retry, () =>
+          this.client.getAdSets(campaign.metaId, input.accessToken, cursor),
+        ),
       ),
     );
     if (!rawAdSetsResult.ok) {
@@ -221,8 +267,13 @@ export class PullCampaignData {
     }
 
     const hydratedAdSets: AdSet[] = [];
-    for (const adSet of adSetsResult.value) {
-      const hydratedResult = await this.hydrateAdSet(adSet, campaign, input);
+    for (let i = 0; i < adSetsResult.value.length; i += 1) {
+      const adSet = adSetsResult.value[i];
+      const rawAdSet = rawAdSetsResult.value[i];
+      if (adSet === undefined) {
+        continue;
+      }
+      const hydratedResult = await this.hydrateAdSet(adSet, rawAdSet, campaign, input);
       if (!hydratedResult.ok) {
         return hydratedResult;
       }
@@ -232,14 +283,18 @@ export class PullCampaignData {
     return ok(campaign.withAdSets(hydratedAdSets));
   }
 
+  /** N+1-fanout fix — same `extractOrFetch` pattern as `hydrateCampaign`, one level down (`rawAdSet.ads` falling back to the pre-existing paginated `getAds` edge call, scoped to just this one adset). `rawAdSet` is `undefined` when the fallback branch above sourced this adset from the (non-expanded) `getAdSets` call, which never carries a nested `ads` edge — `extractOrFetch` treats that identically to an overflowed/absent nested edge. */
   private async hydrateAdSet(
     adSet: AdSet,
+    rawAdSet: MetaAdSetExpanded | undefined,
     campaign: Campaign,
     input: PullCampaignDataInput,
   ): Promise<Result<AdSet, MetaApiError>> {
-    const rawAdsResult = await fetchAllPages<MetaAd>((cursor) =>
-      callMetaApi(this.rateLimiter, this.retry, () =>
-        this.client.getAds(adSet.metaId, input.accessToken, input.datePreset, cursor),
+    const rawAdsResult = await extractOrFetch<MetaAd>(rawAdSet?.ads, () =>
+      fetchAllPages<MetaAd>((cursor) =>
+        callMetaApi(this.rateLimiter, this.retry, () =>
+          this.client.getAds(adSet.metaId, input.accessToken, input.datePreset, cursor),
+        ),
       ),
     );
     if (!rawAdsResult.ok) {
@@ -271,6 +326,35 @@ export class PullCampaignData {
     });
 
     return ok(adSet.withAds(adsWithVerdicts));
+  }
+
+  /**
+   * Real, currently-broken-in-production compounding-pulls fix — see `DEFAULT_MIN_PULL_INTERVAL_MS`
+   * and `lastPullStartedAtMs`'s own docstrings for the full "why here" reasoning. `Result.ok` lets
+   * the pull proceed (and records `adAccountKey`'s new `lastPullStartedAtMs` so a following call
+   * within the window is blocked); `Result.err` short-circuits BEFORE any Meta HTTP call — same
+   * "fail fast, no network call" discipline `TokenBucketRateLimiter.tryConsume` already
+   * establishes for the local hourly budget, just scoped to real-time compounding instead.
+   */
+  private checkPullInterval(adAccountKey: string): Result<void, RateLimitError> {
+    const nowMs = this.now().getTime();
+    const lastStartedAtMs = this.lastPullStartedAtMs.get(adAccountKey);
+    if (lastStartedAtMs !== undefined) {
+      const elapsedMs = nowMs - lastStartedAtMs;
+      if (elapsedMs < this.minPullIntervalMs) {
+        const remainingMs = this.minPullIntervalMs - elapsedMs;
+        return err(
+          new RateLimitError(
+            `Sedang dibatasi — penarikan data Meta untuk akun iklan ini baru saja dilakukan, coba lagi dalam ${Math.ceil(
+              remainingMs / 1000,
+            )} detik (minimum-pull-interval guard: ${Math.round(this.minPullIntervalMs / 1000)}s, ad account "${adAccountKey}"). Real fix for the cron sweep / realtime post-action hook / manual "Tarik Data Baru" click compounding into simultaneous live Meta traffic for the same tenant.`,
+            remainingMs,
+          ),
+        );
+      }
+    }
+    this.lastPullStartedAtMs.set(adAccountKey, nowMs);
+    return ok(undefined);
   }
 }
 

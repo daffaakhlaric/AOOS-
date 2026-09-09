@@ -6,6 +6,20 @@ import { RateLimitError } from "../../domain/errors/index.js";
 const DEFAULT_CAPACITY = 200;
 const DEFAULT_REFILL_WINDOW_MS = 60 * 60 * 1000; // 1 hour — 200 tokens/hour ≈ 0.0556 tokens/sec
 
+/**
+ * Real, currently-broken-in-production "User request limit reached" fix — the
+ * `X-Business-Use-Case-Usage` percentage (see `infrastructure/meta-api/UsageHeaderParser.ts`) at
+ * or above which `applyUsage` proactively zeroes the local bucket and imposes a cooldown, BEFORE
+ * Meta's own hard 503 wall is hit. 90% is a deliberately conservative threshold — real Meta
+ * traffic in a short burst (e.g. this incident's N+1 fanout, or three call sites' pulls landing
+ * within the same window) can jump several percentage points between one response and the next,
+ * so backing off at 90% (not 99-100%) leaves real headroom to actually avoid the wall rather than
+ * reacting exactly as the wall is hit.
+ */
+const PROACTIVE_THROTTLE_THRESHOLD_PERCENT = 90;
+/** Real fallback cooldown when Meta's usage header reports ≥90% usage but no real `estimated_time_to_regain_access` yet (that field is only ever nonzero once usage has actually reached 100%) — conservative enough to genuinely back off, short enough not to block legitimate use for long. */
+const DEFAULT_PROACTIVE_COOLDOWN_MS = 5 * 60 * 1000;
+
 export interface TokenBucketRateLimiterOptions {
   readonly capacity?: number;
   readonly refillWindowMs?: number;
@@ -88,5 +102,23 @@ export class TokenBucketRateLimiter implements IRateLimiter {
     this.refill();
     this.tokens = 0;
     this.externalResetAt = this.now() + Math.max(0, retryAfterMs);
+  }
+
+  /** See `IRateLimiter.applyUsage`'s docstring for the real, documented signal this reacts to. */
+  applyUsage(usagePercent: number, estimatedTimeToRegainAccessMinutes: number): void {
+    if (usagePercent < PROACTIVE_THROTTLE_THRESHOLD_PERCENT) {
+      return;
+    }
+    this.refill();
+    this.tokens = 0;
+    const cooldownMs =
+      estimatedTimeToRegainAccessMinutes > 0
+        ? estimatedTimeToRegainAccessMinutes * 60_000
+        : DEFAULT_PROACTIVE_COOLDOWN_MS;
+    const candidateResetAt = this.now() + cooldownMs;
+    this.externalResetAt =
+      this.externalResetAt !== undefined
+        ? Math.max(this.externalResetAt, candidateResetAt)
+        : candidateResetAt;
   }
 }

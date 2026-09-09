@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   callMetaApi,
+  extractOrFetch,
   fetchAllPages,
 } from "../../../src/application/use-cases/meta-api-call-helpers.js";
 import { ApiServerError, RateLimitError } from "../../../src/domain/errors/index.js";
@@ -94,5 +95,50 @@ describe("fetchAllPages", () => {
   it("returns an empty array for an empty first page", async () => {
     const result = await fetchAllPages(async () => ok({ data: [] }));
     expect(result).toEqual(ok([]));
+  });
+});
+
+/**
+ * N+1-fanout fix — `extractOrFetch` is the shared decision point `PullCampaignData` uses to
+ * decide, per campaign/adset, whether a nested field-expansion edge is genuinely complete (use it
+ * directly, zero extra calls) or must fall back to the pre-existing dedicated paginated edge call
+ * (an overflow, or the edge being absent entirely).
+ */
+describe("extractOrFetch", () => {
+  it("uses the nested page directly (no fetchFn call) when it has no paging.next", async () => {
+    const fetchFn = vi.fn();
+    const result = await extractOrFetch({ data: [1, 2, 3] }, fetchFn);
+    expect(result).toEqual(ok([1, 2, 3]));
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("falls back to fetchFn when the nested edge is undefined (absent from the response)", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(ok([9, 8, 7]));
+    const result = await extractOrFetch<number>(undefined, fetchFn);
+    expect(result).toEqual(ok([9, 8, 7]));
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to fetchFn when the nested edge overflowed its own page (paging.next present)", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(ok([1, 2, 3, 4, 5]));
+    const result = await extractOrFetch(
+      { data: [1, 2], paging: { next: "https://graph.facebook.com/v21.0/x?after=y" } },
+      fetchFn,
+    );
+    expect(result).toEqual(ok([1, 2, 3, 4, 5]));
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fall back when paging is present but has no `next` (e.g. a lone cursors object)", async () => {
+    const fetchFn = vi.fn();
+    const result = await extractOrFetch({ data: [1], paging: { cursors: {} } }, fetchFn);
+    expect(result).toEqual(ok([1]));
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("propagates a fetchFn failure", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(err(new ApiServerError("boom")));
+    const result = await extractOrFetch<number>(undefined, fetchFn);
+    expect(result.ok).toBe(false);
   });
 });

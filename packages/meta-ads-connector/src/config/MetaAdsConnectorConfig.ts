@@ -17,6 +17,15 @@ export interface MetaAdsConnectorConfig {
   readonly retryBaseDelayMs: number;
   readonly timeoutMs: number;
   readonly tenantId: string;
+  /**
+   * Real, currently-broken-in-production compounding-pulls fix — the minimum real ms between two
+   * `PullCampaignData` runs for the same ad account (see `PullCampaignData.
+   * DEFAULT_MIN_PULL_INTERVAL_MS`'s own docstring for the full "why 60s, why here" reasoning).
+   * Optional/additive with the same default `PullCampaignData` itself falls back to when omitted
+   * — every pre-existing config object (every real call site, every test fixture) keeps behaving
+   * byte-for-byte identically without needing to know this field exists.
+   */
+  readonly minPullIntervalMs?: number;
 }
 
 const AD_ACCOUNT_ID_PATTERN = /^act_\d+$/;
@@ -44,6 +53,7 @@ export const MetaAdsConnectorConfigSchema = z.object({
   retryBaseDelayMs: z.number().int().positive().default(1000),
   timeoutMs: z.number().int().positive().default(30000),
   tenantId: z.string().min(1, "tenantId must not be empty"),
+  minPullIntervalMs: z.number().int().nonnegative().optional(),
 });
 
 export type MetaAdsConnectorConfigInput = z.input<typeof MetaAdsConnectorConfigSchema>;

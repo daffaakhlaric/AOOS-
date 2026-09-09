@@ -3,6 +3,7 @@ import { HttpResponse, http } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { PullCampaignData } from "../../../src/application/use-cases/PullCampaignData.js";
+import { RateLimitError } from "../../../src/domain/errors/index.js";
 import { MetaAdsConnectorEvents } from "../../../src/domain/events/MetaAdsConnectorEvents.js";
 import { AdAccountId } from "../../../src/domain/value-objects/AdAccountId.js";
 import { CampaignObjective } from "../../../src/domain/value-objects/CampaignObjective.js";
@@ -10,6 +11,7 @@ import { MetaApiClient } from "../../../src/infrastructure/meta-api/MetaApiClien
 import { TokenBucketRateLimiter } from "../../../src/infrastructure/rate-limiter/TokenBucketRateLimiter.js";
 import { ExponentialBackoffRetry } from "../../../src/infrastructure/retry/ExponentialBackoffRetry.js";
 import { AdAccountRegistry } from "../../../src/registry/AdAccountRegistry.js";
+import { TestClock } from "../../helpers/clock.js";
 import { mswServer } from "../../helpers/msw.js";
 import { createFakePublisher } from "../../helpers/publisher.js";
 import { unwrap, unwrapErr } from "../../helpers/result.js";
@@ -51,6 +53,28 @@ function baseInput(overrides: Partial<Parameters<PullCampaignData["execute"]>[0]
     correlationId: "corr-1",
     ...overrides,
   };
+}
+
+function makeUseCaseWithClock(clock: TestClock, minPullIntervalMs?: number) {
+  const client = new MetaApiClient();
+  const rateLimiter = new TokenBucketRateLimiter({ now: clock.now });
+  const retry = new ExponentialBackoffRetry({ sleep: async () => undefined });
+  const registry = new AdAccountRegistry();
+  const publisher = createFakePublisher();
+  const events = new MetaAdsConnectorEvents(publisher);
+  const logger = createMockLogger();
+  const useCase = new PullCampaignData(
+    client,
+    rateLimiter,
+    retry,
+    registry,
+    events,
+    logger as never,
+    createFakeTracer(),
+    clock.nowDate,
+    minPullIntervalMs,
+  );
+  return { useCase, registry, publisher };
 }
 
 function insightRow(spend: string) {
@@ -438,5 +462,262 @@ describe("PullCampaignData (MSW-mocked Meta API)", () => {
     const before = Date.now();
     const account = unwrap(await useCase.execute(baseInput()));
     expect(account.syncedAt.getTime()).toBeGreaterThanOrEqual(before);
+  });
+});
+
+/**
+ * N+1-fanout fix (real, currently-broken-in-production "User request limit reached" incident) —
+ * the whole point of this fix is a single field-expansion `campaigns` call replacing the old
+ * campaigns + per-campaign adsets + per-adset ads fanout. `mswServer.listen({onUnhandledRequest:
+ * "error"})` (set at this file's top) makes that provable directly: if `PullCampaignData` ever
+ * fell back to the old per-campaign/per-adset endpoints when it didn't need to, the test would
+ * fail loudly on the unhandled request rather than silently passing.
+ */
+describe("PullCampaignData — N+1-fanout fix (field expansion + honest overflow fallback)", () => {
+  it("resolves the full campaign -> adset -> ad tree from ONE HTTP call when the expansion response is complete (no fallback fanout at all)", async () => {
+    let campaignsCallCount = 0;
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, ({ request }) => {
+        campaignsCallCount += 1;
+        const url = new URL(request.url);
+        expect(url.searchParams.get("fields")).toContain("adsets.limit(50){");
+        return HttpResponse.json({
+          data: [
+            {
+              id: "c1",
+              name: "CTWA - Cinere - Test Drive",
+              objective: "OUTCOME_ENGAGEMENT",
+              status: "ACTIVE",
+              created_time: "2026-01-01T00:00:00+0000",
+              insights: { data: [insightRow("1000000")] },
+              adsets: {
+                data: [
+                  {
+                    id: "as1",
+                    name: "AdSet - Cinere",
+                    status: "ACTIVE",
+                    daily_budget: "10000000",
+                    insights: { data: [insightRow("500000")] },
+                    ads: {
+                      data: [
+                        {
+                          id: "ad1",
+                          name: "Ad - Cinere 1",
+                          status: "ACTIVE",
+                          created_time: "2026-01-01T00:00:00+0000",
+                          insights: { data: [insightRow("250000")] },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }),
+      // Deliberately NO handlers for `/c1/adsets` or `/as1/ads` — if PullCampaignData fell back to
+      // them unnecessarily, `onUnhandledRequest: "error"` fails this test.
+    );
+
+    const { useCase } = makeUseCase();
+    const account = unwrap(await useCase.execute(baseInput()));
+
+    expect(campaignsCallCount).toBe(1);
+    expect(account.campaigns).toHaveLength(1);
+    expect(account.campaigns[0]?.adSets).toHaveLength(1);
+    expect(account.campaigns[0]?.adSets[0]?.ads).toHaveLength(1);
+    expect(account.campaigns[0]?.adSets[0]?.ads[0]?.metaId).toBe("ad1");
+    expect(account.campaigns[0]?.stableId.toString()).toBe("#A001");
+  });
+
+  it("falls back to the dedicated getAdSets call for a campaign whose nested adsets edge overflowed (paging.next present) — no data lost", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: "c1",
+              name: "Campaign",
+              objective: "OUTCOME_ENGAGEMENT",
+              status: "ACTIVE",
+              insights: { data: [insightRow("0")] },
+              adsets: {
+                data: [{ id: "as1", name: "AdSet (partial page)", status: "ACTIVE" }],
+                paging: { cursors: { after: "page-2" }, next: `${BASE}/c1/adsets?after=page-2` },
+              },
+            },
+          ],
+        }),
+      ),
+      // Fallback: the pre-existing dedicated, fully-paginated getAdSets edge call — returns the
+      // REAL, complete 2-adset list the overflowed nested page didn't fit.
+      http.get(`${BASE}/c1/adsets`, () =>
+        HttpResponse.json({
+          data: [
+            { id: "as1", name: "AdSet 1 (full)", status: "ACTIVE" },
+            { id: "as2", name: "AdSet 2 (full)", status: "ACTIVE" },
+          ],
+        }),
+      ),
+      http.get(`${BASE}/as1/ads`, () => HttpResponse.json({ data: [] })),
+      http.get(`${BASE}/as2/ads`, () => HttpResponse.json({ data: [] })),
+    );
+
+    const { useCase } = makeUseCase();
+    const account = unwrap(await useCase.execute(baseInput()));
+
+    // The overflow fallback replaced the partial 1-item nested page with the real, complete 2-item
+    // list — no data lost to the expansion's own page size.
+    expect(account.campaigns[0]?.adSets).toHaveLength(2);
+    expect(account.campaigns[0]?.adSets.map((a) => a.name)).toEqual([
+      "AdSet 1 (full)",
+      "AdSet 2 (full)",
+    ]);
+  });
+
+  it("falls back to the dedicated getAds call for an adset whose nested ads edge overflowed — no data lost", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: "c1",
+              name: "Campaign",
+              objective: "OUTCOME_ENGAGEMENT",
+              status: "ACTIVE",
+              insights: { data: [insightRow("0")] },
+              adsets: {
+                data: [
+                  {
+                    id: "as1",
+                    name: "AdSet",
+                    status: "ACTIVE",
+                    insights: { data: [insightRow("0")] },
+                    ads: {
+                      data: [
+                        {
+                          id: "ad1",
+                          name: "Ad 1 (partial page)",
+                          status: "ACTIVE",
+                          created_time: "2026-01-01T00:00:00+0000",
+                        },
+                      ],
+                      paging: {
+                        cursors: { after: "page-2" },
+                        next: `${BASE}/as1/ads?after=page-2`,
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ),
+      // Fallback: the pre-existing dedicated, fully-paginated getAds edge call.
+      http.get(`${BASE}/as1/ads`, () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: "ad1",
+              name: "Ad 1 (full)",
+              status: "ACTIVE",
+              created_time: "2026-01-01T00:00:00+0000",
+            },
+            {
+              id: "ad2",
+              name: "Ad 2 (full)",
+              status: "ACTIVE",
+              created_time: "2026-01-01T00:00:00+0000",
+            },
+          ],
+        }),
+      ),
+    );
+
+    const { useCase } = makeUseCase();
+    const account = unwrap(await useCase.execute(baseInput()));
+
+    expect(account.campaigns[0]?.adSets[0]?.ads).toHaveLength(2);
+    expect(account.campaigns[0]?.adSets[0]?.ads.map((a) => a.name)).toEqual([
+      "Ad 1 (full)",
+      "Ad 2 (full)",
+    ]);
+  });
+});
+
+/**
+ * Real, currently-broken-in-production compounding-pulls fix — the per-ad-account minimum-pull-
+ * interval guard (`PullCampaignData.checkPullInterval`). This is the single real choke point
+ * every call site in `apps/aaos-api` goes through for a live Meta pull (the 15-minute cron sweep,
+ * the realtime post-campaign-action hook, and the manual "Tarik Data Baru"/dashboard-mount pull),
+ * so guarding it here is the real fix for those independently-triggered pulls compounding into
+ * near-simultaneous real Meta traffic for one tenant.
+ */
+describe("PullCampaignData — per-ad-account minimum-pull-interval guard", () => {
+  it("blocks a second pull for the SAME ad account within the interval, with NO HTTP call at all", async () => {
+    const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, () => HttpResponse.json({ data: [] })),
+    );
+    const { useCase } = makeUseCaseWithClock(clock, 60_000);
+
+    const first = await useCase.execute(baseInput());
+    expect(first.ok).toBe(true);
+
+    // No new mock handler registered for a second `campaigns` call — if the guard failed to block
+    // it, `onUnhandledRequest: "error"` would fail this test loudly.
+    const second = await useCase.execute(baseInput());
+    expect(second.ok).toBe(false);
+    if (!second.ok) {
+      expect(second.error).toBeInstanceOf(RateLimitError);
+      expect((second.error as RateLimitError).retryAfterMs).toBeGreaterThan(0);
+      expect((second.error as RateLimitError).retryAfterMs).toBeLessThanOrEqual(60_000);
+    }
+  });
+
+  it("allows a second pull once the minimum interval has genuinely elapsed", async () => {
+    const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, () => HttpResponse.json({ data: [] })),
+    );
+    const { useCase } = makeUseCaseWithClock(clock, 60_000);
+
+    expect((await useCase.execute(baseInput())).ok).toBe(true);
+    clock.advanceMs(60_000);
+    expect((await useCase.execute(baseInput())).ok).toBe(true);
+  });
+
+  it("does NOT block a pull for a DIFFERENT ad account (keyed per ad account, not globally)", async () => {
+    const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, () => HttpResponse.json({ data: [] })),
+      http.get(`${BASE}/act_999999999999999/campaigns`, () => HttpResponse.json({ data: [] })),
+    );
+    const { useCase } = makeUseCaseWithClock(clock, 60_000);
+
+    expect((await useCase.execute(baseInput())).ok).toBe(true);
+    expect(
+      (
+        await useCase.execute(
+          baseInput({ adAccountId: unwrap(AdAccountId.create("act_999999999999999")) }),
+        )
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("defaults to a 60s minimum interval when not configured", async () => {
+    const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, () => HttpResponse.json({ data: [] })),
+    );
+    const { useCase } = makeUseCaseWithClock(clock);
+
+    expect((await useCase.execute(baseInput())).ok).toBe(true);
+    clock.advanceMs(59_000);
+    expect((await useCase.execute(baseInput())).ok).toBe(false);
+    clock.advanceMs(1_001);
+    expect((await useCase.execute(baseInput())).ok).toBe(true);
   });
 });

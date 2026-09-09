@@ -31,6 +31,8 @@ import {
   type MetaAdLocationSearchResponse,
   MetaAdSetListResponseSchema,
   type MetaAdSetListResponse,
+  MetaCampaignExpandedListResponseSchema,
+  type MetaCampaignExpandedListResponse,
   MetaCampaignListResponseSchema,
   type MetaCampaignListResponse,
   MetaCreateResponseSchema,
@@ -48,9 +50,22 @@ import {
 } from "../../types/MetaApiTypes.js";
 
 import { MetaApiRequestBuilder } from "./MetaApiRequestBuilder.js";
+import { parseBusinessUseCaseUsage, type BusinessUseCaseUsage } from "./UsageHeaderParser.js";
 
 const META_INVALID_TOKEN_CODE = 190;
 const META_MISSING_PERMISSION_CODE = 200;
+/**
+ * Real fix for the live "User request limit reached" incident — Meta's real, documented Graph API
+ * error-code taxonomy (developers.facebook.com/docs/graph-api/guides/error-handling) reports this
+ * exact rate-limiting condition as error code `17` ("User request limit reached"). Meta does not
+ * consistently surface this via HTTP 429 — this incident's real captured failures came back as
+ * HTTP 503 with this code/message, which `toMetaApiError` used to fall through to a generic
+ * `ApiServerError` (flat exponential retry, no `Retry-After` honored, no rate-limiter cooldown).
+ * Matched on the real, structured `error.code` field (not just the message string) so a
+ * differently-worded future message with the same real code is still classified correctly; the
+ * literal message is documented here for traceability, not used as the match itself.
+ */
+const META_RATE_LIMIT_ERROR_CODE = 17;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -109,6 +124,17 @@ export interface MetaApiClientOptions {
   readonly timeoutMs?: number;
   /** Injectable fetch implementation — defaults to the global native `fetch`; overridable for tests (MSW normally suffices, but this keeps the door open for a raw fetch mock too). */
   readonly fetchImpl?: typeof fetch;
+  /**
+   * Real, currently-broken-in-production "User request limit reached" fix — proactive throttling.
+   * Optional, additive: when supplied, called with the parsed real `X-Business-Use-Case-Usage`
+   * header (see `UsageHeaderParser.ts`) after EVERY Meta response that carries one (success or
+   * failure), so a caller (the composition root — see `MetaAdsConnectorFactory`) can wire it into
+   * `IRateLimiter.applyUsage` without this infra-layer client needing to depend on the
+   * application-layer rate limiter directly. `IMetaAdsClient`'s public contract is unchanged by
+   * this — every pre-existing `MetaApiClient` construction (no `onUsageHeader` supplied) behaves
+   * byte-for-byte as before.
+   */
+  readonly onUsageHeader?: (usage: BusinessUseCaseUsage) => void;
 }
 
 /**
@@ -119,10 +145,12 @@ export interface MetaApiClientOptions {
 export class MetaApiClient implements IMetaAdsClient {
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  private readonly onUsageHeader: ((usage: BusinessUseCaseUsage) => void) | undefined;
 
   constructor(options: MetaApiClientOptions = {}) {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.onUsageHeader = options.onUsageHeader;
   }
 
   async getCampaigns(
@@ -133,6 +161,22 @@ export class MetaApiClient implements IMetaAdsClient {
   ): Promise<Result<MetaCampaignListResponse, MetaApiError>> {
     const url = MetaApiRequestBuilder.campaignsUrl(adAccountId, accessToken, datePreset, cursor);
     return this.getJson(url, MetaCampaignListResponseSchema);
+  }
+
+  /** N+1-fanout fix — see `IMetaAdsClient.getCampaignsExpanded`/`MetaApiRequestBuilder.campaignsExpandedUrl` docstrings. */
+  async getCampaignsExpanded(
+    adAccountId: string,
+    accessToken: string,
+    datePreset: string,
+    cursor?: PageCursor,
+  ): Promise<Result<MetaCampaignExpandedListResponse, MetaApiError>> {
+    const url = MetaApiRequestBuilder.campaignsExpandedUrl(
+      adAccountId,
+      accessToken,
+      datePreset,
+      cursor,
+    );
+    return this.getJson(url, MetaCampaignExpandedListResponseSchema);
   }
 
   async getAdSets(
@@ -532,6 +576,16 @@ export class MetaApiClient implements IMetaAdsClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await this.fetchImpl(url, { ...init, signal: controller.signal });
+      // Real, currently-broken-in-production "User request limit reached" fix — proactive
+      // throttling. Parsed on EVERY response (success or failure), same as Meta's own real usage
+      // header is present regardless of whether this particular call happened to succeed; a
+      // failing call still legitimately signals "you are close to/at the wall" just as much as a
+      // successful one. Never blocks/delays this response — `onUsageHeader` is a synchronous,
+      // fire-and-forget notification into the rate limiter.
+      const usage = parseBusinessUseCaseUsage(response.headers.get("x-business-use-case-usage"));
+      if (usage !== undefined) {
+        this.onUsageHeader?.(usage);
+      }
       if (!response.ok) {
         return err(await this.toMetaApiError(response));
       }
@@ -595,7 +649,16 @@ export class MetaApiClient implements IMetaAdsClient {
     if (metaErrorCode === META_MISSING_PERMISSION_CODE) {
       return new PermissionError(message);
     }
-    if (httpStatus === 429) {
+    // Real fix for the live incident: Meta's own real, documented error code `17` ("User request
+    // limit reached") is a genuine rate-limit condition REGARDLESS of the HTTP status it happens
+    // to arrive on — this incident's real captured failures came back as HTTP 503, which used to
+    // fall through to the generic `httpStatus === 503` branch below (a plain `ApiServerError`,
+    // retried on `ExponentialBackoffRetry`'s blind 1s/2s/4s schedule, never honoring Meta's own
+    // `Retry-After`/cooldown semantics, never notifying `IRateLimiter.notifyRateLimited`). Checked
+    // BEFORE the generic 429 check so a 429 with a DIFFERENT real Meta error code still falls
+    // through to that check unaffected — this only WIDENS which responses get `RateLimitError`
+    // treatment, it never narrows the pre-existing `httpStatus === 429` case.
+    if (metaErrorCode === META_RATE_LIMIT_ERROR_CODE || httpStatus === 429) {
       const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
       return new RateLimitError(message, retryAfterMs);
     }

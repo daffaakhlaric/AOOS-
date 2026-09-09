@@ -99,4 +99,47 @@ describe("TokenBucketRateLimiter", () => {
     const limiter = new TokenBucketRateLimiter({ capacity: 5 });
     expect(limiter.tryConsume().ok).toBe(true);
   });
+
+  /**
+   * Real, currently-broken-in-production "User request limit reached" fix — proactive throttling
+   * driven by Meta's real `X-Business-Use-Case-Usage` header (parsed by
+   * `UsageHeaderParser.parseBusinessUseCaseUsage`, wired to this method by
+   * `MetaAdsConnectorFactory`). See `IRateLimiter.applyUsage`'s docstring for the full contract.
+   */
+  describe("applyUsage (proactive throttling)", () => {
+    it("is a no-op below the 90% threshold — never MORE restrictive than Meta's real threshold warrants", () => {
+      const clock = new TestClock("2026-01-01T00:00:00.000Z");
+      const limiter = new TokenBucketRateLimiter({ capacity: 200, now: clock.now });
+      limiter.applyUsage(89, 0);
+      expect(limiter.getRateLimitStatus().remaining).toBe(200);
+    });
+
+    it("zeroes the bucket and imposes a default cooldown at/above the 90% threshold when Meta reports no estimated_time_to_regain_access yet", () => {
+      const clock = new TestClock("2026-01-01T00:00:00.000Z");
+      const limiter = new TokenBucketRateLimiter({ capacity: 200, now: clock.now });
+      limiter.applyUsage(90, 0);
+      const status = limiter.getRateLimitStatus();
+      expect(status.remaining).toBe(0);
+      // Default conservative cooldown: 5 minutes.
+      expect(status.resetAt.getTime()).toBe(clock.now() + 5 * 60 * 1000);
+    });
+
+    it("honors Meta's real estimated_time_to_regain_access (minutes) as the cooldown when reported", () => {
+      const clock = new TestClock("2026-01-01T00:00:00.000Z");
+      const limiter = new TokenBucketRateLimiter({ capacity: 200, now: clock.now });
+      limiter.applyUsage(100, 12);
+      const status = limiter.getRateLimitStatus();
+      expect(status.remaining).toBe(0);
+      expect(status.resetAt.getTime()).toBe(clock.now() + 12 * 60_000);
+    });
+
+    it("never shortens an existing, later external cooldown (e.g. from a prior notifyRateLimited)", () => {
+      const clock = new TestClock("2026-01-01T00:00:00.000Z");
+      const limiter = new TokenBucketRateLimiter({ capacity: 200, now: clock.now });
+      limiter.notifyRateLimited(20 * 60_000); // Meta's real Retry-After said wait 20 minutes
+      limiter.applyUsage(95, 1); // a later, much shorter proactive signal
+      const status = limiter.getRateLimitStatus();
+      expect(status.resetAt.getTime()).toBeGreaterThanOrEqual(clock.now() + 19 * 60_000);
+    });
+  });
 });

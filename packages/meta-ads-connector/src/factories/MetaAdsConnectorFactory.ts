@@ -104,11 +104,19 @@ export class MetaAdsConnectorFactory {
     const tracer: Tracer = options.tracer ?? getTracer("meta-ads-connector");
     const now = options.now ?? (() => new Date());
 
+    const rateLimiter = new TokenBucketRateLimiter({ capacity: options.config.rateLimitPerHour });
     const client = new MetaApiClient({
       timeoutMs: options.config.timeoutMs,
       fetchImpl: options.fetchImpl,
+      // Real, currently-broken-in-production "User request limit reached" fix — proactive
+      // throttling. Wires the real `X-Business-Use-Case-Usage` header (parsed by `MetaApiClient`,
+      // an infra concern) into `rateLimiter.applyUsage` (an application-layer concern) here, at
+      // the composition root, so neither layer needs to depend on the other directly. See
+      // `IRateLimiter.applyUsage`'s docstring for what this actually does.
+      onUsageHeader: (usage) => {
+        rateLimiter.applyUsage(usage.maxPercent, usage.estimatedTimeToRegainAccessMinutes);
+      },
     });
-    const rateLimiter = new TokenBucketRateLimiter({ capacity: options.config.rateLimitPerHour });
     const retry = new ExponentialBackoffRetry({
       maxAttempts: options.config.retryMaxAttempts,
       baseDelayMs: options.config.retryBaseDelayMs,
@@ -126,6 +134,7 @@ export class MetaAdsConnectorFactory {
       logger,
       tracer,
       now,
+      options.config.minPullIntervalMs,
     );
     const executeVerdict = new ExecuteVerdict(verdictService, events, logger, tracer, now);
     const createCampaign = new CreateCampaign(
