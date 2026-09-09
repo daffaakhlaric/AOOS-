@@ -104,6 +104,13 @@ function buildFakeCreativePackages(
   } as unknown as CreativePackagesService;
 }
 
+/** Minimal `MetaSyncService` test double (EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4) — `syncCampaign` is a no-op spy, irrelevant to this file's own pre-existing `createCampaign`/`createPropertyCampaign` assertions. */
+function buildFakeMetaSync() {
+  return {
+    syncCampaign: vi.fn(async () => undefined),
+  };
+}
+
 function buildService(
   dev = false,
   activityLogger: ReturnType<typeof buildFakeActivityLogger> = buildFakeActivityLogger(),
@@ -138,6 +145,7 @@ function buildService(
     options.listings ?? buildFakeListings(),
     options.locationResolver ?? buildFakeLocationResolver(),
     options.creativePackages ?? buildFakeCreativePackages(),
+    buildFakeMetaSync() as never,
   );
 }
 

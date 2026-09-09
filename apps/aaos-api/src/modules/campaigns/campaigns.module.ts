@@ -5,6 +5,7 @@ import { CreativePackagesModule } from "../creative-packages/creative-packages.m
 import { ListingsModule } from "../listings/listings.module.js";
 import { LocationResolverModule } from "../location-resolver/location-resolver.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { MetaSyncModule } from "../meta-sync/meta-sync.module.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
 import { CampaignsController } from "./campaigns.controller.js";
@@ -31,6 +32,11 @@ import { CampaignsService } from "./campaigns.service.js";
     ListingsModule,
     LocationResolverModule,
     CreativePackagesModule,
+    // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — real, best-effort `MetaSyncService.syncCampaign`
+    // hook right after a real campaign create succeeds (see `CampaignsService`'s own doc for the
+    // call sites). `MetaSyncModule` exports no controller and imports nothing back into
+    // `CampaignsModule` — no circular-import risk.
+    MetaSyncModule,
   ],
   controllers: [CampaignsController],
   providers: [CampaignsService, ApiKeyGuard],

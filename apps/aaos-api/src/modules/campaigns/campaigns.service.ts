@@ -19,6 +19,7 @@ import type {
   MetaAdsConnectorContext,
   MetaAdsConnectorRegistry,
 } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
+import { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import { resolvePropertyTargeting } from "./domain/property-targeting.builder.js";
@@ -64,6 +65,13 @@ export class CampaignsService {
      * `createPropertyCampaign`'s own doc for the full real multi-ad-publish mechanism).
      */
     private readonly creativePackages: CreativePackagesService,
+    /**
+     * EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — real, best-effort realtime sync hook. Called
+     * (never awaited-to-block, never allowed to fail the real campaign action) right after a real
+     * LIVE campaign create succeeds in both `createCampaign` and `createPropertyCampaign` below —
+     * see `MetaSyncService.syncCampaign`'s own doc for why it never throws.
+     */
+    private readonly metaSync: MetaSyncService,
   ) {}
 
   /**
@@ -134,6 +142,15 @@ export class CampaignsService {
         status: result.simulated ? "SIMULATED" : "SUCCESS",
         ...(result.simulated ? { devPreview: result } : { output: result }),
       });
+
+      // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — real, best-effort realtime sync. Only for a
+      // real LIVE creation (a DEV `simulated` result has no real `campaignId` — nothing to sync).
+      // Deliberately NOT awaited: `MetaSyncService.syncCampaign` never throws (see its own doc),
+      // and this campaign-creation response must never wait on an extra real Meta round trip.
+      if (!result.simulated && result.campaignId !== undefined) {
+        void this.metaSync.syncCampaign(this.config.AAOS_TENANT_ID, result.campaignId);
+      }
+
       return result;
     } catch (error) {
       await this.activityLogger.fail(activityId, error);
@@ -318,6 +335,15 @@ export class CampaignsService {
         status: result.simulated ? "SIMULATED" : "SUCCESS",
         ...(result.simulated ? { devPreview: result } : { output: result }),
       });
+
+      // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — same real, best-effort, non-blocking realtime
+      // sync hook as `createCampaign` above. This is also the ONE real call site
+      // `SchedulerService.runCampaignPublishCheck`'s own auto-publish flow goes through (it calls
+      // this same method), so no separate hook is needed there.
+      if (!result.simulated && result.campaignId !== undefined) {
+        void this.metaSync.syncCampaign(tenantId, result.campaignId);
+      }
+
       return result;
     } catch (error) {
       await this.activityLogger.fail(activityId, error);

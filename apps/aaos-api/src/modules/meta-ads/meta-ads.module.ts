@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { LlmModule } from "../llm/llm.module.js";
+import { MetaSyncModule } from "../meta-sync/meta-sync.module.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
 import { ApiKeyGuard } from "./guards/api-key.guard.js";
@@ -20,7 +21,15 @@ import { MetaAdsService } from "./meta-ads.service.js";
  */
 /** `MetaAdsService` is exported (AAOS Overview Monitor Phase O1) so `OverviewModule` can inject the SAME real `pullCampaigns`/`getHeatmap` this module's own controller already uses — never a second, parallel Meta pull path. */
 @Module({
-  imports: [ModeGuardModule, ActivityLogModule, LlmModule],
+  imports: [
+    ModeGuardModule,
+    ActivityLogModule,
+    LlmModule,
+    // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — real, best-effort `MetaSyncService.syncCampaign`
+    // hook after `executeVerdict` (a real campaign/adset/ad UPDATE action). See `MetaAdsService`'s
+    // own doc for the call site.
+    MetaSyncModule,
+  ],
   controllers: [MetaAdsController],
   providers: [
     MetaAdsService,

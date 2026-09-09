@@ -61,6 +61,13 @@ function buildFakeActivityLogger() {
   };
 }
 
+/** Minimal `MetaSyncService` test double (EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4) — `syncCampaign` is a no-op spy, irrelevant to this file's own pre-existing `pullCampaigns`/`getAdAccounts`/`executeVerdict` assertions. */
+function buildFakeMetaSync() {
+  return {
+    syncCampaign: vi.fn(async () => undefined),
+  };
+}
+
 /** Minimal `LlmService` test double (AAOS Analytics Platform Phase 4) — `assetInsight` always resolves a fixed, typed "unavailable" DTO so this file's existing `pullCampaigns`/`getAdAccounts`/`executeVerdict` tests (which never touch `getAssetDetail`) stay unaffected by real OpenAI wiring. */
 function buildFakeLlmService() {
   return {
@@ -101,6 +108,7 @@ function buildService(
     buildFakeModeGuard(dev) as never,
     activityLogger as never,
     llmService as never,
+    buildFakeMetaSync() as never,
   );
 }
 
@@ -174,6 +182,7 @@ describe("MetaAdsService", () => {
         buildFakeModeGuard() as never,
         buildFakeActivityLogger() as never,
         buildFakeLlmService() as never,
+        buildFakeMetaSync() as never,
       );
       await expect(
         service.pullCampaigns({ datePreset: "last_30d" }, "corr-5", DEFAULT_TENANT_ID),
@@ -249,6 +258,7 @@ describe("MetaAdsService", () => {
         buildFakeModeGuard() as never,
         buildFakeActivityLogger() as never,
         buildFakeLlmService() as never,
+        buildFakeMetaSync() as never,
       );
       const accounts = await service.getAdAccounts(DEFAULT_TENANT_ID);
       expect(accounts).toEqual([
@@ -276,6 +286,7 @@ describe("MetaAdsService", () => {
         buildFakeModeGuard() as never,
         buildFakeActivityLogger() as never,
         buildFakeLlmService() as never,
+        buildFakeMetaSync() as never,
       );
       const accounts = await service.getAdAccounts(DEFAULT_TENANT_ID);
       expect(accounts).toEqual([

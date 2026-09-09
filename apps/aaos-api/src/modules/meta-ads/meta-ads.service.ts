@@ -9,6 +9,7 @@ import type {
   CampaignInsightResponseDto,
 } from "../llm/dto/campaign-insight.dto.js";
 import { LlmService } from "../llm/llm.service.js";
+import { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import { getAssetDetail } from "./asset-detail.js";
@@ -54,6 +55,12 @@ export class MetaAdsService {
     private readonly modeGuard: ModeGuardService,
     private readonly activityLogger: ActivityLogger,
     private readonly llmService: LlmService,
+    /**
+     * EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — real, best-effort realtime sync hook, wired into
+     * `executeVerdict` below (a real campaign/adset/ad UPDATE action). See
+     * `MetaSyncService.syncCampaign`'s own doc for why it never throws.
+     */
+    private readonly metaSync: MetaSyncService,
   ) {}
 
   async pullCampaigns(
@@ -319,6 +326,18 @@ export class MetaAdsService {
         status: result.simulated ? "SIMULATED" : "SUCCESS",
         ...(result.simulated ? { devPreview: result } : { output: result }),
       });
+
+      // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — real, best-effort, non-blocking realtime sync.
+      // Only when the verdict actually targeted the CAMPAIGN node directly (`body.targetId` is
+      // then a real Meta campaign id `MetaSyncService.syncCampaign` can use as-is) and it was a
+      // real LIVE action (never fired for a DEV `simulated` result — nothing real changed on
+      // Meta). An `adset`/`ad`-targeted verdict is intentionally NOT hooked here — resolving a
+      // real campaign id from an adset/ad id would need a further lookup this sprint's honest
+      // scope doesn't add; the next 15-minute cron sweep picks up any such change instead.
+      if (!result.simulated && body.targetType === "campaign") {
+        void this.metaSync.syncCampaign(tenantId, body.targetId);
+      }
+
       return result;
     } catch (error) {
       await this.activityLogger.fail(activityId, error);

@@ -23,7 +23,18 @@ import { callMetaApi, fetchAllPages } from "./meta-api-call-helpers.js";
 /** Local alias avoiding a direct `@opentelemetry/api` dependency (not in this package's `package.json` — `@aos/telemetry` is the sanctioned entry point per the Technical Requirements). */
 export type Tracer = ReturnType<typeof getTracer>;
 
-export type DatePreset = "last_7d" | "last_14d" | "last_30d";
+/**
+ * EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — `"today"`/`"yesterday"` added, additive. Both are
+ * real, Meta-documented `date_preset` literal values (Meta Marketing API "Insights" reference),
+ * exactly like the 3 pre-existing presets — `MetaApiRequestBuilder`'s `insightsExpansion` already
+ * passes `datePreset` straight through as an opaque string with no allowlist of its own, so this is
+ * a pure type/validation widening, not a new capability. Added so `MetaSyncService`'s periodic
+ * (15-minute) and daily-snapshot syncs can request a genuinely narrower real window than
+ * `last_7d`/`last_14d`/`last_30d` without this package needing a separate `time_range`+
+ * `time_increment=1` day-partitioned Insights capability (a materially larger, separate change —
+ * see `050_meta_sync.sql`'s header note for the full scope-boundary reasoning).
+ */
+export type DatePreset = "last_7d" | "last_14d" | "last_30d" | "today" | "yesterday";
 
 export interface PullCampaignDataInput {
   readonly adAccountId: AdAccountId;
@@ -38,7 +49,13 @@ export interface PullCampaignDataInput {
   readonly businessManagerId?: string;
 }
 
-const VALID_DATE_PRESETS: ReadonlySet<string> = new Set(["last_7d", "last_14d", "last_30d"]);
+const VALID_DATE_PRESETS: ReadonlySet<string> = new Set([
+  "last_7d",
+  "last_14d",
+  "last_30d",
+  "today",
+  "yesterday",
+]);
 
 /**
  * Pulls the full campaign → adset → ad hierarchy for one Meta ad account, per the spec's
@@ -89,7 +106,7 @@ export class PullCampaignData {
     if (!VALID_DATE_PRESETS.has(input.datePreset)) {
       return err(
         invalidInputError(
-          `datePreset must be one of last_7d|last_14d|last_30d, received: ${input.datePreset}`,
+          `datePreset must be one of last_7d|last_14d|last_30d|today|yesterday, received: ${input.datePreset}`,
         ),
       );
     }

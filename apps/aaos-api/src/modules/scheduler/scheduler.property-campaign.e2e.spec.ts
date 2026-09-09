@@ -178,6 +178,13 @@ describe("AAOS EPIC S Phase S6 — real end-to-end: cron tick -> SchedulerServic
       activityLogger,
       listings,
       locationResolver,
+      // Not exercised by this e2e test (no `creativePackageId` is ever passed to
+      // `createPropertyCampaign` here — see the manual-endpoint-only scope this fixture covers).
+      { getForCampaignPublish: vi.fn() } as never,
+      // EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — real, best-effort realtime sync hook. A no-op
+      // fake here: this e2e test's own real assertions are about the `SchedulerService` <->
+      // `CampaignsService` <-> Meta pipeline, not the sync hook (covered by `meta-sync.service.spec.ts`).
+      { syncCampaign: vi.fn(async () => undefined) } as never,
     );
   }
 
