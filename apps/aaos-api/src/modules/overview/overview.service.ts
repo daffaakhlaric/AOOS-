@@ -173,31 +173,55 @@ export class OverviewService {
 
   /**
    * Real campaign/spend summary, reusing `MetaAdsService.pullCampaigns` in-process (the SAME real
-   * pull `MetaAdsController.getCampaigns` performs — never a second, parallel Meta pull path). No
-   * `adAccountId` query is passed — same "fall back to the connector's first configured ad account"
-   * behavior `MetaAdsService.pullAdAccount` already implements for its own controller.
+   * pull `MetaAdsController.getCampaigns` performs — never a second, parallel Meta pull path).
+   *
+   * REAL BUG FIX (reported live: "campaign aktif tidak muncul di overview padahal di Meta Ads
+   * banyak campaign aktif"): this used to call `pullCampaigns` with no `adAccountId`, which falls
+   * back to ONLY the connector's first configured ad account (`MetaAdsService.pullAdAccount`'s own
+   * `connector.adAccountIds[0]` default) — silently missing every active campaign under any OTHER
+   * configured account for a real multi-ad-account tenant (a real, supported scenario — see
+   * `getAdAccounts`'s own doc, which already powers the Campaigns page's multi-account pill
+   * selector). Now aggregates across EVERY real configured ad account, matching what a manager
+   * actually sees when they open Meta Ads Manager directly.
    */
   private async getCampaignsSummary(
     correlationId: string,
     tenantId: string,
   ): Promise<OverviewCampaignsSummaryDto> {
+    const accounts = await this.metaAdsService.getAdAccounts(tenantId);
+
+    // Honest fallback matching the old single-account behavior when the connector genuinely has no
+    // enumerable accounts (should not happen in practice — `pullCampaigns` throws its own real
+    // `ValidationError` in that case, which this method does not swallow).
+    const adAccountIds = accounts.length > 0 ? accounts.map((account) => account.id) : [undefined];
+
     // `MetaAdsService.pullCampaigns` already returns the real, JSON-serializable
     // `AdAccountResponseDto` (it calls `toAdAccountResponseDto` internally) — reused AS-IS here,
-    // never re-converted a second time.
-    const dto = await this.metaAdsService.pullCampaigns(
-      { datePreset: OVERVIEW_CAMPAIGNS_DATE_PRESET },
-      correlationId,
-      tenantId,
+    // never re-converted a second time. Pulled in parallel — each is an independent real Meta call
+    // scoped to its own account, no shared state between them.
+    const perAccountDtos = await Promise.all(
+      adAccountIds.map((adAccountId) =>
+        this.metaAdsService.pullCampaigns(
+          {
+            datePreset: OVERVIEW_CAMPAIGNS_DATE_PRESET,
+            ...(adAccountId !== undefined ? { adAccountId } : {}),
+          },
+          correlationId,
+          tenantId,
+        ),
+      ),
     );
-    const activeCampaignsCount = dto.campaigns.filter((c) => c.status === "ACTIVE").length;
-    const totalSpend = dto.campaigns.reduce((sum, c) => sum + c.spend, 0);
+
+    const campaigns = perAccountDtos.flatMap((dto) => dto.campaigns);
+    const activeCampaignsCount = campaigns.filter((c) => c.status === "ACTIVE").length;
+    const totalSpend = campaigns.reduce((sum, c) => sum + c.spend, 0);
     return {
-      adAccountId: dto.id,
+      adAccountId: perAccountDtos[0]?.id ?? "",
       datePreset: OVERVIEW_CAMPAIGNS_DATE_PRESET,
       activeCampaignsCount,
-      totalCampaignsCount: dto.campaigns.length,
+      totalCampaignsCount: campaigns.length,
       totalSpend,
-      campaigns: dto.campaigns,
+      campaigns,
     };
   }
 

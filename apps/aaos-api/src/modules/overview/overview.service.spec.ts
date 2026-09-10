@@ -75,6 +75,12 @@ interface BuildOverviewServiceOptions {
   readonly leadsPerBranch?: readonly LeadResponseDto[];
   readonly pullCampaigns?: () => Promise<never>;
   readonly judgeSupabaseClient?: ReturnType<typeof createFakeSupabaseClient>;
+  /**
+   * Real bug fix regression coverage: `getCampaignsSummary` now enumerates every real configured
+   * ad account via `getAdAccounts` before pulling — defaults to the same single `act_1` account
+   * every pre-existing test already assumes, so existing assertions stay valid unmodified.
+   */
+  readonly adAccounts?: readonly { readonly id: string; readonly name: string }[];
 }
 
 function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
@@ -111,7 +117,10 @@ function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
       ],
     }));
   const getHeatmap = vi.fn(async () => REAL_HEATMAP);
-  const metaAdsService = { pullCampaigns, getHeatmap } as unknown as MetaAdsService;
+  const getAdAccounts = vi.fn(
+    async () => options.adAccounts ?? [{ id: "act_1", name: "Test Account" }],
+  );
+  const metaAdsService = { pullCampaigns, getHeatmap, getAdAccounts } as unknown as MetaAdsService;
 
   const objectiveService = {
     getCurrentObjective: vi.fn(() => REAL_OBJECTIVE),
@@ -180,6 +189,76 @@ describe("OverviewService.getOverview", () => {
     expect(result.recycling).toEqual(REAL_RECYCLING_SUMMARY);
     expect(result.heatmap).toEqual(REAL_HEATMAP);
     expect(result.insight.available).toBe(true);
+  });
+
+  it("real bug fix: aggregates active campaigns/spend across EVERY configured ad account, not just the first one (previously silently missed campaigns under any account other than the first)", async () => {
+    const pullCampaigns = vi.fn(async (query: { readonly adAccountId?: string }) => {
+      if (query.adAccountId === "act_2") {
+        return {
+          id: "act_2",
+          name: "Second Account",
+          businessManagerId: "bm-1",
+          currency: "IDR",
+          timezone: "Asia/Jakarta",
+          syncedAt: "2026-01-15T00:00:00.000Z",
+          campaigns: [
+            {
+              id: "c-2",
+              stableId: "c-2",
+              metaId: "m-2",
+              name: "Campaign 2 (second account)",
+              objective: "OUTCOME_LEADS",
+              status: "ACTIVE",
+              funnel: "MAAO2",
+              branch: "BINTARO",
+              spend: 300_000,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              adSets: [],
+            },
+          ],
+        };
+      }
+      return {
+        id: "act_1",
+        name: "First Account",
+        businessManagerId: "bm-1",
+        currency: "IDR",
+        timezone: "Asia/Jakarta",
+        syncedAt: "2026-01-15T00:00:00.000Z",
+        campaigns: [
+          {
+            id: "c-1",
+            stableId: "c-1",
+            metaId: "m-1",
+            name: "Campaign 1 (first account)",
+            objective: "OUTCOME_LEADS",
+            status: "ACTIVE",
+            funnel: "MAAO2",
+            branch: "BINTARO",
+            spend: 500_000,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            adSets: [],
+          },
+        ],
+      };
+    });
+    const { service } = buildOverviewService({
+      pullCampaigns: pullCampaigns as unknown as () => Promise<never>,
+      adAccounts: [
+        { id: "act_1", name: "First Account" },
+        { id: "act_2", name: "Second Account" },
+      ],
+    });
+    const result = await service.getOverview(TENANT_ID, CORRELATION_ID);
+
+    expect(pullCampaigns).toHaveBeenCalledTimes(2);
+    expect(result.campaigns?.activeCampaignsCount).toBe(2);
+    expect(result.campaigns?.totalCampaignsCount).toBe(2);
+    expect(result.campaigns?.totalSpend).toBe(800_000);
+    expect(result.campaigns?.campaigns.map((c) => c.name)).toEqual([
+      "Campaign 1 (first account)",
+      "Campaign 2 (second account)",
+    ]);
   });
 
   it("feeds the daily-insight prompt a real, honest null for a section that failed, never a fabricated zeroed object", async () => {
