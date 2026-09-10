@@ -82,6 +82,12 @@ export function UnifiedCampaignTable({
             const verdict = aggregateVerdict(
               campaign.adSets.flatMap((adSet) => adSet.ads.map((ad) => ad.verdict)),
             );
+            // AAOS Samantha Professional Optimizer, Part A/D — real Meta Learning Phase signal:
+            // true when AT LEAST ONE of this campaign's real adsets is still `LEARNING` (Meta's
+            // own `learning_stage_info.status`, undefined when Meta didn't report one — see
+            // `AdSetSummaryDto.learningStatus`'s own doc). Campaign-level (not per-adset) since
+            // this table is campaign-level — a mixed campaign still deserves the caution flag.
+            const isLearning = campaign.adSets.some((adSet) => adSet.learningStatus === "LEARNING");
             totalSpend += aggregate.spend;
             totalLead += aggregate.totalLead;
             const isSelected = campaign.id === selectedCampaignId;
@@ -97,6 +103,15 @@ export function UnifiedCampaignTable({
                 </td>
                 <td className={styles.nameCell}>
                   <span className={styles.name}>{stripAdNameSuffix(campaign.name)}</span>
+                  {isLearning ? (
+                    <span
+                      data-testid="learning-phase-badge"
+                      className={styles.learningBadge}
+                      title="Ada ad set yang masih dalam Learning Phase Meta — evaluasi performa sebenarnya baru akurat setelah keluar dari fase ini."
+                    >
+                      🎓 Learning
+                    </span>
+                  ) : null}
                   <span className={styles.meta}>
                     {campaign.stableId} · {aggregate.adSetCount} ad set · {aggregate.adCount} iklan
                   </span>

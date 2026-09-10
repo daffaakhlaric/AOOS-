@@ -120,6 +120,29 @@ export const MetaAdSetTargetingSchema = z.object({
 });
 export type MetaAdSetTargeting = z.infer<typeof MetaAdSetTargetingSchema>;
 
+/**
+ * `learning_stage_info` — Meta's real adset-level Learning Phase indicator (AAOS Samantha
+ * Professional Optimizer scope). Verified against Meta's Marketing API "Ad Set" reference: a plain
+ * JSON object field (not an edge, same convention as `targeting` above — requested bare, no
+ * `field{subfields}` expansion needed). Real documented shape: `status` (one of
+ * `LEARNING`/`LEARNING_LIMITED`/`SUCCESS`), `ad_set_id`, `conversions`, `allow_lookalike_expansion`.
+ * This package only has a real use for `status` — the other 3 fields are accepted-but-ignored
+ * (`z.object` silently ignores unmodeled keys), same "only model what we actually read" discipline
+ * `MetaAdSetTargetingSchema` already establishes.
+ *
+ * Honest absence: the WHOLE `learning_stage_info` object can legitimately be absent from Meta's
+ * response — a brand-new adset with zero real delivery yet, or one that predates Meta's own
+ * learning-phase tracking, never returns this field at all (not `{}`, not a `null` — genuinely
+ * omitted). `.optional()` on the object itself (not just its inner fields) models that honestly;
+ * `status` also stays a loose `z.string()` here (validated against the real 3-member vocabulary
+ * later, in `mappers/AdSetMapper.ts`) so an unrecognized future Meta status value degrades to
+ * `undefined` rather than failing the whole adset parse closed.
+ */
+export const MetaAdSetLearningStageInfoSchema = z.object({
+  status: z.string().optional(),
+});
+export type MetaAdSetLearningStageInfo = z.infer<typeof MetaAdSetLearningStageInfoSchema>;
+
 export const MetaAdSetSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -128,6 +151,7 @@ export const MetaAdSetSchema = z.object({
   daily_budget: z.string().optional(),
   targeting: MetaAdSetTargetingSchema.optional(),
   insights: MetaInsightsEdgeSchema.optional(),
+  learning_stage_info: MetaAdSetLearningStageInfoSchema.optional(),
 });
 export type MetaAdSet = z.infer<typeof MetaAdSetSchema>;
 
@@ -145,9 +169,39 @@ export type MetaAdSetListResponse = z.infer<typeof MetaAdSetListResponseSchema>;
  * attached). The `creative` object itself can also come back `{}` for such an ad rather than
  * being omitted, hence both inner fields optional rather than the whole object being enough.
  */
+/**
+ * `object_story_spec.link_data` — Meta's real single-creative (non-Dynamic-Creative) ad-copy shape
+ * (AAOS Samantha Professional Optimizer, Part B). Verified against Meta's Marketing API "Ad
+ * Creative" reference: `object_story_spec` is a real field on the `AdCreative` node (same node
+ * `image_hash`/`video_id` already read from), and `link_data` is its real sub-object for a
+ * link/website-destination ad — `message` (primary text), `name` (headline), `description` (the
+ * real Meta field names, not renamed here) are its real, individually-optional text fields.
+ *
+ * Honest, DOCUMENTED scope boundary: this is the ONE real ad-copy shape this package covers.
+ * Explicitly NOT covered (left absent/`undefined` rather than guessed at): a Dynamic Creative ad's
+ * `asset_feed_spec.bodies[]/titles[]/descriptions[]` (multiple text options, a materially different
+ * nested-array shape), and a video-only/other funnel creative that carries no `link_data` at all
+ * (e.g. `video_data`-based object_story_spec). An ad using either of those real shapes simply
+ * returns `primaryText`/`headline`/`description` all `undefined` from `mapCreativeText` — a real,
+ * honest degrade, never a fabricated empty-string placeholder standing in for text Meta didn't
+ * actually return in this shape.
+ */
+export const MetaAdCreativeLinkDataSchema = z.object({
+  message: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+});
+export type MetaAdCreativeLinkData = z.infer<typeof MetaAdCreativeLinkDataSchema>;
+
+export const MetaAdCreativeObjectStorySpecSchema = z.object({
+  link_data: MetaAdCreativeLinkDataSchema.optional(),
+});
+export type MetaAdCreativeObjectStorySpec = z.infer<typeof MetaAdCreativeObjectStorySpecSchema>;
+
 export const MetaAdCreativeSchema = z.object({
   image_hash: z.string().optional(),
   video_id: z.string().optional(),
+  object_story_spec: MetaAdCreativeObjectStorySpecSchema.optional(),
 });
 export type MetaAdCreative = z.infer<typeof MetaAdCreativeSchema>;
 

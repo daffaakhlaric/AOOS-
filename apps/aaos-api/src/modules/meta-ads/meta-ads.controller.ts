@@ -8,6 +8,11 @@ import {
   type CampaignInsightRequestDto,
   type CampaignInsightResponseDto,
 } from "../llm/dto/campaign-insight.dto.js";
+import {
+  DiagnoseAdCopyRequestSchema,
+  type DiagnoseAdCopyRequestDto,
+  type DiagnoseAdCopyResponseDto,
+} from "../llm/dto/diagnose-ad-copy.dto.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
@@ -131,5 +136,19 @@ export class MetaAdsController {
     @TenantId() tenantId: string,
   ): Promise<CampaignInsightResponseDto> {
     return this.metaAdsService.getCampaignInsight(tenantId, body);
+  }
+
+  /**
+   * `POST /api/v1/ads/diagnose-copy` — AAOS Samantha Professional Optimizer, Part C. Same
+   * dedicated pass-through shape as `POST /api/v1/campaigns/insight` above — see
+   * `MetaAdsService.getAdCopyDiagnosis`'s own doc.
+   */
+  @Post("ads/diagnose-copy")
+  @HttpCode(200)
+  async getAdCopyDiagnosis(
+    @Body(new ZodValidationPipe(DiagnoseAdCopyRequestSchema)) body: DiagnoseAdCopyRequestDto,
+    @TenantId() tenantId: string,
+  ): Promise<DiagnoseAdCopyResponseDto> {
+    return this.metaAdsService.getAdCopyDiagnosis(tenantId, body);
   }
 }

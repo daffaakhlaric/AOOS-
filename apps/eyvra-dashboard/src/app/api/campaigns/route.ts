@@ -32,6 +32,8 @@ interface AdAccountResponseDto {
       readonly name: string;
       readonly status: string;
       readonly spend: number;
+      /** AAOS Samantha Professional Optimizer, Part A/D — real Meta `learning_stage_info.status`, `undefined` when Meta didn't report one. */
+      readonly learningStatus?: string;
       readonly ads: ReadonlyArray<{
         readonly id: string;
         readonly stableId: string;
@@ -42,6 +44,10 @@ interface AdAccountResponseDto {
         readonly verdict: string;
         readonly metrics: CampaignAdDto["metrics"];
         readonly daysSinceCreation?: number;
+        /** AAOS Samantha Professional Optimizer, Part B/D — real, already-pulled ad-copy text, each independently `undefined` when Meta's creative for this ad doesn't carry it. */
+        readonly primaryText?: string;
+        readonly headline?: string;
+        readonly description?: string;
       }>;
     }>;
   }>;
@@ -75,6 +81,9 @@ function toAdSummary(
     verdict: ad.verdict,
     metrics: ad.metrics,
     ...(ad.daysSinceCreation !== undefined ? { daysSinceCreation: ad.daysSinceCreation } : {}),
+    ...(ad.primaryText !== undefined ? { primaryText: ad.primaryText } : {}),
+    ...(ad.headline !== undefined ? { headline: ad.headline } : {}),
+    ...(ad.description !== undefined ? { description: ad.description } : {}),
   };
 }
 
@@ -88,6 +97,7 @@ function toAdSetSummary(
     status: adSet.status,
     spend: adSet.spend,
     ads: adSet.ads.map(toAdSummary),
+    ...(adSet.learningStatus !== undefined ? { learningStatus: adSet.learningStatus } : {}),
   };
 }
 
@@ -133,6 +143,10 @@ function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
           ...(ad.daysSinceCreation !== undefined
             ? { daysSinceCreation: ad.daysSinceCreation }
             : {}),
+          ...(ad.primaryText !== undefined ? { primaryText: ad.primaryText } : {}),
+          ...(ad.headline !== undefined ? { headline: ad.headline } : {}),
+          ...(ad.description !== undefined ? { description: ad.description } : {}),
+          ...(adSet.learningStatus !== undefined ? { learningStatus: adSet.learningStatus } : {}),
         });
       }
     }

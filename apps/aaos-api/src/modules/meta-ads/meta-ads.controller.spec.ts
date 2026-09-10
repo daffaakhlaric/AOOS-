@@ -3,6 +3,7 @@ import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CampaignInsightResponseDto } from "../llm/dto/campaign-insight.dto.js";
+import type { DiagnoseAdCopyResponseDto } from "../llm/dto/diagnose-ad-copy.dto.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
@@ -35,6 +36,18 @@ function buildFakeService(): MetaAdsService {
           narrative: "Campaign ini SCALE-worthy.",
           actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
         }) as unknown as CampaignInsightResponseDto,
+    ),
+    getAdCopyDiagnosis: vi.fn(
+      async () =>
+        ({
+          available: true,
+          structural: {
+            hook: { status: "YES", reasoning: "Ada hook." },
+            clearProblem: { status: "PARTIAL", reasoning: "Kurang jelas." },
+            toThePoint: { status: "YES", reasoning: "Singkat." },
+            softCta: { status: "NO", reasoning: "Tidak ada CTA." },
+          },
+        }) as unknown as DiagnoseAdCopyResponseDto,
     ),
   } as unknown as MetaAdsService;
 }
@@ -119,6 +132,32 @@ describe("MetaAdsController", () => {
       available: true,
       narrative: "Campaign ini SCALE-worthy.",
       actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
+    });
+  });
+
+  it("POST /api/v1/ads/diagnose-copy delegates to MetaAdsService.getAdCopyDiagnosis with the body + real per-request tenant id", async () => {
+    const service = buildFakeService();
+    const controller = new MetaAdsController(service);
+    const body = {
+      adName: "Xpander Cross 2023",
+      primaryText: "DP ringan mulai 15 juta!",
+      verdict: "REVIEW",
+      isUnderperforming: true,
+      spend: 1_200_000,
+      conversations: 3,
+      rphChatIDR: 400_000,
+      frequency: 1.8,
+    } as const;
+    const result = await controller.getAdCopyDiagnosis(body, "tenant-a");
+    expect(service.getAdCopyDiagnosis).toHaveBeenCalledWith("tenant-a", body);
+    expect(result).toEqual({
+      available: true,
+      structural: {
+        hook: { status: "YES", reasoning: "Ada hook." },
+        clearProblem: { status: "PARTIAL", reasoning: "Kurang jelas." },
+        toThePoint: { status: "YES", reasoning: "Singkat." },
+        softCta: { status: "NO", reasoning: "Tidak ada CTA." },
+      },
     });
   });
 

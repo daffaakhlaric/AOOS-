@@ -26,6 +26,7 @@ import type { CampaignInsightRequestDto } from "./dto/campaign-insight.dto.js";
 import type { CampaignStrategyRequestDto } from "./dto/campaign-strategy.dto.js";
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
 import type { DailyInsightRequestDto } from "./dto/daily-insight.dto.js";
+import type { DiagnoseAdCopyRequestDto } from "./dto/diagnose-ad-copy.dto.js";
 import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
 import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js";
 import type { ImprovementPlanRequestDto } from "./dto/improvement-plan.dto.js";
@@ -1583,6 +1584,157 @@ describe("LlmService", () => {
       mswServer.resetHandlers(); // no handler registered — a second real call would fail
       const second = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
       expect(second).toEqual(first);
+    });
+  });
+
+  describe("diagnoseAdCopy (AAOS Samantha Professional Optimizer, Part C)", () => {
+    const validDiagnoseBody: DiagnoseAdCopyRequestDto = {
+      adName: "Xpander Cross 2023 - Bintaro",
+      primaryText: "DP ringan mulai 15 juta, cicilan mulai 2 jutaan!",
+      headline: "Xpander Cross DP Ringan",
+      description: "Unit siap survey hari ini",
+      verdict: "REVIEW",
+      isUnderperforming: true,
+      spend: 1_200_000,
+      conversations: 3,
+      rphChatIDR: 400_000,
+      frequency: 1.8,
+      learningStatus: undefined,
+    };
+
+    const validDiagnoseLlmJson = JSON.stringify({
+      structural: {
+        hook: { status: "YES", reasoning: "Membuka dengan DP ringan, langsung menarik perhatian." },
+        clearProblem: {
+          status: "PARTIAL",
+          reasoning: "Menyinggung cicilan tapi tidak menyebut masalah spesifik pembeli.",
+        },
+        toThePoint: { status: "YES", reasoning: "Singkat, dua kalimat saja." },
+        softCta: { status: "NO", reasoning: "Tidak ada ajakan bertindak sama sekali di teks." },
+      },
+      diagnosis: {
+        issue: "USP",
+        reasoning: "Tidak ada pembeda dari dealer lain yang jual unit sama.",
+      },
+    });
+
+    it("returns available:true with real, Zod-validated structural + diagnosis output from a mocked OpenAI response", async () => {
+      registerOpenAiChatHandler(validDiagnoseLlmJson);
+      const service = buildService();
+      const result = await service.diagnoseAdCopy(TENANT_ID, validDiagnoseBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validDiagnoseLlmJson) });
+    });
+
+    it("returns NO_COPY_TEXT (never calling OpenAI) when primaryText/headline/description are all undefined", async () => {
+      const service = buildService();
+      const result = await service.diagnoseAdCopy(TENANT_ID, {
+        ...validDiagnoseBody,
+        primaryText: undefined,
+        headline: undefined,
+        description: undefined,
+      });
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_COPY_TEXT",
+        message:
+          "Teks iklan tidak tersedia dari Meta untuk tipe creative ini, tidak bisa dianalisis",
+      });
+    });
+
+    it("still calls the LLM when only ONE of primaryText/headline/description is present", async () => {
+      registerOpenAiChatHandler(validDiagnoseLlmJson);
+      const service = buildService();
+      const result = await service.diagnoseAdCopy(TENANT_ID, {
+        ...validDiagnoseBody,
+        headline: undefined,
+        description: undefined,
+      });
+      expect(result).toEqual({ available: true, ...JSON.parse(validDiagnoseLlmJson) });
+    });
+
+    it("returns NO_API_KEY (no fabricated diagnosis) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.diagnoseAdCopy(TENANT_ID, validDiagnoseBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns PROVIDER_ERROR (no fabricated diagnosis) when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.diagnoseAdCopy(TENANT_ID, validDiagnoseBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE (no fabricated diagnosis) when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.diagnoseAdCopy(TENANT_ID, validDiagnoseBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.diagnoseAdCopy(TENANT_ID, validDiagnoseBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validDiagnoseLlmJson);
+      const service = buildService();
+      const first = await service.diagnoseAdCopy(TENANT_ID, validDiagnoseBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.diagnoseAdCopy(TENANT_ID, validDiagnoseBody);
+      expect(second).toEqual(first);
+    });
+
+    it("does NOT cache the early NO_COPY_TEXT short-circuit against a later call with real copy text present (different bodies, different cache keys)", async () => {
+      const service = buildService();
+      const noCopyResult = await service.diagnoseAdCopy(TENANT_ID, {
+        ...validDiagnoseBody,
+        primaryText: undefined,
+        headline: undefined,
+        description: undefined,
+      });
+      expect(noCopyResult).toEqual({
+        available: false,
+        reason: "NO_COPY_TEXT",
+        message:
+          "Teks iklan tidak tersedia dari Meta untuk tipe creative ini, tidak bisa dianalisis",
+      });
+      registerOpenAiChatHandler(validDiagnoseLlmJson);
+      const withCopyResult = await service.diagnoseAdCopy(TENANT_ID, validDiagnoseBody);
+      expect(withCopyResult).toEqual({ available: true, ...JSON.parse(validDiagnoseLlmJson) });
+    });
+
+    it("includes a real learningPhaseNote in the validated response when the LLM provides one for a LEARNING adset", async () => {
+      const learningLlmJson = JSON.stringify({
+        ...JSON.parse(validDiagnoseLlmJson),
+        learningPhaseNote:
+          "Adset masih dalam Learning Phase Meta, diagnosis di atas perlu dilihat dengan hati-hati.",
+      });
+      registerOpenAiChatHandler(learningLlmJson);
+      const service = buildService();
+      const result = await service.diagnoseAdCopy(TENANT_ID, {
+        ...validDiagnoseBody,
+        learningStatus: "LEARNING",
+      });
+      expect(result).toEqual({ available: true, ...JSON.parse(learningLlmJson) });
     });
   });
 

@@ -239,4 +239,36 @@ describe("UnifiedCampaignTable", () => {
     );
     expect(screen.getByTestId("empty-state")).toBeInTheDocument();
   });
+
+  it("AAOS Samantha Professional Optimizer, Part D: shows the real Learning Phase badge when a campaign's adset is still LEARNING", () => {
+    const campaign = campaignWith("lp", "ACTIVE", { spend: 100, totalLead: 1 });
+    const learningCampaign: CampaignSummaryDto = {
+      ...campaign,
+      adSets: campaign.adSets.map((adSet) => ({ ...adSet, learningStatus: "LEARNING" })),
+    };
+    render(
+      <UnifiedCampaignTable
+        campaigns={[learningCampaign]}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("learning-phase-badge")).toBeInTheDocument();
+  });
+
+  it("does NOT show the Learning Phase badge for a campaign whose adsets have no learningStatus (the honest default — real Meta didn't report one, or it's SUCCESS)", () => {
+    const campaigns = [campaignWith("stable", "ACTIVE", { spend: 100, totalLead: 1 })];
+    render(
+      <UnifiedCampaignTable
+        campaigns={campaigns}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("learning-phase-badge")).not.toBeInTheDocument();
+  });
 });

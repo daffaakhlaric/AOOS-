@@ -161,4 +161,68 @@ describe("mapAdSet", () => {
       expect(adSet.audienceLabel).toBe("BROAD");
     });
   });
+
+  describe("learningStatus (AAOS Samantha Professional Optimizer, Part A — real learning_stage_info wiring)", () => {
+    it("maps a real LEARNING status", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({ learning_stage_info: { status: "LEARNING" } }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.learningStatus).toBe("LEARNING");
+    });
+
+    it("maps a real LEARNING_LIMITED status", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({ learning_stage_info: { status: "LEARNING_LIMITED" } }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.learningStatus).toBe("LEARNING_LIMITED");
+    });
+
+    it("maps a real SUCCESS status", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({ learning_stage_info: { status: "SUCCESS" } }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.learningStatus).toBe("SUCCESS");
+    });
+
+    it("is undefined when Meta reports no learning_stage_info at all (brand-new adset, zero delivery yet)", () => {
+      const adSet = unwrap(
+        mapAdSet(makeAdSet({ learning_stage_info: undefined }), campaignId, adAccountId, 1),
+      );
+      expect(adSet.learningStatus).toBeUndefined();
+    });
+
+    it("degrades to undefined for an unrecognized future Meta status string, never fabricating one of the 3 known values", () => {
+      const adSet = unwrap(
+        mapAdSet(
+          makeAdSet({ learning_stage_info: { status: "SOME_FUTURE_STATUS" } }),
+          campaignId,
+          adAccountId,
+          1,
+        ),
+      );
+      expect(adSet.learningStatus).toBeUndefined();
+    });
+
+    it("is undefined when learning_stage_info is present but status itself is absent", () => {
+      const adSet = unwrap(
+        mapAdSet(makeAdSet({ learning_stage_info: {} }), campaignId, adAccountId, 1),
+      );
+      expect(adSet.learningStatus).toBeUndefined();
+    });
+  });
 });

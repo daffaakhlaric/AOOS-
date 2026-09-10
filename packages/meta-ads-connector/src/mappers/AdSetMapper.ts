@@ -1,7 +1,7 @@
 import { err, type Result } from "@aos/common";
 import { ValidationError } from "@aos/errors";
 
-import { AdSet } from "../domain/entities/AdSet.js";
+import { AdSet, type LearningStatus } from "../domain/entities/AdSet.js";
 import type { AdAccountId } from "../domain/value-objects/AdAccountId.js";
 import { AdSetId } from "../domain/value-objects/AdSetId.js";
 import { AdStatus } from "../domain/value-objects/AdStatus.js";
@@ -9,12 +9,39 @@ import { Budget } from "../domain/value-objects/Budget.js";
 import type { CampaignId } from "../domain/value-objects/CampaignId.js";
 import { Spend } from "../domain/value-objects/Spend.js";
 import { StableId } from "../domain/value-objects/StableId.js";
-import type { MetaAdSet, MetaAdSetTargeting } from "../types/MetaApiTypes.js";
+import type {
+  MetaAdSet,
+  MetaAdSetLearningStageInfo,
+  MetaAdSetTargeting,
+} from "../types/MetaApiTypes.js";
 import { classifyAudience, type AudienceTargetingSpec } from "../utils/AudienceClassifier.js";
 import { extractBranch } from "../utils/BranchExtractor.js";
 import { centsToRupiah } from "../utils/CurrencyUtils.js";
 
 const KNOWN_STATUSES: ReadonlySet<string> = new Set(Object.values(AdStatus));
+
+const KNOWN_LEARNING_STATUSES: ReadonlySet<string> = new Set([
+  "LEARNING",
+  "LEARNING_LIMITED",
+  "SUCCESS",
+]);
+
+/**
+ * Maps the raw `learning_stage_info` object into the domain's `LearningStatus`. Honest degrade:
+ * `undefined` when the whole object is absent (real "Meta never reported this" case — see
+ * `types/MetaApiTypes.ts`'s `MetaAdSetLearningStageInfoSchema` docstring), when `status` itself is
+ * absent, or when `status` is a string outside the real, documented 3-member vocabulary this
+ * package knows about — NEVER fabricates/guesses a status value, and never fails the whole adset
+ * parse closed over an unrecognized future Meta status string.
+ */
+function mapLearningStatus(
+  raw: MetaAdSetLearningStageInfo | undefined,
+): LearningStatus | undefined {
+  if (raw?.status === undefined || !KNOWN_LEARNING_STATUSES.has(raw.status)) {
+    return undefined;
+  }
+  return raw.status as LearningStatus;
+}
 
 /**
  * Maps the raw `targeting` object into `AudienceClassifier`'s standalone `AudienceTargetingSpec`
@@ -93,5 +120,6 @@ export function mapAdSet(
     spend: spendResult.value,
     ads: [],
     audienceLabel: classifyAudience(mapTargeting(raw.targeting)),
+    learningStatus: mapLearningStatus(raw.learning_stage_info),
   });
 }

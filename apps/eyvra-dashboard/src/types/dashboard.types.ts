@@ -44,6 +44,17 @@ export interface CampaignAdDto {
   readonly metrics: AdMetricsDto;
   /** AAOS-SAMANTHA-PAGES redesign: mirrors `AdResponseDto.daysSinceCreation` on the real `aaos-api` response — powers "Audit Biaya"'s "Iklan Baru (last 14 days)" section. Optional (unlike `frequency`) rather than a required field on every existing fixture/caller: this app's other, already-shipped pages have no use for it, so widening every `CampaignAdDto`/`AdSummaryDto` literal across the codebase for one new section's sake isn't warranted — callers that need it check for `undefined`. */
   readonly daysSinceCreation?: number;
+  /**
+   * AAOS Samantha Professional Optimizer, Part B/D — real, already-pulled ad-copy text (each
+   * independently `undefined` when Meta's creative for this ad doesn't carry it — see
+   * `aaos-api`'s `AdResponseDto` docstring). Powers `POST /api/diagnose-ad-copy`'s real
+   * Hook/Clear-Problem/To-The-Point/Soft-CTA + Pain/Offer/USP analysis for this ad.
+   */
+  readonly primaryText?: string;
+  readonly headline?: string;
+  readonly description?: string;
+  /** AAOS Samantha Professional Optimizer, Part A/D — the parent adset's real `learning_stage_info.status`, inherited here so a per-ad view (`CampaignDetailClient`) can show the same "Masih Learning Phase" signal without a second lookup. */
+  readonly learningStatus?: string;
 }
 
 /** One ad within `AdSetSummaryDto.ads` — the `#C` level of the campaign→ad-set→ad hierarchy (spec "meta-ads/page.tsx" MAAO2 redesign). Distinct from `CampaignAdDto` only in that it omits `campaignName` (redundant once nested under its own campaign). */
@@ -58,6 +69,10 @@ export interface AdSummaryDto {
   readonly metrics: AdMetricsDto;
   /** See `CampaignAdDto.daysSinceCreation` — same field, same optionality rationale. */
   readonly daysSinceCreation?: number;
+  /** See `CampaignAdDto.primaryText`/`.headline`/`.description` — same fields, same optionality rationale. */
+  readonly primaryText?: string;
+  readonly headline?: string;
+  readonly description?: string;
 }
 
 /** The `#B` level. `stableId`/`spend` come straight from `aaos-api`'s real, already spend-sorted assignment (`@aos/meta-ads-connector`'s `StableIdAssigner`) — never recomputed client-side. */
@@ -68,6 +83,8 @@ export interface AdSetSummaryDto {
   readonly status: string;
   readonly spend: number;
   readonly ads: readonly AdSummaryDto[];
+  /** AAOS Samantha Professional Optimizer, Part A/D — real Meta `learning_stage_info.status`, `undefined` when Meta didn't report one for this adset. */
+  readonly learningStatus?: string;
 }
 
 /** The `#A` level. Same authoritative-`stableId`-from-backend contract as `AdSetSummaryDto`. */

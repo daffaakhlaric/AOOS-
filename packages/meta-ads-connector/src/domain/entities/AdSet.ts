@@ -13,6 +13,14 @@ import type { StableId } from "../value-objects/StableId.js";
 
 import type { Ad } from "./Ad.js";
 
+/**
+ * Meta's real adset-level `learning_stage_info.status` (AAOS Samantha Professional Optimizer, Part
+ * A) — see `types/MetaApiTypes.ts`'s `MetaAdSetLearningStageInfoSchema` docstring for the verified
+ * real Meta vocabulary and the honest "can be entirely absent" degrade this type's own optionality
+ * on `AdSetProps.learningStatus` (below) mirrors.
+ */
+export type LearningStatus = "LEARNING" | "LEARNING_LIMITED" | "SUCCESS";
+
 export interface AdSetProps {
   readonly id: AdSetId;
   readonly stableId: StableId;
@@ -33,6 +41,15 @@ export interface AdSetProps {
    * predates this field and must keep compiling unchanged.
    */
   readonly audienceLabel?: AudienceLabel;
+  /**
+   * AAOS Samantha Professional Optimizer, Part A. Optional key (not just an optional-valued
+   * required key), same `Ad.creativeAsset`/`AdSetProps.audienceLabel` convention: every pre-existing
+   * `AdSetProps` object literal across this package predates this field and must keep compiling
+   * unchanged. `undefined`/omitted means Meta reported no `learning_stage_info` for this adset at
+   * all (see `types/MetaApiTypes.ts`'s `MetaAdSetLearningStageInfoSchema` docstring for when that
+   * happens) — never defaulted to a fabricated status.
+   */
+  readonly learningStatus?: LearningStatus;
 }
 
 /** The `#B` entity — a Meta ad set, holding its ads. */
@@ -102,6 +119,10 @@ export class AdSet {
 
   get audienceLabel(): AudienceLabel | undefined {
     return this.props.audienceLabel;
+  }
+
+  get learningStatus(): LearningStatus | undefined {
+    return this.props.learningStatus;
   }
 
   withAds(ads: ReadonlyArray<Ad>): AdSet {

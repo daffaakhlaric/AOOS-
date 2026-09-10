@@ -81,6 +81,15 @@ function buildFakeLlmService() {
       narrative: "Campaign ini SCALE-worthy.",
       actions: [{ priority: "SEGERA" as const, text: "Naikkan budget." }],
     })),
+    diagnoseAdCopy: vi.fn(async () => ({
+      available: true as const,
+      structural: {
+        hook: { status: "YES" as const, reasoning: "Ada hook." },
+        clearProblem: { status: "PARTIAL" as const, reasoning: "Kurang jelas." },
+        toThePoint: { status: "YES" as const, reasoning: "Singkat." },
+        softCta: { status: "NO" as const, reasoning: "Tidak ada CTA." },
+      },
+    })),
   };
 }
 
@@ -231,6 +240,36 @@ describe("MetaAdsService", () => {
         available: true,
         narrative: "Campaign ini SCALE-worthy.",
         actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
+      });
+    });
+  });
+
+  describe("getAdCopyDiagnosis (AAOS Samantha Professional Optimizer, Part C)", () => {
+    it("delegates straight to LlmService.diagnoseAdCopy with the real tenant id, no Meta re-pull", async () => {
+      const llmService = buildFakeLlmService();
+      const service = buildService(false, buildFakeActivityLogger(), llmService);
+      const body = {
+        adName: "Xpander Cross 2023",
+        primaryText: "DP ringan mulai 15 juta!",
+        headline: "Xpander Cross DP Ringan",
+        description: "Unit siap survey",
+        verdict: "REVIEW",
+        isUnderperforming: true,
+        spend: 1_200_000,
+        conversations: 3,
+        rphChatIDR: 400_000,
+        frequency: 1.8,
+      } as const;
+      const result = await service.getAdCopyDiagnosis(DEFAULT_TENANT_ID, body as never);
+      expect(llmService.diagnoseAdCopy).toHaveBeenCalledWith(DEFAULT_TENANT_ID, body);
+      expect(result).toEqual({
+        available: true,
+        structural: {
+          hook: { status: "YES", reasoning: "Ada hook." },
+          clearProblem: { status: "PARTIAL", reasoning: "Kurang jelas." },
+          toThePoint: { status: "YES", reasoning: "Singkat." },
+          softCta: { status: "NO", reasoning: "Tidak ada CTA." },
+        },
       });
     });
   });

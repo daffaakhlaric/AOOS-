@@ -13,7 +13,21 @@ const CAMPAIGN_FIELDS = ["id", "name", "objective", "status", "created_time"].jo
  * `types/MetaApiTypes.ts`'s `MetaAdSetTargetingSchema` docstring for the verified real shape and
  * its one honest, documented gap (`custom_audiences[]` carries no `subtype`).
  */
-const ADSET_FIELDS = ["id", "name", "status", "daily_budget", "targeting"].join(",");
+/**
+ * `learning_stage_info` (AAOS Samantha Professional Optimizer, Part A) — requested BARE, same as
+ * `targeting`: Meta's real Ad Set `learning_stage_info` is a plain JSON object field, not an edge,
+ * so no `field{subfields}` expansion syntax is needed to pull it in full. See
+ * `types/MetaApiTypes.ts`'s `MetaAdSetLearningStageInfoSchema` docstring for the verified real shape
+ * and the honest "can be entirely absent" degrade.
+ */
+const ADSET_FIELDS = [
+  "id",
+  "name",
+  "status",
+  "daily_budget",
+  "targeting",
+  "learning_stage_info",
+].join(",");
 
 /**
  * `creative{image_hash,video_id}` — Meta's real nested-field-expansion syntax for pulling a
@@ -25,9 +39,21 @@ const ADSET_FIELDS = ["id", "name", "status", "daily_budget", "targeting"].join(
  * Analytics" — these two fields were previously only ever WRITE-side, in `MetaApiClient`'s
  * `createAd` creative-spec payload; this is the first READ-side pull of them).
  */
-const AD_FIELDS = ["id", "name", "status", "created_time", "creative{image_hash,video_id}"].join(
-  ",",
-);
+/**
+ * `object_story_spec{link_data{message,name,description}}` (AAOS Samantha Professional Optimizer,
+ * Part B) — nested inside the same `creative{...}` field-expansion this file already requests
+ * `image_hash`/`video_id` through, extended with the ONE real ad-copy shape this package covers
+ * (Meta's single-creative `object_story_spec.link_data` — see `types/MetaApiTypes.ts`'s
+ * `MetaAdCreativeLinkDataSchema` docstring for the full real-shape citation and the honestly
+ * documented shapes NOT covered by this addition).
+ */
+const AD_FIELDS = [
+  "id",
+  "name",
+  "status",
+  "created_time",
+  "creative{image_hash,video_id,object_story_spec{link_data{message,name,description}}}",
+].join(",");
 
 /**
  * `messaging_conversation_started` was removed from this list — it is not a valid top-level

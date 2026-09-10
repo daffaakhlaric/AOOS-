@@ -57,11 +57,15 @@ describe("MetaApiRequestBuilder", () => {
   it("requests the ad's creative asset ids via Meta's nested-field-expansion syntax (AAOS Analytics Platform Phase 2)", () => {
     const url = new URL(MetaApiRequestBuilder.adsUrl("120000002", "TOKEN", "last_14d"));
     const fields = url.searchParams.get("fields") ?? "";
-    expect(fields).toContain("creative{image_hash,video_id}");
+    expect(fields).toContain("creative{image_hash,video_id");
     // exact field ordering matters for readability/diffability of the built URL, not correctness —
     // Meta's `fields` param is comma-separated and order-insensitive — but pin it anyway so a
-    // future edit that silently drops the creative expansion fails this test loudly.
-    expect(fields).toContain("id,name,status,created_time,creative{image_hash,video_id}");
+    // future edit that silently drops the creative expansion fails this test loudly. Extended
+    // (AAOS Samantha Professional Optimizer, Part B) with the real `object_story_spec.link_data`
+    // ad-copy-text expansion — see `MetaApiRequestBuilder.ts`'s `AD_FIELDS` docstring.
+    expect(fields).toContain(
+      "id,name,status,created_time,creative{image_hash,video_id,object_story_spec{link_data{message,name,description}}}",
+    );
   });
 
   it("builds the ad-account name-lookup URL requesting only the `name` field", () => {
@@ -166,7 +170,7 @@ describe("MetaApiRequestBuilder", () => {
       const url = new URL(MetaApiRequestBuilder.campaignsExpandedUrl("act_123", "TOKEN", "today"));
       const fields = url.searchParams.get("fields") ?? "";
       expect(fields).toContain("ads.limit(50){");
-      expect(fields).toContain("creative{image_hash,video_id}");
+      expect(fields).toContain("creative{image_hash,video_id");
       // The nested ad-level insights window follows the caller's real requested datePreset
       // ("today" here), NOT hardcoded — matching the pre-existing adsUrl(datePreset) behavior.
       expect(fields).toContain(

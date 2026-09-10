@@ -10,7 +10,7 @@ import type { AdSet } from "../../domain/entities/AdSet.js";
 import type { Campaign } from "../../domain/entities/Campaign.js";
 import { MetaApiError, RateLimitError } from "../../domain/errors/index.js";
 import type { MetaAdsConnectorEvents } from "../../domain/events/MetaAdsConnectorEvents.js";
-import { evaluateVerdict } from "../../domain/services/VerdictEngine.js";
+import { evaluateVerdict, getVerdictReason } from "../../domain/services/VerdictEngine.js";
 import type { AdAccountId } from "../../domain/value-objects/AdAccountId.js";
 import { MetaResponseMapper } from "../../infrastructure/meta-api/MetaResponseMapper.js";
 import type { ExponentialBackoffRetry } from "../../infrastructure/retry/ExponentialBackoffRetry.js";
@@ -315,14 +315,18 @@ export class PullCampaignData {
     }
 
     const adsWithVerdicts: Ad[] = adsResult.value.map((ad) => {
-      const verdict = evaluateVerdict({
+      const verdictInput = {
         rphChat: ad.metrics.rphChat,
         conversations: ad.metrics.conversations,
         spendAmount: ad.metrics.spend.toNumber(),
         frequency: ad.metrics.frequency,
         objective: campaign.objective,
-      });
-      return ad.withVerdict(verdict);
+        // AAOS Samantha Professional Optimizer, Part A — the ad's own adSet real
+        // `learning_stage_info.status` (see `VerdictEngineInput.learningStatus`'s own doc).
+        learningStatus: adSet.learningStatus,
+      };
+      const verdict = evaluateVerdict(verdictInput);
+      return ad.withVerdict(verdict, getVerdictReason(verdictInput));
     });
 
     return ok(adSet.withAds(adsWithVerdicts));

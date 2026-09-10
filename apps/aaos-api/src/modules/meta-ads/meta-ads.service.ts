@@ -8,6 +8,10 @@ import type {
   CampaignInsightRequestDto,
   CampaignInsightResponseDto,
 } from "../llm/dto/campaign-insight.dto.js";
+import type {
+  DiagnoseAdCopyRequestDto,
+  DiagnoseAdCopyResponseDto,
+} from "../llm/dto/diagnose-ad-copy.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
@@ -188,6 +192,21 @@ export class MetaAdsService {
     body: CampaignInsightRequestDto,
   ): Promise<CampaignInsightResponseDto> {
     return this.llmService.campaignInsight(tenantId, body);
+  }
+
+  /**
+   * `POST /api/v1/ads/diagnose-copy` — AAOS Samantha Professional Optimizer, Part C. Same thin
+   * pass-through shape as `getCampaignInsight` above: the caller already has the one selected ad's
+   * real, already-pulled `primaryText`/`headline`/`description`/`verdict`/metrics/`learningStatus`
+   * loaded client-side (from `GET /api/v1/campaigns`'s per-ad tree — see `campaign-response.dto.ts`)
+   * and sends them straight through; `DiagnoseAdCopyRequestSchema`'s Zod validation is the real
+   * trust boundary, same as `CampaignInsightRequestSchema`'s.
+   */
+  async getAdCopyDiagnosis(
+    tenantId: string,
+    body: DiagnoseAdCopyRequestDto,
+  ): Promise<DiagnoseAdCopyResponseDto> {
+    return this.llmService.diagnoseAdCopy(tenantId, body);
   }
 
   private async pullAdAccount(

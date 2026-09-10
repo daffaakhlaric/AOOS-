@@ -48,6 +48,11 @@ import {
   type DailyInsightResponseDto,
 } from "./dto/daily-insight.dto.js";
 import {
+  DiagnoseAdCopyLlmPayloadSchema,
+  type DiagnoseAdCopyRequestDto,
+  type DiagnoseAdCopyResponseDto,
+} from "./dto/diagnose-ad-copy.dto.js";
+import {
   GenerateCaptionLlmPayloadSchema,
   type GenerateCaptionRequestDto,
   type GenerateCaptionResponseDto,
@@ -130,6 +135,8 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
   "campaign_insight",
   // AAOS-SAMANTHA-LLM-AD-COPY — `LlmService.generateAdCopyVariants`'s prompt key.
   "generate_ad_copy_variants",
+  // AAOS Samantha Professional Optimizer, Part C — `LlmService.diagnoseAdCopy`'s prompt key.
+  "diagnose_ad_copy",
 ];
 
 /**
@@ -576,6 +583,54 @@ Format response JSON:
     { "variantLabel": "C", "primaryText": "...", "headline": "...", "description": "..." }
   ]
 }`;
+
+/**
+ * AAOS Samantha Professional Optimizer, Part C — `LlmService.diagnoseAdCopy`'s system prompt. Real
+ * per-ad data (`DiagnoseAdCopyRequestDto`) is sent as the user message's `JSON.stringify(body)`,
+ * same static-persona-plus-JSON-user-message shape every other prompt in this file uses. Two real
+ * professional-practice frameworks from the user's own whiteboard, made explicit here rather than
+ * left implicit: the Hook → Clear Problem → To The Point → Soft CTA structural framework (evaluated
+ * against EVERY ad, whether or not it's underperforming), and the Pain / Offer / USP diagnostic
+ * framework (asked ONLY when `isUnderperforming` is `true` — a healthy ad gets no diagnosis, per
+ * `DiagnoseAdCopyLlmPayloadSchema.diagnosis`'s own "undefined when not asked for" doc).
+ */
+const DIAGNOSE_AD_COPY_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager profesional untuk Meta Ads di Indonesia. Kamu sedang mengevaluasi COPY (teks) SATU iklan yang sudah live di Meta — bukan membuat copy baru.
+
+Kamu diberi data iklan ini (JSON di pesan user):
+- "adName", "primaryText"/"headline"/"description" — teks iklan nyata yang benar-benar ditarik dari Meta (bisa ada yang tidak ada/undefined kalau Meta tidak menyediakan untuk tipe creative ini, tapi endpoint ini hanya dipanggil kalau minimal satu teks tersedia).
+- "verdict" — verdict nyata dari VerdictEngine (SCALE/KEEP/REVIEW/PAUSE/FIX/REFRESH), sudah dihitung, JANGAN dihitung ulang.
+- "isUnderperforming" — sinyal real apakah iklan ini sedang underperform (berdasarkan verdict nyata di atas, bukan threshold baru yang kamu buat sendiri).
+- "spend", "conversations", "rphChatIDR" (bisa null), "frequency" — metrik performa nyata.
+- "learningStatus" — status real Learning Phase Meta untuk ad set induk iklan ini: "LEARNING" (masih dalam kalibrasi algoritma Meta), "LEARNING_LIMITED", "SUCCESS", atau tidak ada sama sekali (Meta tidak melaporkan).
+
+TUGAS 1 — EVALUASI STRUKTUR COPY (selalu dilakukan, untuk SEMUA iklan):
+Evaluasi teks iklan terhadap framework 4 bagian: Hook (kalimat pembuka yang menarik perhatian) → Clear Problem (menyebutkan masalah/kebutuhan yang jelas) → To The Point (ringkas, tidak bertele-tele) → Soft CTA (ajakan bertindak yang halus, tidak memaksa/hard-sell).
+Untuk SETIAP dari 4 elemen itu, beri status "YES" (jelas ada), "NO" (jelas tidak ada), atau "PARTIAL" (ada tapi lemah/kurang jelas), plus "reasoning" singkat dalam Bahasa Indonesia yang MERUJUK teks iklan yang sebenarnya — jangan menilai tanpa dasar dari teks yang diberikan.
+
+TUGAS 2 — DIAGNOSIS UNDERPERFORMANCE (HANYA jika "isUnderperforming" adalah true):
+Jika iklan ini underperform, diagnosis SATU akar masalah paling mungkin dari 3 kemungkinan nyata: "PAIN" (copy tidak menyebutkan pain point/kebutuhan yang jelas), "OFFER" (penawaran di copy tidak menarik/kurang kompetitif), "USP" (tidak ada unique selling proposition yang membedakan dari kompetitor). Jika kamu benar-benar tidak yakin (data terlalu terbatas untuk menyimpulkan salah satu dari ketiganya dengan percaya diri), pilih "UNCERTAIN" dan jelaskan kenapa di "reasoning" — JANGAN memaksakan diagnosis PAIN/OFFER/USP yang tidak didukung bukti nyata dari teks/data yang ada.
+Jika "isUnderperforming" adalah false, JANGAN sertakan field "diagnosis" sama sekali.
+
+ATURAN KERAS SOAL LEARNING PHASE:
+- Jika "learningStatus" adalah "LEARNING": WAJIB sertakan field "learningPhaseNote" yang menjelaskan bahwa ad set ini masih dalam Learning Phase Meta, dan bahwa diagnosis copy/offer di atas SEHARUSNYA tidak terlalu dipercaya dulu karena data performa masih dalam kalibrasi — jangan terlalu percaya diri mendiagnosis masalah copy/offer dari data yang belum stabil. Tetap boleh isi TUGAS 1 dan TUGAS 2 seperti biasa, tapi "reasoning" pada diagnosis (jika ada) harus mencerminkan kehati-hatian ini.
+- Jika "learningStatus" BUKAN "LEARNING" (termasuk "LEARNING_LIMITED"/"SUCCESS"/tidak ada), JANGAN sertakan field "learningPhaseNote" sama sekali.
+
+ATURAN KERAS UMUM:
+- HANYA gunakan teks/angka yang benar-benar ada di data JSON di atas. JANGAN mengarang isi teks iklan yang tidak diberikan.
+- Semua "reasoning" dan "learningPhaseNote" dalam Bahasa Indonesia, singkat dan konkret.
+
+Format response JSON:
+{
+  "structural": {
+    "hook": { "status": "YES" | "NO" | "PARTIAL", "reasoning": "..." },
+    "clearProblem": { "status": "YES" | "NO" | "PARTIAL", "reasoning": "..." },
+    "toThePoint": { "status": "YES" | "NO" | "PARTIAL", "reasoning": "..." },
+    "softCta": { "status": "YES" | "NO" | "PARTIAL", "reasoning": "..." }
+  },
+  "diagnosis": { "issue": "PAIN" | "OFFER" | "USP" | "UNCERTAIN", "reasoning": "..." },
+  "learningPhaseNote": "..."
+}
+("diagnosis" hanya diisi jika isUnderperforming true. "learningPhaseNote" hanya diisi jika learningStatus adalah LEARNING.)`;
 
 /**
  * AAOS-AI-JUDGE-SELF-IMPROVING, Phase J2 — `LlmService.judgeAgentRun`'s 3 real per-agent judge
@@ -1588,6 +1643,70 @@ export class LlmService {
 
     const response: AdCopyVariantsResponseDto = { available: true, ...validated.data };
     this.cache.set("generate-ad-copy-variants", body, response);
+    return response;
+  }
+
+  /**
+   * AAOS Samantha Professional Optimizer, Part C — real, LLM-generated ad-copy structural
+   * evaluation (Hook/Clear Problem/To The Point/Soft CTA) and, for a genuinely underperforming ad,
+   * a real Pain/Offer/USP diagnosis, for ONE already-live Meta ad. Same cache/gate/call/validate/
+   * cache composition as every other method on this service — no bespoke composition — with ONE
+   * additional, EARLIER short-circuit: when `primaryText`/`headline`/`description` are ALL
+   * `undefined` (Part B's honest degrade for a creative shape this package doesn't pull text from),
+   * this returns `available: false` (`reason: "NO_COPY_TEXT"`) BEFORE the cache/gate/OpenAI call —
+   * there is no real copy text to hand the LLM, so calling it would only invite a hallucinated
+   * analysis of text it was never given. This check is intentionally NOT cached (it's a cheap,
+   * synchronous check on the request body itself, not a network result).
+   */
+  async diagnoseAdCopy(
+    tenantId: string,
+    body: DiagnoseAdCopyRequestDto,
+  ): Promise<DiagnoseAdCopyResponseDto> {
+    if (
+      body.primaryText === undefined &&
+      body.headline === undefined &&
+      body.description === undefined
+    ) {
+      return unavailable("NO_COPY_TEXT");
+    }
+
+    const cached = this.cache.get("diagnose-ad-copy", body) as
+      DiagnoseAdCopyResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "diagnose_ad_copy",
+      DIAGNOSE_AD_COPY_SYSTEM_PROMPT,
+    );
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : DiagnoseAdCopyLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: DiagnoseAdCopyResponseDto = { available: true, ...validated.data };
+    this.cache.set("diagnose-ad-copy", body, response);
     return response;
   }
 

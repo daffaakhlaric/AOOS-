@@ -101,6 +101,20 @@
   color: var(--red, #dc2626);
 }
 
+/* AAOS Samantha Professional Optimizer, Part A/D — real Meta Learning Phase indicator. */
+.learningBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--v2-menu-active-bg, #eef2ff);
+  color: var(--v2-menu-active-fg, #4338ca);
+}
+
 .totalRow {
   font-weight: 600;
   background: var(--v2-card-flat, #f8fafc);

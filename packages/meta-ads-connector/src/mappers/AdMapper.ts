@@ -36,6 +36,27 @@ function mapCreativeAsset(raw: MetaAdCreative | undefined): CreativeAsset | unde
 }
 
 /**
+ * AAOS Samantha Professional Optimizer, Part B — maps the raw
+ * `creative.object_story_spec.link_data` expansion into `Ad`'s 3 optional ad-copy text fields.
+ * Each field is independently `undefined` when Meta's real response doesn't carry it in this one
+ * real shape (see `Ad.ts`'s `primaryText`/`headline`/`description` docstring and
+ * `types/MetaApiTypes.ts`'s `MetaAdCreativeLinkDataSchema` docstring for the full honest-scope
+ * citation) — never a fabricated placeholder.
+ */
+function mapCreativeText(raw: MetaAdCreative | undefined): {
+  primaryText: string | undefined;
+  headline: string | undefined;
+  description: string | undefined;
+} {
+  const linkData = raw?.object_story_spec?.link_data;
+  return {
+    primaryText: linkData?.message,
+    headline: linkData?.name,
+    description: linkData?.description,
+  };
+}
+
+/**
  * Maps a single (already Zod-validated) raw Meta ad into the AAOS `Ad` entity.
  *
  * Judgment call: neither Funnel Classification nor Branch Extraction rules are defined "from ad
@@ -86,6 +107,8 @@ export function mapAd(
     Math.floor((now.getTime() - createdAt.getTime()) / MS_PER_DAY),
   );
 
+  const creativeText = mapCreativeText(raw.creative);
+
   return Ad.create({
     id: AdId.generate(),
     stableId: stableIdResult.value,
@@ -102,5 +125,8 @@ export function mapAd(
     createdAt,
     daysSinceCreation,
     creativeAsset: mapCreativeAsset(raw.creative),
+    primaryText: creativeText.primaryText,
+    headline: creativeText.headline,
+    description: creativeText.description,
   });
 }

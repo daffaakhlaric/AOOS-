@@ -35,6 +35,26 @@ export interface AdProps {
    * — see `CreativeAsset`'s own docstring for when that happens.
    */
   readonly creativeAsset?: CreativeAsset;
+  /**
+   * AAOS Samantha Professional Optimizer, Part B — real, pulled ad-copy TEXT (as opposed to
+   * `creativeAsset`'s image/video reference). Optional keys, same convention as `creativeAsset`:
+   * every pre-existing `AdProps` object literal predates these fields and must keep compiling
+   * unchanged. Each of the 3 is independently `undefined` when Meta's real creative for this ad
+   * doesn't carry it in the one real shape this package covers (`object_story_spec.link_data` —
+   * see `types/MetaApiTypes.ts`'s `MetaAdCreativeLinkDataSchema` docstring for the full real-shape
+   * citation and which other real ad shapes are honestly NOT covered) — never a fabricated
+   * placeholder standing in for text Meta didn't actually return.
+   */
+  readonly primaryText?: string;
+  readonly headline?: string;
+  readonly description?: string;
+  /**
+   * AAOS Samantha Professional Optimizer, Part A — the real, honest explanation for why
+   * `VerdictEngine.evaluateVerdict`'s raw verdict was suppressed/changed by Learning Phase
+   * awareness (see `domain/services/VerdictEngine.ts`'s `getVerdictReason`). `undefined` for the
+   * overwhelming majority of ads (no suppression applied — the raw verdict stands as computed).
+   */
+  readonly verdictReason?: string;
 }
 
 /** The `#C` entity — a single Meta ad, carrying its computed metrics and VerdictEngine verdict. */
@@ -132,9 +152,25 @@ export class Ad {
     return this.props.creativeAsset;
   }
 
-  /** Returns a shallow-cloned Ad with a new verdict — Ads are immutable, so this never mutates `this`. */
-  withVerdict(verdict: Verdict): Ad {
-    return new Ad({ ...this.props, verdict });
+  get primaryText(): string | undefined {
+    return this.props.primaryText;
+  }
+
+  get headline(): string | undefined {
+    return this.props.headline;
+  }
+
+  get description(): string | undefined {
+    return this.props.description;
+  }
+
+  get verdictReason(): string | undefined {
+    return this.props.verdictReason;
+  }
+
+  /** Returns a shallow-cloned Ad with a new verdict (and optional reason) — Ads are immutable, so this never mutates `this`. `reason` defaults to `undefined` — a plain `withVerdict(verdict)` call (every pre-existing call site) clears any previous reason, matching "no suppression applied" for that verdict. */
+  withVerdict(verdict: Verdict, reason?: string): Ad {
+    return new Ad({ ...this.props, verdict, verdictReason: reason });
   }
 
   /** Returns a shallow-cloned Ad with a new stableId, assigned by StableIdAssigner. */

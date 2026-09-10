@@ -34,4 +34,12 @@ describe("unavailable", () => {
       message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
     });
   });
+
+  it("builds a NO_COPY_TEXT fallback with a real, honest message (AAOS Samantha Professional Optimizer, Part C)", () => {
+    expect(unavailable("NO_COPY_TEXT")).toEqual({
+      available: false,
+      reason: "NO_COPY_TEXT",
+      message: "Teks iklan tidak tersedia dari Meta untuk tipe creative ini, tidak bisa dianalisis",
+    });
+  });
 });

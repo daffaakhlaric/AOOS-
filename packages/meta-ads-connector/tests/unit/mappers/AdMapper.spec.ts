@@ -179,6 +179,92 @@ describe("mapAd", () => {
     });
   });
 
+  describe("ad-copy text mapping (AAOS Samantha Professional Optimizer, Part B — real object_story_spec.link_data pull)", () => {
+    it("maps primaryText/headline/description from a real object_story_spec.link_data creative", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({
+            creative: {
+              object_story_spec: {
+                link_data: {
+                  message: "DP ringan mulai 15 juta!",
+                  name: "Xpander Cross 2023",
+                  description: "Unit siap survey",
+                },
+              },
+            },
+          }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.primaryText).toBe("DP ringan mulai 15 juta!");
+      expect(ad.headline).toBe("Xpander Cross 2023");
+      expect(ad.description).toBe("Unit siap survey");
+    });
+
+    it("degrades all 3 fields to undefined when creative has no object_story_spec at all (e.g. video-only/other funnel shapes this package honestly does not cover)", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({ creative: { video_id: "vid_1" } }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.primaryText).toBeUndefined();
+      expect(ad.headline).toBeUndefined();
+      expect(ad.description).toBeUndefined();
+    });
+
+    it("degrades to undefined when link_data is present but individual fields are absent, never fabricating placeholder text", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({
+            creative: { object_story_spec: { link_data: { message: "Only primary text" } } },
+          }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.primaryText).toBe("Only primary text");
+      expect(ad.headline).toBeUndefined();
+      expect(ad.description).toBeUndefined();
+    });
+
+    it("degrades to undefined when there is no creative at all", () => {
+      const ad = unwrap(
+        mapAd(
+          makeAd({ creative: undefined }),
+          campaignId,
+          adSetId,
+          adAccountId,
+          Funnel.CTWA,
+          Branch.UMUM,
+          1,
+          now,
+        ),
+      );
+      expect(ad.primaryText).toBeUndefined();
+      expect(ad.headline).toBeUndefined();
+      expect(ad.description).toBeUndefined();
+    });
+  });
+
   it("propagates a StableId assignment failure for an invalid placeholder sequence", () => {
     expect(
       unwrapErr(mapAd(makeAd(), campaignId, adSetId, adAccountId, Funnel.CTWA, Branch.UMUM, 0, now))

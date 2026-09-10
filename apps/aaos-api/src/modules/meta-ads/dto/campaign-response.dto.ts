@@ -29,6 +29,17 @@ export interface AdResponseDto {
   readonly metrics: AdMetricsResponseDto;
   readonly createdAt: string;
   readonly daysSinceCreation: number;
+  /**
+   * AAOS Samantha Professional Optimizer, Part B/D — real, already-pulled ad-copy text (Part B's
+   * `Ad.primaryText`/`.headline`/`.description`), surfaced here so the dashboard can show Samantha's
+   * real structural/Pain-Offer-USP diagnosis (`POST /api/v1/campaigns/diagnose-ad-copy`) for this
+   * exact ad without a second round-trip to re-fetch its copy. Each independently `undefined` when
+   * Meta's real creative for this ad doesn't carry it (see `Ad.ts`'s own docstring) — never a
+   * fabricated placeholder.
+   */
+  readonly primaryText?: string;
+  readonly headline?: string;
+  readonly description?: string;
 }
 
 export interface AdSetResponseDto {
@@ -41,6 +52,13 @@ export interface AdSetResponseDto {
   readonly dailyBudget: number;
   readonly spend: number;
   readonly ads: ReadonlyArray<AdResponseDto>;
+  /**
+   * AAOS Samantha Professional Optimizer, Part A/D — real Meta `learning_stage_info.status`
+   * (`AdSet.learningStatus`), `undefined` when Meta didn't report one for this adset (see
+   * `AdSet.ts`'s own docstring). Surfaced so the dashboard can show a real "Masih Learning Phase"
+   * signal and so `VerdictEngine`'s own learning-phase-aware verdict is explainable to a human.
+   */
+  readonly learningStatus?: string;
 }
 
 export interface CampaignResponseDto {
@@ -107,6 +125,7 @@ function toAdSetResponseDto(adSet: AdSet): AdSetResponseDto {
     dailyBudget: adSet.dailyBudget.toNumber(),
     spend: adSet.spend.toNumber(),
     ads: adSet.ads.map(toAdResponseDto),
+    ...(adSet.learningStatus !== undefined ? { learningStatus: adSet.learningStatus } : {}),
   };
 }
 
@@ -138,5 +157,8 @@ function toAdResponseDto(ad: Ad): AdResponseDto {
     },
     createdAt: ad.createdAt.toISOString(),
     daysSinceCreation: ad.daysSinceCreation,
+    ...(ad.primaryText !== undefined ? { primaryText: ad.primaryText } : {}),
+    ...(ad.headline !== undefined ? { headline: ad.headline } : {}),
+    ...(ad.description !== undefined ? { description: ad.description } : {}),
   };
 }

@@ -12,7 +12,16 @@ export type LlmUnavailableReason =
   /** The OpenAI call itself failed — network failure, timeout, or non-2xx response. */
   | "PROVIDER_ERROR"
   /** OpenAI responded successfully, but its body wasn't valid JSON matching the expected schema (coordinator note #5 — defensive JSON parsing). */
-  | "INVALID_RESPONSE";
+  | "INVALID_RESPONSE"
+  /**
+   * AAOS Samantha Professional Optimizer, Part C — `LlmService.diagnoseAdCopy`'s real, honest
+   * degrade when `primaryText`/`headline`/`description` are ALL `undefined` (Meta's real creative
+   * for this ad doesn't carry usable ad-copy text in the one real shape this package covers — see
+   * `@aos/meta-ads-connector`'s `Ad.primaryText` docstring). Checked BEFORE the gate/OpenAI call —
+   * there is no real copy text to hand the LLM, so asking it to analyze would only invite it to
+   * hallucinate an analysis of text it never received.
+   */
+  | "NO_COPY_TEXT";
 
 export interface LlmUnavailableResponseDto {
   readonly available: false;
@@ -25,6 +34,8 @@ const REASON_MESSAGES: Record<LlmUnavailableReason, string> = {
   RATE_LIMITED: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
   PROVIDER_ERROR: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
   INVALID_RESPONSE: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+  NO_COPY_TEXT:
+    "Teks iklan tidak tersedia dari Meta untuk tipe creative ini, tidak bisa dianalisis",
 };
 
 /** Builds an `available: false` fallback response with the spec's Section 7 Indonesian copy for `reason`. */
