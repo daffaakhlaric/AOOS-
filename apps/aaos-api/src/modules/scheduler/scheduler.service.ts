@@ -51,11 +51,17 @@ import { AuditLogService } from "../audit-log/audit-log.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import type { StoredCreativePackage } from "../creative-packages/domain/creative-package.js";
+import { toCreativePackageResponseDto } from "../creative-packages/dto/creative-package-response.dto.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import { IntelligenceService } from "../intelligence/intelligence.service.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
 import type { AnalyzeRequestDto } from "../llm/dto/analyze.dto.js";
+import {
+  ALL_PROPERTY_AD_ANGLE_VALUES,
+  MAX_DIVERSE_BRIEF_COUNT,
+  type DiverseCreativeBriefSetRequestDto,
+} from "../llm/dto/diverse-creative-brief-set.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { LookalikeService } from "../lookalike/lookalike.service.js";
 import { MarketIntelligenceService } from "../market-intelligence/market-intelligence.service.js";
@@ -89,6 +95,7 @@ import type {
   GetCalendarQueryDto,
   UpdateCalendarEventBodyDto,
 } from "./dto/calendar-event.dto.js";
+import type { DiverseCreativeBriefSetResultDto } from "./dto/diverse-creative-brief-set.dto.js";
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
 
@@ -1686,6 +1693,224 @@ export class SchedulerService {
   }
 
   /**
+   * `createDiverseCreativeBriefSet` (Samantha Andromeda-Aware Campaign System, Sprint 2) — Kai's
+   * diverse-creative-set brief generation, real endpoint entry point for
+   * `POST /api/v1/creative-packages/diverse-set` (`CreativeDiverseSetController`, below in this
+   * module). Lives on `SchedulerService`, not `CreativePackagesService`, for one real, investigated
+   * reason: this orchestration needs `PropertyObjectiveService` (the real daily-cap settings),
+   * `PendingActionsService` (the real `REVIEW_CREATIVE_BRIEF` enqueue), AND `CreativePackagesService`
+   * (the real `triggerAutoLoopGeneration` auto-trigger) all at once — the EXACT SAME 3-way
+   * dependency `runNeedCreativeCheck` (above) already has, and `SchedulerModule` already imports all
+   * 3 modules (`PropertyObjectiveModule`/`PendingActionsModule`/`CreativePackagesModule`) with no
+   * circular-import risk (verified directly). `CreativePackagesModule` itself cannot inject
+   * `PendingActionsService` — `PendingActionsModule` already imports `CreativePackagesModule` (see
+   * that module's own doc), so the reverse import would be circular.
+   *
+   * REAL, HONEST DAILY-CAP INTERACTION (per this dispatch's own explicit scope note: "the honest
+   * behavior is to generate only as many as the real cap allows, never silently ignore it"): reads
+   * the SAME real `PropertyObjectiveService.getAutoLoopSettingsSafe`/
+   * `CreativePackageRepository.countAutoLoopSince` `runNeedCreativeCheck` already reads, computes
+   * `remaining = max(0, maxAutoBriefsPerDay - autoBriefsToday)` BEFORE ever calling the LLM, and
+   * clamps the real LLM/fallback request to `min(requestedCount, remaining,
+   * MAX_DIVERSE_BRIEF_COUNT)`. `remaining <= 0` short-circuits to a real, honest
+   * `createdCount: 0`/`skippedReason` WITHOUT spending an LLM call — never silently drops the
+   * request while pretending to have honored it. Every individual package this method creates STILL
+   * runs back through `decideCreativeBriefGuardrail` per-package (same as `runNeedCreativeCheck`'s
+   * own loop) — the pre-clamp is an honest capacity computation, not a bypass of the real per-package
+   * guardrail chain.
+   *
+   * REAL DIVERSITY REQUIREMENT: `existingAngles` is the real, already-in-use set of `PropertyAdAngle`
+   * members among this listing's own existing `creative_packages` rows (the same
+   * `packages.filter((pkg) => pkg.listingId === listing.id)` pattern `runNeedCreativeCheck` already
+   * establishes) — threaded into `LlmService.generateDiverseCreativeBriefSet` so a new batch never
+   * requests angles the campaign already has plenty of.
+   *
+   * HONEST FALLBACK: when the LLM call returns `available: false` (any reason), this degrades to a
+   * real DETERMINISTIC angle pick — the first `effectiveTarget` real `PropertyAdAngle` members (in
+   * `ALL_PROPERTY_AD_ANGLE_VALUES`'s own declared order) not already in `existingAngles` — never a
+   * fabricated LLM-shaped brief. A fallback brief's `headline`/`primaryText` are honest, minimal,
+   * listing-derived strings (not a template-generated 3-variant set like `PropertyCopyBuilder`
+   * produces — this method creates DRAFT/PENDING_REVIEW briefs, not final ad copy; real copy is
+   * generated later by `CreativePackagesService.generateProperty`'s own existing
+   * `buildPropertyCopyVariants` pipeline, unchanged by this dispatch).
+   */
+  async createDiverseCreativeBriefSet(
+    tenantId: string,
+    listingId: string,
+    requestedCount: number,
+    campaignId?: string,
+  ): Promise<DiverseCreativeBriefSetResultDto> {
+    const listing = await this.listingsService.getById(tenantId, listingId);
+
+    const mode = await this.modeGuard.resolveMode(tenantId);
+    const { maxAutoBriefsPerDay, autoApproveCreativeBrief } =
+      await this.propertyObjectiveService.getAutoLoopSettingsSafe(tenantId);
+
+    const startOfTodayUtc = new Date();
+    startOfTodayUtc.setUTCHours(0, 0, 0, 0);
+    let autoBriefsToday = await this.creativePackageRepository.countAutoLoopSince(
+      tenantId,
+      startOfTodayUtc.toISOString(),
+    );
+
+    const remaining = Math.max(0, maxAutoBriefsPerDay - autoBriefsToday);
+    const effectiveTarget = Math.min(requestedCount, remaining, MAX_DIVERSE_BRIEF_COUNT);
+    if (effectiveTarget <= 0) {
+      return {
+        requestedCount,
+        allowedCount: 0,
+        cappedByDailyLimit: true,
+        createdCount: 0,
+        packages: [],
+        skippedReason: `Sudah ${String(autoBriefsToday)} auto-brief hari ini (batas ${String(maxAutoBriefsPerDay)}) — tidak ada sisa kuota untuk brief baru hari ini.`,
+      };
+    }
+
+    const existingPackages = await this.creativePackageRepository.list(tenantId, { limit: 200 });
+    const existingAngles = [
+      ...new Set(
+        existingPackages
+          .filter((pkg) => pkg.listingId === listing.id)
+          .map((pkg) => pkg.angle)
+          .filter((angle): angle is (typeof ALL_PROPERTY_AD_ANGLE_VALUES)[number] =>
+            (ALL_PROPERTY_AD_ANGLE_VALUES as readonly string[]).includes(angle),
+          ),
+      ),
+    ];
+
+    const llmRequest: DiverseCreativeBriefSetRequestDto = {
+      listingTitle: listing.title,
+      propertyType: listing.propertyType,
+      targetCount: effectiveTarget,
+      existingAngles,
+      price: listing.price,
+      ...(listing.city !== undefined ? { city: listing.city } : {}),
+      ...(listing.highlights.length > 0 ? { highlights: [...listing.highlights] } : {}),
+    };
+
+    let briefs: ReadonlyArray<{
+      readonly angle: string;
+      readonly format: "VIDEO_AND_IMAGES" | "IMAGES_ONLY";
+      readonly headline: string;
+      readonly primaryText: string;
+      readonly description: string;
+    }>;
+    try {
+      const llmResult = await this.llmService.generateDiverseCreativeBriefSet(tenantId, llmRequest);
+      if (llmResult.available) {
+        briefs = llmResult.briefs;
+      } else {
+        this.logger.warn(
+          `SchedulerService.createDiverseCreativeBriefSet(${listingId}): LLM generation unavailable (${llmResult.reason}), falling back to a deterministic angle pick.`,
+        );
+        briefs = deterministicDiverseBriefFallback(listing, existingAngles, effectiveTarget);
+      }
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.createDiverseCreativeBriefSet(${listingId}): LLM generation threw, falling back to a deterministic angle pick: ${String(caught)}`,
+      );
+      briefs = deterministicDiverseBriefFallback(listing, existingAngles, effectiveTarget);
+    }
+
+    if (briefs.length === 0) {
+      return {
+        requestedCount,
+        allowedCount: effectiveTarget,
+        cappedByDailyLimit: requestedCount > remaining,
+        createdCount: 0,
+        packages: [],
+        skippedReason:
+          "Semua real PropertyAdAngle sudah dipakai campaign ini — tidak ada angle baru yang jujur bisa dibuat.",
+      };
+    }
+
+    const created: StoredCreativePackage[] = [];
+    for (const brief of briefs) {
+      const guardrail = decideCreativeBriefGuardrail({
+        mode,
+        autoApproveEnabled: autoApproveCreativeBrief,
+        autoBriefsToday,
+        maxAutoBriefsPerDay,
+      });
+      if (!guardrail.allowed) {
+        this.logger.log(
+          `SchedulerService.createDiverseCreativeBriefSet(${listingId}): skipped angle ${brief.angle} — ${guardrail.reason}`,
+        );
+        break;
+      }
+
+      try {
+        const pkg = await this.creativePackageRepository.create({
+          id: randomUUID(),
+          tenantId,
+          briefId: randomUUID(),
+          vertical: "PROPERTY",
+          listingId: listing.id,
+          title: brief.headline,
+          angle: brief.angle,
+          reason: `Kai diverse-creative-set brief (Andromeda Health)${campaignId !== undefined ? ` — campaign ${campaignId}` : ""}: ${brief.description}`,
+          requestedFormat: brief.format,
+          primaryMessage: brief.primaryText,
+          urgency: "MEDIUM",
+          origin: "SAMANTHA",
+          source: "auto_loop",
+          ...(campaignId !== undefined ? { relatedVerdictId: campaignId } : {}),
+          priority: "MEDIUM",
+          initialStatus: guardrail.status,
+        });
+
+        await this.auditLog.record({
+          tenantId,
+          agent: "SAMANTHA",
+          actionType: "CREATIVE_BRIEF_CREATED",
+          beforeState: null,
+          afterState: { creativePackageId: pkg.id, status: pkg.status, angle: pkg.angle },
+          decidedBy: "ai_auto",
+          mode,
+          relatedVerdictId: listing.id,
+          relatedBriefId: pkg.id,
+          reversible: false,
+        });
+
+        if (guardrail.status === "PENDING_REVIEW") {
+          await this.pendingActions.enqueue({
+            tenantId,
+            agent: "SAMANTHA",
+            actionType: "REVIEW_CREATIVE_BRIEF",
+            payload: { listingId: listing.id, creativePackageId: pkg.id },
+          });
+        } else {
+          try {
+            await this.creativePackagesService.triggerAutoLoopGeneration(tenantId, pkg.id);
+          } catch (caught) {
+            this.logger.warn(
+              `SchedulerService.createDiverseCreativeBriefSet(${listingId}): triggerAutoLoopGeneration(${pkg.id}) failed to start: ${String(caught)}`,
+            );
+          }
+        }
+
+        autoBriefsToday += 1;
+        created.push(pkg);
+      } catch (caught) {
+        this.logger.warn(
+          `SchedulerService.createDiverseCreativeBriefSet(${listingId}): create failed for angle ${brief.angle}: ${String(caught)}`,
+        );
+      }
+    }
+
+    return {
+      requestedCount,
+      allowedCount: effectiveTarget,
+      cappedByDailyLimit: requestedCount > remaining,
+      createdCount: created.length,
+      packages: created.map(toCreativePackageResponseDto),
+      ...(created.length === 0
+        ? { skippedReason: "Guardrail harian menolak setiap brief pada batch ini." }
+        : {}),
+    };
+  }
+
+  /**
    * AAOS EPIC S, Phase S5 — the real wiring point Phase C's `buildCampaignTriggerOutput` docstring
    * used to say did NOT exist: a real `shouldCreateNewCampaign` trigger now really calls
    * `CampaignsService.createPropertyCampaign` (S3/S4, already committed), which builds the real
@@ -2186,4 +2411,35 @@ function toAnalyzeCampaigns(adAccounts: readonly AdAccount[]): AnalyzeRequestDto
       })),
     })),
   );
+}
+
+/**
+ * `createDiverseCreativeBriefSet`'s honest deterministic fallback when
+ * `LlmService.generateDiverseCreativeBriefSet` returns `available: false` (any reason) — the first
+ * `effectiveTarget` real `PropertyAdAngle` members (in `ALL_PROPERTY_AD_ANGLE_VALUES`'s own declared
+ * order) not already in `existingAngles`. Every field is derived only from real `listing` data —
+ * never a fabricated price/highlight. `format` is a fixed, conservative `IMAGES_ONLY` (no LLM
+ * judgment available to decide video-worthiness) — matches `runNeedCreativeCheck`'s own real
+ * `requestedFormat: "IMAGES_ONLY"` fallback default for its own auto-loop brief.
+ */
+function deterministicDiverseBriefFallback(
+  listing: ListingResponseDto,
+  existingAngles: readonly string[],
+  effectiveTarget: number,
+): ReadonlyArray<{
+  readonly angle: string;
+  readonly format: "VIDEO_AND_IMAGES" | "IMAGES_ONLY";
+  readonly headline: string;
+  readonly primaryText: string;
+  readonly description: string;
+}> {
+  const existing = new Set(existingAngles);
+  const unusedAngles = ALL_PROPERTY_AD_ANGLE_VALUES.filter((angle) => !existing.has(angle));
+  return unusedAngles.slice(0, effectiveTarget).map((angle) => ({
+    angle,
+    format: "IMAGES_ONLY" as const,
+    headline: `${listing.title} — ${angle}`,
+    primaryText: listing.title,
+    description: `Brief otomatis (fallback deterministik, AI tidak tersedia) untuk angle ${angle}.`,
+  }));
 }

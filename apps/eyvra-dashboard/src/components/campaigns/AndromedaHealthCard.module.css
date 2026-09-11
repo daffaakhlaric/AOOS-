@@ -1,0 +1,108 @@
+.section {
+  background: var(--v2-card-bg, #fff);
+  border: 1px solid var(--v2-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.statsRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.stat {
+  font-size: 13px;
+  color: var(--v2-text-secondary, #6b7280);
+}
+
+.statValue {
+  font-weight: 600;
+  color: var(--v2-text-primary, #111827);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badgeDiverse {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badgeLow {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badgeNotEnough {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.reasoning {
+  font-size: 13px;
+  color: var(--v2-text-secondary, #6b7280);
+  margin: 8px 0;
+}
+
+.pendingBox {
+  background: #fef3c7;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.pendingLink {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.briefButton {
+  margin-top: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--v2-menu-campaigns, #1e6fd9);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.briefButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.successBox {
+  background: #dcfce7;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #166534;
+}
+
+.errorBox {
+  background: #fee2e2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #991b1b;
+}

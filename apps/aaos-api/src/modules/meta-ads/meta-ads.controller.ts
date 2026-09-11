@@ -15,6 +15,7 @@ import {
 } from "../llm/dto/diagnose-ad-copy.dto.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
+import type { AndromedaHealthResponseDto } from "./dto/andromeda-health.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
 import type { AssetRollupResponseDto } from "./dto/asset-rollup.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
@@ -111,6 +112,22 @@ export class MetaAdsController {
     @TenantId() tenantId: string,
   ): Promise<AssetDetailResponseDto> {
     return this.metaAdsService.getAssetDetail(assetId, query, correlationId, tenantId);
+  }
+
+  /**
+   * `GET /api/v1/campaigns/:campaignId/andromeda-health` — Samantha Andromeda-Aware Campaign
+   * System, Sprint 2. Same `adAccountId?`/`datePreset?` query contract as
+   * `GET /api/v1/analytics/assets/:assetId` — see `MetaAdsService.getAndromedaHealth`'s own doc for
+   * why this is a real live-pull endpoint, not a client-side pass-through.
+   */
+  @Get("campaigns/:campaignId/andromeda-health")
+  async getAndromedaHealth(
+    @Param("campaignId") campaignId: string,
+    @Query(new ZodValidationPipe(PullCampaignsQuerySchema)) query: PullCampaignsQueryDto,
+    @CorrelationId() correlationId: string,
+    @TenantId() tenantId: string,
+  ): Promise<AndromedaHealthResponseDto> {
+    return this.metaAdsService.getAndromedaHealth(campaignId, query, correlationId, tenantId);
   }
 
   @Post("verdicts")

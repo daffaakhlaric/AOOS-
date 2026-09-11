@@ -27,6 +27,7 @@ import type { CampaignStrategyRequestDto } from "./dto/campaign-strategy.dto.js"
 import type { CreativeBriefRequestDto } from "./dto/creative-brief.dto.js";
 import type { DailyInsightRequestDto } from "./dto/daily-insight.dto.js";
 import type { DiagnoseAdCopyRequestDto } from "./dto/diagnose-ad-copy.dto.js";
+import type { DiverseCreativeBriefSetRequestDto } from "./dto/diverse-creative-brief-set.dto.js";
 import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
 import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js";
 import type { ImprovementPlanRequestDto } from "./dto/improvement-plan.dto.js";
@@ -1694,6 +1695,229 @@ describe("LlmService", () => {
       const first = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
       mswServer.resetHandlers(); // no handler registered — a second real call would fail
       const second = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      expect(second).toEqual(first);
+    });
+  });
+
+  describe("generateDiverseCreativeBriefSet (Samantha Andromeda-Aware Campaign System, Sprint 2)", () => {
+    const validDiverseBriefSetBody: DiverseCreativeBriefSetRequestDto = {
+      listingTitle: "Cluster Anggrek 2 Bintaro",
+      propertyType: "Rumah",
+      price: 850_000_000,
+      city: "Bintaro",
+      highlights: ["3 kamar tidur", "carport 2 mobil"],
+      targetCount: 3,
+      existingAngles: ["DP_RINGAN"],
+    };
+
+    const validDiverseBriefSetLlmJson = JSON.stringify({
+      briefs: [
+        {
+          angle: "READY_HUNI",
+          format: "IMAGES_ONLY",
+          headline: "Anggrek 2 Siap Huni",
+          primaryText: "Siap huni, tinggal bawa koper ke Cluster Anggrek 2 Bintaro!",
+          description: "Tinggal masuk",
+        },
+        {
+          angle: "INVESTASI",
+          format: "IMAGES_ONLY",
+          headline: "Anggrek 2 Investasi Cerdas",
+          primaryText: "Investasi properti Bintaro yang nilainya terus naik.",
+          description: "Lokasi strategis",
+        },
+        {
+          angle: "VIRTUAL_TOUR",
+          format: "VIDEO_AND_IMAGES",
+          headline: "Anggrek 2 Virtual Tour",
+          primaryText: "Yuk lihat virtual tour Cluster Anggrek 2 Bintaro dari HP kamu.",
+          description: "Tur video asli",
+        },
+      ],
+    });
+
+    it("returns available:true with real, distinct-angle briefs from a mocked OpenAI response", async () => {
+      registerOpenAiChatHandler(validDiverseBriefSetLlmJson);
+      const service = buildService();
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result).toEqual({ available: true, ...JSON.parse(validDiverseBriefSetLlmJson) });
+    });
+
+    it("returns NO_API_KEY (no fabricated briefs) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns PROVIDER_ERROR (no fabricated briefs) when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("drops any brief whose angle is already in existingAngles — never trusts the prompt alone", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          briefs: [
+            {
+              // Reused angle — the request's own `existingAngles` includes "DP_RINGAN".
+              angle: "DP_RINGAN",
+              format: "IMAGES_ONLY",
+              headline: "Anggrek 2 DP Ringan (lagi)",
+              primaryText: "DP ringan lagi, padahal sudah ada brief dengan angle ini.",
+              description: "Duplikat angle",
+            },
+            {
+              angle: "READY_HUNI",
+              format: "IMAGES_ONLY",
+              headline: "Anggrek 2 Siap Huni",
+              primaryText: "Siap huni, tinggal bawa koper ke Cluster Anggrek 2 Bintaro!",
+              description: "Tinggal masuk",
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result.available).toBe(true);
+      if (result.available) {
+        expect(result.briefs).toHaveLength(1);
+        expect(result.briefs[0]?.angle).toBe("READY_HUNI");
+      }
+    });
+
+    it("drops a duplicate angle appearing twice within the same response, keeping only the first", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          briefs: [
+            {
+              angle: "READY_HUNI",
+              format: "IMAGES_ONLY",
+              headline: "Anggrek 2 Siap Huni (A)",
+              primaryText: "Siap huni versi A.",
+              description: "Versi A",
+            },
+            {
+              angle: "READY_HUNI",
+              format: "IMAGES_ONLY",
+              headline: "Anggrek 2 Siap Huni (B)",
+              primaryText: "Siap huni versi B — angle sama dengan yang di atas.",
+              description: "Versi B",
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result.available).toBe(true);
+      if (result.available) {
+        expect(result.briefs).toHaveLength(1);
+        expect(result.briefs[0]?.headline).toBe("Anggrek 2 Siap Huni (A)");
+      }
+    });
+
+    it("returns INVALID_RESPONSE when every returned brief is filtered out (all angles already in use)", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          briefs: [
+            {
+              angle: "DP_RINGAN",
+              format: "IMAGES_ONLY",
+              headline: "Anggrek 2 DP Ringan",
+              primaryText: "DP ringan lagi.",
+              description: "Duplikat",
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("truncates surviving briefs to targetCount when the LLM honestly returns more", async () => {
+      registerOpenAiChatHandler(validDiverseBriefSetLlmJson);
+      const service = buildService();
+      const result = await service.generateDiverseCreativeBriefSet(TENANT_ID, {
+        ...validDiverseBriefSetBody,
+        targetCount: 2,
+      });
+      expect(result.available).toBe(true);
+      if (result.available) {
+        expect(result.briefs).toHaveLength(2);
+      }
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validDiverseBriefSetLlmJson);
+      const service = buildService();
+      const first = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
       expect(second).toEqual(first);
     });
   });

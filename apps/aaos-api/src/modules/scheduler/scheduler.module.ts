@@ -24,6 +24,7 @@ import { PropertyObjectiveModule } from "../property-objective/property-objectiv
 import { RecyclingModule } from "../recycling/recycling.module.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
+import { CreativeDiverseSetController } from "./creative-diverse-set.controller.js";
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
 import { SchedulerController } from "./scheduler.controller.js";
@@ -116,7 +117,10 @@ import { SchedulerService } from "./scheduler.service.js";
     // this injection).
     CreativePackagesModule,
   ],
-  controllers: [SchedulerController],
+  // Samantha Andromeda-Aware Campaign System, Sprint 2 — `CreativeDiverseSetController` registered
+  // here (not `CreativePackagesModule`) because it delegates to `SchedulerService`, see that
+  // controller's own doc.
+  controllers: [SchedulerController, CreativeDiverseSetController],
   providers: [
     SchedulerService,
     ApiKeyGuard,

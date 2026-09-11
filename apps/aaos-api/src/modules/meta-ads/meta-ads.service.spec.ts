@@ -216,6 +216,44 @@ describe("MetaAdsService", () => {
     });
   });
 
+  describe("getAndromedaHealth (Samantha Andromeda-Aware Campaign System, Sprint 2)", () => {
+    it("returns real, live-pulled ad-set count + diversity + evaluation for a real campaign id", async () => {
+      registerHappyPathMetaApiHandlers();
+      const service = buildService();
+      const pulled = await service.pullCampaigns(
+        { adAccountId: "act_752604553578354", datePreset: "last_30d" },
+        "corr-health-1",
+        DEFAULT_TENANT_ID,
+      );
+      const campaignId = pulled.campaigns[0]?.id;
+      expect(campaignId).toBeDefined();
+
+      const health = await service.getAndromedaHealth(
+        campaignId as string,
+        { adAccountId: "act_752604553578354", datePreset: "last_30d" },
+        "corr-health-2",
+        DEFAULT_TENANT_ID,
+      );
+      expect(health.campaignId).toBe(campaignId);
+      expect(health.adSetCount).toBeGreaterThanOrEqual(1);
+      expect(["NOT_ENOUGH_DATA", "LOW_DIVERSITY", "DIVERSE"]).toContain(health.diversity.status);
+      expect(health.evaluation).toHaveProperty("triggered");
+    });
+
+    it("throws a real NotFoundError when no campaign in the current pull carries the given id", async () => {
+      registerHappyPathMetaApiHandlers();
+      const service = buildService();
+      await expect(
+        service.getAndromedaHealth(
+          "campaign-that-does-not-exist",
+          { adAccountId: "act_752604553578354", datePreset: "last_30d" },
+          "corr-health-3",
+          DEFAULT_TENANT_ID,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
   describe("getCampaignInsight", () => {
     it("delegates straight to LlmService.campaignInsight with the real tenant id, no Meta re-pull", async () => {
       const llmService = buildFakeLlmService();

@@ -15,6 +15,7 @@ import { useCampaignsSnapshot } from "@/lib/useCampaignsSnapshot";
 import type { SettingsDto } from "@/types/tenant.types";
 
 import { accountBenchmarkCpl } from "./campaignInsightMath";
+import { AndromedaHealthCard } from "./AndromedaHealthCard";
 import { BudgetTracker } from "./BudgetTracker";
 import { CampaignInsightPanel } from "./CampaignInsightPanel";
 import { ObjectiveStripCard } from "./ObjectiveStripCard";
@@ -288,6 +289,20 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
                 campaign={selectedCampaign}
                 benchmarkCplIDR={benchmarkCplIDR}
                 onClose={() => setSelectedCampaignId(undefined)}
+              />
+            ) : null}
+
+            {/* Samantha Andromeda-Aware Campaign System, Sprint 2 — "after the campaign table,
+                before Verdict cards" (the pasted spec's own placement instruction), rendered only
+                for the currently-selected campaign since Sprint 1's diversity scoring is real
+                per-campaign, not per-tenant (see `AndromedaHealthCard`'s own doc). No real
+                campaign→listing mapping exists client-side yet (investigated directly), so
+                `listingId` is honestly omitted here — the card itself degrades "Brief Kai sekarang"
+                to a disabled, explained state rather than fabricating a resolvable listing. */}
+            {selectedCampaign !== undefined ? (
+              <AndromedaHealthCard
+                campaignId={selectedCampaign.id}
+                campaignName={selectedCampaign.name}
               />
             ) : null}
 

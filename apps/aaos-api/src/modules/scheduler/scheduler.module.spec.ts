@@ -22,6 +22,7 @@ import { PendingActionsModule } from "../pending-actions/pending-actions.module.
 import { PropertyObjectiveModule } from "../property-objective/property-objective.module.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
 
+import { CreativeDiverseSetController } from "./creative-diverse-set.controller.js";
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
 import { SchedulerController } from "./scheduler.controller.js";
@@ -58,9 +59,9 @@ describe("SchedulerModule", () => {
     ]);
   });
 
-  it("registers SchedulerController as its controller", () => {
+  it("registers SchedulerController and CreativeDiverseSetController as its controllers (Samantha Andromeda-Aware Campaign System, Sprint 2 — see creative-diverse-set.controller.ts's own doc for why the latter is registered here rather than CreativePackagesModule)", () => {
     const metadata = Reflect.getMetadata("controllers", SchedulerModule) as unknown[];
-    expect(metadata).toEqual([SchedulerController]);
+    expect(metadata).toEqual([SchedulerController, CreativeDiverseSetController]);
   });
 
   it("registers SchedulerService and ApiKeyGuard as class providers", () => {

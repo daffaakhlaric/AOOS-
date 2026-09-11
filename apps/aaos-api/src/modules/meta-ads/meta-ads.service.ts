@@ -1,5 +1,10 @@
 import { NotFoundError, ValidationError } from "@aos/errors";
-import { AdAccountId, Verdict, type AdAccount } from "@aos/meta-ads-connector";
+import {
+  AdAccountId,
+  scoreCreativeDiversity,
+  Verdict,
+  type AdAccount,
+} from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
@@ -15,10 +20,12 @@ import type {
 import { LlmService } from "../llm/llm.service.js";
 import { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
+import { evaluateAndromedaRestructureCandidate } from "../scheduler/domain/andromeda-restructure.js";
 
 import { getAssetDetail } from "./asset-detail.js";
 import { getAssetRollup } from "./asset-rollup.js";
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
+import type { AndromedaHealthResponseDto } from "./dto/andromeda-health.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
 import type { AssetRollupResponseDto } from "./dto/asset-rollup.dto.js";
 import { toAdAccountResponseDto, type AdAccountResponseDto } from "./dto/campaign-response.dto.js";
@@ -207,6 +214,58 @@ export class MetaAdsService {
     body: DiagnoseAdCopyRequestDto,
   ): Promise<DiagnoseAdCopyResponseDto> {
     return this.llmService.diagnoseAdCopy(tenantId, body);
+  }
+
+  /**
+   * `GET /api/v1/campaigns/:campaignId/andromeda-health` — Samantha Andromeda-Aware Campaign System,
+   * Sprint 2. UNLIKE `getCampaignInsight`/`getAdCopyDiagnosis`'s pass-through shape, this is a real,
+   * dedicated LIVE-PULL endpoint (same real re-pull-fresh-from-Meta approach `getAssetRollup`/
+   * `getHeatmap`/`getAssetDetail` already use): the real diversity signal
+   * (`scoreCreativeDiversity`, `@aos/meta-ads-connector`) needs each ad's real `creativeAsset`
+   * (`{kind, imageHash|videoId}`), which `campaign-response.dto.ts`'s `AdSummaryDto` deliberately
+   * does NOT expose to the frontend (investigated directly — no existing DTO field carries it), so
+   * there is nothing honest for a client-side pass-through body to forward. Reuses the exact same
+   * `scoreCreativeDiversity`/`evaluateAndromedaRestructureCandidate` pure functions
+   * `SchedulerService.runAndromedaRestructureCheck` (Sprint 1) already calls — never a second,
+   * parallel diversity computation.
+   *
+   * Real `NotFoundError` when no campaign in the current pull carries this id — never a fabricated
+   * empty health card.
+   */
+  async getAndromedaHealth(
+    campaignId: string,
+    query: PullCampaignsQueryDto,
+    correlationId: string,
+    tenantId: string,
+  ): Promise<AndromedaHealthResponseDto> {
+    const adAccount = await this.pullAdAccount(query, correlationId, tenantId);
+    const campaign = adAccount.campaigns.find((c) => c.id.toString() === campaignId);
+    if (campaign === undefined) {
+      throw new NotFoundError(`No real campaign in the current pull carries id "${campaignId}"`);
+    }
+
+    const adSetCount = campaign.adSets.length;
+    const allAds = campaign.adSets.flatMap((adSet) => adSet.ads);
+    const diversity = scoreCreativeDiversity(allAds);
+    const evaluation = evaluateAndromedaRestructureCandidate({ adSetCount, diversity });
+
+    return {
+      campaignId,
+      campaignName: campaign.name,
+      adSetCount,
+      diversity: {
+        status: diversity.status,
+        totalAdCount: diversity.totalAdCount,
+        ...(diversity.distinctCreativeAssetCount !== undefined
+          ? { distinctCreativeAssetCount: diversity.distinctCreativeAssetCount }
+          : {}),
+        reasoning: diversity.reasoning,
+      },
+      evaluation: {
+        triggered: evaluation.triggered,
+        ...(evaluation.reason !== undefined ? { reason: evaluation.reason } : {}),
+      },
+    };
   }
 
   private async pullAdAccount(

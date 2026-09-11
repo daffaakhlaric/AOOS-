@@ -2796,3 +2796,211 @@ describe("SchedulerService constructor", () => {
     expect(() => buildService()).not.toThrow();
   });
 });
+
+describe("SchedulerService.createDiverseCreativeBriefSet (Samantha Andromeda-Aware Campaign System, Sprint 2)", () => {
+  const FAKE_LISTING = {
+    id: "listing-1",
+    title: "Cluster Anggrek 2 Bintaro",
+    propertyType: "RUMAH",
+    price: 850_000_000,
+    city: "Bintaro",
+    highlights: ["3 kamar tidur"],
+    photos: [],
+  };
+
+  function buildFakeListingsServiceWithGetById(listing = FAKE_LISTING): ListingsService {
+    return {
+      list: vi.fn(async () => ({ listings: [], total: 0 })),
+      getById: vi.fn(async () => listing),
+    } as unknown as ListingsService;
+  }
+
+  it("short-circuits with createdCount 0 and no LLM call when the real daily cap is already reached", async () => {
+    const llmService = {
+      generateDiverseCreativeBriefSet: vi.fn(),
+    } as unknown as LlmService;
+    const creativePackageRepository = buildFakeCreativePackageRepository({
+      countAutoLoopSince: vi.fn(async () => 5),
+    });
+    const propertyObjectiveService = buildFakePropertyObjectiveService({
+      getAutoLoopSettingsSafe: vi.fn(async () => ({
+        maxAutoBriefsPerDay: 5,
+        autoApproveCreativeBrief: false,
+      })),
+    });
+    const service = buildService({
+      llmService,
+      creativePackageRepository,
+      propertyObjectiveService,
+      listingsService: buildFakeListingsServiceWithGetById(),
+      modeGuard: buildFakeModeGuardService("DEV"),
+    });
+
+    const result = await service.createDiverseCreativeBriefSet("dss-motor", "listing-1", 5);
+
+    expect(result.createdCount).toBe(0);
+    expect(result.cappedByDailyLimit).toBe(true);
+    expect(result.skippedReason).toContain("batas");
+    expect(llmService.generateDiverseCreativeBriefSet).not.toHaveBeenCalled();
+    expect(creativePackageRepository.create).not.toHaveBeenCalled();
+  });
+
+  it("clamps the LLM request to the real remaining daily-cap amount, never the raw requestedCount", async () => {
+    const generateDiverseCreativeBriefSet = vi.fn(async () => ({
+      available: true as const,
+      briefs: [
+        {
+          angle: "READY_HUNI",
+          format: "IMAGES_ONLY" as const,
+          headline: "Anggrek 2 Siap Huni",
+          primaryText: "Siap huni!",
+          description: "desc",
+        },
+      ],
+    }));
+    const llmService = { generateDiverseCreativeBriefSet } as unknown as LlmService;
+    const creativePackageRepository = buildFakeCreativePackageRepository({
+      countAutoLoopSince: vi.fn(async () => 3),
+    });
+    const propertyObjectiveService = buildFakePropertyObjectiveService({
+      getAutoLoopSettingsSafe: vi.fn(async () => ({
+        maxAutoBriefsPerDay: 5,
+        autoApproveCreativeBrief: false,
+      })),
+    });
+    const service = buildService({
+      llmService,
+      creativePackageRepository,
+      propertyObjectiveService,
+      listingsService: buildFakeListingsServiceWithGetById(),
+      modeGuard: buildFakeModeGuardService("DEV"),
+    });
+
+    // Asked for 8, but only 2 remain today (5 - 3) — the real, honest clamp.
+    const result = await service.createDiverseCreativeBriefSet("dss-motor", "listing-1", 8);
+
+    expect(generateDiverseCreativeBriefSet).toHaveBeenCalledWith(
+      "dss-motor",
+      expect.objectContaining({ targetCount: 2 }),
+    );
+    expect(result.cappedByDailyLimit).toBe(true);
+    expect(result.allowedCount).toBe(2);
+  });
+
+  it("falls back to a real deterministic angle pick (never a fabricated LLM-shaped brief) when the LLM is unavailable", async () => {
+    const llmService = {
+      generateDiverseCreativeBriefSet: vi.fn(async () => ({
+        available: false as const,
+        reason: "PROVIDER_ERROR" as const,
+        message: "unavailable",
+      })),
+    } as unknown as LlmService;
+    const creativePackageRepository = buildFakeCreativePackageRepository({
+      countAutoLoopSince: vi.fn(async () => 0),
+      list: vi.fn(async () => []),
+    });
+    const propertyObjectiveService = buildFakePropertyObjectiveService({
+      getAutoLoopSettingsSafe: vi.fn(async () => ({
+        maxAutoBriefsPerDay: 5,
+        autoApproveCreativeBrief: false,
+      })),
+    });
+    const service = buildService({
+      llmService,
+      creativePackageRepository,
+      propertyObjectiveService,
+      listingsService: buildFakeListingsServiceWithGetById(),
+      modeGuard: buildFakeModeGuardService("DEV"),
+    });
+
+    const result = await service.createDiverseCreativeBriefSet("dss-motor", "listing-1", 2);
+
+    expect(result.createdCount).toBe(2);
+    expect(creativePackageRepository.create).toHaveBeenCalledTimes(2);
+    const firstCallArg = (creativePackageRepository.create as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as { angle: string };
+    expect(firstCallArg.angle).toBe("DP_RINGAN");
+  });
+
+  it("PENDING_REVIEW guardrail status enqueues a real REVIEW_CREATIVE_BRIEF pending action, never auto-triggers generation", async () => {
+    const llmService = {
+      generateDiverseCreativeBriefSet: vi.fn(async () => ({
+        available: true as const,
+        briefs: [
+          {
+            angle: "READY_HUNI",
+            format: "IMAGES_ONLY" as const,
+            headline: "Anggrek 2 Siap Huni",
+            primaryText: "Siap huni!",
+            description: "desc",
+          },
+        ],
+      })),
+    } as unknown as LlmService;
+    const pendingActions = buildFakePendingActionsService();
+    const creativePackagesService = buildFakeCreativePackagesService();
+    const service = buildService({
+      llmService,
+      pendingActions,
+      creativePackagesService,
+      creativePackageRepository: buildFakeCreativePackageRepository({
+        countAutoLoopSince: vi.fn(async () => 0),
+      }),
+      propertyObjectiveService: buildFakePropertyObjectiveService({
+        getAutoLoopSettingsSafe: vi.fn(async () => ({
+          maxAutoBriefsPerDay: 5,
+          autoApproveCreativeBrief: false,
+        })),
+      }),
+      listingsService: buildFakeListingsServiceWithGetById(),
+      modeGuard: buildFakeModeGuardService("DEV"),
+    });
+
+    await service.createDiverseCreativeBriefSet("dss-motor", "listing-1", 1);
+
+    expect(pendingActions.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: "REVIEW_CREATIVE_BRIEF" }),
+    );
+    expect(creativePackagesService.triggerAutoLoopGeneration).not.toHaveBeenCalled();
+  });
+
+  it("DRAFT guardrail status (LIVE + auto-approve) auto-triggers real generation, never enqueues a pending action", async () => {
+    const llmService = {
+      generateDiverseCreativeBriefSet: vi.fn(async () => ({
+        available: true as const,
+        briefs: [
+          {
+            angle: "READY_HUNI",
+            format: "IMAGES_ONLY" as const,
+            headline: "Anggrek 2 Siap Huni",
+            primaryText: "Siap huni!",
+            description: "desc",
+          },
+        ],
+      })),
+    } as unknown as LlmService;
+    const pendingActions = buildFakePendingActionsService();
+    const creativePackagesService = buildFakeCreativePackagesService();
+    const service = buildService({
+      llmService,
+      pendingActions,
+      creativePackagesService,
+      creativePackageRepository: buildFakeCreativePackageRepository({
+        countAutoLoopSince: vi.fn(async () => 0),
+      }),
+      propertyObjectiveService: buildFakePropertyObjectiveService({
+        getAutoLoopSettingsSafe: vi.fn(async () => ({
+          maxAutoBriefsPerDay: 5,
+          autoApproveCreativeBrief: true,
+        })),
+      }),
+      listingsService: buildFakeListingsServiceWithGetById(),
+      modeGuard: buildFakeModeGuardService("LIVE"),
+    });
+
+    await service.createDiverseCreativeBriefSet("dss-motor", "listing-1", 1);
+
+    expect(creativePackagesService.triggerAutoLoopGeneration).toHaveBeenCalled();
+    expect(pendingActions.enqueue).not.toHaveBeenCalled();
+  });
+});

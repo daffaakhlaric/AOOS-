@@ -53,6 +53,11 @@ import {
   type DiagnoseAdCopyResponseDto,
 } from "./dto/diagnose-ad-copy.dto.js";
 import {
+  DiverseCreativeBriefSetLlmPayloadSchema,
+  type DiverseCreativeBriefSetRequestDto,
+  type DiverseCreativeBriefSetResponseDto,
+} from "./dto/diverse-creative-brief-set.dto.js";
+import {
   GenerateCaptionLlmPayloadSchema,
   type GenerateCaptionRequestDto,
   type GenerateCaptionResponseDto,
@@ -137,6 +142,9 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
   "generate_ad_copy_variants",
   // AAOS Samantha Professional Optimizer, Part C — `LlmService.diagnoseAdCopy`'s prompt key.
   "diagnose_ad_copy",
+  // Samantha Andromeda-Aware Campaign System, Sprint 2 —
+  // `LlmService.generateDiverseCreativeBriefSet`'s prompt key.
+  "generate_diverse_creative_brief_set",
 ];
 
 /**
@@ -610,6 +618,31 @@ Format response JSON:
     { "variantLabel": "A", "primaryText": "...", "headline": "...", "description": "..." },
     { "variantLabel": "B", "primaryText": "...", "headline": "...", "description": "..." },
     { "variantLabel": "C", "primaryText": "...", "headline": "...", "description": "..." }
+  ]
+}`;
+
+/**
+ * Samantha Andromeda-Aware Campaign System, Sprint 2 —
+ * `LlmService.generateDiverseCreativeBriefSet`'s system prompt. Real listing context
+ * (`DiverseCreativeBriefSetRequestDto`) is sent as the user message's `JSON.stringify(body)`, same
+ * static-persona-plus-JSON-user-message shape every other prompt in this file uses.
+ */
+const DIVERSE_CREATIVE_BRIEF_SET_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk platform properti (PROPERTY) di Indonesia, sedang bertugas sebagai Kai — brief creative diverse untuk SATU listing (data JSON di pesan user: listingTitle, propertyType, price jika ada, city jika ada, highlights jika ada, targetCount, existingAngles).
+
+Tugasmu: buat SEBANYAK "targetCount" brief kreatif iklan Meta Ads yang BENAR-BENAR BERBEDA satu sama lain, untuk mengisi campaign ini dengan variasi kreatif baru (bukan mengulang kreatif yang sudah ada).
+
+ATURAN KERAS:
+- Setiap brief HARUS punya "angle" yang berbeda dari SETIAP brief lain dalam response ini, DAN berbeda dari setiap angle di "existingAngles" (angle yang sudah dipakai campaign ini) — jangan pernah mengulang angle yang sudah ada atau mengulang angle antar-brief.
+- "angle" HANYA boleh salah satu dari 8 nilai berikut (jangan mengarang nilai lain): DP_RINGAN, READY_HUNI, INVESTASI, EXCLUSIVE, SYARIAH, PROMO_TERBATAS, TESTIMONIAL, VIRTUAL_TOUR.
+- "format" HANYA boleh "VIDEO_AND_IMAGES" atau "IMAGES_ONLY" — pilih berdasarkan angle mana yang lebih kuat divisualkan sebagai video (misal VIRTUAL_TOUR, TESTIMONIAL) vs cukup gambar (misal DP_RINGAN, PROMO_TERBATAS).
+- "headline" maksimal 40 karakter, "primaryText" maksimal 125 karakter, "description" maksimal sekitar 30 karakter — semua Bahasa Indonesia, natural untuk pasar properti Indonesia, sesuai angle masing-masing brief.
+- HANYA gunakan angka harga/highlight yang benar-benar ada di data JSON — JANGAN mengarang harga, lokasi, atau fitur yang tidak disebutkan.
+- Jika ruang angle yang belum dipakai (8 dikurangi existingAngles) lebih sedikit dari targetCount, kembalikan sebanyak yang jujur bisa dibuat (jangan mengulang angle demi mengejar jumlah targetCount).
+
+Format response JSON:
+{
+  "briefs": [
+    { "angle": "...", "format": "...", "headline": "...", "primaryText": "...", "description": "..." }
   ]
 }`;
 
@@ -1676,6 +1709,84 @@ export class LlmService {
 
     const response: AdCopyVariantsResponseDto = { available: true, ...validated.data };
     this.cache.set("generate-ad-copy-variants", body, response);
+    return response;
+  }
+
+  /**
+   * Samantha Andromeda-Aware Campaign System, Sprint 2 — Kai's diverse-creative-set brief
+   * generation. Same cache/gate/call/validate/cache composition as every other method on this
+   * service, PLUS one extra, load-bearing step mirroring `selectTargeting`'s/`campaignStrategy`'s
+   * own "never trust the LLM to only use the vocabulary/candidates it was given" discipline: every
+   * returned brief whose `angle` is in the caller's real `body.existingAngles`, OR whose `angle`
+   * duplicates an EARLIER brief in this same response, is DROPPED (keeping the first, in-order
+   * occurrence of each real, still-unused angle) — never trusted from the prompt text alone. If
+   * NOTHING survives that filter, the whole response is `INVALID_RESPONSE` (same "an empty,
+   * meaningless selection is not a real success" discipline `selectTargeting` already establishes),
+   * never a fabricated empty-but-`available:true` result.
+   *
+   * Real caller: `CreativePackagesService.createDiverseSet` — see that method's own doc for how
+   * `body.targetCount`/`body.existingAngles` are honestly computed (the real remaining daily
+   * auto-brief cap, and the real angles already in use on this campaign's existing
+   * `creative_packages` rows) BEFORE this method is ever called, and for the honest deterministic
+   * fallback used when this method returns `available: false`.
+   */
+  async generateDiverseCreativeBriefSet(
+    tenantId: string,
+    body: DiverseCreativeBriefSetRequestDto,
+  ): Promise<DiverseCreativeBriefSetResponseDto> {
+    const cached = this.cache.get("generate-diverse-creative-brief-set", body) as
+      DiverseCreativeBriefSetResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "generate_diverse_creative_brief_set",
+      DIVERSE_CREATIVE_BRIEF_SET_SYSTEM_PROMPT,
+    );
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : DiverseCreativeBriefSetLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const existingAngles = new Set(body.existingAngles);
+    const seenAngles = new Set<string>();
+    const briefs = validated.data.briefs.filter((brief) => {
+      if (existingAngles.has(brief.angle) || seenAngles.has(brief.angle)) {
+        return false;
+      }
+      seenAngles.add(brief.angle);
+      return true;
+    });
+    if (briefs.length === 0) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: DiverseCreativeBriefSetResponseDto = {
+      available: true,
+      briefs: briefs.slice(0, body.targetCount),
+    };
+    this.cache.set("generate-diverse-creative-brief-set", body, response);
     return response;
   }
 

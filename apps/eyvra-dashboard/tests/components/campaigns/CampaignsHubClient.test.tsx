@@ -33,6 +33,11 @@ vi.mock("@/components/campaigns/CampaignInsightPanel", () => ({
     <div data-testid="real-insight-panel">{props.campaign.id}</div>
   ),
 }));
+vi.mock("@/components/campaigns/AndromedaHealthCard", () => ({
+  AndromedaHealthCard: (props: { readonly campaignId: string }) => (
+    <div data-testid="real-andromeda-health-card">{props.campaignId}</div>
+  ),
+}));
 vi.mock("@/components/campaigns/VerdictCards", () => ({
   VerdictCards: (props: { readonly onApply: (id: string, verdict: string) => void }) => (
     <div data-testid="real-verdict-cards">
