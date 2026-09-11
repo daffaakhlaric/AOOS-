@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { MetricCard } from "@/components/analytics/MetricCard";
+import { CampaignAdDrillDown } from "@/components/campaigns/CampaignAdDrillDown";
 import { aggregateVerdict } from "@/components/meta-ads/CampaignTree";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -58,6 +59,18 @@ const PRIORITY_ORDER: readonly CampaignInsightActionPriority[] = [
  * *management* vs. ranked creative-performance *analysis*) — dropping it silently would lose real
  * functionality. It stays reachable via the real link below (`/campaigns?view=ab-testing`, handled
  * by `CampaignsHubClient.tsx`'s own real escape hatch) rather than being deleted.
+ *
+ * SAMANTHA ADVANCED SPRINT 1 additions:
+ *  - Real `campaign.objective` chip in the header (the user's own explicit feedback: "objective
+ *    settingannya juga keliatan" — this sprint's scope is honestly showing the CURRENT value only,
+ *    not a "what to fix" recommendation engine, which is a separate, later sprint's scope).
+ *  - `CampaignAdDrillDown` — a real per-ad-set → per-ad hierarchy for THIS selected campaign,
+ *    rendered below the KPI grid. `CampaignTree.tsx`'s own docstring claimed it already "powers the
+ *    real per-ad-set/ad drill-down inside `CampaignInsightPanel`'s 'detail' affordance" — but this
+ *    file, read in full, never imported the `CampaignTree` component (only its `aggregateVerdict`
+ *    helper) and rendered no ad-set/ad hierarchy at all. That claim was stale: `CampaignTree` is
+ *    real and working, but wired only into the legacy `/meta-ads` page (`MetaAdsClient.tsx`), not
+ *    reachable from here. `CampaignAdDrillDown` is the real, new detail affordance this file needed.
  */
 export function CampaignInsightPanel({
   campaign,
@@ -132,7 +145,12 @@ export function CampaignInsightPanel({
   return (
     <section data-testid="campaign-insight-panel" className={styles.panel}>
       <div className={styles.header}>
-        <h3 className={styles.title}>{campaign.name}</h3>
+        <div>
+          <h3 className={styles.title}>{campaign.name}</h3>
+          <span className={styles.objectiveChip} data-testid="insight-objective">
+            🎯 {campaign.objective}
+          </span>
+        </div>
         <button type="button" onClick={onClose} className={styles.closeButton} aria-label="Tutup">
           ✕
         </button>
@@ -167,6 +185,11 @@ export function CampaignInsightPanel({
           value={formatNumber(aggregate.totalLead)}
           testId="insight-kpi-results"
         />
+      </div>
+
+      <div className={styles.drillDownBlock} data-testid="insight-drilldown-block">
+        <h4 className={styles.aiTitle}>Ad Set &amp; Iklan</h4>
+        <CampaignAdDrillDown campaign={campaign} />
       </div>
 
       <div className={styles.aiBlock} data-testid="insight-ai-block">

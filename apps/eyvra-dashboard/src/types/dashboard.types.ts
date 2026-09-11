@@ -132,6 +132,62 @@ export interface CampaignInsightRequestDto {
   readonly benchmarkCplIDR: number | null;
 }
 
+/**
+ * `POST /api/ads/diagnose-copy` request body (proxies `aaos-api`'s real
+ * `POST /api/v1/ads/diagnose-copy` — `MetaAdsController.getAdCopyDiagnosis` →
+ * `LlmService.diagnoseAdCopy`, AAOS Samantha Professional Optimizer Part C). Composed CLIENT-SIDE
+ * from one already-loaded `AdSummaryDto`'s real fields — mirrors `aaos-api`'s
+ * `DiagnoseAdCopyRequestSchema` (the server-side Zod trust boundary this shape restates) field for
+ * field. `primaryText`/`headline`/`description` are each independently possibly `undefined` (Meta's
+ * real creative for this ad may not carry them) — never fabricated when absent, the backend's own
+ * `NO_COPY_TEXT` honest degrade handles that case.
+ */
+export interface DiagnoseAdCopyRequestDto {
+  readonly adName: string;
+  readonly primaryText?: string;
+  readonly headline?: string;
+  readonly description?: string;
+  readonly verdict: string;
+  readonly isUnderperforming: boolean;
+  readonly spend: number;
+  readonly conversations: number;
+  readonly rphChatIDR: number | null;
+  readonly frequency: number;
+  readonly learningStatus?: "LEARNING" | "LEARNING_LIMITED" | "SUCCESS";
+}
+
+/** One YES/NO/PARTIAL structural element of the Hook/Clear-Problem/To-The-Point/Soft-CTA evaluation. Mirrors `aaos-api`'s `StructuralElementSchema`. */
+export interface AdCopyStructuralElementDto {
+  readonly status: "YES" | "NO" | "PARTIAL";
+  readonly reasoning: string;
+}
+
+/** The real Pain/Offer/USP (or `UNCERTAIN`) underperformance diagnosis. Mirrors `aaos-api`'s `DiagnosisSchema`. Present only when the request's `isUnderperforming` was `true`. */
+export interface AdCopyDiagnosisIssueDto {
+  readonly issue: "PAIN" | "OFFER" | "USP" | "UNCERTAIN";
+  readonly reasoning: string;
+}
+
+/** Mirrors `aaos-api`'s `DiagnoseAdCopyResponseDto` — same `available: false` union (`reason`/`message`) every other real `llm` endpoint in this app can return, PLUS the `NO_COPY_TEXT` reason unique to this endpoint (`AdMetricsDto`/`AdSummaryDto`'s own `primaryText`/`headline`/`description` docstrings — Meta's creative for this ad carried no usable copy text). Never a fabricated diagnosis when `available: false`. */
+export type DiagnoseAdCopyResponseDto =
+  | {
+      readonly available: true;
+      readonly structural: {
+        readonly hook: AdCopyStructuralElementDto;
+        readonly clearProblem: AdCopyStructuralElementDto;
+        readonly toThePoint: AdCopyStructuralElementDto;
+        readonly softCta: AdCopyStructuralElementDto;
+      };
+      readonly diagnosis?: AdCopyDiagnosisIssueDto;
+      readonly learningPhaseNote?: string;
+    }
+  | {
+      readonly available: false;
+      readonly reason:
+        "NO_API_KEY" | "RATE_LIMITED" | "PROVIDER_ERROR" | "INVALID_RESPONSE" | "NO_COPY_TEXT";
+      readonly message: string;
+    };
+
 export type CampaignInsightActionPriority = "SEGERA" | "MINGGU_INI" | "BULAN_INI";
 
 export interface CampaignInsightActionDto {

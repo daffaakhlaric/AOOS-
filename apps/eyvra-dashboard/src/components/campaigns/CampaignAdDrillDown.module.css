@@ -1,0 +1,202 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.empty {
+  font-size: 13px;
+  color: var(--v2-text-2, #64748b);
+  margin: 8px 0 0;
+}
+
+.adSetRow {
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 10px;
+  background: var(--v2-card-flat, #f8fafc);
+  overflow: hidden;
+}
+
+.adSetHeaderButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chevron {
+  font-size: 10px;
+  color: var(--v2-text-2, #64748b);
+  width: 10px;
+}
+
+.idBadge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-text-2, #64748b);
+  background: var(--v2-card-bg, var(--white));
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.adSetName,
+.adName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v2-text-1, #0f172a);
+}
+
+.adSetMeta {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--v2-text-2, #64748b);
+}
+
+.learningBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--v2-menu-active-bg, #eef2ff);
+  color: var(--v2-menu-active-fg, #4338ca);
+}
+
+.adList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+.adRow {
+  background: var(--v2-card-bg, var(--white));
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.adTopRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.adMetric {
+  font-size: 11px;
+  color: var(--v2-text-2, #64748b);
+}
+
+.diagnosisPanel {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--v2-border, #e2e8f0);
+}
+
+.diagnoseButton {
+  border: 1px solid var(--v2-blue, #1e6fd9);
+  color: var(--v2-blue, #1e6fd9);
+  background: transparent;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.diagnoseButton:hover {
+  background: var(--v2-menu-active-bg, #eef2ff);
+}
+
+.diagnosisLoading {
+  font-size: 12px;
+  color: var(--v2-text-2, #64748b);
+  margin: 0;
+}
+
+.diagnosisUnavailable {
+  font-size: 12px;
+  color: var(--v2-text-2, #64748b);
+  background: var(--v2-warm-tint, #fffbeb);
+  border: 1px solid var(--v2-warm-light, #fde68a);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.diagnosisResult {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.learningNote {
+  font-size: 12px;
+  color: var(--v2-menu-active-fg, #4338ca);
+  background: var(--v2-menu-active-bg, #eef2ff);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 0;
+}
+
+.structuralList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.structuralItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.structuralBadge {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.structYes {
+  background: var(--green-light, #f0fdf4);
+  color: var(--green, #16a34a);
+}
+
+.structPartial {
+  background: var(--amber-light, #fffbeb);
+  color: var(--amber, #d97706);
+}
+
+.structNo {
+  background: var(--red-light, #fef2f2);
+  color: var(--red, #dc2626);
+}
+
+.structuralReasoning {
+  color: var(--v2-text-2, #64748b);
+}
+
+.diagnosisIssue {
+  font-size: 12px;
+  color: var(--v2-text-1, #0f172a);
+  background: var(--v2-card-flat, #f8fafc);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0;
+}

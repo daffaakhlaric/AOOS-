@@ -35,6 +35,26 @@
   background: var(--v2-card-flat, #f1f5f9);
 }
 
+.objectiveChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v2-text-2, #64748b);
+  background: var(--v2-card-flat, #f8fafc);
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.drillDownBlock {
+  border-top: 1px solid var(--v2-border, #e2e8f0);
+  padding-top: 16px;
+  margin-bottom: 20px;
+}
+
 .kpiGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

@@ -138,6 +138,24 @@ describe("CampaignInsightPanel", () => {
     expect(grid).toHaveTextContent("Results");
   });
 
+  it("shows the real campaign objective prominently (user feedback: 'objective settingannya juga keliatan')", () => {
+    mockFetchOnce({ available: true, narrative: "x", actions: [] });
+    render(
+      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+    );
+    expect(screen.getByTestId("insight-objective")).toHaveTextContent("OUTCOME_LEADS");
+  });
+
+  it("renders the real ad-set/ad drill-down (CampaignAdDrillDown) for the selected campaign", () => {
+    mockFetchOnce({ available: true, narrative: "x", actions: [] });
+    render(
+      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+    );
+    expect(screen.getByTestId("insight-drilldown-block")).toBeInTheDocument();
+    expect(screen.getByTestId("ad-drilldown")).toBeInTheDocument();
+    expect(screen.getByTestId("open-adset-as1")).toBeInTheDocument();
+  });
+
   it("links to the real A/B Testing escape hatch (?view=ab-testing), never silently dropped", () => {
     mockFetchOnce({ available: true, narrative: "x", actions: [] });
     render(
