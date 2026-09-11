@@ -19,6 +19,8 @@ export interface ListAssetsInput {
   readonly search?: string;
   /** AAOS-CREATIVE-REVIEW — see `AssetListFilter.model` (case-insensitive `unit_model` match). */
   readonly model?: string;
+  /** CREATIVE HUB — see `AssetListFilter.source`'s doc for the real, honest classification rule. */
+  readonly source?: AssetListFilter["source"];
   readonly page?: number;
   readonly limit?: number;
   readonly sort?: "newest" | "oldest";
@@ -43,6 +45,7 @@ export class ListAssets {
       ...(input.unitId !== undefined ? { unitId: input.unitId } : {}),
       ...(input.search !== undefined ? { search: input.search } : {}),
       ...(input.model !== undefined ? { model: input.model } : {}),
+      ...(input.source !== undefined ? { source: input.source } : {}),
       page: input.page ?? 1,
       limit: input.limit ?? DEFAULT_LIMIT,
       sort: input.sort ?? "newest",

@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { classifyAssetSource, type AssetSource } from "@/lib/assetSource";
 import { formatDateTimeIdWib, formatNumber, formatRelativeTimeId } from "@/lib/formatters";
 import type {
   AssetDownloadDto,
@@ -16,6 +18,19 @@ import type {
 import type { Vertical } from "@/types/tenant.types";
 
 import styles from "./AssetLibraryClient.module.css";
+
+/**
+ * CREATIVE HUB — real "source" filter tabs (Prompt 3's grid, scoped down to the honest 2-way
+ * split; see `classifyAssetSource`'s doc for why the spec's literal 5 source buckets are
+ * fabrications this codebase cannot back). "Kai" matches this app's own established convention
+ * for naming the creative agent (`CreativeHubClient.tsx`'s "Brief ke Kai", `CreativePackageCard`'s
+ * "Generate: Kai") rather than an English "AI Generated" label.
+ */
+const SOURCE_TABS: ReadonlyArray<{ readonly source?: AssetSource; readonly label: string }> = [
+  { source: undefined, label: "Semua sumber" },
+  { source: "MANUAL", label: "📤 Manual/Upload" },
+  { source: "KAI", label: "✨ Kai" },
+];
 
 /** Real `Branch` enum members (`@aos/meta-ads-connector`'s `Branch.ts`). */
 const BRANCHES = ["CINERE", "BINTARO", "BANDUNG", "JABODETABEK", "BOOST", "MULTI", "UMUM"] as const;
@@ -109,6 +124,19 @@ function parseError(body: unknown, fallback: string): string {
  * `GET /api/settings` → `tenant.vertical`, defaulting to showing the AUTOMOTIVE branch filter
  * until/unless the lookup resolves to `"PROPERTY"`, so there is never a flash of a missing filter
  * for the common AUTOMOTIVE case).
+ *
+ * CREATIVE HUB — "AdAdvisor-style" grid (pasted spec's Prompt 3): the real, honest "source" filter
+ * tabs (`SOURCE_TABS`) and "✨ by Kai" badge were added HERE, in place, rather than as a new 5th
+ * tab in `CreativeHubClient.tsx`. THIS component already IS the real asset grid rendered under
+ * that hub's "Asset Library" tab — a second, parallel grid component would duplicate its KPI
+ * strip/toolbar/pagination/detail-modal/archive flow wholesale for a feature that only adds one
+ * more filter dimension on top of the same rows. The spec's literal 5 source buckets
+ * ("Meta"/"Uploaded"/"Imported"/…) do not exist in this data model (see `classifyAssetSource`'s
+ * doc) and per-creative ROAS/CPA/Spend/CTR are OMITTED entirely, not rendered as "Belum tersedia":
+ * unlike `MetricsTab.tsx`'s campaign-level ROAS (which has a real, if disconnected, Meta-synced
+ * spend number to honestly report as "not yet available"), there is no real link anywhere from an
+ * `Asset`/`creativeBriefId` to a live ad's spend/CTR at all — not even a disconnected one — so
+ * "Belum tersedia" would imply a metric this domain is one wire away from having, which it is not.
  */
 export function AssetLibraryClient(): React.ReactElement {
   const [stats, setStats] = useState<AssetStatsDto | undefined>(undefined);
@@ -120,6 +148,7 @@ export function AssetLibraryClient(): React.ReactElement {
   const [listLoading, setListLoading] = useState(true);
 
   const [typeFilter, setTypeFilter] = useState<AssetTypeDto | undefined>(undefined);
+  const [sourceFilter, setSourceFilter] = useState<AssetSource | undefined>(undefined);
   const [branchFilter, setBranchFilter] = useState<string | undefined>(undefined);
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [searchInput, setSearchInput] = useState("");
@@ -191,6 +220,9 @@ export function AssetLibraryClient(): React.ReactElement {
       if (search !== undefined && search.length > 0) {
         params.set("search", search);
       }
+      if (sourceFilter !== undefined) {
+        params.set("source", sourceFilter);
+      }
       const res = await fetch(`/api/assets?${params.toString()}`);
       const body: unknown = await res.json();
       if (!res.ok) {
@@ -206,7 +238,7 @@ export function AssetLibraryClient(): React.ReactElement {
     } finally {
       setListLoading(false);
     }
-  }, [branchFilter, page, search, sort, typeFilter]);
+  }, [branchFilter, page, search, sort, sourceFilter, typeFilter]);
 
   useEffect(() => {
     void loadStats();
@@ -385,20 +417,60 @@ export function AssetLibraryClient(): React.ReactElement {
         ))}
       </div>
 
+      {/* === Source filter tabs — real "Manual/Upload" vs "Kai" split, counts from real stats.
+          `bySource` (see `AssetStatsDto`'s doc) is the honest replacement for the pasted spec's
+          fabricated 5-way "Meta/Uploaded/Imported/…" split — see `classifyAssetSource`'s doc. === */}
+      <div className={styles.tabs} data-testid="source-tabs">
+        {SOURCE_TABS.map((tab) => (
+          <button
+            key={tab.source ?? "all"}
+            type="button"
+            onClick={() => {
+              setPage(1);
+              setSourceFilter(tab.source);
+            }}
+            className={`${styles.tab} ${sourceFilter === tab.source ? styles.tabActive : ""}`}
+          >
+            {tab.label} (
+            {formatNumber(
+              tab.source === undefined
+                ? (stats?.totalAssets ?? 0)
+                : (stats?.bySource?.[tab.source] ?? 0),
+            )}
+            )
+          </button>
+        ))}
+      </div>
+
       {actionError !== undefined ? <ErrorCard message={actionError} /> : null}
 
       {/* === Asset grid === */}
       {listLoading ? <LoadingSpinner /> : null}
       {!listLoading && listError !== undefined ? <ErrorCard message={listError} /> : null}
       {!listLoading && listError === undefined && (list?.assets.length ?? 0) === 0 ? (
-        <EmptyState
-          title="Belum ada asset"
-          description={
-            isProperty
-              ? "Upload foto listing di Listing Manager, atau generate creative lewat Kai."
-              : "Jalankan Scraper Mobix untuk mengambil foto unit, atau generate creative lewat Kai."
-          }
-        />
+        sourceFilter === "KAI" ? (
+          // Real empty state for the "Kai" source tab — links to the ALREADY-EXISTING real brief
+          // entry point (`CreativeHubClient.tsx`'s "Brief ke Kai" button / `review-kai` tab's
+          // "Buat Manual" flow), never a fabricated new one.
+          <EmptyState
+            title="Belum ada creative dari Kai"
+            description="Kirim brief lewat Kai untuk generate video/gambar AI — hasilnya akan muncul di sini begitu selesai."
+            action={
+              <Link href="/creative?tab=review-kai" className={styles.primaryButton}>
+                Brief ke Kai ↗
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="Belum ada asset"
+            description={
+              isProperty
+                ? "Upload foto listing di Listing Manager, atau generate creative lewat Kai."
+                : "Jalankan Scraper Mobix untuk mengambil foto unit, atau generate creative lewat Kai."
+            }
+          />
+        )
       ) : null}
 
       {list !== undefined && list.assets.length > 0 ? (
@@ -423,7 +495,18 @@ export function AssetLibraryClient(): React.ReactElement {
                     <img src={asset.publicUrl} alt={asset.fileName} className={styles.thumb} />
                   )}
                 </button>
-                <span className={styles.typeBadge}>{asset.type}</span>
+                <div className={styles.badgeRow}>
+                  <span className={styles.typeBadge}>{asset.type}</span>
+                  {classifyAssetSource(asset) === "KAI" ? (
+                    // Real generation-source badge — distinct from `CreativePackageCard.tsx`'s
+                    // "✨ AI Suggested" badge (which means "used Kai's recommended angle", a
+                    // different real concept). This one is real, direct `aiModel`/`creativeBriefId`
+                    // presence — "this file was actually produced by Kai's pipeline".
+                    <span data-testid="by-kai-badge" className={styles.byKaiBadge}>
+                      ✨ by Kai
+                    </span>
+                  ) : null}
+                </div>
                 <p className={styles.cardTitle}>{asset.fileName}</p>
                 {asset.unitModel !== undefined ? (
                   <p className={styles.cardMeta}>

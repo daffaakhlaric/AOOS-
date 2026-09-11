@@ -66,6 +66,7 @@ export class AssetsService {
       ...(query.unitId !== undefined ? { unitId: query.unitId } : {}),
       ...(query.model !== undefined ? { model: query.model } : {}),
       ...(query.search !== undefined ? { search: query.search } : {}),
+      ...(query.source !== undefined ? { source: query.source } : {}),
       page: query.page,
       limit: query.limit,
       sort: query.sort,

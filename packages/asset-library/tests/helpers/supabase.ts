@@ -171,6 +171,21 @@ class FakeQueryBuilder<R extends object> implements SupabaseFilterBuilderLike<R>
     return this;
   }
 
+  /** Mirrors Postgrest `IS` — the real null-check operator (`eq` does not reliably match NULL). */
+  is(column: string, value: null): FakeQueryBuilder<R> {
+    this.filters.push({ column, predicate: (actual) => actual === value });
+    return this;
+  }
+
+  /** Mirrors Postgrest `NOT` — only the `is` operator is exercised by this package today. */
+  not(column: string, operator: string, value: unknown): FakeQueryBuilder<R> {
+    if (operator !== "is") {
+      throw new Error(`FakeQueryBuilder.not: unsupported operator "${operator}"`);
+    }
+    this.filters.push({ column, predicate: (actual) => actual !== value });
+    return this;
+  }
+
   order(column: string, options?: { readonly ascending?: boolean }): FakeQueryBuilder<R> {
     this.orderSpec = { column, ascending: options?.ascending ?? true };
     return this;

@@ -65,7 +65,7 @@ describe("assets proxy routes", () => {
 
       await getList(
         new Request(
-          "http://localhost/api/assets?type=AI_VIDEO&branch=CINERE&unitId=brio-a&search=depan&page=2&limit=12&sort=oldest",
+          "http://localhost/api/assets?type=AI_VIDEO&branch=CINERE&unitId=brio-a&search=depan&source=KAI&page=2&limit=12&sort=oldest",
         ) as never,
       );
 
@@ -74,6 +74,7 @@ describe("assets proxy routes", () => {
       expect(url.searchParams.get("branch")).toBe("CINERE");
       expect(url.searchParams.get("unitId")).toBe("brio-a");
       expect(url.searchParams.get("search")).toBe("depan");
+      expect(url.searchParams.get("source")).toBe("KAI");
       expect(url.searchParams.get("page")).toBe("2");
       expect(url.searchParams.get("limit")).toBe("12");
       expect(url.searchParams.get("sort")).toBe("oldest");

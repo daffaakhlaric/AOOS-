@@ -51,6 +51,7 @@ const STATS: AssetStatsDto = {
   byBranch: { CINERE: 18, BINTARO: 15 },
   byStatus: { ACTIVE: 412, ARCHIVED: 0, PENDING: 0 },
   totalSizeBytes: 5_242_880,
+  bySource: { MANUAL: 394, KAI: 18 },
 };
 
 function mockFetch(overrides: Record<string, () => Response> = {}): ReturnType<typeof vi.fn> {
@@ -231,6 +232,71 @@ describe("AssetLibraryClient — filters", () => {
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("page=2"))).toBe(true);
     });
+  });
+});
+
+describe("AssetLibraryClient — CREATIVE HUB source tabs + by-Kai badge", () => {
+  it("renders real 'Semua sumber'/'Manual/Upload'/'Kai' tabs with counts from real stats.bySource", async () => {
+    mockFetch();
+    render(<AssetLibraryClient />);
+    const tabs = await screen.findByTestId("source-tabs");
+    expect(tabs.textContent).toContain("Semua sumber (412)");
+    expect(tabs.textContent).toContain("Manual/Upload (394)");
+    expect(tabs.textContent).toContain("Kai (18)");
+  });
+
+  it("sends a real source=KAI param when the Kai tab is clicked", async () => {
+    const fetchMock = mockFetch();
+    render(<AssetLibraryClient />);
+    await screen.findByTestId("asset-grid");
+
+    await userEvent.click(screen.getByRole("button", { name: /✨ Kai/ }));
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("source=KAI"))).toBe(true);
+    });
+  });
+
+  it("badges only the asset with a real aiModel/creativeBriefId, never the manually-sourced one", async () => {
+    mockFetch();
+    render(<AssetLibraryClient />);
+    const grid = await screen.findByTestId("asset-grid");
+    const badges = await screen.findAllByTestId("by-kai-badge");
+    expect(badges).toHaveLength(1);
+    expect(grid.textContent).toContain("by Kai");
+  });
+
+  it("shows a Kai-specific empty state linking to the real 'Brief ke Kai' flow when the Kai tab has zero real assets", async () => {
+    const fetchMock = mockFetch({
+      "/api/assets?": () => jsonResponse({ assets: [PHOTO, VIDEO], total: 2, page: 1, limit: 48 }),
+    });
+    render(<AssetLibraryClient />);
+    await screen.findByTestId("asset-grid");
+
+    fetchMock.mockImplementation((input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/api/assets/stats")) return Promise.resolve(jsonResponse(STATS));
+      if (url.includes("/api/assets?") && url.includes("source=KAI")) {
+        return Promise.resolve(jsonResponse({ assets: [], total: 0, page: 1, limit: 48 }));
+      }
+      if (url.includes("/api/assets?")) {
+        return Promise.resolve(
+          jsonResponse({ assets: [PHOTO, VIDEO], total: 2, page: 1, limit: 48 }),
+        );
+      }
+      return Promise.resolve(jsonResponse({ error: { message: "unhandled in test" } }, 500));
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /✨ Kai/ }));
+    expect(await screen.findByText("Belum ada creative dari Kai")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /Brief ke Kai/ });
+    expect(link).toHaveAttribute("href", "/creative?tab=review-kai");
+  });
+
+  it("never fabricates a ROAS/CPA/Spend/CTR field on the card", async () => {
+    mockFetch();
+    render(<AssetLibraryClient />);
+    const grid = await screen.findByTestId("asset-grid");
+    expect(grid.textContent).not.toMatch(/ROAS|CPA|CTR/);
   });
 });
 

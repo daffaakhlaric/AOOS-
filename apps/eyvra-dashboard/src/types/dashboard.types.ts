@@ -1053,6 +1053,12 @@ export interface AssetStatsDto {
   readonly byBranch: Readonly<Record<string, number>>;
   readonly byStatus: Readonly<Record<string, number>>;
   readonly totalSizeBytes: number;
+  /**
+   * CREATIVE HUB — the real, honest "Manual/Upload" vs "Kai" split. Derived server-side from
+   * whether `ai_model` is set on the row (only `SaveAiCreative`, Kai's real generation use case,
+   * ever sets it) — NOT from `type`, which a manual upload can also set to `AI_IMAGE`/`AI_VIDEO`.
+   */
+  readonly bySource: Readonly<{ MANUAL: number; KAI: number }>;
 }
 
 export interface AssetDownloadDto {

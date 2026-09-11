@@ -18,6 +18,7 @@ function buildFakeService(): AssetsService {
       byType: {},
       byBranch: {},
       byStatus: {},
+      bySource: { MANUAL: 0, KAI: 0 },
       totalSizeBytes: 0,
     })),
     byId: vi.fn(async () => ({ id: "asset-1", status: AssetStatus.ACTIVE })),

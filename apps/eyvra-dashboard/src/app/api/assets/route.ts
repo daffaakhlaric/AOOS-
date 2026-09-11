@@ -34,6 +34,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // "xpander"/"hrv"/"avanza" chips). Free text, re-validated upstream by `GetAssetsQuerySchema`.
     model: url.searchParams.get("model") ?? undefined,
     search: url.searchParams.get("search") ?? undefined,
+    // CREATIVE HUB — the real "Manual/Upload" vs "Kai" source filter (`MANUAL`/`KAI` only;
+    // re-validated upstream by `GetAssetsQuerySchema`).
+    source: url.searchParams.get("source") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,
     sort: url.searchParams.get("sort") ?? undefined,

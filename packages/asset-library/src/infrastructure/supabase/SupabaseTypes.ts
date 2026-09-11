@@ -14,6 +14,12 @@
  * multi-filter queries (Postgrest's `.select("*", { count: "exact" })` + `.range(from, to)` paging
  * idiom). Every one of these is a real method/option on the live `@supabase/supabase-js` filter
  * builder — this port only ever widens to match the real client, never invents an operation.
+ *
+ * CREATIVE HUB "source" ADDITION: `is`/`not`, both real, standard Postgrest filter-builder methods
+ * (`.is(column, null)` / `.not(column, operator, value)` on the live client) — needed by
+ * `AssetRepository.listAssets`'s honest `source` filter (`ai_model IS [NOT] NULL`, the only real
+ * signal distinguishing a Kai-generated asset from a manually uploaded/scraped one; see
+ * `AssetListFilter.source`'s doc for why no new column was added).
  */
 export interface SupabaseResult<T> {
   readonly data: T | null;
@@ -37,6 +43,10 @@ export interface SupabaseFilterBuilderLike<Row> extends PromiseLike<SupabaseResu
   in(column: string, values: readonly unknown[]): SupabaseFilterBuilderLike<Row>;
   /** Case-insensitive `LIKE` — used for the Asset Library page's free-text search. */
   ilike(column: string, pattern: string): SupabaseFilterBuilderLike<Row>;
+  /** `IS`/`IS NOT` — the only real way to filter on NULL in Postgrest (`.eq(col, null)` is not it). */
+  is(column: string, value: null): SupabaseFilterBuilderLike<Row>;
+  /** Negates any filter operator, e.g. `.not("ai_model", "is", null)` for "IS NOT NULL". */
+  not(column: string, operator: string, value: unknown): SupabaseFilterBuilderLike<Row>;
   order(column: string, options?: { readonly ascending?: boolean }): SupabaseFilterBuilderLike<Row>;
   limit(count: number): SupabaseFilterBuilderLike<Row>;
   /** Inclusive zero-based row window (Postgrest paging). */

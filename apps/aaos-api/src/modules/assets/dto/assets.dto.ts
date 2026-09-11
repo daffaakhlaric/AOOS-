@@ -16,6 +16,10 @@ export const GetAssetsQuerySchema = z.object({
   // in this codebase, and inventing one would reject real models the scraper genuinely persists.
   model: z.string().trim().min(1).optional(),
   search: z.string().trim().min(1).optional(),
+  // CREATIVE HUB — the honest "Manual/Upload" vs "Kai" split. Only these two real values are
+  // accepted; the spec's fabricated "Meta"/"Imported" buckets have no real backing data anywhere
+  // in this codebase (see `AssetListFilter.source`'s doc in `@aos/asset-library`).
+  source: z.enum(["MANUAL", "KAI"]).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(200).default(48),
   sort: z.enum(["newest", "oldest"]).default("newest"),
@@ -68,6 +72,8 @@ export interface AssetStatsResponseDto {
   readonly byBranch: Readonly<Record<string, number>>;
   readonly byStatus: Readonly<Record<string, number>>;
   readonly totalSizeBytes: number;
+  /** CREATIVE HUB — real "Manual/Upload" vs "Kai" counts (see `GetAssetsQuerySchema.source`'s doc). */
+  readonly bySource: Readonly<{ MANUAL: number; KAI: number }>;
 }
 
 export interface AssetDownloadResponseDto {
@@ -105,5 +111,6 @@ export function toAssetStatsResponseDto(stats: AssetStats): AssetStatsResponseDt
     byBranch: stats.byBranch,
     byStatus: stats.byStatus,
     totalSizeBytes: stats.totalSizeBytes,
+    bySource: stats.bySource,
   };
 }
