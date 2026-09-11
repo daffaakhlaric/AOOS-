@@ -7,6 +7,7 @@ import type { ListingDto, ListingListDto } from "@/types/listing.types";
 
 import { MarketSignalsCard } from "./MarketSignalsCard";
 import styles from "./PropertyObjectiveForm.module.css";
+import { RecommendationChecklist } from "./RecommendationChecklist";
 
 export interface PropertyObjectiveFormValues {
   readonly targetHotLeads: number;
@@ -308,6 +309,17 @@ export function PropertyObjectiveForm({
 
   return (
     <div className={styles.card}>
+      {/* SAMANTHA ADVANCED SPRINT 3 — "Rekomendasi Perbaikan" checklist, rendered at the very top
+          of this form so it is the first thing a manager sees (real user feedback this dispatch
+          addresses: "objective settingannya juga keliatan apa yang harus di perbaiki"). Reuses the
+          SAME real `listings` state this component already loads for its own checkbox picker below
+          — no second listings fetch. See `RecommendationChecklist.tsx`/`recommendationChecks.ts`
+          for the real, deterministic (non-LLM) logic behind every item it can show. */}
+      <RecommendationChecklist
+        existingObjective={existingObjective}
+        activeListingsCount={listings?.length}
+      />
+
       {/* AAOS LOOP UPGRADE, Sprint 6 Prompt 15 — "Konteks Bisnis" card, rendered ABOVE the target
           HOT-leads stepper per the spec's own explicit UI placement. A genuinely separate save
           action from the objective form below it (own PATCH endpoint, own error/saved state) —

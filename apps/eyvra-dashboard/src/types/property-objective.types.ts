@@ -37,6 +37,15 @@ export interface PropertyObjectiveDto {
   readonly businessContextUpdatedBy?: string;
   readonly businessContextUpdatedAt?: string;
   /**
+   * AAOS LOOP UPGRADE, Sprint 8a — real, per-tenant NEED_CREATIVE auto-brief guardrail settings
+   * (mirrors `aaos-api`'s `PropertyObjectiveResponseDto` exactly — SAMANTHA ADVANCED SPRINT 3
+   * investigation found these were already sent on the wire by `GET/POST /api/property-objective`
+   * but missing from this frontend type; added here rather than fetched a second way). Always
+   * present (both real DB columns are `NOT NULL DEFAULT`, never nullable).
+   */
+  readonly maxAutoBriefsPerDay: number;
+  readonly autoApproveCreativeBrief: boolean;
+  /**
    * AAOS LOOP UPGRADE, Sprint 8c — real, per-tenant campaign-publish guardrail settings. Always
    * present (both real DB columns are `NOT NULL DEFAULT`, never nullable) — `autoPublishCampaign`
    * defaults to `false` (the real, user-confirmed safety default), `maxBudgetIncreasePct` to `20`.
