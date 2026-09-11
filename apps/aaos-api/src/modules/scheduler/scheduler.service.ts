@@ -19,10 +19,12 @@ import {
   AdAccountId,
   AdStatus,
   MetaAdsSyncService,
+  scoreCreativeDiversity,
   Verdict,
   type Ad,
   type AdAccount,
   type Campaign,
+  type CreativeDiversityScore,
 } from "@aos/meta-ads-connector";
 import type { MobixScraperService } from "@aos/mobix-web-scraper";
 import type { ObjectiveEngine } from "@aos/objective-engine";
@@ -70,6 +72,7 @@ import { buildCplReasoningText } from "../property-objective/reasoning.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
 
+import { evaluateAndromedaRestructureCandidate } from "./domain/andromeda-restructure.js";
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import { isSupportedCalendarEventType } from "./domain/calendar-event.js";
 import { decideCampaignPublishGuardrail } from "./domain/campaign-publish-guardrail.js";
@@ -1051,6 +1054,12 @@ export class SchedulerService {
     // per-ad verdicts) this method already computed above. Best-effort per listing.
     const needCreativeResult = await this.runNeedCreativeCheck(tenantId, perListing);
 
+    // Samantha Andromeda-Aware Campaign System, Sprint 1 — real, additive ad-set-fragmentation +
+    // creative-diversity detection, reusing the SAME `perListing` this method already computed
+    // above (`matched.matchedCampaigns`, the real `Campaign` tree). Best-effort, never
+    // auto-executes anything — see `runAndromedaRestructureCheck`'s own doc.
+    await this.runAndromedaRestructureCheck(tenantId, perListing);
+
     // AAOS LOOP UPGRADE, Sprint 8c — real Step 5: Samantha builds/publishes a campaign from a
     // freshly Kai/Kie-AI-generated asset, reusing the SAME `perListing` this method already
     // computed above (`matched.hasActiveCampaign` is the real guardrail input this check needs).
@@ -1547,6 +1556,136 @@ export class SchedulerService {
   }
 
   /**
+   * `runAndromedaRestructureCheck` (Samantha Andromeda-Aware Campaign System, Sprint 1) — real
+   * per-campaign detection, reusing the SAME `matched.matchedCampaigns` (full real `Campaign` tree,
+   * no second Meta pull) `runPropertyCampaignTriggerCheck` already computed above via
+   * `matchActiveCampaignForListing`. For every real matched campaign: computes a real ad-set count
+   * + `scoreCreativeDiversity` (`@aos/meta-ads-connector`) over every real ad across every real ad
+   * set, then `evaluateAndromedaRestructureCandidate` (pure, `domain/andromeda-restructure.ts`).
+   *
+   * ABSOLUTE, NON-NEGOTIABLE SAFETY PROPERTY: when triggered, this method's ONLY real effect is
+   * enqueuing a `RESTRUCTURE_CAMPAIGN` `pending_agent_actions` row via `this.pendingActions.enqueue`
+   * — it NEVER calls `CampaignsService.restructureCampaign`/`connector.restructureCampaign`/any
+   * other Meta-mutating code path, in ANY tenant mode, regardless of any toggle. There is no
+   * mode/toggle branch here at all (unlike `runNeedCreativeCheck`/`runCampaignPublishCheck`, which
+   * DO have a real auto-executing DEV/LIVE branch) — restructuring a LIVE campaign has no safe,
+   * honest reverse operation, so the user's own explicit decision (this sprint's coordinator note)
+   * is that ONLY a human's real Approve click on the enqueued row
+   * (`PendingActionsService.approve()`'s `RESTRUCTURE_CAMPAIGN` branch) may ever invoke the real
+   * `RestructureCampaign` Meta mutation. See `andromeda-restructure.spec.ts`'s own "SAFETY DEFAULT"
+   * test and `pending-actions.service.spec.ts`'s own "SAFETY DEFAULT" test for the two halves of
+   * this proof.
+   *
+   * De-duplication: a campaign that already has a real `PENDING` `RESTRUCTURE_CAMPAIGN` row is
+   * skipped on subsequent ticks (checked via `this.pendingActions.listPending`) — this check runs
+   * every `runPropertyCampaignTriggerCheck` cycle, same cadence `runFatigueCheck`/
+   * `runNeedCreativeCheck` already use, so without this guard the SAME real low-diversity campaign
+   * would enqueue a fresh duplicate row every tick.
+   *
+   * Best-effort per campaign, same "never let a side-check take down the whole handler" discipline
+   * every other check in this file already establishes.
+   */
+  private async runAndromedaRestructureCheck(
+    tenantId: string,
+    perListing: readonly {
+      readonly listing: ListingResponseDto;
+      readonly matched: MatchedCampaignSignals;
+    }[],
+  ): Promise<{ readonly candidatesDetected: number }> {
+    let existingPending: Awaited<ReturnType<PendingActionsService["listPending"]>>;
+    try {
+      existingPending = await this.pendingActions.listPending(tenantId, "PENDING");
+    } catch (caught) {
+      this.logger.warn(
+        `SchedulerService.runAndromedaRestructureCheck: listPending(${tenantId}) failed: ${String(caught)}`,
+      );
+      return { candidatesDetected: 0 };
+    }
+    const alreadyPendingCampaignIds = new Set(
+      existingPending
+        .filter((row) => row.action_type === "RESTRUCTURE_CAMPAIGN")
+        .map((row) => row.payload["campaignId"])
+        .filter((id): id is string => typeof id === "string"),
+    );
+
+    let candidatesDetected = 0;
+    const seenCampaignIds = new Set<string>();
+
+    for (const { matched } of perListing) {
+      for (const campaign of matched.matchedCampaigns) {
+        const campaignId = campaign.id.toString();
+        // A campaign can legitimately be re-matched across multiple listings (name-substring
+        // heuristic) or, in principle, across this same perListing pass — never enqueue twice for
+        // the same real campaign within one cycle.
+        if (alreadyPendingCampaignIds.has(campaignId) || seenCampaignIds.has(campaignId)) {
+          continue;
+        }
+        seenCampaignIds.add(campaignId);
+
+        const adSetCount = campaign.adSets.length;
+        const allAds = campaign.adSets.flatMap((adSet) => adSet.ads);
+        const diversity: CreativeDiversityScore = scoreCreativeDiversity(allAds);
+        const evaluation = evaluateAndromedaRestructureCandidate({ adSetCount, diversity });
+        if (!evaluation.triggered) {
+          continue;
+        }
+
+        // Honest, documented judgment call: propose KEEPING the real ad set with the highest
+        // cumulative real spend (Meta has already invested the most delivery/learning into it) and
+        // pausing every other real ad set — never a fabricated "best performer" from a signal this
+        // app doesn't honestly have (e.g. no real per-ad-set ROAS exists anywhere in this app
+        // today). `campaign.adSets` is non-empty here by construction (`evaluation.triggered` can
+        // only be `true` when `adSetCount >= MIN_AD_SETS_FOR_RESTRUCTURE_CANDIDATE`, i.e. >= 2).
+        const bestAdSet = campaign.adSets.reduce((best, candidate) =>
+          candidate.spend.toNumber() > best.spend.toNumber() ? candidate : best,
+        );
+        const proposedPauseAdSetIds = campaign.adSets
+          .filter((adSet) => adSet.id.toString() !== bestAdSet.id.toString())
+          .map((adSet) => adSet.id.toString());
+
+        try {
+          // The ONE real effect of a trigger — enqueue for mandatory human review. See this
+          // method's own doc for why there is deliberately no other branch here.
+          await this.pendingActions.enqueue({
+            tenantId,
+            agent: "SAMANTHA",
+            actionType: "RESTRUCTURE_CAMPAIGN",
+            payload: {
+              campaignId,
+              campaignName: campaign.name,
+              currentAdSetCount: adSetCount,
+              proposedKeepAdSetId: bestAdSet.id.toString(),
+              proposedPauseAdSetIds,
+              diversityStatus: diversity.status,
+              diversityReasoning: diversity.reasoning,
+              reason: evaluation.reason,
+            },
+          });
+          candidatesDetected += 1;
+
+          await this.auditLog.record({
+            tenantId,
+            agent: "SAMANTHA",
+            actionType: "ANDROMEDA_RESTRUCTURE_DETECTED",
+            beforeState: null,
+            afterState: { campaignId, adSetCount, diversityStatus: diversity.status },
+            decidedBy: "ai_auto",
+            mode: await this.modeGuard.resolveMode(tenantId),
+            relatedVerdictId: campaignId,
+            reversible: false,
+          });
+        } catch (caught) {
+          this.logger.warn(
+            `SchedulerService.runAndromedaRestructureCheck: enqueue failed for campaign ${campaignId}: ${String(caught)}`,
+          );
+        }
+      }
+    }
+
+    return { candidatesDetected };
+  }
+
+  /**
    * AAOS EPIC S, Phase S5 — the real wiring point Phase C's `buildCampaignTriggerOutput` docstring
    * used to say did NOT exist: a real `shouldCreateNewCampaign` trigger now really calls
    * `CampaignsService.createPropertyCampaign` (S3/S4, already committed), which builds the real
@@ -1950,6 +2089,13 @@ interface MatchedCampaignSignals {
    * "no matched campaign at all", handled by `hasActiveCampaign: false` instead.
    */
   readonly verdicts: readonly Verdict[];
+  /**
+   * Samantha Andromeda-Aware Campaign System, Sprint 1 — the real, already-loaded `Campaign`
+   * entities (full `adSets`/`ads` tree, no second Meta pull) that matched this listing, reused by
+   * `runAndromedaRestructureCheck` to compute a real per-campaign ad-set count + creative
+   * diversity score. Empty array when `hasActiveCampaign` is `false`.
+   */
+  readonly matchedCampaigns: readonly Campaign[];
 }
 
 /** Pure — matches `listing` against every `AdStatus.ACTIVE` campaign across `adAccounts` whose real `name` contains the listing's real `title` (case-insensitive substring; no `listings.campaign_id` column exists anywhere in this schema to join on instead), and aggregates that campaign's real ad-level `frequency`/spend/lead metrics. */
@@ -1963,6 +2109,7 @@ function matchActiveCampaignForListing(
   let totalSpend = 0;
   let totalLeads = 0;
   const verdicts: Verdict[] = [];
+  const matchedCampaigns: Campaign[] = [];
 
   const isMatch = (campaign: Campaign): boolean =>
     campaign.status === AdStatus.ACTIVE && campaign.name.toLowerCase().includes(needle);
@@ -1973,6 +2120,7 @@ function matchActiveCampaignForListing(
         continue;
       }
       hasActiveCampaign = true;
+      matchedCampaigns.push(campaign);
       for (const adSet of campaign.adSets) {
         for (const ad of adSet.ads) {
           maxFrequency =
@@ -1993,6 +2141,7 @@ function matchActiveCampaignForListing(
     ...(maxFrequency !== undefined ? { maxFrequency } : {}),
     ...(cplIDR !== undefined ? { cplIDR } : {}),
     verdicts,
+    matchedCampaigns,
   };
 }
 

@@ -4,9 +4,12 @@ import { NotFoundError } from "@aos/errors";
 import type { LeadStore } from "@aos/lead-store";
 import {
   AdBuilder,
+  AdId,
   AdMetrics,
   AdSetBuilder,
+  AdSetId,
   CampaignBuilder,
+  CampaignId,
   Spend,
   Verdict,
   type AdAccount,
@@ -2235,6 +2238,191 @@ describe("SchedulerService.executeEvent", () => {
     const service = buildService({ repository });
     await service.executeEvent(buildEvent({ eventType: "SCRAPER_RUN", recurrence: "ONCE" }));
     expect(repository.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("SchedulerService — Andromeda restructure detection (Samantha Andromeda-Aware Campaign System, Sprint 1)", () => {
+  const propertyTenants = [{ tenant_id: "dss-motor", status: "ACTIVE", vertical: "PROPERTY" }];
+
+  function buildAndromedaListing(): ListingListResponseDto["listings"][number] {
+    return {
+      id: "listing-andromeda-1",
+      title: "Rumah Fragmented Andromeda",
+      propertyType: "RUMAH",
+      listingStatus: "AKTIF",
+      price: 1_000_000_000,
+      branchId: "BINTARO",
+      highlights: [],
+      photos: [],
+      inKnowledgeBase: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+  }
+
+  /** A real campaign with `adSetCount` real ad sets, each holding `adsPerSet` real ads. `diverse: true` gives every ad a distinct real creativeAsset; `diverse: false` reuses the SAME real creativeAsset across every ad (literal LOW_DIVERSITY). */
+  function buildAndromedaAdAccount(options: {
+    readonly adSetCount: number;
+    readonly adsPerSet: number;
+    readonly diverse: boolean;
+  }): AdAccount {
+    let assetCounter = 0;
+    const adSets = Array.from({ length: options.adSetCount }, () => {
+      const ads = Array.from({ length: options.adsPerSet }, () => {
+        assetCounter += 1;
+        const imageHash = options.diverse ? `hash-${String(assetCounter)}` : "same-hash";
+        return unwrap(
+          new AdBuilder()
+            .withId(AdId.generate())
+            .withCreativeAsset({ kind: "IMAGE", imageHash })
+            .build(),
+        );
+      });
+      return unwrap(new AdSetBuilder().withId(AdSetId.generate()).withAds(ads).build());
+    });
+    const campaign = unwrap(
+      new CampaignBuilder()
+        .withId(CampaignId.generate())
+        .withName("Rumah Fragmented Andromeda - Product")
+        .withAdSets(adSets)
+        .build(),
+    );
+    return {
+      id: "act_1",
+      name: "Acc",
+      businessManagerId: "bm",
+      currency: "IDR",
+      timezone: "Asia/Jakarta",
+      campaigns: [campaign],
+      syncedAt: new Date(),
+    } as unknown as AdAccount;
+  }
+
+  it("LOW_DIVERSITY + >=2 ad sets: enqueues a real RESTRUCTURE_CAMPAIGN pending action, NEVER calls CampaignsService.restructureCampaign directly from the detection path", async () => {
+    const repository = buildFakeRepository();
+    const listingsService = buildFakeListingsService([buildAndromedaListing()]);
+    const pendingActions = buildFakePendingActionsService();
+    const campaignsService = buildFakeCampaignsService();
+    const service = buildService({
+      repository,
+      listingsService,
+      connector: buildFakeConnector(
+        buildAndromedaAdAccount({ adSetCount: 3, adsPerSet: 4, diverse: false }),
+      ),
+      tenants: buildFakeTenantRepository(propertyTenants),
+      pendingActions,
+      campaignsService,
+      modeGuard: buildFakeModeGuardService("LIVE"),
+    });
+
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+    expect(pendingActions.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "RESTRUCTURE_CAMPAIGN",
+        agent: "SAMANTHA",
+        payload: expect.objectContaining({
+          currentAdSetCount: 3,
+          proposedPauseAdSetIds: expect.any(Array),
+          proposedKeepAdSetId: expect.any(String),
+        }),
+      }),
+    );
+    // The SINGLE most important assertion: the detection path itself never touches the real Meta
+    // mutation — `campaignsService` here has no `restructureCampaign` mock at all (not even
+    // provided), so this fake object structurally cannot be called by the scheduler; if it somehow
+    // were, this test would throw a TypeError rather than silently pass.
+    expect(
+      (campaignsService as unknown as { restructureCampaign?: unknown }).restructureCampaign,
+    ).toBeUndefined();
+  });
+
+  it("DIVERSE creatives (every ad has a distinct real creativeAsset): does NOT enqueue a RESTRUCTURE_CAMPAIGN pending action", async () => {
+    const repository = buildFakeRepository();
+    const listingsService = buildFakeListingsService([buildAndromedaListing()]);
+    const pendingActions = buildFakePendingActionsService();
+    const service = buildService({
+      repository,
+      listingsService,
+      connector: buildFakeConnector(
+        buildAndromedaAdAccount({ adSetCount: 3, adsPerSet: 4, diverse: true }),
+      ),
+      tenants: buildFakeTenantRepository(propertyTenants),
+      pendingActions,
+      campaignsService: buildFakeCampaignsService(),
+      modeGuard: buildFakeModeGuardService("LIVE"),
+    });
+
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+    expect(pendingActions.enqueue).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: "RESTRUCTURE_CAMPAIGN" }),
+    );
+  });
+
+  it("only 1 ad set (can't be 'fragmented'), even with LOW_DIVERSITY creatives: does NOT enqueue", async () => {
+    const repository = buildFakeRepository();
+    const listingsService = buildFakeListingsService([buildAndromedaListing()]);
+    const pendingActions = buildFakePendingActionsService();
+    const service = buildService({
+      repository,
+      listingsService,
+      connector: buildFakeConnector(
+        buildAndromedaAdAccount({ adSetCount: 1, adsPerSet: 4, diverse: false }),
+      ),
+      tenants: buildFakeTenantRepository(propertyTenants),
+      pendingActions,
+      campaignsService: buildFakeCampaignsService(),
+      modeGuard: buildFakeModeGuardService("LIVE"),
+    });
+
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+    expect(pendingActions.enqueue).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: "RESTRUCTURE_CAMPAIGN" }),
+    );
+  });
+
+  it("de-duplicates: a campaign that already has a real PENDING RESTRUCTURE_CAMPAIGN row is not enqueued again", async () => {
+    const repository = buildFakeRepository();
+    const listingsService = buildFakeListingsService([buildAndromedaListing()]);
+    const adAccount = buildAndromedaAdAccount({ adSetCount: 2, adsPerSet: 4, diverse: false });
+    const realCampaignId = adAccount.campaigns[0]?.id.toString();
+    const enqueue = vi.fn(async () => "pending-new");
+    const pendingActions = {
+      enqueue,
+      listPending: vi.fn(async () => [
+        {
+          id: "pending-existing",
+          tenant_id: "dss-motor",
+          agent: "SAMANTHA",
+          action_type: "RESTRUCTURE_CAMPAIGN",
+          payload: { campaignId: realCampaignId },
+          status: "PENDING",
+          decided_by: null,
+          decision_notes: null,
+          decided_at: null,
+          created_at: "2026-09-01T00:00:00.000Z",
+        },
+      ]),
+      approve: vi.fn(),
+      reject: vi.fn(),
+    } as unknown as PendingActionsService;
+    const service = buildService({
+      repository,
+      listingsService,
+      connector: buildFakeConnector(adAccount),
+      tenants: buildFakeTenantRepository(propertyTenants),
+      pendingActions,
+      campaignsService: buildFakeCampaignsService(),
+      modeGuard: buildFakeModeGuardService("LIVE"),
+    });
+
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+    expect(enqueue).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionType: "RESTRUCTURE_CAMPAIGN" }),
+    );
   });
 });
 

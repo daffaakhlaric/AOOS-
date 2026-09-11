@@ -228,6 +228,17 @@ export class MetaApiClient implements IMetaAdsClient {
     });
   }
 
+  /** Samantha Andromeda-Aware Campaign System, Sprint 1 — see `IMetaAdsClient.pauseAdSet`. */
+  async pauseAdSet(
+    adSetId: string,
+    accessToken: string,
+  ): Promise<Result<MetaUpdateResponse, MetaApiError>> {
+    return this.postJson(MetaApiRequestBuilder.pauseAdSetUrl(adSetId), {
+      status: "PAUSED",
+      access_token: accessToken,
+    });
+  }
+
   async fixCampaignObjective(
     campaignId: string,
     objective: string,

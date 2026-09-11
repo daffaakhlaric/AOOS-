@@ -31,6 +31,10 @@ import type {
   CreatePropertyCampaignBodyDto,
   CreatePropertyCampaignResponseDto,
 } from "./dto/create-property-campaign.dto.js";
+import type {
+  RestructureCampaignRequest,
+  RestructureCampaignResponseDto,
+} from "./dto/restructure-campaign.dto.js";
 
 /**
  * Wires `CreateCampaign` from `@aos/meta-ads-connector` (AAOS-W1D-S3 Fix 3), translating between
@@ -504,5 +508,91 @@ export class CampaignsService {
       }
     }
     return adIds;
+  }
+
+  /**
+   * `restructureCampaign` (Samantha Andromeda-Aware Campaign System, Sprint 1) — the real
+   * DEV-simulate/LIVE-execute gate around `RestructureCampaign` (`@aos/meta-ads-connector`),
+   * mirroring `createPropertyCampaign`'s own `modeGuard.executeOrSimulate` shape exactly.
+   *
+   * SAFETY: this method has exactly ONE real caller anywhere in this codebase —
+   * `PendingActionsService.approve()`'s `RESTRUCTURE_CAMPAIGN` branch (a human's real Approve
+   * click on an already-enqueued `pending_agent_actions` row). It is NEVER called from
+   * `SchedulerService`/any detection path directly — see `RestructureCampaign`'s own class doc and
+   * `pending-actions.service.spec.ts`'s "SAFETY DEFAULT" test for the explicit proof.
+   *
+   * DEV mode makes ZERO real Meta calls (`simulateFn` never touches `connector`) and returns an
+   * honest `{ simulated: true }` with no paused-ad-set ids — same "never fabricate an id" discipline
+   * `createPropertyCampaign`'s own DEV path establishes. LIVE mode calls the real
+   * `connector.restructureCampaign.execute`, which is itself internally best-effort per ad set (see
+   * that class's own doc) — a partial failure (some ad sets paused, others not) is reported
+   * honestly via `pausedAdSetIds`/`failedAdSetIds`, never silently swallowed into a fabricated
+   * all-success result.
+   */
+  async restructureCampaign(
+    tenantId: string,
+    request: RestructureCampaignRequest,
+    correlationId: string,
+  ): Promise<RestructureCampaignResponseDto> {
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+
+    const mode = await this.modeGuard.resolveMode(tenantId);
+    const activityId = await this.activityLogger.start({
+      tenantId,
+      agent: "SAMANTHA",
+      actionType: "RESTRUCTURE_CAMPAIGN",
+      mode,
+      loopId: correlationId,
+      input: {
+        campaignId: request.campaignId,
+        proposedKeepAdSetId: request.proposedKeepAdSetId,
+        proposedPauseAdSetIds: request.proposedPauseAdSetIds,
+      },
+    });
+
+    try {
+      const result = await this.modeGuard.executeOrSimulate<RestructureCampaignResponseDto>(
+        tenantId,
+        async () => {
+          const executed = await connector.restructureCampaign.execute({
+            campaignId: request.campaignId,
+            adSetIdsToPause: request.proposedPauseAdSetIds,
+            accessToken: connector.accessToken,
+          });
+          return {
+            campaignId: request.campaignId,
+            simulated: false,
+            pausedAdSetIds: executed.pausedAdSets
+              .filter((paused) => paused.ok)
+              .map((paused) => paused.adSetId),
+            failedAdSetIds: executed.pausedAdSets
+              .filter((paused) => !paused.ok)
+              .map((paused) => paused.adSetId),
+          };
+        },
+        () =>
+          Promise.resolve({
+            campaignId: request.campaignId,
+            simulated: true,
+            note:
+              "DEV mode — real Meta ad-set pause / budget consolidation was not performed; no " +
+              "ad set was actually touched on Meta.",
+          }),
+      );
+
+      await this.activityLogger.complete(activityId, {
+        status: result.simulated ? "SIMULATED" : "SUCCESS",
+        ...(result.simulated ? { devPreview: result } : { output: result }),
+      });
+
+      return result;
+    } catch (error) {
+      await this.activityLogger.fail(activityId, error);
+      throw error;
+    }
   }
 }

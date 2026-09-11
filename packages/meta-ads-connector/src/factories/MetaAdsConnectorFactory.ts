@@ -17,6 +17,7 @@ import { ExecuteVerdict } from "../application/use-cases/ExecuteVerdict.js";
 import { PauseCampaign } from "../application/use-cases/PauseCampaign.js";
 import { ProcessLeadWebhook } from "../application/use-cases/ProcessLeadWebhook.js";
 import { PullCampaignData, type Tracer } from "../application/use-cases/PullCampaignData.js";
+import { RestructureCampaign } from "../application/use-cases/RestructureCampaign.js";
 import { SearchAdInterests } from "../application/use-cases/SearchAdInterests.js";
 import { SearchAdLocations } from "../application/use-cases/SearchAdLocations.js";
 import { UploadCreativeAsset } from "../application/use-cases/UploadCreativeAsset.js";
@@ -55,6 +56,14 @@ export interface MetaAdsConnector {
   readonly uploadCreativeAsset: UploadCreativeAsset;
   /** AAOS-GO-LIVE: campaign-level pause — used by Go Live rollback. */
   readonly pauseCampaign: PauseCampaign;
+  /**
+   * Samantha Andromeda-Aware Campaign System, Sprint 1 — real ad-set pause + budget consolidation.
+   * Composed here (available on every resolved connector) but NEVER called from
+   * `apps/aaos-api`'s scheduler/detection path — only from `CampaignsService.restructureCampaign`,
+   * itself called only from `PendingActionsService.approve()`'s `RESTRUCTURE_CAMPAIGN` branch (a
+   * human's real Approve decision). See `RestructureCampaign`'s own class doc.
+   */
+  readonly restructureCampaign: RestructureCampaign;
   /** AAOS-GO-LIVE: campaign-level activation — used by Go Live's create step and rollback's undo path. */
   readonly activateCampaign: ActivateCampaign;
   /** AAOS-GO-LIVE: ad-level activation (inverse of the verdict-driven `pauseAd`) — used by Go Live rollback to undo a PAUSE verdict. */
@@ -153,6 +162,7 @@ export class MetaAdsConnectorFactory {
     const createAd = new CreateAd(client, rateLimiter, retry, logger, tracer);
     const uploadCreativeAsset = new UploadCreativeAsset(client, rateLimiter, retry, logger, tracer);
     const pauseCampaign = new PauseCampaign(client, rateLimiter, retry, logger, tracer);
+    const restructureCampaign = new RestructureCampaign(client, rateLimiter, retry, logger, tracer);
     const activateCampaign = new ActivateCampaign(client, rateLimiter, retry, logger, tracer);
     const activateAd = new ActivateAd(client, rateLimiter, retry, logger, tracer);
 
@@ -210,6 +220,7 @@ export class MetaAdsConnectorFactory {
       createAd,
       uploadCreativeAsset,
       pauseCampaign,
+      restructureCampaign,
       activateCampaign,
       activateAd,
       searchAdInterests,

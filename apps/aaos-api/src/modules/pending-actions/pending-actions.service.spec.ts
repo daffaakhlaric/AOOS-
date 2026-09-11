@@ -5,6 +5,7 @@ import { createFakeSupabaseClient } from "../../test-support/fake-supabase-clien
 import type { AuditLogService } from "../audit-log/audit-log.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
+import type { RestructureCampaignResponseDto } from "../campaigns/dto/restructure-campaign.dto.js";
 import type { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
@@ -91,6 +92,11 @@ function buildFakeCampaignsService(
     body: unknown,
     correlationId: string,
   ) => Promise<CreatePropertyCampaignResponseDto>,
+  restructureImpl?: (
+    tenantId: string,
+    body: unknown,
+    correlationId: string,
+  ) => Promise<RestructureCampaignResponseDto>,
 ): CampaignsService {
   return {
     createPropertyCampaign: vi.fn(
@@ -100,6 +106,18 @@ function buildFakeCampaignsService(
           resolvedCities: ["Jakarta"],
           campaignId: "campaign-1",
           adSetId: "adset-1",
+        })),
+    ),
+    // Samantha Andromeda-Aware Campaign System, Sprint 1 — real fake for the new
+    // `restructureCampaign` dependency, same "always resolve a plausible default unless the test
+    // overrides it" convention every other fake in this file establishes.
+    restructureCampaign: vi.fn(
+      restructureImpl ??
+        (async () => ({
+          simulated: false,
+          campaignId: "campaign-1",
+          pausedAdSetIds: ["adset-a"],
+          failedAdSetIds: [],
         })),
     ),
   } as unknown as CampaignsService;
@@ -403,6 +421,153 @@ describe("PendingActionsService", () => {
         ConflictError,
       );
     });
+
+    describe("RESTRUCTURE_CAMPAIGN (Samantha Andromeda-Aware Campaign System, Sprint 1)", () => {
+      it("approving calls the REAL CampaignsService.restructureCampaign with the stored real payload and marks the row APPROVED", async () => {
+        const client = createFakeSupabaseClient();
+        seedPendingAction(client, {
+          action_type: "RESTRUCTURE_CAMPAIGN",
+          payload: {
+            campaignId: "campaign-real-1",
+            campaignName: "PROPERTY - Rumah Bintaro",
+            currentAdSetCount: 3,
+            proposedKeepAdSetId: "adset-keep",
+            proposedPauseAdSetIds: ["adset-a", "adset-b"],
+          },
+        });
+        const campaignsService = buildFakeCampaignsService();
+        const { service } = buildService(client, campaignsService);
+
+        const result = await service.approve(
+          "pending-1",
+          "dss-motor",
+          "manager@dss-motor.id",
+          "Setuju, konsolidasi ke adset terbaik",
+        );
+
+        expect(campaignsService.restructureCampaign).toHaveBeenCalledWith(
+          "dss-motor",
+          {
+            campaignId: "campaign-real-1",
+            proposedKeepAdSetId: "adset-keep",
+            proposedPauseAdSetIds: ["adset-a", "adset-b"],
+          },
+          expect.any(String),
+        );
+        expect(result.status).toBe("APPROVED");
+        // Never calls the CREATE_PROPERTY_CAMPAIGN/PUBLISH_CAMPAIGN_FROM_ASSET code path.
+        expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
+      });
+
+      it("writes a real CAMPAIGN_RESTRUCTURED audit_log row, decided_by user_manual, for a non-simulated LIVE result", async () => {
+        const client = createFakeSupabaseClient();
+        seedPendingAction(client, {
+          action_type: "RESTRUCTURE_CAMPAIGN",
+          payload: {
+            campaignId: "campaign-real-1",
+            proposedKeepAdSetId: "adset-keep",
+            proposedPauseAdSetIds: ["adset-a"],
+          },
+        });
+        const campaignsService = buildFakeCampaignsService(undefined, async () => ({
+          simulated: false,
+          campaignId: "campaign-real-1",
+          pausedAdSetIds: ["adset-a"],
+          failedAdSetIds: [],
+        }));
+        const auditLog = buildFakeAuditLogService();
+        const { service } = buildService(client, campaignsService, auditLog);
+
+        await service.approve("pending-1", "dss-motor", "manager@dss-motor.id", undefined);
+
+        expect(auditLog.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actionType: "CAMPAIGN_RESTRUCTURED",
+            decidedBy: "user_manual",
+            reversible: false,
+          }),
+        );
+      });
+
+      it("does NOT write a CAMPAIGN_RESTRUCTURED audit_log row for a DEV-mode simulated result", async () => {
+        const client = createFakeSupabaseClient();
+        seedPendingAction(client, {
+          action_type: "RESTRUCTURE_CAMPAIGN",
+          payload: {
+            campaignId: "campaign-real-1",
+            proposedKeepAdSetId: "adset-keep",
+            proposedPauseAdSetIds: ["adset-a"],
+          },
+        });
+        const campaignsService = buildFakeCampaignsService(undefined, async () => ({
+          simulated: true,
+          campaignId: "campaign-real-1",
+        }));
+        const auditLog = buildFakeAuditLogService();
+        const { service } = buildService(client, campaignsService, auditLog);
+
+        await service.approve("pending-1", "dss-motor", "manager@dss-motor.id", undefined);
+
+        expect(auditLog.record).not.toHaveBeenCalledWith(
+          expect.objectContaining({ actionType: "CAMPAIGN_RESTRUCTURED" }),
+        );
+      });
+
+      it("throws ConflictError when the payload has no real campaignId/proposedKeepAdSetId/proposedPauseAdSetIds", async () => {
+        const client = createFakeSupabaseClient();
+        seedPendingAction(client, {
+          action_type: "RESTRUCTURE_CAMPAIGN",
+          payload: { campaignId: "campaign-real-1" },
+        });
+        const { service } = buildService(client);
+
+        await expect(
+          service.approve("pending-1", "dss-motor", undefined, undefined),
+        ).rejects.toThrow(ConflictError);
+      });
+
+      /**
+       * THE SINGLE MOST IMPORTANT TEST IN THIS DISPATCH — proves the real, end-to-end
+       * human-approval-only guarantee for `RESTRUCTURE_CAMPAIGN`: `CampaignsService
+       * .restructureCampaign` (the only real caller of `@aos/meta-ads-connector`'s
+       * `RestructureCampaign` Meta mutation anywhere in this codebase) is called ONLY from inside
+       * `PendingActionsService.approve()`, and ONLY after a real, explicit human `approve(...)`
+       * call on an already-`PENDING` row — never from `enqueue()` (the scheduler's own real write
+       * path), never from any code path this test does not itself explicitly invoke. Combined with
+       * `andromeda-restructure.spec.ts`'s own "SAFETY DEFAULT" test (proving the scheduler's pure
+       * detection function has no execution/approval-status field to branch an auto-execute path
+       * from at all), this is the full proof: RESTRUCTURE_CAMPAIGN can NEVER auto-execute, in ANY
+       * tenant mode, under ANY toggle, by ANY code path other than a human clicking Approve.
+       */
+      it("SAFETY DEFAULT — enqueue() alone (the scheduler's own real write path) NEVER calls CampaignsService.restructureCampaign; only an explicit, separate approve() call does", async () => {
+        const client = createFakeSupabaseClient();
+        const campaignsService = buildFakeCampaignsService();
+        const { service } = buildService(client, campaignsService);
+
+        // Step 1 — simulate exactly what `SchedulerService.runAndromedaRestructureCheck` does on
+        // detection: enqueue only. This is the ENTIRE real detection-path effect.
+        const pendingActionId = await service.enqueue({
+          tenantId: "dss-motor",
+          agent: "SAMANTHA",
+          actionType: "RESTRUCTURE_CAMPAIGN",
+          payload: {
+            campaignId: "campaign-real-1",
+            proposedKeepAdSetId: "adset-keep",
+            proposedPauseAdSetIds: ["adset-a", "adset-b"],
+          },
+        });
+
+        // The real Meta mutation must NOT have fired from enqueue() alone.
+        expect(campaignsService.restructureCampaign).not.toHaveBeenCalled();
+
+        const pending = await service.listPending("dss-motor", "PENDING");
+        expect(pending.map((row) => row.id)).toContain(pendingActionId);
+
+        // Step 2 — ONLY a real, separate, explicit human approve() call may invoke the mutation.
+        await service.approve(pendingActionId, "dss-motor", "manager@dss-motor.id", "Disetujui");
+        expect(campaignsService.restructureCampaign).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 
   describe("reject", () => {
@@ -422,6 +587,31 @@ describe("PendingActionsService", () => {
       expect(result.status).toBe("REJECTED");
       expect(result.decided_by).toBe("manager@dss-motor.id");
       expect(result.decision_notes).toBe("Tidak relevan");
+      expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
+    });
+
+    it("Samantha Andromeda-Aware Campaign System, Sprint 1 — RESTRUCTURE_CAMPAIGN: rejecting marks the row REJECTED with ZERO side effects, never calls CampaignsService.restructureCampaign", async () => {
+      const client = createFakeSupabaseClient();
+      seedPendingAction(client, {
+        action_type: "RESTRUCTURE_CAMPAIGN",
+        payload: {
+          campaignId: "campaign-real-1",
+          proposedKeepAdSetId: "adset-keep",
+          proposedPauseAdSetIds: ["adset-a"],
+        },
+      });
+      const campaignsService = buildFakeCampaignsService();
+      const { service } = buildService(client, campaignsService);
+
+      const result = await service.reject(
+        "pending-1",
+        "dss-motor",
+        "manager@dss-motor.id",
+        "Belum yakin",
+      );
+
+      expect(result.status).toBe("REJECTED");
+      expect(campaignsService.restructureCampaign).not.toHaveBeenCalled();
       expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
     });
 

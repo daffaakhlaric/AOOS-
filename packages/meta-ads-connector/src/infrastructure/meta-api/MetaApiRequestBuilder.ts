@@ -187,6 +187,17 @@ export class MetaApiRequestBuilder {
     return `${BASE_URL}/${API_VERSION}/${adSetId}`;
   }
 
+  /**
+   * Samantha Andromeda-Aware Campaign System, Sprint 1 — `POST /{adset-id}` with
+   * `status: "PAUSED"`. Same node/verb `scaleAdSetUrl` already targets (an ad set's real Meta id is
+   * a directly-addressable node, same as a campaign/ad) — this is the ad-set-level sibling of the
+   * already-shipped `pauseAdUrl`/`pauseCampaignUrl`, needed for `RestructureCampaign`'s real
+   * "pause the other ad sets, consolidate budget onto the best-performing one" mutation.
+   */
+  static pauseAdSetUrl(adSetId: string): string {
+    return `${BASE_URL}/${API_VERSION}/${adSetId}`;
+  }
+
   static fixCampaignUrl(campaignId: string): string {
     return `${BASE_URL}/${API_VERSION}/${campaignId}`;
   }

@@ -12,6 +12,8 @@ import {
   registerCreateAdMswHandlers,
   registerCreateCampaignErrorHandler,
   registerCreateCampaignMswHandlers,
+  registerHappyPathMetaApiHandlers,
+  registerMetaApiPostErrorHandler,
   registerSearchAdLocationsMswHandler,
 } from "../../test-support/meta-api-msw.js";
 import type { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
@@ -738,5 +740,107 @@ describe("CampaignsService.createPropertyCampaign — multi-ad publish (AAOS-SAM
     expect(dto.simulated).toBe(false);
     expect(dto.campaignId).toBeDefined();
     expect(dto.adIds).toBeUndefined();
+  });
+});
+
+describe("CampaignsService.restructureCampaign (Samantha Andromeda-Aware Campaign System, Sprint 1)", () => {
+  it("MANDATORY DEV-SAFE: DEV mode makes ZERO real Meta calls and returns an honest simulated:true with no paused-ad-set ids", async () => {
+    // Deliberately registers NO Meta API mock handlers at all — MSW's `onUnhandledRequest: "error"`
+    // (see this file's `beforeAll`) means ANY real HTTP call this test doesn't expect would fail
+    // the test outright. A DEV-mode `restructureCampaign` call that reaches the network at all is
+    // therefore a real, hard test failure, not just an unasserted side effect.
+    const service = buildService(true);
+    const dto = await service.restructureCampaign(
+      "dss-motor",
+      {
+        campaignId: "campaign-1",
+        proposedKeepAdSetId: "adset-keep",
+        proposedPauseAdSetIds: ["adset-a", "adset-b"],
+      },
+      "corr-restructure-dev",
+    );
+    expect(dto.simulated).toBe(true);
+    expect(dto.pausedAdSetIds).toBeUndefined();
+    expect(dto.failedAdSetIds).toBeUndefined();
+    expect(dto.note).toBeDefined();
+  });
+
+  it("LIVE mode calls the real Meta ad-set pause mutation for every proposed ad set and reports simulated:false", async () => {
+    registerHappyPathMetaApiHandlers();
+    const service = buildService(false);
+    const dto = await service.restructureCampaign(
+      "dss-motor",
+      {
+        campaignId: "campaign-1",
+        proposedKeepAdSetId: "adset-keep",
+        proposedPauseAdSetIds: ["adset-a", "adset-b"],
+      },
+      "corr-restructure-live",
+    );
+    expect(dto.simulated).toBe(false);
+    expect(dto.pausedAdSetIds).toEqual(["adset-a", "adset-b"]);
+    expect(dto.failedAdSetIds).toEqual([]);
+  });
+
+  it("LIVE mode: a real Meta pause failure is reported honestly via failedAdSetIds, never thrown, never silently dropped", async () => {
+    registerMetaApiPostErrorHandler(500);
+    const service = buildService(false);
+    const dto = await service.restructureCampaign(
+      "dss-motor",
+      {
+        campaignId: "campaign-1",
+        proposedKeepAdSetId: "adset-keep",
+        proposedPauseAdSetIds: ["adset-a"],
+      },
+      "corr-restructure-live-fail",
+    );
+    expect(dto.simulated).toBe(false);
+    expect(dto.pausedAdSetIds).toEqual([]);
+    expect(dto.failedAdSetIds).toEqual(["adset-a"]);
+  });
+
+  describe("ActivityLogger wiring", () => {
+    it("starts a RUNNING activity with actionType RESTRUCTURE_CAMPAIGN, mode DEV, and completes it SIMULATED", async () => {
+      const activityLogger = buildFakeActivityLogger();
+      const service = buildService(true, activityLogger);
+      await service.restructureCampaign(
+        "dss-motor",
+        {
+          campaignId: "campaign-1",
+          proposedKeepAdSetId: "adset-keep",
+          proposedPauseAdSetIds: ["adset-a"],
+        },
+        "corr-restructure-activity-dev",
+      );
+      expect(activityLogger.start).toHaveBeenCalledWith(
+        expect.objectContaining({ actionType: "RESTRUCTURE_CAMPAIGN", mode: "DEV" }),
+      );
+      expect(activityLogger.complete).toHaveBeenCalledWith(
+        "activity-1",
+        expect.objectContaining({ status: "SIMULATED" }),
+      );
+    });
+
+    it("starts a RUNNING activity with mode LIVE and completes it SUCCESS for a real restructure", async () => {
+      registerHappyPathMetaApiHandlers();
+      const activityLogger = buildFakeActivityLogger();
+      const service = buildService(false, activityLogger);
+      await service.restructureCampaign(
+        "dss-motor",
+        {
+          campaignId: "campaign-1",
+          proposedKeepAdSetId: "adset-keep",
+          proposedPauseAdSetIds: ["adset-a"],
+        },
+        "corr-restructure-activity-live",
+      );
+      expect(activityLogger.start).toHaveBeenCalledWith(
+        expect.objectContaining({ actionType: "RESTRUCTURE_CAMPAIGN", mode: "LIVE" }),
+      );
+      expect(activityLogger.complete).toHaveBeenCalledWith(
+        "activity-1",
+        expect.objectContaining({ status: "SUCCESS" }),
+      );
+    });
   });
 });

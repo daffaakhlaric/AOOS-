@@ -34,6 +34,14 @@ export type {
   PauseCampaignInput,
   PauseCampaignOutput,
 } from "./application/use-cases/PauseCampaign.js";
+export { RestructureCampaign } from "./application/use-cases/RestructureCampaign.js";
+export type {
+  RestructureAdSetPauseResult,
+  RestructureBudgetConsolidationInput,
+  RestructureBudgetConsolidationResult,
+  RestructureCampaignInput,
+  RestructureCampaignOutput,
+} from "./application/use-cases/RestructureCampaign.js";
 export { ActivateCampaign } from "./application/use-cases/ActivateCampaign.js";
 export type {
   ActivateCampaignInput,
@@ -113,6 +121,16 @@ export { MetaAdsConnectorEvents } from "./domain/events/MetaAdsConnectorEvents.j
 // Domain — Services
 export { evaluateVerdict } from "./domain/services/VerdictEngine.js";
 export type { VerdictEngineInput } from "./domain/services/VerdictEngine.js";
+// Samantha Andromeda-Aware Campaign System, Sprint 1 — real creative-diversity scoring.
+export {
+  LOW_DIVERSITY_RATIO_THRESHOLD,
+  MIN_ADS_FOR_DIVERSITY_SCORE,
+  scoreCreativeDiversity,
+} from "./domain/services/CreativeDiversityScoring.js";
+export type {
+  CreativeDiversityScore,
+  CreativeDiversityStatus,
+} from "./domain/services/CreativeDiversityScoring.js";
 
 // Errors
 export {

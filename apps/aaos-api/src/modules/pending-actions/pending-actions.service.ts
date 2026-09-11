@@ -121,9 +121,20 @@ export class PendingActionsService {
    *     (`CreativePackageRepository.markCampaignPublishStatus`) so `SchedulerService
    *     .runCampaignPublishCheck` never re-considers it on a later tick.
    *
+   *   - `RESTRUCTURE_CAMPAIGN` (Samantha Andromeda-Aware Campaign System, Sprint 1) — a real,
+   *     detected "this campaign would benefit from Andromeda-style ad-set consolidation" candidate
+   *     (`SchedulerService.runAndromedaRestructureCheck`, which NEVER auto-executes anything itself
+   *     — see that method's own doc). Approving it calls the SAME real
+   *     `CampaignsService.restructureCampaign` this class newly exposes, which is itself the ONLY
+   *     real caller of `@aos/meta-ads-connector`'s `RestructureCampaign` Meta mutation anywhere in
+   *     this codebase — a human's Approve click is the single, non-negotiable gate before any real
+   *     ad set is ever paused. Never calls `CampaignsService.createPropertyCampaign` — `campaignResult`
+   *     stays `undefined` for this branch, same "the CAMPAIGN_PUBLISHED write below is correctly
+   *     skipped" reasoning `REVIEW_CREATIVE_BRIEF`'s own doc gives.
+   *
    * An unrecognized `action_type` is a real, honest error (never a silent no-op that would mark the
    * row `APPROVED` without actually doing anything) — this module's generalized shape anticipates
-   * future `action_type`s, but this phase only implements the 3 real gated actions that exist.
+   * future `action_type`s, but this phase only implements the 4 real gated actions that exist.
    */
   async approve(
     id: string,
@@ -139,6 +150,14 @@ export class PendingActionsService {
     }
 
     let campaignResult: Awaited<ReturnType<CampaignsService["createPropertyCampaign"]>> | undefined;
+    // Samantha Andromeda-Aware Campaign System, Sprint 1 — the real, ONLY invocation point in this
+    // entire codebase of `CampaignsService.restructureCampaign` (which itself is the only real
+    // caller of `@aos/meta-ads-connector`'s `RestructureCampaign` Meta mutation). Kept as a
+    // SEPARATE variable from `campaignResult` (not reused) — its response shape
+    // (`RestructureCampaignResponseDto`) is honestly different from `createPropertyCampaign`'s own,
+    // and conflating them would risk the `CAMPAIGN_PUBLISHED` audit write below firing for a
+    // restructure it doesn't describe.
+    let restructureResult: Awaited<ReturnType<CampaignsService["restructureCampaign"]>> | undefined;
     if (row.action_type === "CREATE_PROPERTY_CAMPAIGN") {
       const payload = row.payload as unknown as CreatePropertyCampaignBodyDto;
       campaignResult = await this.campaignsService.createPropertyCampaign(
@@ -188,6 +207,31 @@ export class PendingActionsService {
       await this.creativePackageRepository.markCampaignPublishStatus(
         creativePackageId,
         "PUBLISHED",
+      );
+    } else if (row.action_type === "RESTRUCTURE_CAMPAIGN") {
+      // Samantha Andromeda-Aware Campaign System, Sprint 1 — see this method's own class doc and
+      // `RestructureCampaign`'s own doc: THIS branch, reachable ONLY via a human's real Approve
+      // click, is the single real invocation point of the Meta ad-set-pause/budget-consolidation
+      // mutation anywhere in this codebase. `SchedulerService.runAndromedaRestructureCheck` (the
+      // detection path) NEVER calls `campaignsService.restructureCampaign` — it only ever enqueues
+      // this row (see that method's own doc for the explicit, non-negotiable proof).
+      const campaignId = row.payload["campaignId"];
+      const proposedKeepAdSetId = row.payload["proposedKeepAdSetId"];
+      const proposedPauseAdSetIds = row.payload["proposedPauseAdSetIds"];
+      if (
+        typeof campaignId !== "string" ||
+        typeof proposedKeepAdSetId !== "string" ||
+        !Array.isArray(proposedPauseAdSetIds) ||
+        !proposedPauseAdSetIds.every((adSetId): adSetId is string => typeof adSetId === "string")
+      ) {
+        throw new ConflictError(
+          `pending_agent_actions "${id}" has a RESTRUCTURE_CAMPAIGN payload with no real "campaignId"/"proposedKeepAdSetId"/"proposedPauseAdSetIds" — cannot approve.`,
+        );
+      }
+      restructureResult = await this.campaignsService.restructureCampaign(
+        tenantId,
+        { campaignId, proposedKeepAdSetId, proposedPauseAdSetIds },
+        randomUUID(),
       );
     } else {
       throw new ConflictError(
@@ -241,6 +285,25 @@ export class PendingActionsService {
         mode,
         relatedVerdictId: id,
         reversible: true,
+      });
+    }
+    // Samantha Andromeda-Aware Campaign System, Sprint 1 — real, honest audit write for a real
+    // (non-simulated) restructure. `reversible: false`: pausing ad sets / consolidating budget has
+    // no safe, honest one-call "undo" in this sprint's own scope (same reasoning `045_audit_log.sql`
+    // gives for why `VERDICT_APPLIED`/`BUDGET_CHANGED` are also `reversible: false` — no raw
+    // "restore exact previous ad-set state" capability exists).
+    if (restructureResult !== undefined && !restructureResult.simulated) {
+      await this.auditLog.record({
+        tenantId,
+        agent: row.agent,
+        actionType: "CAMPAIGN_RESTRUCTURED",
+        beforeState: row.payload,
+        afterState: restructureResult,
+        decidedBy: "user_manual",
+        ...(decidedBy !== undefined ? { userId: decidedBy } : {}),
+        mode,
+        relatedVerdictId: id,
+        reversible: false,
       });
     }
 

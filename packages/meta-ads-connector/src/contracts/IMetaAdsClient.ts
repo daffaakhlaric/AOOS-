@@ -269,6 +269,19 @@ export interface IMetaAdsClient {
     accessToken: string,
   ): Promise<Result<MetaUpdateResponse, MetaApiError>>;
 
+  /**
+   * Samantha Andromeda-Aware Campaign System, Sprint 1: `POST /{adset-id}` with
+   * `status: "PAUSED"` — pauses a real ad set directly (as opposed to `pauseAd`, ad-level, or
+   * `pauseCampaign`, campaign-level). The real mutation `RestructureCampaign` uses to pause every
+   * ad set OTHER than the one Samantha proposes consolidating budget onto, per a human's real
+   * Approve decision on a `RESTRUCTURE_CAMPAIGN` pending action — never called from any
+   * detection/scheduler path directly.
+   */
+  pauseAdSet(
+    adSetId: string,
+    accessToken: string,
+  ): Promise<Result<MetaUpdateResponse, MetaApiError>>;
+
   fixCampaignObjective(
     campaignId: string,
     objective: string,
