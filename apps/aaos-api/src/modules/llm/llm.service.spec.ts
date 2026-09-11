@@ -1471,6 +1471,116 @@ describe("LlmService", () => {
       const second = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
       expect(second).toEqual(first);
     });
+
+    // SAMANTHA ADVANCED SPRINT 2 — the richer, real per-ad/learning-phase/market-digest context
+    // must actually reach the LLM's user message, not just validate against the schema.
+    it("still accepts (no fabricated narrative) a pre-Sprint-2 body with no ads/learningAdSetStableIds/marketDigest fields", async () => {
+      registerOpenAiChatHandler(validCampaignInsightLlmJson);
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validCampaignInsightLlmJson) });
+    });
+
+    it("threads the real per-ad breakdown, learning-phase ad sets, and market digest into the actual LLM user-message payload", async () => {
+      const richBody: CampaignInsightRequestDto = {
+        ...validCampaignInsightBody,
+        ads: [
+          {
+            stableId: "#C014",
+            name: "Xpander Promo A",
+            verdict: "FIX",
+            spend: 900_000,
+            conversations: 2,
+            rphChatIDR: 450_000,
+            frequency: 4.2,
+            learningStatus: "SUCCESS",
+          },
+          {
+            stableId: "#C015",
+            name: "Xpander Promo B",
+            verdict: "SCALE",
+            spend: 1_600_000,
+            conversations: 10,
+            rphChatIDR: 160_000,
+            frequency: 1.8,
+            learningStatus: "LEARNING",
+          },
+        ],
+        learningAdSetStableIds: ["#B002"],
+        marketDigest: "Musim ini sedang low-season untuk properti KPR.",
+      };
+
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            choices: [{ message: { content: validCampaignInsightLlmJson } }],
+          });
+        }),
+      );
+
+      const service = buildService();
+      await service.campaignInsight(TENANT_ID, richBody);
+
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      const userMessage = messages[1]?.content ?? "";
+      expect(userMessage).toContain("#C014");
+      expect(userMessage).toContain("Xpander Promo A");
+      expect(userMessage).toContain("#B002");
+      expect(userMessage).toContain("Musim ini sedang low-season untuk properti KPR.");
+    });
+
+    it("does not force a 'worst ad' callout into the prompt data for a healthy campaign with no underperforming ad and no learning ad sets", async () => {
+      const healthyBody: CampaignInsightRequestDto = {
+        ...validCampaignInsightBody,
+        ads: [
+          {
+            stableId: "#C020",
+            name: "Xpander Healthy A",
+            verdict: "SCALE",
+            spend: 1_000_000,
+            conversations: 20,
+            rphChatIDR: 50_000,
+            frequency: 1.2,
+          },
+          {
+            stableId: "#C021",
+            name: "Xpander Healthy B",
+            verdict: "KEEP",
+            spend: 800_000,
+            conversations: 15,
+            rphChatIDR: 53_333.33,
+            frequency: 1.5,
+          },
+        ],
+        learningAdSetStableIds: [],
+        marketDigest: null,
+      };
+
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            choices: [{ message: { content: validCampaignInsightLlmJson } }],
+          });
+        }),
+      );
+
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, healthyBody);
+
+      expect(result).toEqual({ available: true, ...JSON.parse(validCampaignInsightLlmJson) });
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      const userMessage = messages[1]?.content ?? "";
+      // The real request payload honestly carries an empty learning-ad-set list and a null market
+      // digest — never a fabricated non-empty value the client didn't actually provide.
+      expect(userMessage).toContain('"learningAdSetStableIds":[]');
+      expect(userMessage).toContain('"marketDigest":null');
+    });
   });
 
   describe("generateAdCopyVariants", () => {

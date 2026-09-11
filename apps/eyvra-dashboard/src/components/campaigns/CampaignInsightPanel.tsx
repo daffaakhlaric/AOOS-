@@ -10,11 +10,13 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { formatIdr, formatNumber, formatPercent } from "@/lib/formatters";
 import type {
   CampaignInsightActionPriority,
+  CampaignInsightAdDto,
   CampaignInsightResponseDto,
   CampaignSummaryDto,
 } from "@/types/dashboard.types";
+import type { MarketSignalsDto } from "@/types/market-signals.types";
 
-import { aggregateCampaign, computeCpl, ctrFromAggregate } from "./campaignInsightMath";
+import { aggregateCampaign, computeCpl, ctrFromAggregate, rphChatIDR } from "./campaignInsightMath";
 import styles from "./CampaignInsightPanel.module.css";
 
 export interface CampaignInsightPanelProps {
@@ -34,6 +36,34 @@ const PRIORITY_ORDER: readonly CampaignInsightActionPriority[] = [
   "MINGGU_INI",
   "BULAN_INI",
 ];
+
+/**
+ * SAMANTHA ADVANCED SPRINT 2 — real per-ad breakdown for `CampaignInsightRequestDto.ads`, built
+ * from the SAME `campaign.adSets` tree `CampaignAdDrillDown` already renders (never a second Meta
+ * pull, never re-derived numbers) — the exact `rphChatIDR` ratio that component's own diagnosis
+ * request already computes, shared via `campaignInsightMath.ts` so the two surfaces can never drift.
+ */
+function buildInsightAds(campaign: CampaignSummaryDto): readonly CampaignInsightAdDto[] {
+  return campaign.adSets.flatMap((adSet) =>
+    adSet.ads.map((ad) => ({
+      stableId: ad.stableId,
+      name: ad.name,
+      verdict: ad.verdict,
+      spend: ad.metrics.spend,
+      conversations: ad.metrics.conversations,
+      rphChatIDR: rphChatIDR(ad.metrics.spend, ad.metrics.conversations),
+      frequency: ad.metrics.frequency,
+      learningStatus: adSet.learningStatus,
+    })),
+  );
+}
+
+/** Real `stableId`s of ad sets still in Meta's Learning Phase — same `"LEARNING"` check `CampaignAdDrillDown.tsx`'s own `🎓 Learning` badge already uses. */
+function buildLearningAdSetStableIds(campaign: CampaignSummaryDto): readonly string[] {
+  return campaign.adSets
+    .filter((adSet) => adSet.learningStatus === "LEARNING")
+    .map((adSet) => adSet.stableId);
+}
 
 /**
  * AAOS-CAMPAIGNS-UNIFIED-PAGE — the unified page's click-to-expand insight panel (spec: "6 KPI
@@ -80,6 +110,11 @@ export function CampaignInsightPanel({
   const [insight, setInsight] = useState<CampaignInsightResponseDto | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | undefined>(undefined);
+  // SAMANTHA ADVANCED SPRINT 2 — real, already-persisted Market Intelligence digest for this
+  // tenant's vertical (see `MarketSignalsCard.tsx`'s own real fetch of the same endpoint). `undefined`
+  // until this best-effort fetch resolves (or forever, if it fails) — the campaign-insight request
+  // below is composed with whatever this state holds AT THAT MOMENT and never blocks/waits on it.
+  const [marketDigest, setMarketDigest] = useState<string | null | undefined>(undefined);
 
   const aggregate = aggregateCampaign(campaign);
   const cpl = computeCpl(aggregate.spend, aggregate.totalLead);
@@ -109,6 +144,9 @@ export function CampaignInsightPanel({
         adSetCount: aggregate.adSetCount,
         cpl,
         benchmarkCplIDR,
+        ads: buildInsightAds(campaign),
+        learningAdSetStableIds: buildLearningAdSetStableIds(campaign),
+        marketDigest,
       }),
     })
       .then(async (res) => {
@@ -139,8 +177,39 @@ export function CampaignInsightPanel({
     };
     // Re-fetch only when the selected campaign genuinely changes — `benchmarkCplIDR` is stable for
     // a given page session, `aggregate`/`cpl`/`verdict` are pure derivations of `campaign` itself.
+    // `marketDigest` is deliberately NOT a dependency (see its own doc above) — using whatever value
+    // it holds right now, not re-triggering a second campaign-insight call when it later resolves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign.id]);
+
+  // SAMANTHA ADVANCED SPRINT 2 — real, best-effort fetch of this tenant's persisted Market
+  // Intelligence digest (`GET /api/market-signals/latest`, the SAME endpoint `MarketSignalsCard.tsx`
+  // already reads — no new backend call site). Declared AFTER the campaign-insight effect above so
+  // its own fetch always fires first on a given commit; intentionally NOT campaign-scoped (the
+  // digest is tenant/vertical-level, not per-campaign) and never blocks/fails the insight panel —
+  // any error here just leaves `marketDigest` `undefined`, an honest "not available" the prompt
+  // schema already treats as optional.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/market-signals/latest")
+      .then(async (res) => {
+        if (!res.ok) {
+          return undefined;
+        }
+        return (await res.json()) as { signals?: MarketSignalsDto | null };
+      })
+      .then((body) => {
+        if (!cancelled) {
+          setMarketDigest(body?.signals?.digestText ?? null);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — leave `marketDigest` as `undefined`, never surface this as a panel error.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section data-testid="campaign-insight-panel" className={styles.panel}>

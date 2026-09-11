@@ -112,10 +112,31 @@ export interface AdAccountSummaryDto {
 }
 
 /**
+ * SAMANTHA ADVANCED SPRINT 2 — one real per-ad row of `CampaignInsightRequestDto.ads`. Mirrors
+ * `aaos-api`'s `CampaignInsightAdSchema` field-for-field; see that schema's own doc for the real
+ * source of each field (the same `AdSummaryDto`/`AdSetSummaryDto` data `CampaignAdDrillDown.tsx`
+ * already renders).
+ */
+export interface CampaignInsightAdDto {
+  readonly stableId: string;
+  readonly name: string;
+  readonly verdict: string;
+  readonly spend: number;
+  readonly conversations: number;
+  readonly rphChatIDR: number | null;
+  readonly frequency: number;
+  readonly learningStatus?: string;
+}
+
+/**
  * AAOS-CAMPAIGNS-UNIFIED-PAGE — `POST /api/campaign-insight` request body (proxies `aaos-api`'s
  * real `POST /api/v1/campaigns/insight`). Composed CLIENT-SIDE from one selected campaign's
  * already-loaded real aggregate metrics — see `aaos-api`'s `CampaignInsightRequestSchema` (the
  * server-side Zod trust boundary this shape mirrors) for the full field-by-field real-source doc.
+ *
+ * SAMANTHA ADVANCED SPRINT 2 additions (`ads`/`learningAdSetStableIds`/`marketDigest`) are all
+ * optional, additive fields — see `aaos-api`'s `CampaignInsightRequestSchema` for why each is
+ * genuinely real/cheap/already-computed rather than fabricated.
  */
 export interface CampaignInsightRequestDto {
   readonly campaignId: string;
@@ -130,6 +151,9 @@ export interface CampaignInsightRequestDto {
   readonly adSetCount: number;
   readonly cpl: number | null;
   readonly benchmarkCplIDR: number | null;
+  readonly ads?: readonly CampaignInsightAdDto[];
+  readonly learningAdSetStableIds?: readonly string[];
+  readonly marketDigest?: string | null;
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   FREQUENCY_WARNING_THRESHOLD,
   flattenCampaignAds,
   isFrequencyWarning,
+  rphChatIDR,
 } from "@/components/campaigns/campaignInsightMath";
 import type { AdMetricsDto, AdSummaryDto, CampaignSummaryDto } from "@/types/dashboard.types";
 
@@ -87,6 +88,16 @@ describe("cplTone", () => {
 
   it("returns 'unknown' when no real benchmark is available", () => {
     expect(cplTone(100_000, null)).toBe("unknown");
+  });
+});
+
+describe("rphChatIDR", () => {
+  it("returns spend/conversations", () => {
+    expect(rphChatIDR(1_000_000, 40)).toBe(25_000);
+  });
+
+  it("returns null (never a fabricated 0) when conversations is 0", () => {
+    expect(rphChatIDR(1_000_000, 0)).toBeNull();
   });
 });
 

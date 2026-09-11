@@ -18,6 +18,17 @@ export function computeCpl(spend: number, totalLead: number): number | null {
 }
 
 /**
+ * Real Rp/Chat for one ad — `conversations > 0 ? spend / conversations : null`, same convention
+ * `AnalisaClient.tsx`/`AuditClient.tsx`/`StrategiClient.tsx` already use for this exact ratio.
+ * Exported here (SAMANTHA ADVANCED SPRINT 2) so `CampaignAdDrillDown.tsx`'s per-ad diagnosis request
+ * AND `CampaignInsightPanel.tsx`'s new per-ad breakdown in the campaign-insight request body share
+ * the exact same real computation — never two independently-drifting copies of the same ratio.
+ */
+export function rphChatIDR(spend: number, conversations: number): number | null {
+  return conversations > 0 ? spend / conversations : null;
+}
+
+/**
  * CPL color-pill tone per this task's own spec: green when strictly below 85% of the real
  * benchmark CPL, amber within [85%, 115%], red above 115%. `"unknown"` (a neutral, undyed pill)
  * when either the campaign has no real CPL yet (0 leads) or no real benchmark is available at all

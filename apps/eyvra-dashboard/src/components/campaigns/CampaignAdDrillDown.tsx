@@ -13,6 +13,7 @@ import type {
   DiagnoseAdCopyResponseDto,
 } from "@/types/dashboard.types";
 
+import { rphChatIDR as rphChat } from "./campaignInsightMath";
 import styles from "./CampaignAdDrillDown.module.css";
 
 export interface CampaignAdDrillDownProps {
@@ -22,11 +23,6 @@ export interface CampaignAdDrillDownProps {
 /** Real "is this ad underperforming" signal, reusing the exact verdicts `VerdictEngine` considers stop-and-act (`FIX`/`PAUSE`) plus the uncertain `REVIEW` bucket — never a new threshold invented client-side, matching `DiagnoseAdCopyRequestSchema.isUnderperforming`'s own docstring ("berdasarkan verdict nyata di atas, bukan threshold baru"). */
 function isUnderperforming(verdict: string): boolean {
   return verdict === "FIX" || verdict === "PAUSE" || verdict === "REVIEW";
-}
-
-/** Real Rp/Chat — `conversations > 0 ? spend / conversations : null`, same convention `AnalisaClient.tsx`/`AuditClient.tsx`/`StrategiClient.tsx` already use for this exact ratio. */
-function rphChat(spend: number, conversations: number): number | null {
-  return conversations > 0 ? spend / conversations : null;
 }
 
 const KNOWN_LEARNING_STATUSES = ["LEARNING", "LEARNING_LIMITED", "SUCCESS"] as const;

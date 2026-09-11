@@ -530,6 +530,22 @@ Format response JSON:
  * own already-loaded real aggregate metrics (`CampaignInsightRequestDto` — see that DTO's own doc
  * for exactly which real, already-fetched numbers each field mirrors; nothing here is re-pulled
  * from Meta). Same static-persona-plus-JSON-user-message shape as `DAILY_INSIGHT_SYSTEM_PROMPT`.
+ *
+ * SAMANTHA ADVANCED SPRINT 2 rewrite — real, direct user feedback on the pre-Sprint-2 version of
+ * this exact prompt was "analisa masih terlalu basic sekali dan gada insight yang bagus" (the
+ * narrative just echoed the aggregate numbers back with generic advice). This rewrite feeds the
+ * prompt 3 additional real, already-computed data sources (see `CampaignInsightRequestDto`'s own
+ * doc for the honest per-field sourcing) so the LLM can reason about WHY, not just WHAT:
+ *   1. `ads` — real per-ad breakdown, so the narrative can name a SPECIFIC ad instead of only the
+ *      campaign aggregate.
+ *   2. `learningAdSetStableIds` — real Learning Phase status, so advice doesn't tell a business
+ *      owner to "fix" an ad set Meta itself is still calibrating.
+ *   3. `marketDigest` — real, already-persisted Market Intelligence context (seasonality/search
+ *      trend/competitor angles/KPR rate), when available, as ambient context only.
+ * Historical day-over-day trend (`meta_insights_daily`) was investigated and deliberately DEFERRED
+ * this sprint — that table is a brand-new sync feature (not yet applied to every real tenant's
+ * Supabase project, and where it is, real tenants may have only 0-3 days of rows so far) — genuinely
+ * too sparse to honestly claim a trend direction from today. Not fed into this prompt.
  */
 const CAMPAIGN_INSIGHT_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk tenant AAOS. Kamu menulis analisa singkat untuk SATU campaign Meta Ads yang baru saja diklik oleh pemilik bisnis di dashboard.
 
@@ -538,16 +554,26 @@ Kamu diberi data campaign ini (JSON di pesan user):
 - "spend", "totalLead", "clicks", "impressions" (bisa null jika tidak tersedia), "maxFrequency", "adCount", "adSetCount".
 - "cpl" (cost per lead nyata, spend/totalLead — bisa null jika totalLead 0).
 - "benchmarkCplIDR" (CPL benchmark nyata untuk dibandingkan — bisa null jika belum ada data pembanding).
+- "ads" (opsional, array): breakdown NYATA per iklan dalam campaign ini — masing-masing punya "stableId", "name", "verdict" (verdict nyata iklan itu), "spend", "conversations", "rphChatIDR" (spend/conversations, bisa null jika conversations 0), "frequency", dan "learningStatus" (opsional — status Learning Phase ad set induk iklan itu).
+- "learningAdSetStableIds" (opsional, array of string): stableId ad set yang MASIH dalam Learning Phase Meta ("LEARNING") di campaign ini — array kosong berarti tidak ada yang masih learning.
+- "marketDigest" (opsional, bisa null/undefined): ringkasan konteks pasar nyata untuk vertical tenant ini (musim, tren pencarian, aktivitas kompetitor, rate KPR) dari Market Intelligence — HANYA konteks tambahan, bukan data campaign itu sendiri.
+
+TUGAS UTAMA — jangan hanya melaporkan ulang angka, JELASKAN MENGAPA:
+- Jika "ads" tersedia dan campaign punya masalah (verdict REVIEW/PAUSE/FIX, atau CPL di atas benchmark, atau frequency tinggi): cari iklan dengan verdict paling buruk (FIX/PAUSE/REVIEW) dan/atau rphChatIDR paling tinggi di antara iklan yang punya conversations, ATAU iklan dengan spend besar tapi conversations 0 — SEBUTKAN iklan itu secara spesifik pakai "name"/"stableId"-nya di narasi, bukan hanya bicara soal campaign secara umum.
+- Kamu TIDAK diberi teks copy iklan yang sebenarnya (headline/primary text) di sini, jadi JANGAN mengklaim tahu PASTI masalah copy-nya. Kalau relevan, boleh sebutkan dugaan arah masalah pakai istilah "Pain" (kebutuhan/masalah calon customer tidak jelas), "Offer" (penawaran kurang menarik), atau "USP" (tidak ada pembeda dari kompetitor) sebagai HIPOTESIS awal yang masuk akal dari data performa (bukan kepastian), dan sarankan pakai fitur "Diagnosa Samantha" pada iklan itu untuk kepastian lebih lanjut dari teks aslinya.
+- Jika campaign ini SEHAT (verdict SCALE/KEEP, tidak ada iklan dengan verdict FIX/PAUSE yang mencolok) — JANGAN memaksakan narasi "ada iklan bermasalah" hanya supaya kedengaran mendalam. Sebutkan iklan TERBAIK (rphChatIDR paling rendah dengan conversations nyata, atau verdict SCALE) sebagai referensi kenapa campaign ini bekerja, dan actions boleh berupa scaling/replikasi, bukan perbaikan.
+- Jika "learningAdSetStableIds" TIDAK KOSONG dan campaign/iklan yang kamu bahas ada di dalam ad set yang masih learning: WAJIB sebutkan bahwa ad set itu masih dalam Learning Phase Meta di narasi ATAU salah satu action, dan jangan menyarankan aksi drastis (mis. pause/ubah besar-besaran) untuk ad set itu — sarankan tunggu keluar dari Learning Phase dulu sebelum evaluasi serius.
+- Jika "marketDigest" tersedia (bukan null/undefined) dan genuinely relevan dengan kondisi campaign ini, boleh sisipkan SATU kalimat konteks pasar singkat (mis. "musim ini sedang low-season" jika itu memang isi digest-nya) — JANGAN mengarang detail pasar yang tidak ada di "marketDigest".
 
 ATURAN KERAS:
-- HANYA gunakan angka yang benar-benar ada di data JSON di atas. JANGAN mengarang angka, revenue, ROAS, atau metrik lain yang tidak ada di data.
-- Jika sebuah field bernilai null, JANGAN mengarang angka untuk itu — lewati saja di narasimu.
-- Narasi 2-4 kalimat, bahasa Indonesia, casual tapi actionable, merujuk verdict dan angka nyata di atas.
-- Action list: 1-5 item, masing-masing punya "priority" (SEGERA = butuh aksi hari ini/besok, MINGGU_INI, atau BULAN_INI) dan "text" singkat, actionable, merujuk data nyata (mis. frequency tinggi → "Refresh creative, frequency sudah X" bukan saran generik tanpa angka).
+- HANYA gunakan angka/nama/status yang benar-benar ada di data JSON di atas. JANGAN mengarang angka, revenue, ROAS, teks copy iklan, atau metrik/konteks pasar lain yang tidak ada di data.
+- Jika sebuah field bernilai null/undefined, JANGAN mengarang isinya — lewati saja di narasimu.
+- Narasi 2-5 kalimat, bahasa Indonesia, casual tapi actionable dan SPESIFIK (sebut nama iklan/ad set/angka nyata, bukan kalimat generik seperti "tinjau dan perbaiki materi iklan" tanpa merujuk data apa pun).
+- Action list: 1-5 item, masing-masing punya "priority" (SEGERA = butuh aksi hari ini/besok, MINGGU_INI, atau BULAN_INI) dan "text" singkat, actionable, dan SPESIFIK — merujuk nama iklan/ad set/angka nyata dari data (mis. "Refresh creative iklan '#C014 Xpander Promo', frequency sudah 4.2" atau "Ad set masih Learning Phase, tunggu dulu sebelum ubah budget" — bukan saran generik tanpa data).
 
 Format response JSON:
 {
-  "narrative": "2-4 kalimat analisa campaign ini",
+  "narrative": "2-5 kalimat analisa campaign ini, spesifik dan merujuk data nyata",
   "actions": [
     { "priority": "SEGERA", "text": "aksi konkret 1" },
     { "priority": "MINGGU_INI", "text": "aksi konkret 2" }
@@ -1542,7 +1568,9 @@ export class LlmService {
    * AAOS-CAMPAIGNS-UNIFIED-PAGE — `POST /api/v1/campaigns/insight`'s real backend
    * (`MetaAdsService.getCampaignInsight`, a thin pass-through — see that method's own doc for why
    * this genuinely needs a dedicated endpoint, unlike `assetInsight`'s in-process-only call). Same
-   * cache/gate/call/validate/cache composition as every other method on this service.
+   * cache/gate/call/validate/cache composition as every other method on this service — SAMANTHA
+   * ADVANCED SPRINT 2 only deepened `body`'s real schema and `CAMPAIGN_INSIGHT_SYSTEM_PROMPT`'s own
+   * text (see that constant's doc), this method's architecture is unchanged.
    */
   async campaignInsight(
     tenantId: string,

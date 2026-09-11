@@ -88,6 +88,75 @@ describe("CampaignInsightPanel", () => {
     expect(body["benchmarkCplIDR"]).toBe(150_000);
   });
 
+  // SAMANTHA ADVANCED SPRINT 2 — the campaign-insight request body must carry the real per-ad
+  // breakdown and learning-ad-set list already loaded client-side, composed from `campaign.adSets`
+  // (never a second Meta pull).
+  it("composes the real per-ad breakdown and learning-ad-set stableIds into the /api/campaign-insight request", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(JSON.stringify({ available: true, narrative: "OK", actions: [] }), {
+          status: 200,
+        }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const learningCampaign: CampaignSummaryDto = {
+      ...CAMPAIGN,
+      adSets: [{ ...CAMPAIGN.adSets[0]!, learningStatus: "LEARNING" }],
+    };
+
+    render(
+      <CampaignInsightPanel
+        campaign={learningCampaign}
+        benchmarkCplIDR={150_000}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([calledUrl]) => calledUrl === "/api/campaign-insight"),
+      ).toBe(true),
+    );
+    const insightCall = fetchMock.mock.calls.find(
+      ([calledUrl]) => calledUrl === "/api/campaign-insight",
+    )!;
+    const body = JSON.parse(insightCall[1]!.body as string) as {
+      ads: Array<{ stableId: string; name: string; rphChatIDR: number | null }>;
+      learningAdSetStableIds: string[];
+    };
+    expect(body.ads).toHaveLength(1);
+    expect(body.ads[0]).toMatchObject({ stableId: "#C001", name: "Ad 1", rphChatIDR: 25_000 });
+    expect(body.learningAdSetStableIds).toEqual(["#B001"]);
+  });
+
+  // A healthy campaign with no learning ad sets must honestly send an EMPTY array, never omit the
+  // field or fabricate a non-empty one.
+  it("sends an empty learningAdSetStableIds array when no ad set is in Learning Phase", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(JSON.stringify({ available: true, narrative: "OK", actions: [] }), {
+          status: 200,
+        }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+    );
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([calledUrl]) => calledUrl === "/api/campaign-insight"),
+      ).toBe(true),
+    );
+    const insightCall = fetchMock.mock.calls.find(
+      ([calledUrl]) => calledUrl === "/api/campaign-insight",
+    )!;
+    const body = JSON.parse(insightCall[1]!.body as string) as { learningAdSetStableIds: string[] };
+    expect(body.learningAdSetStableIds).toEqual([]);
+  });
+
   it("renders the real narrative + grouped, prioritized action list when available", async () => {
     mockFetchOnce({
       available: true,
