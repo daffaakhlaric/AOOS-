@@ -292,7 +292,11 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
             ) : null}
 
             <div className={styles.bottomStrip} data-testid="bottom-strip">
-              <VerdictCards campaigns={filteredCampaigns} onApply={handleApplyVerdict} />
+              <VerdictCards
+                campaigns={filteredCampaigns}
+                onApply={handleApplyVerdict}
+                loading={loading}
+              />
               <BudgetTracker campaigns={filteredCampaigns} />
               <ObjectiveStripCard onTargetCplResolved={setTargetCplIDR} />
             </div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { aggregateVerdict } from "@/components/meta-ads/CampaignTree";
 import { VerdictBadge } from "@/components/meta-ads/VerdictBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { stripAdNameSuffix } from "@/lib/adName";
 import { formatIdr } from "@/lib/formatters";
 import type { CampaignSummaryDto } from "@/types/dashboard.types";
 
@@ -14,6 +15,15 @@ import styles from "./VerdictCards.module.css";
 export interface VerdictCardsProps {
   readonly campaigns: readonly CampaignSummaryDto[];
   readonly onApply: (campaignId: string, verdict: string) => void;
+  /**
+   * SPRINT 4 FIX: `CampaignsHubClient`'s own `useCampaignsSnapshot().loading` — already the real
+   * signal that a `pull()` (including the one `handleApplyVerdict` triggers right after its
+   * `POST /api/verdicts`, see that function's own `.then(() => pull(datePreset))`) is in flight.
+   * Reused here verbatim (no new parallel loading mechanism) so "Terapkan" gives real, honest
+   * pending feedback instead of sitting inert until the whole page re-renders with fresh data —
+   * see this component's own doc for the full real bug this fixes.
+   */
+  readonly loading?: boolean;
 }
 
 /** Highest-priority-first, matching `CampaignTree.tsx`'s own real `VerdictEngine` precedence — actionable verdicts only (KEEP means "nothing to do", so it is never shown here). */
@@ -40,9 +50,67 @@ const MAX_CARDS = 4;
  * `CREATE_PROPERTY_CAMPAIGN` gate) — this is a real, honest, LOCAL-ONLY dismiss (hides the card for
  * this page session), not a fabricated backend call. Documented here rather than silently pretended
  * to be a persisted decision.
+ *
+ * SAMANTHA ADVANCED SPRINT 4 audit (two real, confirmed bugs fixed, one hypothesis RULED OUT):
+ *
+ * 1. RULED OUT — no spend/CPL derivation divergence vs. `UnifiedCampaignTable.tsx`: both components
+ *    call the exact same pure `aggregateCampaign`/`computeCpl` (`campaignInsightMath.ts`) on the
+ *    exact same `campaign` object instances (`CampaignsHubClient.tsx` passes the identical
+ *    `filteredCampaigns` array to both `<UnifiedCampaignTable>` and `<VerdictCards>`). There is no
+ *    code path here where this card's own `spend`/`cpl` can differ from the table's row for the
+ *    same campaign — if the table shows real non-zero spend, this card necessarily does too. A
+ *    lingering "Rp 0 spend · — CPL" report is therefore either (a) the already-fixed stale-cache/
+ *    rate-limit-reject issue from earlier this session, or (b) a genuinely zero-spend campaign for
+ *    the selected date range — not a bug in this file's own math.
+ *
+ * 2. REAL BUG (confirmed) — this card rendered the campaign's RAW `campaign.name`, never
+ *    `stripAdNameSuffix`-cleaned, while `UnifiedCampaignTable.tsx` already applies
+ *    `stripAdNameSuffix(campaign.name)` per that helper's own docstring ("Applied to every level's
+ *    display name (campaign/ad-set/ad — FIX 1)"). This card was the one level FIX 1 missed —
+ *    explains ad/creative-suffix-looking names (e.g. "...CTWA 280126"-style) surviving intact on
+ *    this card while the table above it shows the cleaned name for the identical campaign. Fixed
+ *    below by reusing the same real helper, never a second parallel name-cleaning function.
+ *
+ * 3. REAL BUG (confirmed) — "Terapkan" gave NO pending/disabled feedback: `onApply` fires a
+ *    fire-and-forget `POST /api/verdicts` followed by `.then(() => pull(datePreset))`
+ *    (`CampaignsHubClient.handleApplyVerdict`), and `pull()` can take a real couple of seconds
+ *    against Meta — but this card's button stayed fully interactive and unchanged the entire time,
+ *    genuinely reading as "static" exactly as reported, independent of whether the underlying data
+ *    eventually refreshes correctly. Fixed by reusing the SAME real `loading` flag
+ *    `useCampaignsSnapshot()` already exposes (and `CampaignsHubClient`'s own "Tarik Data Baru"
+ *    button already disables on) — no new parallel loading state invented.
+ *
+ * DEEPER FINDING (documented, NOT fixed this sprint — needs a product decision, not a guess):
+ *    `CampaignSummaryDto.spend` (`campaign.spend`, used by `BudgetTracker.tsx`) and this card's own
+ *    `aggregateCampaign(campaign).spend` (sum of `ad.metrics.spend`) are confirmed, via
+ *    `apps/aaos-api/.../campaign-response.dto.ts` + `packages/meta-ads-connector/src/mappers/
+ *    CampaignMapper.ts`, to be TWO INDEPENDENTLY-PULLED Meta numbers — `campaign.spend` comes from a
+ *    real, separate campaign-level Insights row (`insightRow.spend`), never a sum of this same
+ *    account's ad-level Insights rows. They should normally agree, but a delayed/partial ad-level
+ *    Insights pull for one campaign (while its campaign-level Insights succeeds) could make this
+ *    card + `UnifiedCampaignTable.tsx` (which uses the SAME `aggregateCampaign`) show `Rp 0`/`—`
+ *    while `BudgetTracker.tsx`, right next to this card in the same bottom strip, shows the real
+ *    non-zero `campaign.spend`. NOT fixed here: switching this card to `campaign.spend` without a
+ *    matching authoritative per-campaign lead count would decouple the displayed spend from the CPL
+ *    it's divided against — a real correctness question for a follow-up, not a same-sprint guess.
  */
-export function VerdictCards({ campaigns, onApply }: VerdictCardsProps): React.ReactElement {
+export function VerdictCards({
+  campaigns,
+  onApply,
+  loading = false,
+}: VerdictCardsProps): React.ReactElement {
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+  const [pendingId, setPendingId] = useState<string | undefined>(undefined);
+
+  // Real bug fix #3 (see doc above): once the page-wide `pull()` this Terapkan click triggered
+  // finishes (`loading` flips back to `false`), clear the pending marker so a LATER click on the
+  // same or a different card starts a fresh, honest pending state rather than one stuck from a
+  // previous action.
+  useEffect(() => {
+    if (!loading) {
+      setPendingId(undefined);
+    }
+  }, [loading]);
 
   const candidates = campaigns
     .map((campaign) => ({
@@ -87,7 +155,7 @@ export function VerdictCards({ campaigns, onApply }: VerdictCardsProps): React.R
                 className={styles.card}
               >
                 <div className={styles.cardHeader}>
-                  <span className={styles.campaignName}>{campaign.name}</span>
+                  <span className={styles.campaignName}>{stripAdNameSuffix(campaign.name)}</span>
                   <VerdictBadge verdict={verdict} />
                 </div>
                 <p className={styles.cardMeta}>
@@ -97,10 +165,14 @@ export function VerdictCards({ campaigns, onApply }: VerdictCardsProps): React.R
                   <button
                     type="button"
                     data-testid={`verdict-apply-${campaign.id}`}
-                    onClick={() => onApply(campaign.id, verdict)}
+                    onClick={() => {
+                      setPendingId(campaign.id);
+                      onApply(campaign.id, verdict);
+                    }}
+                    disabled={loading}
                     className={styles.applyButton}
                   >
-                    Terapkan
+                    {loading && pendingId === campaign.id ? "Menerapkan…" : "Terapkan"}
                   </button>
                   <button
                     type="button"
