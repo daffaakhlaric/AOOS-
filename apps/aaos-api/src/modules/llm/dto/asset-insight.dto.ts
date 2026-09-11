@@ -33,13 +33,29 @@ export const AssetInsightRequestSchema = z.object({
 export type AssetInsightRequestDto = z.infer<typeof AssetInsightRequestSchema>;
 
 /**
- * The shape Samantha's `asset-insight` system prompt asks the model to return — a single Bahasa
- * Indonesia paragraph, same "one real, concrete observation" spirit `generateHeatmapInsight`'s own
- * deterministic template already establishes for the heatmap, just LLM-authored here per the
- * design doc's explicit instruction for this one endpoint.
+ * Creative-Hub "4 gaps" dispatch, gap 3 — real Kai/Samantha split. Investigated first (never
+ * guessed): the pasted spec proposed two NEW Anthropic-SDK-calling methods
+ * (`kaiAnalyzeCreative`/`samanthaAnalyzeCreative`), which would violate this codebase's strict
+ * "only `LlmService` calls the LLM provider" convention. A second real candidate —
+ * `LlmService.diagnoseAdCopy` (Samantha Professional Optimizer Part C) reused as the "Kai" half —
+ * was investigated and ruled out: its own real system prompt opens with "Kamu adalah Samantha, AI
+ * Marketing Manager..." (`DIAGNOSE_AD_COPY_SYSTEM_PROMPT` below), i.e. it is ALSO Samantha-voiced,
+ * not Kai-voiced as the pasted spec assumed — pairing it with `assetInsight` would produce two
+ * Samantha outputs, not a real Kai/Samantha split. `diagnoseAdCopy` is also scoped to one ad's copy
+ * TEXT (which this asset-level endpoint's `AssetInsightRequestDto` doesn't carry at all — it only
+ * has audience/spend/CPL aggregates), so it isn't even reachable from this context without a
+ * second, real network round-trip.
+ *
+ * The honest, minimal, architecture-consistent fix: widen THIS single real LLM call's requested
+ * output to two distinct sections from the SAME underlying `AssetInsightRequestDto` data — a
+ * Kai-persona creative-strategist read (which audience/creative angle to lean into next) and a
+ * Samantha-persona media-buyer verdict (scale/hold/kill this asset+audience combo) — one call, one
+ * cache entry, no new method, no new provider call site. Replaces the old single `summary` field
+ * (every real caller — `AssetDetailModal.tsx`, `AssetDetailClient.tsx` — updated to render both).
  */
 export const AssetInsightLlmPayloadSchema = z.object({
-  summary: z.string().min(1),
+  kaiTake: z.string().min(1),
+  samanthaVerdict: z.string().min(1),
 });
 export type AssetInsightLlmPayload = z.infer<typeof AssetInsightLlmPayloadSchema>;
 

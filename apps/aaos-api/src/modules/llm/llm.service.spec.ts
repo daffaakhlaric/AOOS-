@@ -349,7 +349,8 @@ describe("LlmService", () => {
       benchmarkCplIDR: 80_000,
     };
     const validAssetInsightLlmJson = JSON.stringify({
-      summary: "Audiens BROAD paling efisien untuk aset ini dengan CPL terendah.",
+      kaiTake: "Audiens BROAD punya sinyal terbaik untuk digarap lagi dengan angle baru.",
+      samanthaVerdict: "Audiens BROAD paling efisien untuk aset ini dengan CPL terendah — scale.",
     });
 
     it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {

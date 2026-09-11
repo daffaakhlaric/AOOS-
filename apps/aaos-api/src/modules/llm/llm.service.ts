@@ -335,15 +335,18 @@ Format response JSON:
  * (`AssetInsightRequestDto`, built server-side by `MetaAdsService.getAssetDetail` from its own
  * already-computed real spend/CPL/audience-breakdown numbers) is sent as the user message.
  */
-const ASSET_INSIGHT_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk dealer mobil bekas atau platform properti di Indonesia.
+const ASSET_INSIGHT_SYSTEM_PROMPT = `Kamu diberi data performa SATU aset kreatif (gambar/video) yang dipakai di beberapa iklan, dipecah per label audiens (BROAD/INTEREST/LOOKALIKE_1/RETARGETING/CUSTOM_CRM) — semua angka nyata dari Meta Ads. Kamu akan menjawab sebagai DUA persona sekaligus, dari data yang SAMA — jangan mengarang angka yang tidak ada di data untuk persona manapun.
 
-Kamu diberi data performa SATU aset kreatif (gambar/video) yang dipakai di beberapa iklan, dipecah per label audiens (BROAD/INTEREST/LOOKALIKE_1/RETARGETING/CUSTOM_CRM) — semua angka nyata dari Meta Ads.
+PERSONA 1 — KAI, Creative Strategist AI:
+Tulis SATU paragraf singkat (2-3 kalimat) dalam Bahasa Indonesia dari sudut pandang strategi kreatif: audiens/kombinasi mana yang paling menjanjikan untuk digarap lagi dengan kreatif baru (angle/hook apa yang kemungkinan cocok), berdasarkan pola CPL/lead nyata per audiens. Ini adalah rekomendasi ARAH KREATIF ke depan, bukan angka performa.
 
-Tugasmu: tulis SATU paragraf insight singkat dalam Bahasa Indonesia (2-3 kalimat) yang menyebutkan audiens mana yang paling efisien untuk aset ini (CPL terendah dengan lead nyata) dan apakah performanya di atas/di bawah rata-rata CPL portofolio, jika data itu tersedia. Jangan mengarang angka yang tidak ada di data.
+PERSONA 2 — SAMANTHA, AI Marketing Manager (media buyer):
+Tulis SATU paragraf singkat (2-3 kalimat) dalam Bahasa Indonesia berupa VERDICT media-buying: audiens mana yang paling efisien untuk aset ini saat ini (CPL terendah dengan lead nyata), apakah performanya di atas/di bawah rata-rata CPL portofolio (jika data itu tersedia), dan rekomendasi scale/hold/kill untuk kombinasi aset+audiens ini.
 
 Format response JSON:
 {
-  "summary": "satu paragraf insight dalam Bahasa Indonesia"
+  "kaiTake": "satu paragraf dari Kai dalam Bahasa Indonesia",
+  "samanthaVerdict": "satu paragraf dari Samantha dalam Bahasa Indonesia"
 }`;
 
 /** Not a literal spec quote (the spec's `/llm/chat` section has no system-prompt block of its own) — derived from the same "Kamu adalah Samantha..." persona used by the other two prompts, for general free-text conversation. */
@@ -1114,11 +1117,13 @@ export class LlmService {
 
   /**
    * AAOS Analytics Platform Phase 4, "Creative Drill-Down" — the asset detail page's real
-   * Samantha insight. Called IN-PROCESS by `MetaAdsService.getAssetDetail`, the SAME
+   * Kai+Samantha insight (Creative Hub "4 gaps" dispatch, gap 3 — see
+   * `AssetInsightLlmPayloadSchema`'s own docstring for the real investigation/decision behind the
+   * two-persona split). Called IN-PROCESS by `MetaAdsService.getAssetDetail`, the SAME
    * `LlmModule`-imported-not-reprovided pattern `SimulationService` already establishes for
    * `creativeBrief`/`analyze` (coordinator note precedent: "call the real thing, never
    * reimplement it"). Same cache/gate/call/validate/cache shape as every other method on this
-   * service.
+   * service — still ONE LLM call, ONE cache entry, despite the two-section output.
    */
   async assetInsight(
     tenantId: string,

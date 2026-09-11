@@ -87,3 +87,83 @@
   border-radius: var(--radius-lg);
   padding: 10px 14px;
 }
+
+/* Gap 3 (Kai/Samantha split) — two labeled panels from the SAME real LLM call instead of one paragraph. */
+.insightGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insightPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.insightPanelLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-600, #4b5563);
+  text-transform: uppercase;
+}
+
+/* Gap 2 (audience breakdown) — same table recipe `AssetDetailClient.module.css` already uses for its sibling full-page view. */
+.tableScroll {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 380px;
+  font-size: 12px;
+}
+
+.table th,
+.table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: var(--border);
+  white-space: nowrap;
+}
+
+.table th {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--gray-500, #6b7280);
+}
+
+.rowTop {
+  background: var(--gray-100);
+}
+
+.topBadge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius);
+  background: var(--green, #16a34a);
+  color: var(--white);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Gap 4 (Launch New Ad) — navigates to the real, existing Creative Hub entry point; see this file's own top docstring for why this is the honest scope. */
+.launchButton {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--purple, #8b5cf6);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.launchButton:hover {
+  opacity: 0.92;
+}

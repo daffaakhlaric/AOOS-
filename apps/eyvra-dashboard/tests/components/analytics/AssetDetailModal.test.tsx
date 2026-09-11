@@ -49,9 +49,24 @@ const DETAIL: AssetDetailResponseDto = {
       cpl: 50_000,
     },
   ],
-  audienceBreakdown: [],
+  audienceBreakdown: [
+    {
+      audienceLabel: "BROAD",
+      adCount: 2,
+      spend: 1_000_000,
+      impressions: 20_000,
+      clicks: 400,
+      totalLead: 20,
+      maxFrequency: 2.1,
+      cpl: 50_000,
+    },
+  ],
   topAudienceLabel: "BROAD",
-  insight: { available: true, summary: "Real LLM-generated insight for this asset." },
+  insight: {
+    available: true,
+    kaiTake: "Kai's real take on this asset.",
+    samanthaVerdict: "Samantha's real media-buying verdict on this asset.",
+  },
 };
 
 describe("AssetDetailModal", () => {
@@ -73,14 +88,38 @@ describe("AssetDetailModal", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/analytics/assets/hash-A");
   });
 
-  it("shows the real LLM insight when available", async () => {
+  it("shows the real Kai + Samantha insight panels when available (gap 3 — two-persona split)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(DETAIL)) as unknown as typeof fetch);
     render(<AssetDetailModal assetId="hash-A" onClose={vi.fn()} />);
     await waitFor(() => {
-      expect(screen.getByTestId("asset-detail-insight")).toHaveTextContent(
-        "Real LLM-generated insight for this asset.",
+      expect(screen.getByTestId("asset-detail-insight-kai")).toHaveTextContent(
+        "Kai's real take on this asset.",
       );
     });
+    expect(screen.getByTestId("asset-detail-insight-samantha")).toHaveTextContent(
+      "Samantha's real media-buying verdict on this asset.",
+    );
+  });
+
+  it("renders the real Audience Breakdown table from the already-fetched payload (gap 2)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(DETAIL)) as unknown as typeof fetch);
+    render(<AssetDetailModal assetId="hash-A" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("audience-breakdown-table")).toBeInTheDocument();
+    });
+    expect(screen.getAllByTestId("audience-breakdown-row")).toHaveLength(1);
+  });
+
+  it("renders a Launch New Ad link to the real, existing Creative Hub entry point (gap 4)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(DETAIL)) as unknown as typeof fetch);
+    render(<AssetDetailModal assetId="hash-A" onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("launch-new-ad-button")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("launch-new-ad-button")).toHaveAttribute(
+      "href",
+      "/creative?tab=review-kai",
+    );
   });
 
   it("honestly shows the unavailable message when the real LLM insight failed, never fabricating a summary", async () => {

@@ -301,9 +301,16 @@ export interface AssetAudienceBreakdownDto {
   readonly cpl: number | null;
 }
 
-/** Mirrors `aaos-api`'s `LlmUnavailableResponseDto` union shape — same "available: false" degrade contract every other real LLM-backed dashboard call (`LlmCreativeBriefResponseDto`, etc.) already uses. */
+/**
+ * Mirrors `aaos-api`'s `LlmUnavailableResponseDto` union shape — same "available: false" degrade
+ * contract every other real LLM-backed dashboard call (`LlmCreativeBriefResponseDto`, etc.) already
+ * uses. `kaiTake`/`samanthaVerdict` (Creative Hub "4 gaps" dispatch, gap 3): replaces the old single
+ * `summary` field — see `aaos-api`'s `AssetInsightLlmPayloadSchema` docstring for the real
+ * investigation behind rendering this as two distinct Kai/Samantha panels from ONE LLM call rather
+ * than a second provider call site.
+ */
 export type AssetInsightDto =
-  | { readonly available: true; readonly summary: string }
+  | { readonly available: true; readonly kaiTake: string; readonly samanthaVerdict: string }
   | { readonly available: false; readonly reason: string; readonly message: string };
 
 export interface AssetDetailResponseDto {

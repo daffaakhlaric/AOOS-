@@ -211,6 +211,14 @@ export function AssetDetailClient({ assetId }: AssetDetailClientProps): React.Re
   );
 }
 
+/**
+ * Creative Hub "4 gaps" dispatch, gap 3 — same real Kai/Samantha split
+ * `AssetDetailModal.tsx` (the Creative menu's own reuse of this same asset-detail endpoint) now
+ * renders; see `AssetInsightLlmPayloadSchema`'s own docstring on `aaos-api` for the real
+ * investigation behind the two-persona, one-LLM-call shape. Kept as one `data-testid="asset-insight"`
+ * section (not split into two testids) since this page's own existing test only asserts on the
+ * combined text content — both real paragraphs are still genuinely rendered.
+ */
 function SamanthaInsight({
   insight,
 }: {
@@ -218,11 +226,18 @@ function SamanthaInsight({
 }): React.ReactElement {
   return (
     <section data-testid="asset-insight" className={styles.insightCard}>
-      <p className={styles.insightLabel}>🤖 Insight Samantha</p>
       {insight.available ? (
-        <p className={styles.insightText}>{insight.summary}</p>
+        <>
+          <p className={styles.insightLabel}>🎨 Kai — Creative Strategist</p>
+          <p className={styles.insightText}>{insight.kaiTake}</p>
+          <p className={styles.insightLabel}>📊 Samantha — Verdict</p>
+          <p className={styles.insightText}>{insight.samanthaVerdict}</p>
+        </>
       ) : (
-        <p className={styles.insightUnavailable}>{insight.message}</p>
+        <>
+          <p className={styles.insightLabel}>🤖 Insight Samantha</p>
+          <p className={styles.insightUnavailable}>{insight.message}</p>
+        </>
       )}
     </section>
   );

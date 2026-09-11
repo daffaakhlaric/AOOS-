@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { CopyVariantList, type CopyVariant } from "@/components/analytics/CopyVariantList";
@@ -32,12 +33,18 @@ import styles from "./CampaignDetailDrawer.module.css";
  *  - No tracking-parameter field exists anywhere on `AdSummaryDto` → the "Tracking Parameters" note
  *    always renders the spec's own amber "not configured" copy (real code path, not a fabricated
  *    finding — this dashboard genuinely never pulls UTM/tracking params from Meta today).
- *  - Blok 4 "Audience Breakdown" needs a per-ad `audienceLabel` + sub-segment breakdown that only
- *    exists server-side on `HeatmapCellDto`/`AssetDetailResponseDto` (grouped by CREATIVE ASSET,
- *    fetched from a different, asset-scoped endpoint) — `AdSummaryDto` carries no `assetId` field to
- *    join against, and fetching that endpoint here would violate "pakai data yang sudah di-load".
- *    Rather than fabricate a fake join, this block honestly renders an empty state explaining the
- *    real gap.
+ *  - Blok 4 "Audience Breakdown" — CREATIVE HUB "4 GAPS" DISPATCH re-verification (gap 2): confirmed
+ *    `AdSummaryDto` (this drawer's own real, already-loaded data) still carries no `audienceLabel`
+ *    or `assetId` field, so no per-ad join to `HeatmapCellDto`/`AssetDetailResponseDto`'s real
+ *    audience data is possible here without a second fetch, which would violate "pakai data yang
+ *    sudah di-load". A SECOND real finding this dispatch also confirmed: even if `audienceLabel`
+ *    were added to this tree, it lives on `AdSet` (one label for the WHOLE ad set), not per-ad —
+ *    this drawer already renders exactly one `adSet`'s sibling ads, so the real value would be a
+ *    single tag, not a genuine multi-row "breakdown" the way `AssetDetailModal.tsx`'s (asset-scoped,
+ *    multi-ad-set) table honestly can be. A true campaign-level breakdown would need this
+ *    component's props widened to receive ALL of a campaign's ad sets, not one — real, larger scope
+ *    than this narrow dispatch. Rather than fabricate a one-row "breakdown" or guess at a prop-shape
+ *    change, this block honestly renders an empty state explaining the real gap.
  *
  * "Copy Variations" (Blok 3) real mapping: an ad set's own `ads` array already IS the real
  * creative-variant list (`CampaignTree`'s own docstring: "Ad Set → Ad (#A #B #C)" — sibling ads
@@ -208,6 +215,19 @@ export function CampaignDetailDrawer({
             heatmap terpisah).
           </p>
         </section>
+
+        {/* Gap 4 (Launch New Ad) — same honest scope-down as `AssetDetailModal.tsx`'s own button:
+            `CampaignsService.createPropertyCampaign`/`publishPropertyAds` need a real
+            `creativePackageId`, and there is no real join from an already-live campaign/ad-set/ad
+            (what this drawer shows) back to the `creative_packages` row that may have produced it.
+            Navigates to the real, existing Creative Hub entry point instead of fabricating one. */}
+        <Link
+          href="/creative?tab=review-kai"
+          className={styles.launchButton}
+          data-testid="launch-new-ad-button"
+        >
+          🚀 Launch New Ad
+        </Link>
       </aside>
     </div>
   );

@@ -139,4 +139,20 @@ describe("CampaignDetailDrawer", () => {
     );
     expect(screen.getByTestId("audience-breakdown-empty")).toBeInTheDocument();
   });
+
+  it("renders a Launch New Ad link to the real, existing Creative Hub entry point (gap 4)", () => {
+    render(
+      <CampaignDetailDrawer
+        target={{ kind: "adset", name: AD_SET.name, stableId: AD_SET.stableId }}
+        status={AD_SET.status}
+        verdict="SCALE"
+        adSet={AD_SET}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("launch-new-ad-button")).toHaveAttribute(
+      "href",
+      "/creative?tab=review-kai",
+    );
+  });
 });

@@ -75,7 +75,11 @@ const DETAIL: AssetDetailResponseDto = {
     },
   ],
   topAudienceLabel: "BROAD",
-  insight: { available: true, summary: "Audiens BROAD paling efisien untuk aset ini." },
+  insight: {
+    available: true,
+    kaiTake: "Kai: audiens BROAD layak digarap lagi dengan angle baru.",
+    samanthaVerdict: "Audiens BROAD paling efisien untuk aset ini.",
+  },
 };
 
 describe("AssetDetailClient", () => {
@@ -93,6 +97,9 @@ describe("AssetDetailClient", () => {
     await waitFor(() => {
       expect(screen.getByTestId("asset-insight")).toBeInTheDocument();
     });
+    expect(screen.getByTestId("asset-insight")).toHaveTextContent(
+      "Kai: audiens BROAD layak digarap lagi dengan angle baru.",
+    );
     expect(screen.getByTestId("asset-insight")).toHaveTextContent(
       "Audiens BROAD paling efisien untuk aset ini.",
     );

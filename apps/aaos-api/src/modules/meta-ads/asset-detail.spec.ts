@@ -194,10 +194,15 @@ describe("getAssetDetail", () => {
 
     const detail = getAssetDetail(adAccount, "hash-A", NOW, {
       available: true,
-      summary: "Insight nyata.",
+      kaiTake: "Kai take nyata.",
+      samanthaVerdict: "Samantha verdict nyata.",
     });
 
-    expect(detail?.insight).toEqual({ available: true, summary: "Insight nyata." });
+    expect(detail?.insight).toEqual({
+      available: true,
+      kaiTake: "Kai take nyata.",
+      samanthaVerdict: "Samantha verdict nyata.",
+    });
   });
 
   it("reports maxFrequency (non-additive) across every matching ad", () => {
