@@ -8,7 +8,7 @@ import type { Ad } from "../../domain/entities/Ad.js";
 import { AdAccount } from "../../domain/entities/AdAccount.js";
 import type { AdSet } from "../../domain/entities/AdSet.js";
 import type { Campaign } from "../../domain/entities/Campaign.js";
-import { MetaApiError, RateLimitError } from "../../domain/errors/index.js";
+import { MetaApiError } from "../../domain/errors/index.js";
 import type { MetaAdsConnectorEvents } from "../../domain/events/MetaAdsConnectorEvents.js";
 import { evaluateVerdict, getVerdictReason } from "../../domain/services/VerdictEngine.js";
 import type { AdAccountId } from "../../domain/value-objects/AdAccountId.js";
@@ -26,19 +26,30 @@ import { assignCampaignStableIds } from "../../utils/StableIdAssigner.js";
 import { callMetaApi, extractOrFetch, fetchAllPages } from "./meta-api-call-helpers.js";
 
 /**
- * Real, currently-broken-in-production compounding-pulls fix — the minimum real time that must
- * pass between two Meta pulls for the SAME ad account before this use case will start a new one.
- * `PullCampaignData.execute` is the single real choke point every call site in `apps/aaos-api`
- * goes through for a live Meta pull (`MetaSyncService.syncCampaign`'s realtime post-action hook,
- * `MetaSyncService.syncOnce`'s 15-minute cron sweep AND daily snapshot, and
- * `MetaAdsService.pullAdAccount`'s manual "Tarik Data Baru"/dashboard-mount pull — verified by
- * reading every one of those call sites, all of which call `connector.pullCampaignData.execute`
- * and nothing else) — so guarding HERE, once, is the real fix for those 3+ independent triggers
- * compounding into near-simultaneous real Meta traffic for one tenant, rather than trying to
- * coordinate each call site separately. 60s is deliberately short relative to the 15-minute cron
- * cadence — it only needs to collapse triggers landing within the same short burst (e.g. a
- * dashboard auto-pull-on-mount firing seconds after a cron tick, or a user's manual click landing
- * right after `syncCampaign`'s post-create hook), not to throttle legitimately-spaced-out pulls.
+ * Real compounding-pulls fix — the minimum real time that must pass before this use case starts a
+ * genuinely NEW Meta pull for the same (ad account, datePreset) pair; a request landing inside
+ * this window COALESCES onto the in-flight/most-recently-resolved pull instead (see
+ * `pullCoalesceCache`'s own doc — this is a share, never a reject). `PullCampaignData.execute` is
+ * the single real choke point every call site in `apps/aaos-api` goes through for a live Meta pull
+ * (`MetaSyncService.syncCampaign`'s realtime post-action hook, `MetaSyncService.syncOnce`'s
+ * 15-minute cron sweep AND daily snapshot, `MetaAdsService.pullAdAccount`'s manual "Tarik Data
+ * Baru"/dashboard-mount pull, and `OverviewService.getCampaignsSummary`/`.getHeatmap` — verified by
+ * reading every one of those call sites, all of which call `connector.pullCampaignData.execute` and
+ * nothing else) — so guarding HERE, once, is the real fix for those independent triggers
+ * compounding into redundant near-simultaneous real Meta traffic for one tenant, rather than
+ * trying to coordinate each call site separately. 60s is deliberately short relative to the
+ * 15-minute cron cadence — it only needs to collapse triggers landing within the same short burst
+ * (e.g. a dashboard auto-pull-on-mount firing seconds after a cron tick), not to throttle
+ * legitimately-spaced-out pulls.
+ *
+ * REAL, LIVE-INCIDENT FIX: this used to REJECT a second call within the window with a
+ * `RateLimitError` — which turned out to guarantee a same-request self-collision for
+ * `OverviewService.getOverview`'s own `Promise.all([getCampaignsSummary(...), getHeatmap(...)])`
+ * (both resolve to the SAME first configured ad account) and silently broke the "Campaign
+ * aktif"/heatmap cards on every real Overview page load. Coalescing (sharing the SAME real result,
+ * keyed additionally by `datePreset` — see `pullCoalesceCache` — so a `last_7d` campaigns request
+ * and a concurrent `last_30d` heatmap request never wrongly share each other's window) fixes this
+ * properly: every caller within the window gets a real, honest result, never an artificial failure.
  */
 const DEFAULT_MIN_PULL_INTERVAL_MS = 60_000;
 
@@ -89,14 +100,24 @@ const VALID_DATE_PRESETS: ReadonlySet<string> = new Set([
  */
 export class PullCampaignData {
   /**
-   * Real, currently-broken-in-production compounding-pulls fix — real wall-clock time (ms since
-   * epoch, via the injected `now` clock) each ad account's most recent pull ATTEMPT started.
-   * In-memory/per-instance is the correct scope: `MetaAdsConnectorRegistry.resolve(tenantId)`
-   * (`apps/aaos-api`) caches exactly ONE `MetaAdsConnector` — and therefore one `PullCampaignData`
-   * instance — per tenant for the lifetime of the process, so this map is naturally
-   * per-tenant-per-process, matching the real single choke point this guard exists to protect.
+   * Real compounding-pulls fix — keyed by `"<adAccountId>::<datePreset>"` (never just the account
+   * id — see `DEFAULT_MIN_PULL_INTERVAL_MS`'s own doc for why the live Overview incident required
+   * this) → the real wall-clock start time plus the SHARED promise for that pull. A second real
+   * caller landing inside the window gets the exact SAME promise (still in flight, or already
+   * resolved) instead of starting a redundant real Meta round trip or being rejected — see
+   * `execute()`'s own doc. In-memory/per-instance is the correct scope:
+   * `MetaAdsConnectorRegistry.resolve(tenantId)` (`apps/aaos-api`) caches exactly ONE
+   * `MetaAdsConnector` — and therefore one `PullCampaignData` instance — per tenant for the
+   * lifetime of the process, so this map is naturally per-tenant-per-process, matching the real
+   * single choke point this coalescing protects.
    */
-  private readonly lastPullStartedAtMs = new Map<string, number>();
+  private readonly pullCoalesceCache = new Map<
+    string,
+    {
+      readonly startedAtMs: number;
+      readonly resultPromise: Promise<Result<AdAccount, MetaApiError>>;
+    }
+  >();
 
   constructor(
     private readonly client: IMetaAdsClient,
@@ -110,8 +131,32 @@ export class PullCampaignData {
     private readonly minPullIntervalMs: number = DEFAULT_MIN_PULL_INTERVAL_MS,
   ) {}
 
+  /**
+   * See `pullCoalesceCache`'s own doc. Validation (bad `datePreset`) is deliberately checked BEFORE
+   * coalescing — a caller's own input mistake gets its own real, immediate error, never silently
+   * absorbed into someone else's in-flight pull.
+   */
   async execute(input: PullCampaignDataInput): Promise<Result<AdAccount, MetaApiError>> {
-    return this.tracer.startActiveSpan(
+    if (!VALID_DATE_PRESETS.has(input.datePreset)) {
+      return err(
+        invalidInputError(
+          `datePreset must be one of last_7d|last_14d|last_30d|today|yesterday, received: ${input.datePreset}`,
+        ),
+      );
+    }
+
+    const coalesceKey = `${input.adAccountId.toString()}::${input.datePreset}`;
+    const nowMs = this.now().getTime();
+    const cached = this.pullCoalesceCache.get(coalesceKey);
+    if (cached !== undefined && nowMs - cached.startedAtMs < this.minPullIntervalMs) {
+      this.logger.info(
+        { adAccountId: input.adAccountId.toString(), datePreset: input.datePreset },
+        "meta-ads-connector: coalescing onto an in-flight/recent pull for this (ad account, datePreset) — no new Meta call",
+      );
+      return cached.resultPromise;
+    }
+
+    const resultPromise = this.tracer.startActiveSpan(
       "meta-ads-connector.pull-campaign-data",
       async (span: { end: () => void }) => {
         try {
@@ -133,23 +178,12 @@ export class PullCampaignData {
         }
       },
     );
+    this.pullCoalesceCache.set(coalesceKey, { startedAtMs: nowMs, resultPromise });
+    return resultPromise;
   }
 
   private async run(input: PullCampaignDataInput): Promise<Result<AdAccount, MetaApiError>> {
-    if (!VALID_DATE_PRESETS.has(input.datePreset)) {
-      return err(
-        invalidInputError(
-          `datePreset must be one of last_7d|last_14d|last_30d|today|yesterday, received: ${input.datePreset}`,
-        ),
-      );
-    }
-
     const adAccountKey = input.adAccountId.toString();
-    const throttleResult = this.checkPullInterval(adAccountKey);
-    if (!throttleResult.ok) {
-      return throttleResult;
-    }
-
     this.logger.info({ adAccountId: adAccountKey }, "meta-ads-connector: sync starting");
 
     const rawCampaignsResult = await fetchAllPages<MetaCampaignExpanded>((cursor) =>
@@ -330,35 +364,6 @@ export class PullCampaignData {
     });
 
     return ok(adSet.withAds(adsWithVerdicts));
-  }
-
-  /**
-   * Real, currently-broken-in-production compounding-pulls fix — see `DEFAULT_MIN_PULL_INTERVAL_MS`
-   * and `lastPullStartedAtMs`'s own docstrings for the full "why here" reasoning. `Result.ok` lets
-   * the pull proceed (and records `adAccountKey`'s new `lastPullStartedAtMs` so a following call
-   * within the window is blocked); `Result.err` short-circuits BEFORE any Meta HTTP call — same
-   * "fail fast, no network call" discipline `TokenBucketRateLimiter.tryConsume` already
-   * establishes for the local hourly budget, just scoped to real-time compounding instead.
-   */
-  private checkPullInterval(adAccountKey: string): Result<void, RateLimitError> {
-    const nowMs = this.now().getTime();
-    const lastStartedAtMs = this.lastPullStartedAtMs.get(adAccountKey);
-    if (lastStartedAtMs !== undefined) {
-      const elapsedMs = nowMs - lastStartedAtMs;
-      if (elapsedMs < this.minPullIntervalMs) {
-        const remainingMs = this.minPullIntervalMs - elapsedMs;
-        return err(
-          new RateLimitError(
-            `Sedang dibatasi — penarikan data Meta untuk akun iklan ini baru saja dilakukan, coba lagi dalam ${Math.ceil(
-              remainingMs / 1000,
-            )} detik (minimum-pull-interval guard: ${Math.round(this.minPullIntervalMs / 1000)}s, ad account "${adAccountKey}"). Real fix for the cron sweep / realtime post-action hook / manual "Tarik Data Baru" click compounding into simultaneous live Meta traffic for the same tenant.`,
-            remainingMs,
-          ),
-        );
-      }
-    }
-    this.lastPullStartedAtMs.set(adAccountKey, nowMs);
-    return ok(undefined);
   }
 }
 

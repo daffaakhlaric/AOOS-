@@ -3,7 +3,6 @@ import { HttpResponse, http } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { PullCampaignData } from "../../../src/application/use-cases/PullCampaignData.js";
-import { RateLimitError } from "../../../src/domain/errors/index.js";
 import { MetaAdsConnectorEvents } from "../../../src/domain/events/MetaAdsConnectorEvents.js";
 import { AdAccountId } from "../../../src/domain/value-objects/AdAccountId.js";
 import { CampaignObjective } from "../../../src/domain/value-objects/CampaignObjective.js";
@@ -648,48 +647,81 @@ describe("PullCampaignData — N+1-fanout fix (field expansion + honest overflow
 });
 
 /**
- * Real, currently-broken-in-production compounding-pulls fix — the per-ad-account minimum-pull-
- * interval guard (`PullCampaignData.checkPullInterval`). This is the single real choke point
- * every call site in `apps/aaos-api` goes through for a live Meta pull (the 15-minute cron sweep,
- * the realtime post-campaign-action hook, and the manual "Tarik Data Baru"/dashboard-mount pull),
- * so guarding it here is the real fix for those independently-triggered pulls compounding into
- * near-simultaneous real Meta traffic for one tenant.
+ * Real compounding-pulls fix — the per-(ad account, datePreset) pull-coalescing cache
+ * (`PullCampaignData`'s `pullCoalesceCache`, checked in `execute()`). This is the single real
+ * choke point every call site in `apps/aaos-api` goes through for a live Meta pull (the 15-minute
+ * cron sweep, the realtime post-campaign-action hook, the manual "Tarik Data Baru"/dashboard-mount
+ * pull, and `OverviewService`'s own concurrent campaigns+heatmap pulls), so coalescing here is the
+ * real fix for those independently-triggered pulls compounding into redundant near-simultaneous
+ * real Meta traffic for one tenant.
+ *
+ * REAL, LIVE-INCIDENT FIX (this whole `describe` block rewritten): the ORIGINAL version of this
+ * guard REJECTED a second call within the window with a `RateLimitError` — which turned out to
+ * guarantee a same-request self-collision for `OverviewService.getOverview`'s own
+ * `Promise.all([getCampaignsSummary(...), getHeatmap(...)])` (both resolve to the SAME first
+ * configured ad account) and silently broke the real "Campaign aktif"/heatmap cards on every real
+ * Overview page load in production. These tests now prove the real, fixed COALESCING behavior:
+ * every caller within the window gets the real, shared result — never an artificial failure — and
+ * a different real `datePreset` for the same account never wrongly shares another request's window.
  */
-describe("PullCampaignData — per-ad-account minimum-pull-interval guard", () => {
-  it("blocks a second pull for the SAME ad account within the interval, with NO HTTP call at all", async () => {
+describe("PullCampaignData — per-(ad account, datePreset) pull coalescing", () => {
+  it("coalesces a second pull for the SAME (ad account, datePreset) within the interval onto ONE real HTTP call, returning the SAME real result to both callers", async () => {
     const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    let campaignCallCount = 0;
     mswServer.use(
-      http.get(`${BASE}/act_752604553578354/campaigns`, () => HttpResponse.json({ data: [] })),
+      http.get(`${BASE}/act_752604553578354/campaigns`, () => {
+        campaignCallCount += 1;
+        return HttpResponse.json({ data: [] });
+      }),
     );
     const { useCase } = makeUseCaseWithClock(clock, 60_000);
 
-    const first = await useCase.execute(baseInput());
+    // No new mock handler registered for a second `campaigns` call — if coalescing failed and this
+    // fired a second real HTTP call, `onUnhandledRequest: "error"` would fail this test loudly
+    // (only one handler is registered, and campaignCallCount below independently proves it too).
+    const [first, second] = await Promise.all([
+      useCase.execute(baseInput()),
+      useCase.execute(baseInput()),
+    ]);
     expect(first.ok).toBe(true);
-
-    // No new mock handler registered for a second `campaigns` call — if the guard failed to block
-    // it, `onUnhandledRequest: "error"` would fail this test loudly.
-    const second = await useCase.execute(baseInput());
-    expect(second.ok).toBe(false);
-    if (!second.ok) {
-      expect(second.error).toBeInstanceOf(RateLimitError);
-      expect((second.error as RateLimitError).retryAfterMs).toBeGreaterThan(0);
-      expect((second.error as RateLimitError).retryAfterMs).toBeLessThanOrEqual(60_000);
-    }
+    expect(second.ok).toBe(true);
+    expect(campaignCallCount).toBe(1);
   });
 
-  it("allows a second pull once the minimum interval has genuinely elapsed", async () => {
+  it("a call landing AFTER the first pull already resolved still reuses the real cached result within the window, with no new HTTP call", async () => {
     const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    let campaignCallCount = 0;
     mswServer.use(
-      http.get(`${BASE}/act_752604553578354/campaigns`, () => HttpResponse.json({ data: [] })),
+      http.get(`${BASE}/act_752604553578354/campaigns`, () => {
+        campaignCallCount += 1;
+        return HttpResponse.json({ data: [] });
+      }),
+    );
+    const { useCase } = makeUseCaseWithClock(clock, 60_000);
+
+    expect((await useCase.execute(baseInput())).ok).toBe(true);
+    expect((await useCase.execute(baseInput())).ok).toBe(true);
+    expect(campaignCallCount).toBe(1);
+  });
+
+  it("starts a genuinely NEW real pull once the minimum interval has elapsed", async () => {
+    const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    let campaignCallCount = 0;
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, () => {
+        campaignCallCount += 1;
+        return HttpResponse.json({ data: [] });
+      }),
     );
     const { useCase } = makeUseCaseWithClock(clock, 60_000);
 
     expect((await useCase.execute(baseInput())).ok).toBe(true);
     clock.advanceMs(60_000);
     expect((await useCase.execute(baseInput())).ok).toBe(true);
+    expect(campaignCallCount).toBe(2);
   });
 
-  it("does NOT block a pull for a DIFFERENT ad account (keyed per ad account, not globally)", async () => {
+  it("does NOT coalesce a pull for a DIFFERENT ad account (keyed per ad account, not globally)", async () => {
     const clock = new TestClock("2026-02-15T00:00:00.000Z");
     mswServer.use(
       http.get(`${BASE}/act_752604553578354/campaigns`, () => HttpResponse.json({ data: [] })),
@@ -707,17 +739,45 @@ describe("PullCampaignData — per-ad-account minimum-pull-interval guard", () =
     ).toBe(true);
   });
 
+  it("REAL LIVE-INCIDENT REGRESSION TEST: does NOT coalesce two concurrent pulls for the SAME ad account with DIFFERENT datePresets (the exact real OverviewService.getOverview shape — a last_7d campaigns pull and a concurrent last_30d heatmap pull for the same account) — both get their own real, independent HTTP call and neither is rejected", async () => {
+    const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    const seenDatePresets: string[] = [];
+    mswServer.use(
+      http.get(`${BASE}/act_752604553578354/campaigns`, ({ request }) => {
+        const url = new URL(request.url);
+        const fields = url.searchParams.get("fields") ?? "";
+        seenDatePresets.push(fields.includes("last_7d") ? "last_7d" : "last_30d");
+        return HttpResponse.json({ data: [] });
+      }),
+    );
+    const { useCase } = makeUseCaseWithClock(clock, 60_000);
+
+    const [campaignsResult, heatmapResult] = await Promise.all([
+      useCase.execute(baseInput({ datePreset: "last_7d" })),
+      useCase.execute(baseInput({ datePreset: "last_30d" })),
+    ]);
+    expect(campaignsResult.ok).toBe(true);
+    expect(heatmapResult.ok).toBe(true);
+    expect(seenDatePresets.sort()).toEqual(["last_30d", "last_7d"]);
+  });
+
   it("defaults to a 60s minimum interval when not configured", async () => {
     const clock = new TestClock("2026-02-15T00:00:00.000Z");
+    let campaignCallCount = 0;
     mswServer.use(
-      http.get(`${BASE}/act_752604553578354/campaigns`, () => HttpResponse.json({ data: [] })),
+      http.get(`${BASE}/act_752604553578354/campaigns`, () => {
+        campaignCallCount += 1;
+        return HttpResponse.json({ data: [] });
+      }),
     );
     const { useCase } = makeUseCaseWithClock(clock);
 
     expect((await useCase.execute(baseInput())).ok).toBe(true);
     clock.advanceMs(59_000);
-    expect((await useCase.execute(baseInput())).ok).toBe(false);
+    expect((await useCase.execute(baseInput())).ok).toBe(true);
+    expect(campaignCallCount).toBe(1); // still coalesced — under the default 60s window
     clock.advanceMs(1_001);
     expect((await useCase.execute(baseInput())).ok).toBe(true);
+    expect(campaignCallCount).toBe(2); // a genuinely new real pull, window elapsed
   });
 });
