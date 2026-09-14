@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { VerdictCards } from "@/components/campaigns/VerdictCards";
+import { fixReasonFor, VerdictCards } from "@/components/campaigns/VerdictCards";
 import type { AdMetricsDto, AdSummaryDto, CampaignSummaryDto } from "@/types/dashboard.types";
 
 function metrics(overrides: Partial<AdMetricsDto> = {}): AdMetricsDto {
@@ -138,6 +138,61 @@ describe("VerdictCards", () => {
     render(<VerdictCards campaigns={[allZero]} onApply={vi.fn()} />);
     expect(screen.getByTestId("verdict-meta-genuine-zero").textContent).toMatch(/Rp\s*0\s*spend/i);
     expect(screen.queryByTestId("verdict-degrade-note-genuine-zero")).not.toBeInTheDocument();
+  });
+
+  // User-reported confusion (live-confirmed, not a bug): a campaign already "dihentikan" with
+  // Rp 0 real spend at every level still shows verdict FIX, which reads as "performance problem"
+  // when VerdictEngine's real rule #1 is actually "objective isn't OUTCOME_LEADS", independent of
+  // spend/status entirely. This reason note makes that honest cause visible on the card.
+  it("real fix: shows an honest reason note when verdict is FIX because the real objective isn't OUTCOME_LEADS", () => {
+    const wrongObjective: CampaignSummaryDto = {
+      ...campaignWith("wrongobj", "FIX"),
+      objective: "OUTCOME_ENGAGEMENT",
+    };
+    render(<VerdictCards campaigns={[wrongObjective]} onApply={vi.fn()} />);
+    const reason = screen.getByTestId("verdict-reason-wrongobj");
+    expect(reason).toHaveTextContent("OUTCOME_ENGAGEMENT");
+    expect(reason).toHaveTextContent("bukan OUTCOME_LEADS");
+    expect(reason).toHaveTextContent("bukan soal performa iklan");
+  });
+
+  it("does NOT show a reason note when verdict is FIX but the objective genuinely IS OUTCOME_LEADS (a real, spend-related FIX case)", () => {
+    render(<VerdictCards campaigns={[campaignWith("realfix", "FIX")]} onApply={vi.fn()} />);
+    expect(screen.queryByTestId("verdict-reason-realfix")).not.toBeInTheDocument();
+  });
+
+  it("does NOT show a reason note for a non-FIX verdict, even with a non-OUTCOME_LEADS objective (this component only states a 'why' it can be fully confident about)", () => {
+    const wrongObjectivePause: CampaignSummaryDto = {
+      ...campaignWith("wrongobjpause", "PAUSE"),
+      objective: "OUTCOME_ENGAGEMENT",
+    };
+    render(<VerdictCards campaigns={[wrongObjectivePause]} onApply={vi.fn()} />);
+    expect(screen.queryByTestId("verdict-reason-wrongobjpause")).not.toBeInTheDocument();
+  });
+
+  describe("fixReasonFor (pure function)", () => {
+    it("returns undefined for any verdict other than FIX", () => {
+      const campaign: CampaignSummaryDto = {
+        ...campaignWith("x", "PAUSE"),
+        objective: "OUTCOME_ENGAGEMENT",
+      };
+      expect(fixReasonFor(campaign, "PAUSE")).toBeUndefined();
+    });
+
+    it("returns undefined for FIX when the objective really is OUTCOME_LEADS", () => {
+      const campaign = campaignWith("x", "FIX");
+      expect(fixReasonFor(campaign, "FIX")).toBeUndefined();
+    });
+
+    it("returns a real, honest reason naming the actual objective for FIX + non-OUTCOME_LEADS objective", () => {
+      const campaign: CampaignSummaryDto = {
+        ...campaignWith("x", "FIX"),
+        objective: "OUTCOME_TRAFFIC",
+      };
+      expect(fixReasonFor(campaign, "FIX")).toBe(
+        'Objective campaign ini "OUTCOME_TRAFFIC", bukan OUTCOME_LEADS — verdict FIX ini soal setting objective, bukan soal performa iklan.',
+      );
+    });
   });
 
   it("SPRINT 4 FIX: strips a UUID-looking name suffix the same way UnifiedCampaignTable already does (stripAdNameSuffix), instead of rendering the raw name", () => {

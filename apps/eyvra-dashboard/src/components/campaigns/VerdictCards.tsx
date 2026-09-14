@@ -30,6 +30,28 @@ export interface VerdictCardsProps {
 const ACTIONABLE_PRIORITY = ["FIX", "PAUSE", "SCALE", "REFRESH"] as const;
 const MAX_CARDS = 4;
 
+/** The one real `CampaignObjective` value `VerdictEngine.evaluateVerdict`'s rule #1 checks against — mirrored here as a literal (not imported from `@aos/meta-ads-connector`, a backend-only package) since this is the exact same string every real campaign's `objective` field carries when it matches. */
+const OUTCOME_LEADS_OBJECTIVE = "OUTCOME_LEADS";
+
+/**
+ * Real, honest "why FIX" explanation — user-reported confusion (live-confirmed, not a bug): a
+ * campaign already `dihentikan` (paused) with Rp 0 spend at every level still shows verdict FIX,
+ * which reads as "something is performance-broken" when it's really just
+ * `VerdictEngine.evaluateVerdict`'s own rule #1 (`packages/meta-ads-connector/.../VerdictEngine.ts`)
+ * — ANY campaign whose real Meta `objective` isn't `OUTCOME_LEADS` is FIX, unconditionally,
+ * regardless of spend/status. Scoped deliberately narrow: this is the ONE campaign-level "why" this
+ * component can state with full confidence from data already loaded (`campaign.objective`) — the
+ * other three verdicts (PAUSE/SCALE/REFRESH) are computed per-AD from thresholds this
+ * campaign-level card has no reliable single "why" for once `aggregateVerdict` has already
+ * collapsed multiple ads' individual verdicts into one, so this never guesses a reason for those.
+ */
+export function fixReasonFor(campaign: CampaignSummaryDto, verdict: string): string | undefined {
+  if (verdict !== "FIX" || campaign.objective === OUTCOME_LEADS_OBJECTIVE) {
+    return undefined;
+  }
+  return `Objective campaign ini "${campaign.objective}", bukan OUTCOME_LEADS — verdict FIX ini soal setting objective, bukan soal performa iklan.`;
+}
+
 /**
  * AAOS-CAMPAIGNS-UNIFIED-PAGE — bottom-strip "Verdict cards" (spec: "real pending verdicts/actions
  * dengan Terapkan/Lewati buttons").
@@ -160,6 +182,7 @@ export function VerdictCards({
             const cpl = adLevelSpendAvailable
               ? computeCpl(aggregate.spend, aggregate.totalLead)
               : null;
+            const fixReason = fixReasonFor(campaign, verdict);
             return (
               <li
                 key={campaign.id}
@@ -182,6 +205,11 @@ export function VerdictCards({
                     </span>
                   ) : null}
                 </p>
+                {fixReason !== undefined ? (
+                  <p className={styles.reasonNote} data-testid={`verdict-reason-${campaign.id}`}>
+                    {fixReason}
+                  </p>
+                ) : null}
                 <div className={styles.cardActions}>
                   <button
                     type="button"

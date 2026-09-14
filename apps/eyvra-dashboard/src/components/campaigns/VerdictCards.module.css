@@ -55,6 +55,15 @@
   font-style: italic;
 }
 
+.reasonNote {
+  font-size: 11px;
+  color: var(--gray-600, #4b5563);
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  background: var(--gray-50, #f9fafb);
+  border-radius: 6px;
+}
+
 .cardActions {
   display: flex;
   gap: 8px;
