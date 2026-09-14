@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { stripAdNameSuffix } from "@/lib/adName";
 import { formatIdr, formatNumber } from "@/lib/formatters";
 import type {
   AssetAudienceBreakdownDto,
@@ -100,6 +101,16 @@ export function AssetDetailClient({ assetId }: AssetDetailClientProps): React.Re
    * top-performing audience label. `origin: "SAMANTHA"` (the real enum member for a
    * data-driven/Samantha-triggered brief, not a human-composed one) since this brief exists
    * because of a real performance signal, not free manual authoring.
+   *
+   * REAL BUG FIX (live-confirmed: Kie AI generated an unrelated car-dealership scene for a
+   * PROPERTY listing brief): `unit` MUST be `stripAdNameSuffix`-cleaned, same as
+   * `SamanthaRecommendations.tsx`'s own `unit: stripAdNameSuffix(ad.name)` — this call site was
+   * the one that missed it, sending the RAW ad name (e.g. "... - Ad 019f94fb-fdab-...") straight
+   * into `PropertyCreativeBrief.listingTitle`, which `PropertyPromptBuilder.buildImagePrompt`
+   * interpolates directly into the real Kie AI prompt text. A trailing "Ad <uuid>" segment reads,
+   * to the image model, like a vehicle listing/VIN convention — not a display-only cosmetic bug
+   * like every other `stripAdNameSuffix` call site in this app, but one that actually corrupts the
+   * real generation output.
    */
   async function briefKai(): Promise<void> {
     if (data === undefined) {
@@ -122,7 +133,7 @@ export function AssetDetailClient({ assetId }: AssetDetailClientProps): React.Re
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          unit: representative.name,
+          unit: stripAdNameSuffix(representative.name),
           branch: representative.branch,
           angle: DEFAULT_ANGLE,
           primaryMessage: `Refresh aset kreatif ${data.assetId}${

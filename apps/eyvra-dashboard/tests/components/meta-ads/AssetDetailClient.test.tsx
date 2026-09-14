@@ -190,4 +190,52 @@ describe("AssetDetailClient", () => {
       );
     });
   });
+
+  // Real bug fix (live-confirmed: Kie AI generated an unrelated car-dealership scene for a
+  // PROPERTY listing) — a raw ad name ending in "- Ad <uuid>" was sent straight through to
+  // PropertyCreativeBrief.listingTitle, which gets interpolated verbatim into the real Kie AI
+  // image prompt; the model reads that suffix as a vehicle-listing/VIN convention. `unit` must be
+  // stripAdNameSuffix-cleaned, same as SamanthaRecommendations.tsx's own precedent.
+  it("real bug fix: strips a trailing '- Ad <uuid>' suffix from the representative ad's name before sending it as 'unit' — a raw suffix corrupts the real Kie AI image prompt, not just cosmetic display", async () => {
+    const detailWithSuffixedName: AssetDetailResponseDto = {
+      ...DETAIL,
+      copyVariants: [
+        {
+          ...DETAIL.copyVariants[0]!,
+          name: "Dijual Apartemen Kedoya Elok 3Br 153m2 - platinum - Ad 019f94fb-fdab-76ce-a599-66a9edb07116",
+        },
+      ],
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.startsWith("/api/analytics/assets/")) {
+        return jsonResponse(detailWithSuffixedName);
+      }
+      if (url === "/api/creative") {
+        const body = JSON.parse(init?.body as string) as Record<string, unknown>;
+        expect(body["unit"]).toBe("Dijual Apartemen Kedoya Elok 3Br 153m2");
+        return jsonResponse({
+          package: { id: "pkg-1", title: "Brief Test" } as unknown as CreativePackageDto,
+        });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+
+    render(<AssetDetailClient assetId="hash-A" />);
+    await waitFor(() => {
+      expect(screen.getByText("📋 Brief ke Kai")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("📋 Brief ke Kai"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/creative",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
 });
