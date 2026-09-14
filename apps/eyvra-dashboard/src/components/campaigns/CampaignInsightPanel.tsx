@@ -116,8 +116,19 @@ export function CampaignInsightPanel({
   // below is composed with whatever this state holds AT THAT MOMENT and never blocks/waits on it.
   const [marketDigest, setMarketDigest] = useState<string | null | undefined>(undefined);
 
+  // Real bug fix (live-confirmed report, see `VerdictCards.tsx`'s own identical fix and doc): a
+  // delayed/partial ad-level Meta Insights pull can leave `campaign.adSets` genuinely empty/zeroed
+  // while the campaign-level Insights row (`campaign.spend`) already has the real number. Before
+  // this fix, both the KPI grid AND the `/api/campaign-insight` request body silently sent the
+  // misleading ad-level Rp 0 — which is exactly why Samantha's narrative stayed generic/aggregate-
+  // only: she was being told (honestly, per her own data) that this campaign spent nothing, so she
+  // had no real per-ad signal to reason about. Falling back to the real `campaign.spend` (never
+  // paired with a CPL that has no real relationship to it) fixes the KPI display AND gives the LLM
+  // the real, non-zero spend context it needs.
   const aggregate = aggregateCampaign(campaign);
-  const cpl = computeCpl(aggregate.spend, aggregate.totalLead);
+  const adLevelSpendAvailable = aggregate.spend > 0;
+  const displaySpend = adLevelSpendAvailable ? aggregate.spend : campaign.spend;
+  const cpl = adLevelSpendAvailable ? computeCpl(aggregate.spend, aggregate.totalLead) : null;
   const ctr = ctrFromAggregate(aggregate);
   const verdict = aggregateVerdict(
     campaign.adSets.flatMap((adSet) => adSet.ads.map((ad) => ad.verdict)),
@@ -135,7 +146,7 @@ export function CampaignInsightPanel({
         campaignId: campaign.id,
         campaignName: campaign.name,
         verdict,
-        spend: aggregate.spend,
+        spend: displaySpend,
         totalLead: aggregate.totalLead,
         clicks: aggregate.clicks,
         impressions: aggregate.impressions,
@@ -226,7 +237,14 @@ export function CampaignInsightPanel({
       </div>
 
       <div className={styles.kpiGrid} data-testid="insight-kpi-grid">
-        <MetricCard label="Spend" value={formatIdr(aggregate.spend)} testId="insight-kpi-spend" />
+        <MetricCard
+          label="Spend"
+          value={formatIdr(displaySpend)}
+          testId="insight-kpi-spend"
+          {...(!adLevelSpendAvailable && displaySpend > 0
+            ? { warningLabel: "Breakdown per-iklan belum tersedia, ini spend campaign" }
+            : {})}
+        />
         <MetricCard
           label="CPL"
           value={cpl !== null ? formatIdr(cpl) : "—"}

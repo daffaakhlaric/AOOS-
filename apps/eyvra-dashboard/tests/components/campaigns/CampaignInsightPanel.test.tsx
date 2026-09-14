@@ -157,6 +157,76 @@ describe("CampaignInsightPanel", () => {
     expect(body.learningAdSetStableIds).toEqual([]);
   });
 
+  // Real bug fix (live-confirmed report, same finding as VerdictCards.tsx's own fix): a delayed/
+  // partial ad-level Meta Insights pull can leave every ad's spend at 0 (aggregate.spend === 0)
+  // while campaign.spend (the real campaign-level Insights row) is non-zero. Before this fix, both
+  // the KPI grid and the /api/campaign-insight request body silently sent the misleading Rp 0 —
+  // starving Samantha's narrative of the real spend context and making her analysis look generic.
+  it("real bug fix: falls back to the real campaign.spend (with a warning badge) when the ad-level rollup is Rp 0, and sends that real spend to /api/campaign-insight instead of a misleading 0", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(JSON.stringify({ available: true, narrative: "OK", actions: [] }), {
+          status: 200,
+        }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const delayedAdLevelPull: CampaignSummaryDto = {
+      ...CAMPAIGN,
+      spend: 2_500_000,
+      adSets: [
+        {
+          ...CAMPAIGN.adSets[0]!,
+          ads: [ad({ metrics: metrics({ spend: 0, totalLead: 0 }) })],
+        },
+      ],
+    };
+
+    render(
+      <CampaignInsightPanel
+        campaign={delayedAdLevelPull}
+        benchmarkCplIDR={150_000}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("insight-kpi-spend")).toHaveTextContent("2.500.000");
+    expect(screen.getByTestId("insight-kpi-cpl")).toHaveTextContent("—");
+    expect(screen.getByTestId("metric-card-warning")).toHaveTextContent(
+      "Breakdown per-iklan belum tersedia",
+    );
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([calledUrl]) => calledUrl === "/api/campaign-insight"),
+      ).toBe(true),
+    );
+    const insightCall = fetchMock.mock.calls.find(
+      ([calledUrl]) => calledUrl === "/api/campaign-insight",
+    )!;
+    const body = JSON.parse(insightCall[1]!.body as string) as { spend: number };
+    expect(body.spend).toBe(2_500_000);
+  });
+
+  it("does NOT show the spend-fallback warning for a genuinely zero-spend campaign", () => {
+    mockFetchOnce({ available: true, narrative: "x", actions: [] });
+    const genuineZero: CampaignSummaryDto = {
+      ...CAMPAIGN,
+      spend: 0,
+      adSets: [
+        {
+          ...CAMPAIGN.adSets[0]!,
+          ads: [ad({ metrics: metrics({ spend: 0, totalLead: 0 }) })],
+        },
+      ],
+    };
+    render(
+      <CampaignInsightPanel campaign={genuineZero} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+    );
+    expect(screen.getByTestId("insight-kpi-spend")).toHaveTextContent("0");
+    expect(screen.queryByTestId("metric-card-warning")).not.toBeInTheDocument();
+  });
+
   it("renders the real narrative + grouped, prioritized action list when available", async () => {
     mockFetchOnce({
       available: true,

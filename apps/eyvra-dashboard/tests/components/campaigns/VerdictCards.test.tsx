@@ -99,6 +99,44 @@ describe("VerdictCards", () => {
     expect(meta.textContent).toMatch(/Rp\s*1\.000\.000/);
   });
 
+  it("real bug fix (live-confirmed report): when the ad-level rollup is Rp 0 but campaign.spend is real/non-zero, shows the real campaign.spend with an honest degrade note instead of a misleading Rp 0", () => {
+    const campaign = campaignWith("delayed", "FIX");
+    const adLevelZero: typeof campaign = {
+      ...campaign,
+      spend: 2_500_000,
+      adSets: campaign.adSets.map((adSet) => ({
+        ...adSet,
+        ads: adSet.ads.map((adEntry) => ({
+          ...adEntry,
+          metrics: { ...adEntry.metrics, spend: 0, totalLead: 0 },
+        })),
+      })),
+    };
+    render(<VerdictCards campaigns={[adLevelZero]} onApply={vi.fn()} />);
+    const meta = screen.getByTestId("verdict-meta-delayed");
+    expect(meta.textContent).toMatch(/Rp\s*2\.500\.000/);
+    expect(meta.textContent).toContain("—");
+    expect(screen.getByTestId("verdict-degrade-note-delayed")).toBeInTheDocument();
+  });
+
+  it("does NOT show the degrade note for a genuinely zero-spend campaign (campaign.spend also 0)", () => {
+    const campaign = campaignWith("genuine-zero", "FIX");
+    const allZero: typeof campaign = {
+      ...campaign,
+      spend: 0,
+      adSets: campaign.adSets.map((adSet) => ({
+        ...adSet,
+        ads: adSet.ads.map((adEntry) => ({
+          ...adEntry,
+          metrics: { ...adEntry.metrics, spend: 0, totalLead: 0 },
+        })),
+      })),
+    };
+    render(<VerdictCards campaigns={[allZero]} onApply={vi.fn()} />);
+    expect(screen.getByTestId("verdict-meta-genuine-zero").textContent).toMatch(/Rp\s*0\s*spend/i);
+    expect(screen.queryByTestId("verdict-degrade-note-genuine-zero")).not.toBeInTheDocument();
+  });
+
   it("SPRINT 4 FIX: strips a UUID-looking name suffix the same way UnifiedCampaignTable already does (stripAdNameSuffix), instead of rendering the raw name", () => {
     const campaign = campaignWith("suffixed", "PAUSE");
     const withSuffix: typeof campaign = {

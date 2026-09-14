@@ -73,4 +73,65 @@ describe("toAbTestResponseDto", () => {
     expect(dto.variants[0]?.metaAdId).toBe("ad-a");
     expect(dto.variants[0]?.rphLead).toBe(8_667);
   });
+
+  it("includes real imageUrl/videoUrl/assetKind when a media map entry exists for the variant, and omits them entirely when it doesn't (never a fabricated thumbnail)", () => {
+    const test: StoredAbTest = {
+      id: "test-1",
+      tenantId: "dss-motor",
+      name: "ABT-001",
+      campaignId: "camp-1",
+      adSetId: "adset-1",
+      pageId: "page-1",
+      waLink: "https://wa.me/1",
+      mode: "AUTO",
+      status: "RUNNING",
+      thresholdSpend: 100_000,
+      thresholdDays: 3,
+      minMarginPct: 20,
+      autoPauseLoser: true,
+      autoScaleWinner: true,
+      createdAt: "2026-08-19T06:00:00.000Z",
+    };
+    const variantWithMedia: StoredAbTestVariant = {
+      id: "var-a",
+      abTestId: "test-1",
+      tenantId: "dss-motor",
+      variantLabel: "A",
+      angle: "DP_RINGAN",
+      creativePackageId: "pkg-a",
+      status: "RUNNING",
+      spend: 0,
+      impressions: 0,
+      clicks: 0,
+      conversations: 0,
+      leads: 0,
+      createdAt: "2026-08-19T06:00:00.000Z",
+    };
+    const variantWithoutMedia: StoredAbTestVariant = {
+      ...variantWithMedia,
+      id: "var-b",
+      creativePackageId: "pkg-b",
+    };
+    const media = new Map([
+      [
+        "var-a",
+        {
+          imageUrl: "https://cdn.example.com/thumb.jpg",
+          videoUrl: "https://cdn.example.com/video.mp4",
+          assetKind: "VIDEO" as const,
+        },
+      ],
+    ]);
+
+    const dto = toAbTestResponseDto(test, [variantWithMedia, variantWithoutMedia], media);
+
+    expect(dto.variants[0]).toMatchObject({
+      imageUrl: "https://cdn.example.com/thumb.jpg",
+      videoUrl: "https://cdn.example.com/video.mp4",
+      assetKind: "VIDEO",
+    });
+    expect(dto.variants[1]).not.toHaveProperty("imageUrl");
+    expect(dto.variants[1]).not.toHaveProperty("videoUrl");
+    expect(dto.variants[1]).not.toHaveProperty("assetKind");
+  });
 });

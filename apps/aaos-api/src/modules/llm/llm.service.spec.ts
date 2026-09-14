@@ -1657,7 +1657,13 @@ describe("LlmService", () => {
       });
     });
 
-    it("returns INVALID_RESPONSE when OpenAI returns fewer than 3 variants (real Zod .length(3) check)", async () => {
+    // BULK-PUBLISH WIDENING: `AdCopyVariantsLlmPayloadSchema` was `.length(3)` (rejecting any
+    // count other than exactly 3); now `.min(1).max(MAX_VARIANT_COUNT)`, the same "an LLM asked for
+    // N deliberately-different angles may honestly return fewer than N" convention
+    // `DiverseCreativeBriefSetLlmPayloadSchema` already established. A single real, honest variant
+    // is therefore a VALID response now, not an error — see the next test for the real invalid case
+    // (a genuinely empty array).
+    it("honestly ACCEPTS fewer variants than the default 3 (bulk-publish widening: an LLM may honestly return fewer distinct angles than asked)", async () => {
       registerOpenAiChatHandler(
         JSON.stringify({
           variants: [
@@ -1665,11 +1671,28 @@ describe("LlmService", () => {
               variantLabel: "A",
               primaryText: "Only one variant",
               headline: "Only One",
-              description: "Not enough",
+              description: "Not enough angles left",
             },
           ],
         }),
       );
+      const service = buildService();
+      const result = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
+      expect(result).toEqual({
+        available: true,
+        variants: [
+          {
+            variantLabel: "A",
+            primaryText: "Only one variant",
+            headline: "Only One",
+            description: "Not enough angles left",
+          },
+        ],
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns zero variants (still real Zod .min(1) check)", async () => {
+      registerOpenAiChatHandler(JSON.stringify({ variants: [] }));
       const service = buildService();
       const result = await service.generateAdCopyVariants(TENANT_ID, validAdCopyVariantsBody);
       expect(result).toEqual({

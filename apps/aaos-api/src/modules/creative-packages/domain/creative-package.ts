@@ -73,7 +73,16 @@ export type CreativePackageUrgency = "HIGH" | "MEDIUM" | "LOW";
 
 export interface StoredCopyVariant {
   readonly id: string;
-  readonly variantLabel: "A" | "B" | "C";
+  /**
+   * Originally a fixed `"A" | "B" | "C"` literal union (real Meta-native 3-way A/B testing
+   * convention). Widened to `string` for the bulk-publish scope (user-requested: "Publish otomatis
+   * creative dalam jumlah besar (8-25) langsung ke Meta") — `LlmService.generateAdCopyVariants` can
+   * now honestly return up to `MAX_VARIANT_COUNT` (25) distinct letter labels (`ad-copy-variants.dto.ts`'s
+   * own `VARIANT_LABELS`), and this storage type must accept whichever of those a real generation
+   * run produced. Every pre-existing 3-variant row still stores exactly `"A"`/`"B"`/`"C"` — this is
+   * a pure widening, not a behavior change for existing data.
+   */
+  readonly variantLabel: string;
   readonly primaryText: string;
   readonly headline: string;
   readonly callToAction: string;

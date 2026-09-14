@@ -23,6 +23,10 @@ import type {
   CreativePackageResponseDto,
 } from "./dto/creative-package-response.dto.js";
 import {
+  GeneratePropertyBodySchema,
+  type GeneratePropertyBodyDto,
+} from "./dto/generate-property.dto.js";
+import {
   ApprovePackageBodySchema,
   RejectPackageBodySchema,
   type ApprovePackageBodyDto,
@@ -88,8 +92,13 @@ export class CreativePackagesController {
   async generateProperty(
     @TenantId() tenantId: string,
     @Param("id") id: string,
+    @Body(new ZodValidationPipe(GeneratePropertyBodySchema)) body: GeneratePropertyBodyDto,
   ): Promise<CreativePackageResponseDto> {
-    return this.service.generateProperty(tenantId, id);
+    return this.service.generateProperty(tenantId, id, {
+      ...(body.requestedVariantCount !== undefined
+        ? { requestedVariantCount: body.requestedVariantCount }
+        : {}),
+    });
   }
 
   @Get(":id")

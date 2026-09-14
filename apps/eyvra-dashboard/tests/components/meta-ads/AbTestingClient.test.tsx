@@ -177,4 +177,79 @@ describe("AbTestingClient", () => {
     render(<AbTestingClient />);
     await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
   });
+
+  // AdAdvisor-style rebuild — user-reported gap: "di creative ab testing asset image/video gabisa
+  // di render". A variant with real imageUrl/videoUrl (resolved server-side from its own real
+  // creativePackageId) must render a real <img>/<video>, never just the honest emoji placeholder.
+  it("renders a real <img> thumbnail for a variant with a real imageUrl (never the honest placeholder icon when real media exists)", async () => {
+    const withMedia: AbTestDto = {
+      ...RUNNING_TEST,
+      variants: [
+        {
+          ...RUNNING_TEST.variants[0]!,
+          imageUrl: "https://cdn.example.com/thumb.jpg",
+          assetKind: "IMAGE",
+        },
+        RUNNING_TEST.variants[1]!,
+      ],
+    };
+    mockFetchRouter({
+      list: () => jsonResponse({ tests: [withMedia, COMPLETE_TEST, DRAFT_TEST] }),
+    });
+    render(<AbTestingClient />);
+    await waitFor(() => expect(screen.getByTestId("abtesting-card-list")).toBeInTheDocument());
+
+    const card = screen.getByTestId("variant-card-var-a");
+    const img = within(card).getByAltText(/Variant A/);
+    expect(img).toHaveAttribute("src", "https://cdn.example.com/thumb.jpg");
+  });
+
+  it("renders the honest placeholder icon (never a broken/fabricated image) when a variant has no real media yet", async () => {
+    mockFetchRouter();
+    render(<AbTestingClient />);
+    await waitFor(() => expect(screen.getByTestId("abtesting-card-list")).toBeInTheDocument());
+
+    const card = screen.getByTestId("variant-card-var-a");
+    expect(within(card).queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("clicking a variant card opens the real detail view with its full metrics and real media", async () => {
+    const withMedia: AbTestDto = {
+      ...RUNNING_TEST,
+      variants: [
+        {
+          ...RUNNING_TEST.variants[0]!,
+          imageUrl: "https://cdn.example.com/thumb.jpg",
+          assetKind: "IMAGE",
+          primaryText: "Yuk DP ringan mulai 10 juta!",
+        },
+        RUNNING_TEST.variants[1]!,
+      ],
+    };
+    mockFetchRouter({
+      list: () => jsonResponse({ tests: [withMedia, COMPLETE_TEST, DRAFT_TEST] }),
+    });
+    render(<AbTestingClient />);
+    await waitFor(() => expect(screen.getByTestId("abtesting-card-list")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId("variant-card-var-a"));
+
+    const dialog = screen.getByRole("dialog", { name: /Variant A/ });
+    expect(within(dialog).getByText("Yuk DP ringan mulai 10 juta!")).toBeInTheDocument();
+    const metrics = within(dialog).getByTestId("variant-detail-metrics");
+    expect(within(metrics).getByText(/Rp 52\.000/)).toBeInTheDocument();
+    expect(within(metrics).getByText("12.400")).toBeInTheDocument();
+  });
+
+  it("closing the detail view returns to the card grid", async () => {
+    mockFetchRouter();
+    render(<AbTestingClient />);
+    await waitFor(() => expect(screen.getByTestId("abtesting-card-list")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId("variant-card-var-a"));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Tutup" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 });

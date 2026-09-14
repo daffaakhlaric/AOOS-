@@ -44,7 +44,8 @@ export interface CreativePackageResponseDto {
   readonly imageUrls: readonly string[];
   readonly copyVariants: readonly {
     readonly id: string;
-    readonly variantLabel: "A" | "B" | "C";
+    /** Widened from the original `"A" | "B" | "C"` literal union — see `StoredCopyVariant.variantLabel`'s own doc (bulk-publish scope, up to `MAX_VARIANT_COUNT` real letter labels). */
+    readonly variantLabel: string;
     readonly primaryText: string;
     readonly headline: string;
     readonly callToAction: string;

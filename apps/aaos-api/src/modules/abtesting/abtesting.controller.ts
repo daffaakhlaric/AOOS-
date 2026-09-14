@@ -37,7 +37,8 @@ export class AbTestingController {
     const withVariants = await Promise.all(
       tests.map(async (test) => {
         const { variants } = await this.service.getTest(test.id, tenantId);
-        return toAbTestResponseDto(test, variants);
+        const media = await this.service.getVariantsMedia(variants);
+        return toAbTestResponseDto(test, variants, media);
       }),
     );
     return withVariants;
@@ -46,7 +47,8 @@ export class AbTestingController {
   @Get(":id")
   async byId(@Param("id") id: string, @TenantId() tenantId: string): Promise<AbTestResponseDto> {
     const { test, variants } = await this.service.getTest(id, tenantId);
-    return toAbTestResponseDto(test, variants);
+    const media = await this.service.getVariantsMedia(variants);
+    return toAbTestResponseDto(test, variants, media);
   }
 
   @Post()
@@ -57,7 +59,8 @@ export class AbTestingController {
   ): Promise<AbTestResponseDto> {
     const test = await this.service.createTest(body, tenantId);
     const { variants } = await this.service.getTest(test.id, tenantId);
-    return toAbTestResponseDto(test, variants);
+    const media = await this.service.getVariantsMedia(variants);
+    return toAbTestResponseDto(test, variants, media);
   }
 
   @Post(":id/pause")
@@ -65,6 +68,7 @@ export class AbTestingController {
   async pause(@Param("id") id: string, @TenantId() tenantId: string): Promise<AbTestResponseDto> {
     const test = await this.service.pauseTest(id, tenantId);
     const { variants } = await this.service.getTest(id, tenantId);
-    return toAbTestResponseDto(test, variants);
+    const media = await this.service.getVariantsMedia(variants);
+    return toAbTestResponseDto(test, variants, media);
   }
 }

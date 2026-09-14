@@ -50,6 +50,11 @@
   margin: 4px 0 8px;
 }
 
+.degradeNote {
+  color: var(--v2-text-3, #94a3b8);
+  font-style: italic;
+}
+
 .cardActions {
   display: flex;
   gap: 8px;

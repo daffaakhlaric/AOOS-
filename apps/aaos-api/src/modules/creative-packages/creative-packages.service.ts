@@ -408,7 +408,16 @@ export class CreativePackagesService {
   async generateProperty(
     tenantId: string,
     id: string,
-    options?: { readonly qaAndRetry?: boolean },
+    options?: {
+      readonly qaAndRetry?: boolean;
+      /**
+       * Bulk-publish widening (user-requested: "Publish otomatis creative dalam jumlah besar
+       * (8-25) langsung ke Meta"). Threaded to `buildPropertyCopyVariants` ->
+       * `LlmService.generateAdCopyVariants`'s `targetCount`. Omitted (the pre-existing default)
+       * keeps every existing caller's exact prior behavior — exactly 3 variants.
+       */
+      readonly requestedVariantCount?: number;
+    },
   ): Promise<CreativePackageResponseDto> {
     const pkg = await this.findOrThrowScoped(tenantId, id);
     if (pkg.status === "GENERATING") {
@@ -485,6 +494,7 @@ export class CreativePackagesService {
       id,
       brief,
       copyResult.value,
+      options?.requestedVariantCount,
     );
 
     await this.appendLog({
@@ -694,12 +704,19 @@ export class CreativePackagesService {
    * vocabulary (`CTA_DIRECT` for A/C, `CTA_LEARN` for B, mirroring that builder's own convention),
    * matched positionally to `deterministicFallback`'s own labels rather than re-declaring a THIRD
    * copy of Meta's real CTA-type string.
+   *
+   * BULK-PUBLISH WIDENING: `requestedVariantCount` (when set) is threaded straight through as
+   * `targetCount`. On an LLM failure the deterministic `PropertyCopyBuilder` fallback still only
+   * ever produces its own fixed 3 templates (that builder's hand-authored angles were never
+   * designed to scale to N) — an honest degrade to 3 real variants is better than zero, even when a
+   * larger count was requested; never a fabricated stretch to N templates that don't exist.
    */
   private async buildPropertyCopyVariants(
     tenantId: string,
     id: string,
     brief: PropertyCreativeBrief,
     deterministicFallback: ReadonlyArray<PropertyCopyVariant>,
+    requestedVariantCount?: number,
   ): Promise<readonly StoredCopyVariant[]> {
     try {
       const llmResult = await this.llmService.generateAdCopyVariants(tenantId, {
@@ -711,6 +728,7 @@ export class CreativePackagesService {
         ...(brief.highlights !== undefined && brief.highlights.length > 0
           ? { highlights: [...brief.highlights] }
           : {}),
+        ...(requestedVariantCount !== undefined ? { targetCount: requestedVariantCount } : {}),
       });
       if (llmResult.available) {
         return llmResult.variants.map((variant) => ({
@@ -1446,7 +1464,7 @@ function briefToJson(pkg: StoredCreativePackage): CreativeLogJson {
  * documents), never an LLM-invented CTA string Meta might not support as a real
  * `call_to_action.type`.
  */
-function ctaForVariantLabel(variantLabel: "A" | "B" | "C"): string {
+function ctaForVariantLabel(variantLabel: string): string {
   return variantLabel === "B" ? "Pelajari Selanjutnya" : "Tanya Sekarang";
 }
 

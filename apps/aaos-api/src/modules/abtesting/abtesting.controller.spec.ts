@@ -35,6 +35,7 @@ function buildFakeService(overrides: Partial<AbTestingService> = {}): AbTestingS
     getTest: vi.fn(async () => ({ test, variants })),
     createTest: vi.fn(async () => test),
     pauseTest: vi.fn(async () => ({ ...test, status: "PAUSED" }) as StoredAbTest),
+    getVariantsMedia: vi.fn(async () => new Map()),
     ...overrides,
   } as unknown as AbTestingService;
 }

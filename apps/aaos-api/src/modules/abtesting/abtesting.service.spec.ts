@@ -315,6 +315,99 @@ const CREATE_BODY: CreateAbTestBodyDto = {
   autoScaleWinner: true,
 };
 
+function buildFakeVariant(overrides: Partial<StoredAbTestVariant> = {}): StoredAbTestVariant {
+  return {
+    id: "variant-1",
+    abTestId: "test-1",
+    tenantId: TENANT_ID,
+    variantLabel: "A",
+    angle: AdAngle.DP_RINGAN,
+    creativePackageId: "pkg-1",
+    status: "RUNNING",
+    spend: 0,
+    impressions: 0,
+    clicks: 0,
+    conversations: 0,
+    leads: 0,
+    createdAt: "2026-08-19T06:00:00.000Z",
+    ...overrides,
+  };
+}
+
+// User-reported gap: "di creative ab testing asset image/video gabisa di render" — this real,
+// best-effort lookup fixes it by resolving each variant's own `creativePackageId` to the SAME real
+// `videoUrl`/`imageUrls` `launchTest` already reads when creating the real Meta ad.
+describe("AbTestingService.getVariantsMedia", () => {
+  it("resolves each variant's real imageUrl/videoUrl from its own creative package", async () => {
+    const creativePackages = buildFakeCreativePackages();
+    const service = buildService({ creativePackages });
+    const variants = [
+      buildFakeVariant({ id: "v-a", creativePackageId: "pkg-a" }),
+      buildFakeVariant({ id: "v-b", creativePackageId: "pkg-b" }),
+    ];
+
+    const media = await service.getVariantsMedia(variants);
+
+    expect(media.get("v-a")).toEqual({
+      imageUrl: "https://cdn.example.com/thumb.jpg",
+      videoUrl: "https://cdn.example.com/video.mp4",
+      assetKind: "VIDEO",
+      primaryText: "Yuk DP ringan!",
+    });
+    expect(media.get("v-b")).toEqual({
+      imageUrl: "https://cdn.example.com/thumb.jpg",
+      videoUrl: "https://cdn.example.com/video.mp4",
+      assetKind: "VIDEO",
+      primaryText: "Yuk DP ringan!",
+    });
+  });
+
+  it("real, honest degrade: a variant whose package lookup fails (e.g. deleted) gets NO media entry, never a fabricated URL", async () => {
+    const creativePackages = {
+      byId: vi.fn(async () => {
+        throw new Error("package not found");
+      }),
+    } as unknown as CreativePackagesService;
+    const service = buildService({ creativePackages });
+    const variants = [buildFakeVariant({ id: "v-missing", creativePackageId: "pkg-gone" })];
+
+    const media = await service.getVariantsMedia(variants);
+
+    expect(media.has("v-missing")).toBe(false);
+  });
+
+  it("real, honest degrade: a package with no video, no image, AND no copy yet (still generating) gets NO media entry", async () => {
+    const creativePackages = buildFakeCreativePackages({
+      "pkg-empty": { videoUrl: undefined, imageUrls: [], copyVariants: [] },
+    });
+    const service = buildService({ creativePackages });
+    const variants = [buildFakeVariant({ id: "v-empty", creativePackageId: "pkg-empty" })];
+
+    const media = await service.getVariantsMedia(variants);
+
+    expect(media.has("v-empty")).toBe(false);
+  });
+
+  it("real IMAGE-only package (no videoUrl) is classified assetKind IMAGE", async () => {
+    const creativePackages = buildFakeCreativePackages({
+      "pkg-image": {
+        videoUrl: undefined,
+        imageUrls: ["https://cdn.example.com/photo.jpg"],
+        copyVariants: [],
+      },
+    });
+    const service = buildService({ creativePackages });
+    const variants = [buildFakeVariant({ id: "v-image", creativePackageId: "pkg-image" })];
+
+    const media = await service.getVariantsMedia(variants);
+
+    expect(media.get("v-image")).toEqual({
+      imageUrl: "https://cdn.example.com/photo.jpg",
+      assetKind: "IMAGE",
+    });
+  });
+});
+
 describe("AbTestingService.createTest", () => {
   it("picks the first unused angle pair and creates one creative package + variant per angle", async () => {
     const creativePackages = buildFakeCreativePackages();

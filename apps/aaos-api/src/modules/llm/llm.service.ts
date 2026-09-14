@@ -595,17 +595,24 @@ Format response JSON:
  * AAOS-SAMANTHA-LLM-AD-COPY — `LlmService.generateAdCopyVariants`'s system prompt. Real,
  * PROPERTY-vertical listing data (`AdCopyVariantsRequestDto`) is sent as the user message's
  * `JSON.stringify(body)`, same static-persona-plus-JSON-user-message shape every other prompt in
- * this file uses. The 3 requested variants deliberately vary REAL angle/emphasis (not just
+ * this file uses. The requested variants deliberately vary REAL angle/emphasis (not just
  * word-shuffling the same sentence) so the resulting Meta ads genuinely test different creative
- * hypotheses against each other — the whole point of publishing all 3 as separate ads in the same
- * ad set (real Meta-native A/B testing, see `CampaignsService.createPropertyCampaign`'s own doc).
+ * hypotheses against each other — the whole point of publishing them all as separate ads in the
+ * same ad set (real Meta-native multi-ad testing, see `CampaignsService.createPropertyCampaign`'s
+ * own doc).
+ *
+ * BULK-PUBLISH WIDENING (user-requested scope: "Publish otomatis creative dalam jumlah besar
+ * (8-25) langsung ke Meta"): `targetCount` (optional, `AdCopyVariantsRequestDto.targetCount`,
+ * `DEFAULT_VARIANT_COUNT` = 3 when unset) replaces the old hardcoded "TEPAT 3" instruction — every
+ * pre-existing caller that never set it keeps generating exactly 3 variants, unchanged.
  */
 const AD_COPY_VARIANTS_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk platform properti (PROPERTY) di Indonesia.
 
-Tugasmu: tulis TEPAT 3 varian copy iklan Meta Ads (A, B, C) untuk SATU listing properti (data JSON di pesan user — listingTitle, propertyType, angle, price jika ada, city jika ada, highlights jika ada).
+Tugasmu: tulis copy iklan Meta Ads untuk SATU listing properti (data JSON di pesan user — listingTitle, propertyType, angle, price jika ada, city jika ada, highlights jika ada, dan "targetCount": berapa varian yang diminta, default 3 jika tidak ada).
 
 ATURAN KERAS:
-- Tepat 3 varian, label "A", "B", "C" — masing-masing HARUS punya sudut pandang/penekanan yang BERBEDA secara nyata (misalnya: A menonjolkan harga/DP, B menonjolkan lokasi/kenyamanan, C menonjolkan bukti sosial/urgency) — jangan hanya menulis ulang kalimat yang sama dengan kata berbeda. Ini penting karena ketiga varian akan dipasang sebagai 3 iklan Meta terpisah untuk A/B testing nyata.
+- Tulis SEBANYAK "targetCount" varian (jika tidak ada field ini di data, tulis TEPAT 3). Label varian huruf berurutan mulai "A" ("A", "B", "C", "D", ... sesuai jumlah yang diminta) — masing-masing HARUS punya sudut pandang/penekanan yang BERBEDA secara nyata satu sama lain (mis. satu menonjolkan harga/DP, satu lokasi/kenyamanan, satu bukti sosial/urgency, satu keamanan lingkungan, dst — jangan pernah menulis ulang sudut pandang yang sama dengan kata berbeda). Ini penting karena semua varian akan dipasang sebagai iklan Meta terpisah dalam satu ad set yang sama.
+- Jika "targetCount" lebih besar dari jumlah sudut pandang berbeda yang benar-benar bisa kamu buat secara jujur dari data listing ini, kembalikan sebanyak yang jujur bisa dibuat (jangan mengulang sudut pandang demi mengejar jumlah targetCount).
 - "primaryText" maksimal 125 karakter, Bahasa Indonesia, natural dan actionable, sesuai angle yang diberikan.
 - "headline" maksimal 40 karakter, ringkas, menyebut nama listing atau sudut pandang variannya.
 - "description" adalah teks pendukung singkat (maksimal sekitar 30 karakter agar tetap terbaca penuh di iklan Meta), melengkapi primaryText, JANGAN mengulang primaryText kata-per-kata.
@@ -616,8 +623,7 @@ Format response JSON:
 {
   "variants": [
     { "variantLabel": "A", "primaryText": "...", "headline": "...", "description": "..." },
-    { "variantLabel": "B", "primaryText": "...", "headline": "...", "description": "..." },
-    { "variantLabel": "C", "primaryText": "...", "headline": "...", "description": "..." }
+    { "variantLabel": "B", "primaryText": "...", "headline": "...", "description": "..." }
   ]
 }`;
 
@@ -1655,11 +1661,12 @@ export class LlmService {
   }
 
   /**
-   * AAOS-SAMANTHA-LLM-AD-COPY — real, LLM-generated 3-variant (A/B/C) ad copy for ONE PROPERTY
-   * listing, replacing (with an honest fallback — see below) `PropertyCopyBuilder`'s deterministic
-   * string-template variants as the real source of a `creative_packages` row's `copyVariants`. Same
-   * cache/gate/call/validate/cache shape as every other method on this service — no bespoke
-   * composition.
+   * AAOS-SAMANTHA-LLM-AD-COPY — real, LLM-generated ad copy (originally exactly 3 variants A/B/C,
+   * now up to `MAX_VARIANT_COUNT` per the bulk-publish widening — see `AdCopyVariantsRequestDto.
+   * targetCount`'s own doc) for ONE PROPERTY listing, replacing (with an honest fallback — see
+   * below) `PropertyCopyBuilder`'s deterministic string-template variants as the real source of a
+   * `creative_packages` row's `copyVariants`. Same cache/gate/call/validate/cache shape as every
+   * other method on this service — no bespoke composition.
    *
    * Real caller: `CreativePackagesService.generateProperty`. On ANY failure here (`available:
    * false`, whatever the reason), the caller's own documented, honest fallback is to build

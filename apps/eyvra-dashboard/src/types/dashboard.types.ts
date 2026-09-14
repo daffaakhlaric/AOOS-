@@ -1268,6 +1268,19 @@ export interface AbTestVariantDto {
   readonly rphLead?: number;
   readonly ctr?: number;
   readonly lastSyncedAt?: string;
+  /**
+   * Real, best-effort creative thumbnail (user-reported gap: "di creative ab testing asset
+   * image/video gabisa di render") — resolved server-side from this variant's own real
+   * `creativePackageId` (`aaos-api`'s `AbTestingService.getVariantsMedia`, the SAME real
+   * `creative_packages.videoUrl`/`imageUrls` the Meta ad itself was created from). `undefined` when
+   * the package was deleted or genuinely has no media yet — never a fabricated placeholder URL.
+   */
+  readonly imageUrl?: string;
+  readonly videoUrl?: string;
+  readonly assetKind?: "IMAGE" | "VIDEO";
+  /** Real copy text (`creative_packages.copyVariants[0]`) — `undefined` when the package has no copy yet. */
+  readonly primaryText?: string;
+  readonly headline?: string;
 }
 
 export interface AbTestDto {

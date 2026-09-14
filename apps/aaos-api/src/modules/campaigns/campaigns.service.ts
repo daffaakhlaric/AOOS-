@@ -14,6 +14,7 @@ import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import type { StoredCreativePackage } from "../creative-packages/domain/creative-package.js";
 import { ListingsService } from "../listings/listings.service.js";
+import { MAX_VARIANT_COUNT } from "../llm/dto/ad-copy-variants.dto.js";
 import { LocationResolverService } from "../location-resolver/location-resolver.service.js";
 import type {
   MetaAdsConnectorContext,
@@ -356,11 +357,20 @@ export class CampaignsService {
   }
 
   /**
-   * AAOS-SAMANTHA-LLM-AD-COPY — real, best-effort multi-ad publish: up to 3 real Meta Ads (one per
-   * `creativePackage.copyVariants` entry, capped at 3), all in the SAME real `adSetId` just
-   * created by `createPropertyCampaign` — real Meta-native A/B testing (multiple ads sharing one
-   * AdSet's budget, never 3x spend). Every ad reuses the SAME uploaded video/image asset; only the
-   * copy text (`primaryText`/`headline`→ad name/`description`) differs per ad.
+   * AAOS-SAMANTHA-LLM-AD-COPY — real, best-effort multi-ad publish: one real Meta Ad per
+   * `creativePackage.copyVariants` entry, all in the SAME real `adSetId` just created by
+   * `createPropertyCampaign` — real Meta-native multi-ad testing (multiple ads sharing one AdSet's
+   * budget, never Nx spend). Every ad reuses the SAME uploaded video/image asset; only the copy
+   * text (`primaryText`/`headline`→ad name/`description`) differs per ad.
+   *
+   * BULK-PUBLISH WIDENING (user-requested scope: "Publish otomatis creative dalam jumlah besar
+   * (8-25) langsung ke Meta"): originally hard-capped at exactly 3 (the old fixed A/B/C
+   * `copyVariants` shape). Now capped at `MAX_VARIANT_COUNT` (25, `ad-copy-variants.dto.ts`'s own
+   * real, documented upper bound) purely as a defensive ceiling — the actual real count published
+   * is however many `copyVariants` the caller's `generateProperty({ requestedVariantCount })` call
+   * actually produced (which itself can honestly be fewer than requested, or still just 3 for any
+   * package generated before this widening, or via the deterministic fallback). Never re-inflates a
+   * short real list to hit 25 — this is a ceiling, not a target.
    *
    * REAL, HONEST LIMITS:
    * - Requires `AaosApiConfig.META_PAGE_ID` to be configured (same real requirement
@@ -379,7 +389,7 @@ export class CampaignsService {
    *   (no ad can be created without it), but NEVER fails `createPropertyCampaign` itself: the real
    *   campaign+adset this method's caller already created stays valid regardless.
    * - Each `createAd` call is independently best-effort: a failure logs a warning and the loop
-   *   continues to the next variant — one bad ad never blocks the other up-to-2.
+   *   continues to the next variant — one bad ad never blocks the rest of the batch.
    */
   private async publishPropertyAds(
     connector: MetaAdsConnectorContext,
@@ -396,7 +406,7 @@ export class CampaignsService {
       );
       return [];
     }
-    const variants = creativePackage.copyVariants.slice(0, 3);
+    const variants = creativePackage.copyVariants.slice(0, MAX_VARIANT_COUNT);
     if (variants.length === 0) {
       this.logger.warn(
         `CampaignsService.publishPropertyAds(${creativePackage.id}): package has no copyVariants — skipping real ad creation.`,

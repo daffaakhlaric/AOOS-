@@ -80,19 +80,23 @@ const MAX_CARDS = 4;
  *    `useCampaignsSnapshot()` already exposes (and `CampaignsHubClient`'s own "Tarik Data Baru"
  *    button already disables on) — no new parallel loading state invented.
  *
- * DEEPER FINDING (documented, NOT fixed this sprint — needs a product decision, not a guess):
+ * DEEPER FINDING, NOW RESOLVED (was documented-not-fixed in the prior audit; product decision made):
  *    `CampaignSummaryDto.spend` (`campaign.spend`, used by `BudgetTracker.tsx`) and this card's own
  *    `aggregateCampaign(campaign).spend` (sum of `ad.metrics.spend`) are confirmed, via
  *    `apps/aaos-api/.../campaign-response.dto.ts` + `packages/meta-ads-connector/src/mappers/
  *    CampaignMapper.ts`, to be TWO INDEPENDENTLY-PULLED Meta numbers — `campaign.spend` comes from a
  *    real, separate campaign-level Insights row (`insightRow.spend`), never a sum of this same
  *    account's ad-level Insights rows. They should normally agree, but a delayed/partial ad-level
- *    Insights pull for one campaign (while its campaign-level Insights succeeds) could make this
- *    card + `UnifiedCampaignTable.tsx` (which uses the SAME `aggregateCampaign`) show `Rp 0`/`—`
+ *    Insights pull for one campaign (while its campaign-level Insights succeeds) makes this card +
+ *    `UnifiedCampaignTable.tsx` (which uses the SAME `aggregateCampaign`) show a misleading `Rp 0`
  *    while `BudgetTracker.tsx`, right next to this card in the same bottom strip, shows the real
- *    non-zero `campaign.spend`. NOT fixed here: switching this card to `campaign.spend` without a
- *    matching authoritative per-campaign lead count would decouple the displayed spend from the CPL
- *    it's divided against — a real correctness question for a follow-up, not a same-sprint guess.
+ *    non-zero `campaign.spend` for the identical campaign — a live-confirmed report, not a theory.
+ *    FIX: when `aggregateCampaign(campaign).spend` is 0 but `campaign.spend` is real/non-zero, this
+ *    card now shows the real `campaign.spend` instead of a fabricated-looking `Rp 0`, with CPL
+ *    honestly `"—"` (never dividing `campaign.spend` by an ad-level `totalLead` count that has no
+ *    real relationship to it — the exact decoupling risk the prior audit flagged). A caption makes
+ *    the degrade visible rather than silent, matching `BudgetTracker.tsx`'s own honest-degrade
+ *    precedent for "the finer-grained number isn't available yet, here's the real coarser one".
  */
 export function VerdictCards({
   campaigns,
@@ -147,7 +151,15 @@ export function VerdictCards({
         <ul className={styles.list}>
           {candidates.map(({ campaign, verdict }) => {
             const aggregate = aggregateCampaign(campaign);
-            const cpl = computeCpl(aggregate.spend, aggregate.totalLead);
+            // Real bug fix (see this component's own "DEEPER FINDING, NOW RESOLVED" doc above): the
+            // ad-level rollup can legitimately be a delayed-pull Rp 0 while the campaign-level Meta
+            // Insights row (`campaign.spend`) already has the real number — show that real number
+            // instead of a misleading Rp 0, and never pair it with a CPL it has no real relationship to.
+            const adLevelSpendAvailable = aggregate.spend > 0;
+            const displaySpend = adLevelSpendAvailable ? aggregate.spend : campaign.spend;
+            const cpl = adLevelSpendAvailable
+              ? computeCpl(aggregate.spend, aggregate.totalLead)
+              : null;
             return (
               <li
                 key={campaign.id}
@@ -158,8 +170,17 @@ export function VerdictCards({
                   <span className={styles.campaignName}>{stripAdNameSuffix(campaign.name)}</span>
                   <VerdictBadge verdict={verdict} />
                 </div>
-                <p className={styles.cardMeta}>
-                  {formatIdr(aggregate.spend)} spend · {cpl !== null ? formatIdr(cpl) : "—"} CPL
+                <p className={styles.cardMeta} data-testid={`verdict-meta-${campaign.id}`}>
+                  {formatIdr(displaySpend)} spend · {cpl !== null ? formatIdr(cpl) : "—"} CPL
+                  {!adLevelSpendAvailable && displaySpend > 0 ? (
+                    <span
+                      className={styles.degradeNote}
+                      data-testid={`verdict-degrade-note-${campaign.id}`}
+                    >
+                      {" "}
+                      (breakdown per-iklan belum tersedia, ini spend campaign)
+                    </span>
+                  ) : null}
                 </p>
                 <div className={styles.cardActions}>
                   <button

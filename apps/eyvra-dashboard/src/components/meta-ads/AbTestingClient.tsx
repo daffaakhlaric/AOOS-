@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { MetricCard } from "@/components/analytics/MetricCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -67,6 +68,10 @@ export function AbTestingClient(): React.ReactElement {
   const [error, setError] = useState<string | undefined>(undefined);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [pausingId, setPausingId] = useState<string | undefined>(undefined);
+  // AdAdvisor-style rebuild (user-reported gap: "di creative ab testing asset image/video gabisa
+  // di render"): the variant grid is now a simple thumbnail-card grid — clicking a card opens this
+  // real detail view instead of the old always-expanded text-only column.
+  const [openVariant, setOpenVariant] = useState<AbTestVariantDto | undefined>(undefined);
 
   const loadTests = useCallback(() => {
     fetch("/api/abtesting")
@@ -209,19 +214,11 @@ export function AbTestingClient(): React.ReactElement {
 
                 <div className={styles.variantGrid}>
                   {test.variants.map((variant) => (
-                    <div key={variant.id} className={styles.variantCol}>
-                      <p className={styles.variantLabel}>
-                        VARIANT {variant.variantLabel} · {variant.angle}
-                      </p>
-                      <div className={styles.variantMetrics}>
-                        <p>Belanja: {formatIdr(variant.spend)}</p>
-                        <p>Impresi: {formatNumber(variant.impressions)}</p>
-                        <p>Chat: {variant.conversations}</p>
-                        <p>Rp/lead: {formatRphLead(variant.rphLead)}</p>
-                        <p>CTR: {variant.ctr !== undefined ? formatPercent(variant.ctr) : "—"}</p>
-                      </div>
-                      <p className={styles.variantStatus}>{variantStatusLabel(variant.status)}</p>
-                    </div>
+                    <VariantCard
+                      key={variant.id}
+                      variant={variant}
+                      onOpen={() => setOpenVariant(variant)}
+                    />
                   ))}
                 </div>
 
@@ -263,6 +260,165 @@ export function AbTestingClient(): React.ReactElement {
           }}
         />
       ) : null}
+
+      {openVariant !== undefined ? (
+        <VariantDetailModal variant={openVariant} onClose={() => setOpenVariant(undefined)} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * AdAdvisor-style simple thumbnail card — same real card recipe `WinningCombos.tsx` already
+ * establishes (thumbnail + type badge + name + a lean CTR/Spend/Impressions row), applied here to
+ * one A/B-test variant instead of one heatmap cell. Real media only: `variant.imageUrl`/`videoUrl`
+ * (resolved server-side from this variant's own real `creativePackageId`, see
+ * `AbTestVariantDto`'s own doc) renders as a real `<img>`/`<video>` poster; an honest 🖼/🎬
+ * placeholder icon renders instead when no real media is available yet (still generating, or the
+ * package was deleted) — never a fabricated image.
+ */
+function VariantCard({
+  variant,
+  onOpen,
+}: {
+  readonly variant: AbTestVariantDto;
+  readonly onOpen: () => void;
+}): React.ReactElement {
+  const hasRealMedia = variant.imageUrl !== undefined || variant.videoUrl !== undefined;
+  return (
+    <button
+      type="button"
+      data-testid={`variant-card-${variant.id}`}
+      className={styles.variantCard}
+      onClick={onOpen}
+    >
+      <div className={styles.variantThumb}>
+        <span className={styles.variantTypeBadge}>
+          {variant.assetKind === "VIDEO" ? "Video" : "Image"}
+        </span>
+        {hasRealMedia ? (
+          variant.assetKind === "VIDEO" ? (
+            <video
+              className={styles.variantThumbMedia}
+              src={variant.videoUrl}
+              poster={variant.imageUrl}
+              muted
+              playsInline
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- real, arbitrary hosted GCS/Kie AI creative URL, not a local/optimizable Next asset.
+            <img
+              className={styles.variantThumbMedia}
+              src={variant.imageUrl}
+              alt={`Variant ${variant.variantLabel} — ${variant.angle}`}
+            />
+          )
+        ) : (
+          <span aria-hidden="true" className={styles.variantThumbIcon}>
+            {variant.assetKind === "VIDEO" ? "🎬" : "🖼"}
+          </span>
+        )}
+      </div>
+      <span className={styles.variantName}>
+        VARIANT {variant.variantLabel} · {variant.angle}
+      </span>
+      <div className={styles.variantMetricsRow}>
+        <span className={styles.metricCtr}>
+          {variant.ctr !== undefined ? formatPercent(variant.ctr) : "—"}
+        </span>
+        <span className={styles.metricSecondary}>{formatIdr(variant.spend)}</span>
+        <span className={styles.metricSecondary}>{formatNumber(variant.impressions)}</span>
+      </div>
+      <p className={styles.variantStatus}>{variantStatusLabel(variant.status)}</p>
+    </button>
+  );
+}
+
+/**
+ * AdAdvisor-style detail view — opened by clicking a `VariantCard`. Real media (bigger) + a real
+ * metric-card grid (same `MetricCard` primitive `CampaignInsightPanel.tsx` already uses) using
+ * exactly the fields this variant's own real Meta-synced insights carry (spend/impressions/clicks/
+ * chat/Rp per lead/CTR) — no fabricated "Post engagement"/"Revenue"/ROAS cards AAOS has no real
+ * data source for. Real copy text (`primaryText`/`headline`, resolved from the variant's own
+ * `creativePackageId`) renders when available; omitted (not "Belum tersedia") when the package has
+ * no copy yet, matching this app's own "never fabricate, never force a placeholder for genuinely
+ * absent real data" discipline.
+ */
+function VariantDetailModal({
+  variant,
+  onClose,
+}: {
+  readonly variant: AbTestVariantDto;
+  readonly onClose: () => void;
+}): React.ReactElement {
+  const hasRealMedia = variant.imageUrl !== undefined || variant.videoUrl !== undefined;
+  return (
+    <div
+      className={styles.modalOverlay}
+      role="dialog"
+      aria-label={`Variant ${variant.variantLabel} — ${variant.angle}`}
+      onClick={onClose}
+    >
+      <div className={styles.modalPanel} onClick={(event) => event.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <span className={styles.modalTitle}>
+            {variant.headline ?? `Variant ${variant.variantLabel} · ${variant.angle}`}
+          </span>
+          <button
+            type="button"
+            className={styles.modalCloseButton}
+            aria-label="Tutup"
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className={styles.modalMedia}>
+          {hasRealMedia ? (
+            variant.assetKind === "VIDEO" ? (
+              <video
+                className={styles.modalMediaContent}
+                src={variant.videoUrl}
+                poster={variant.imageUrl}
+                controls
+                playsInline
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element -- real, arbitrary hosted GCS/Kie AI creative URL.
+              <img
+                className={styles.modalMediaContent}
+                src={variant.imageUrl}
+                alt={`Variant ${variant.variantLabel} — ${variant.angle}`}
+              />
+            )
+          ) : (
+            <span aria-hidden="true" className={styles.modalMediaPlaceholder}>
+              {variant.assetKind === "VIDEO" ? "🎬" : "🖼"}
+            </span>
+          )}
+        </div>
+
+        {variant.primaryText !== undefined ? (
+          <p className={styles.modalCopyText} data-testid="variant-detail-copy">
+            {variant.primaryText}
+          </p>
+        ) : null}
+
+        <div className={styles.modalMetricsGrid} data-testid="variant-detail-metrics">
+          <MetricCard label="Spend" value={formatIdr(variant.spend)} />
+          <MetricCard label="Impressions" value={formatNumber(variant.impressions)} />
+          <MetricCard
+            label="CTR"
+            value={variant.ctr !== undefined ? formatPercent(variant.ctr) : "—"}
+          />
+          <MetricCard label="Chat" value={formatNumber(variant.conversations)} />
+          <MetricCard label="Lead" value={formatNumber(variant.leads)} />
+          <MetricCard label="Rp/Lead" value={formatRphLead(variant.rphLead)} />
+        </div>
+
+        <p className={styles.modalStatus}>{variantStatusLabel(variant.status)}</p>
+      </div>
     </div>
   );
 }

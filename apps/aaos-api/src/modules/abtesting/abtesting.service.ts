@@ -25,6 +25,7 @@ import type { CalendarEventResult } from "../scheduler/domain/calendar-event.js"
 import type { AbTestStatus, StoredAbTest, StoredAbTestVariant } from "./domain/ab-test.js";
 import { angleSetKey, selectUnusedAngleSet, variantLabelForIndex } from "./domain/angle-pairs.js";
 import { decideWinner, isThresholdMet, type VariantInsight } from "./domain/winner-decision.js";
+import type { AbTestVariantMedia } from "./dto/ab-test-response.dto.js";
 import type { CreateAbTestBodyDto } from "./dto/create-ab-test.dto.js";
 import { AbTestVariantRepository } from "./infrastructure/ab-test-variant.repository.js";
 import { AbTestRepository } from "./infrastructure/ab-test.repository.js";
@@ -488,6 +489,62 @@ export class AbTestingService {
       await indexPulledAdAccount(this.adTenantIndex, tenantId, adAccount);
     }
     return adAccounts;
+  }
+
+  /**
+   * Real, best-effort creative-thumbnail lookup for the A/B Testing UI (user-reported gap: "di
+   * creative ab testing asset image/video gabisa di render"). Reuses the EXACT same real lookup
+   * `launchTest` above already performs (`creativePackages.byId(variant.creativePackageId)` ->
+   * `package.videoUrl`/`package.imageUrls[0]`) — never a second, parallel media source, and never a
+   * fabricated placeholder: a variant whose package was deleted, or is still generating with no
+   * media yet, simply gets no entry in the returned map (the DTO layer renders an honest icon
+   * instead). Runs in parallel across variants (`Promise.all`) since each lookup is an independent
+   * read with no ordering dependency.
+   */
+  async getVariantsMedia(
+    variants: readonly StoredAbTestVariant[],
+  ): Promise<ReadonlyMap<string, AbTestVariantMedia>> {
+    const entries = await Promise.all(
+      variants.map(async (variant) => {
+        try {
+          const detail = await this.creativePackages.byId(variant.creativePackageId);
+          const videoUrl = detail.package.videoUrl;
+          const imageUrl = detail.package.imageUrls[0];
+          const representativeCopy = detail.package.copyVariants[0];
+          if (
+            videoUrl === undefined &&
+            imageUrl === undefined &&
+            representativeCopy === undefined
+          ) {
+            return undefined;
+          }
+          const media: AbTestVariantMedia = {
+            ...(imageUrl !== undefined ? { imageUrl } : {}),
+            ...(videoUrl !== undefined ? { videoUrl } : {}),
+            ...(videoUrl !== undefined || imageUrl !== undefined
+              ? { assetKind: (videoUrl !== undefined ? "VIDEO" : "IMAGE") as "IMAGE" | "VIDEO" }
+              : {}),
+            ...(representativeCopy?.primaryText !== undefined
+              ? { primaryText: representativeCopy.primaryText }
+              : {}),
+            ...(representativeCopy?.headline !== undefined
+              ? { headline: representativeCopy.headline }
+              : {}),
+          };
+          return [variant.id, media] as const;
+        } catch (caught) {
+          this.logger.warn(
+            `AbTestingService.getVariantsMedia: creative package lookup failed for variant ${variant.id}, rendering without a real thumbnail: ${caught instanceof Error ? caught.message : String(caught)}`,
+          );
+          return undefined;
+        }
+      }),
+    );
+    return new Map(
+      entries.filter(
+        (entry): entry is readonly [string, AbTestVariantMedia] => entry !== undefined,
+      ),
+    );
   }
 
   private async findOrThrow(id: string, tenantId: string): Promise<StoredAbTest> {

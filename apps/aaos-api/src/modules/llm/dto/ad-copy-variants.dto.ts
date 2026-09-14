@@ -11,6 +11,19 @@ import type { LlmUnavailableResponseDto } from "./llm-unavailable.dto.js";
  * already consumes to build its deterministic fallback templates, so the LLM prompt and the
  * fallback template are describing the exact same real listing, never two different views of it.
  */
+
+/**
+ * Real, honest bound on a single bulk-publish batch (user-requested scope: "Publish otomatis
+ * creative dalam jumlah besar (8-25) langsung ke Meta" — up to now hard-capped at 3, one real ad per
+ * `variantLabel`). 25 is the user's own stated upper bound; below that, `MIN_VARIANT_COUNT` stays at
+ * 1 so every pre-existing caller that never sets `targetCount` keeps its old, real 3-variant default
+ * (see `DEFAULT_VARIANT_COUNT`) — this widening is additive, never a behavior change for existing
+ * callers.
+ */
+export const MAX_VARIANT_COUNT = 25;
+export const MIN_VARIANT_COUNT = 1;
+export const DEFAULT_VARIANT_COUNT = 3;
+
 export const AdCopyVariantsRequestSchema = z.object({
   listingTitle: z.string().min(1),
   propertyType: z.string().min(1),
@@ -19,10 +32,53 @@ export const AdCopyVariantsRequestSchema = z.object({
   price: z.number().positive().optional(),
   city: z.string().optional(),
   highlights: z.array(z.string()).optional(),
+  /**
+   * Real, bulk-publish widening: how many DISTINCT ad-copy variants to generate this call, honestly
+   * bounded to what a single LLM completion can produce as structurally-distinct copy in one JSON
+   * response (same `MAX_DIVERSE_BRIEF_COUNT` discipline `diverse-creative-brief-set.dto.ts` already
+   * establishes for the sibling Kai diverse-creative-brief flow). Defaults to the original, pre-
+   * existing 3 (A/B/C Meta-native-testing convention) so every caller that never sets this keeps its
+   * exact prior behavior.
+   */
+  targetCount: z.number().int().min(MIN_VARIANT_COUNT).max(MAX_VARIANT_COUNT).optional(),
 });
 export type AdCopyVariantsRequestDto = z.infer<typeof AdCopyVariantsRequestSchema>;
 
-const VARIANT_LABELS = ["A", "B", "C"] as const;
+/**
+ * Widened from the original fixed `["A", "B", "C"]` to support up to `MAX_VARIANT_COUNT` real,
+ * distinctly-labeled ads per ad set. Letters (never numbers) to stay visually consistent with the
+ * pre-existing A/B/C convention every real caller/UI (`StoredCopyVariant`, `CopyVariantSelector`,
+ * `AbTestingClient`) already renders — `ctaForVariantLabel`'s own "B = Pelajari Selanjutnya, every
+ * other letter = Tanya Sekarang" rule (`creative-packages.service.ts`) still applies unchanged to
+ * any of these labels.
+ */
+const VARIANT_LABELS = [
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
+  "N",
+  "O",
+  "P",
+  "Q",
+  "R",
+  "S",
+  "T",
+  "U",
+  "V",
+  "W",
+  "X",
+  "Y",
+] as const;
 
 /**
  * Meta's real, enforced ad-creative text limits (verified against Meta's Marketing API "Ad
@@ -44,17 +100,21 @@ const AdCopyVariantLlmSchema = z.object({
 });
 
 /**
- * `LlmService.generateAdCopyVariants`'s real LLM output shape — exactly 3 variants (A/B/C, the
+ * `LlmService.generateAdCopyVariants`'s real LLM output shape. Originally exactly 3 variants
+ * (A/B/C); widened (bulk-publish scope) to 1-`MAX_VARIANT_COUNT`, honestly NOT hard-pinned to the
+ * caller's own `targetCount` — same "an LLM asked for N deliberately-different angles may honestly
+ * return fewer than N" reasoning `DiverseCreativeBriefSetLlmPayloadSchema`'s own doc already
+ * establishes, since Meta's real ad-copy-angle space is not infinite either. `variantLabel` uses the
  * SAME `variantLabel` convention `StoredCopyVariant`/`PropertyCopyVariant` already use — no new
- * enum), each carrying `primaryText`/`headline`/`description`. `callToAction` is deliberately NOT
- * asked of the LLM — `PropertyCopyBuilder`'s own 2-member `CTA_DIRECT`/`CTA_LEARN` vocabulary is a
- * real, curated, Indonesian-market-tested set; `LlmService.generateAdCopyVariants`'s real caller
+ * enum, just a wider one. `callToAction` is deliberately NOT asked of the LLM —
+ * `PropertyCopyBuilder`'s own 2-member `CTA_DIRECT`/`CTA_LEARN` vocabulary is a real, curated,
+ * Indonesian-market-tested set; `LlmService.generateAdCopyVariants`'s real caller
  * (`CreativePackagesService.generateProperty`) fills `callToAction` in deterministically from that
  * same real vocabulary rather than trusting the LLM to invent a fresh CTA string Meta might not
  * even support as a real `call_to_action.type`.
  */
 export const AdCopyVariantsLlmPayloadSchema = z.object({
-  variants: z.array(AdCopyVariantLlmSchema).length(3),
+  variants: z.array(AdCopyVariantLlmSchema).min(MIN_VARIANT_COUNT).max(MAX_VARIANT_COUNT),
 });
 export type AdCopyVariantsLlmPayload = z.infer<typeof AdCopyVariantsLlmPayloadSchema>;
 
