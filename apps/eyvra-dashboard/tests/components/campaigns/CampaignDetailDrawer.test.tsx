@@ -29,6 +29,7 @@ const AD_SET: AdSetSummaryDto = {
   name: "AdSet Bintaro",
   status: "ACTIVE",
   spend: 2_000_000,
+  dailyBudget: 500_000,
   ads: [
     {
       id: "ad1",

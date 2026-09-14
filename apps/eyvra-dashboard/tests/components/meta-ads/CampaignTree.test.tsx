@@ -41,6 +41,7 @@ const CAMPAIGNS: readonly CampaignSummaryDto[] = [
         name: "AdSet Bintaro",
         status: "ACTIVE",
         spend: 2_000_000,
+        dailyBudget: 1_000_000,
         ads: [
           {
             id: "ad1",

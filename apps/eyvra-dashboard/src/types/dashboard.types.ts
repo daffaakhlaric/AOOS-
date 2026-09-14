@@ -30,6 +30,14 @@ export interface AdMetricsDto {
    * literal without it keep compiling — never widened to required just for one new tab's sake.
    */
   readonly impressions?: number;
+  /**
+   * Real, already-pulled `AdMetricsResponseDto.reach` (`@aos/meta-ads-connector`'s `Ad.metrics.reach`)
+   * — same "already computed server-side, never plumbed through this app's DTOs" gap `impressions`'
+   * own docstring documents, closed here for the AdAdvisor-style campaign table (user-requested:
+   * "data table campaign nya lengkap gini kaya di adavisor"). Optional, same rationale as
+   * `impressions` — existing `AdMetricsDto` fixtures across the app keep compiling without it.
+   */
+  readonly reach?: number;
 }
 
 export interface CampaignAdDto {
@@ -95,6 +103,14 @@ export interface AdSetSummaryDto {
   readonly name: string;
   readonly status: string;
   readonly spend: number;
+  /**
+   * Real, already-pulled `AdSetResponseDto.dailyBudget` (Meta's real per-ad-set daily budget cap)
+   * — was already in `aaos-api`'s response but never forwarded by this app's `/api/campaigns`
+   * proxy (same class of gap as `AdMetricsDto.reach`'s own doc), closed for the AdAdvisor-style
+   * campaign table (user-requested). Required (not optional): every real ad set genuinely carries
+   * one from Meta, unlike `reach`/`impressions` which can be legitimately absent per-ad.
+   */
+  readonly dailyBudget: number;
   readonly ads: readonly AdSummaryDto[];
   /** AAOS Samantha Professional Optimizer, Part A/D — real Meta `learning_stage_info.status`, `undefined` when Meta didn't report one for this adset. */
   readonly learningStatus?: string;

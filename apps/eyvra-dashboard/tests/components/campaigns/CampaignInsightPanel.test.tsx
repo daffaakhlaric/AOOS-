@@ -52,6 +52,7 @@ const CAMPAIGN: CampaignSummaryDto = {
       name: "AdSet 1",
       status: "ACTIVE",
       spend: 1_000_000,
+      dailyBudget: 500_000,
       ads: [ad()],
     },
   ],

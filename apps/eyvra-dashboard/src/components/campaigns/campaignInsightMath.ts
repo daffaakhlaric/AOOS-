@@ -59,6 +59,10 @@ export interface CampaignAggregate {
   readonly clicks: number;
   readonly totalLead: number;
   readonly impressions: number | null;
+  /** Real, additive Meta `reach` — same "`null`, never a fabricated 0, when no ad carries a real value" convention as `impressions`. Added for the AdAdvisor-style campaign table (user-requested). */
+  readonly reach: number | null;
+  /** Real, additive Meta daily-budget cap summed across this campaign's real ad sets (`AdSetSummaryDto.dailyBudget`, always present — never `null`, unlike `impressions`/`reach`, which a specific AD can legitimately lack). */
+  readonly dailyBudget: number;
   readonly maxFrequency: number;
   readonly adCount: number;
   readonly adSetCount: number;
@@ -76,6 +80,8 @@ export function aggregateCampaign(campaign: CampaignSummaryDto): CampaignAggrega
   let totalLead = 0;
   let impressionsSum = 0;
   let impressionsKnown = false;
+  let reachSum = 0;
+  let reachKnown = false;
   let maxFrequency = 0;
   for (const ad of ads) {
     spend += ad.metrics.spend;
@@ -85,13 +91,20 @@ export function aggregateCampaign(campaign: CampaignSummaryDto): CampaignAggrega
       impressionsSum += ad.metrics.impressions;
       impressionsKnown = true;
     }
+    if (ad.metrics.reach !== undefined) {
+      reachSum += ad.metrics.reach;
+      reachKnown = true;
+    }
     maxFrequency = Math.max(maxFrequency, ad.metrics.frequency);
   }
+  const dailyBudget = campaign.adSets.reduce((sum, adSet) => sum + adSet.dailyBudget, 0);
   return {
     spend,
     clicks,
     totalLead,
     impressions: impressionsKnown ? impressionsSum : null,
+    reach: reachKnown ? reachSum : null,
+    dailyBudget,
     maxFrequency,
     adCount: ads.length,
     adSetCount: campaign.adSets.length,
@@ -101,6 +114,18 @@ export function aggregateCampaign(campaign: CampaignSummaryDto): CampaignAggrega
 export function ctrFromAggregate(aggregate: CampaignAggregate): number | null {
   return aggregate.impressions !== null && aggregate.impressions > 0
     ? aggregate.clicks / aggregate.impressions
+    : null;
+}
+
+/** Real, division-by-zero-safe CPC (cost per click) — `null` (never a fabricated 0) when `clicks` is 0. */
+export function cpcFromAggregate(aggregate: CampaignAggregate): number | null {
+  return aggregate.clicks > 0 ? aggregate.spend / aggregate.clicks : null;
+}
+
+/** Real, division-by-zero-safe CPM (cost per 1,000 impressions) — `null` when impressions aren't known/0, same convention as `ctrFromAggregate`. */
+export function cpmFromAggregate(aggregate: CampaignAggregate): number | null {
+  return aggregate.impressions !== null && aggregate.impressions > 0
+    ? (aggregate.spend / aggregate.impressions) * 1000
     : null;
 }
 

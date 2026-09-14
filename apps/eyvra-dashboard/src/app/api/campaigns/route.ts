@@ -36,6 +36,8 @@ interface AdAccountResponseDto {
       readonly name: string;
       readonly status: string;
       readonly spend: number;
+      /** Real, already-pulled Meta daily budget cap for this ad set — see `AdSetSummaryDto.dailyBudget`'s own doc in `dashboard.types.ts`. */
+      readonly dailyBudget: number;
       /** AAOS Samantha Professional Optimizer, Part A/D — real Meta `learning_stage_info.status`, `undefined` when Meta didn't report one. */
       readonly learningStatus?: string;
       readonly ads: ReadonlyArray<{
@@ -72,6 +74,7 @@ const ZERO_METRICS: CampaignAdDto["metrics"] = {
   rphD3: null,
   rphLead: null,
   impressions: 0,
+  reach: 0,
 };
 
 function toAdSummary(
@@ -104,6 +107,7 @@ function toAdSetSummary(
     name: adSet.name,
     status: adSet.status,
     spend: adSet.spend,
+    dailyBudget: adSet.dailyBudget,
     ads: adSet.ads.map(toAdSummary),
     ...(adSet.learningStatus !== undefined ? { learningStatus: adSet.learningStatus } : {}),
   };
@@ -180,6 +184,9 @@ function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
       // `impressions` is genuinely plumbed through from `aaos-api`'s real per-ad value (see
       // `AdMetricsDto.impressions`'s own docstring in `dashboard.types.ts`).
       impressions: (acc.impressions ?? 0) + (ad.metrics.impressions ?? 0),
+      // Additive, real, same convention as `impressions` immediately above — Meta's real
+      // per-ad `reach` value, closed for the AdAdvisor-style campaign table (user-requested).
+      reach: (acc.reach ?? 0) + (ad.metrics.reach ?? 0),
       rphD3: null,
       // Not summed — same non-additive-average judgment call as `rphD3` above (a group's real
       // Rp/Lead is `groupSpend / groupTotalLead`, not a sum of per-ad ratios). Callers needing a

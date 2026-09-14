@@ -57,11 +57,6 @@
   color: var(--v2-text-2, #64748b);
 }
 
-.budgetCell {
-  color: var(--v2-text-2, #64748b);
-  cursor: help;
-}
-
 .cplPill {
   display: inline-flex;
   align-items: center;

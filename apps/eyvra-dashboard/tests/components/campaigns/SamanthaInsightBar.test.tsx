@@ -53,6 +53,7 @@ function campaignWith(id: string, verdict: string, frequency = 1.0): CampaignSum
         name: "AdSet",
         status: "ACTIVE",
         spend: 1_000_000,
+        dailyBudget: 500_000,
         ads: [ad({ id: `ad-${id}`, verdict, metrics: metrics({ frequency }) })],
       },
     ],

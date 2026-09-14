@@ -4,12 +4,15 @@ import {
   accountBenchmarkCpl,
   aggregateCampaign,
   computeCpl,
+  cpcFromAggregate,
   cplTone,
+  cpmFromAggregate,
   ctrFromAggregate,
   FREQUENCY_WARNING_THRESHOLD,
   flattenCampaignAds,
   isFrequencyWarning,
   rphChatIDR,
+  type CampaignAggregate,
 } from "@/components/campaigns/campaignInsightMath";
 import type { AdMetricsDto, AdSummaryDto, CampaignSummaryDto } from "@/types/dashboard.types";
 
@@ -121,6 +124,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
         name: "AdSet 1",
         status: "ACTIVE",
         spend: 100,
+        dailyBudget: 500_000,
         ads: [
           ad({
             metrics: metrics({
@@ -140,6 +144,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
         name: "AdSet 2",
         status: "ACTIVE",
         spend: 200,
+        dailyBudget: 500_000,
         ads: [
           ad({
             id: "ad-2",
@@ -165,6 +170,57 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
     expect(result.adSetCount).toBe(2);
   });
 
+  // AdAdvisor-style table (user-requested) — real fields previously never surfaced.
+  it("sums real dailyBudget across every real ad set (not per-ad, per-adset)", () => {
+    expect(aggregateCampaign(twoAdSetCampaign).dailyBudget).toBe(1_000_000); // 500_000 + 500_000
+  });
+
+  it("reach sums only the ads that carry a real value, same honest convention as impressions", () => {
+    const oneKnown = campaign({
+      adSets: [
+        {
+          id: "as1",
+          metaId: "as1",
+          stableId: "#B001",
+          name: "AdSet 1",
+          status: "ACTIVE",
+          spend: 100,
+          dailyBudget: 500_000,
+          ads: [ad({ metrics: metrics({ reach: 800 }) })],
+        },
+        {
+          id: "as2",
+          metaId: "as2",
+          stableId: "#B002",
+          name: "AdSet 2",
+          status: "ACTIVE",
+          spend: 200,
+          dailyBudget: 500_000,
+          ads: [ad({ id: "ad-2", metrics: metrics({ reach: undefined }) })],
+        },
+      ],
+    });
+    expect(aggregateCampaign(oneKnown).reach).toBe(800);
+  });
+
+  it("reach is null (never a fabricated 0) when NO ad in the campaign carries a real value", () => {
+    const noneKnown = campaign({
+      adSets: [
+        {
+          id: "as1",
+          metaId: "as1",
+          stableId: "#B001",
+          name: "AdSet 1",
+          status: "ACTIVE",
+          spend: 100,
+          dailyBudget: 500_000,
+          ads: [ad({ metrics: metrics({ reach: undefined }) })],
+        },
+      ],
+    });
+    expect(aggregateCampaign(noneKnown).reach).toBeNull();
+  });
+
   it("impressions sums only the ads that carry a real value (same 'known if at least one ad has it' convention as MetricsTab.tsx's aggregateAdMetrics) rather than summing a missing value as 0", () => {
     // twoAdSetCampaign: ad-1 has impressions: 1_000, ad-2 has none — the known value is still
     // reported (1_000), never silently zeroed out by the missing one.
@@ -182,6 +238,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
           name: "AdSet 1",
           status: "ACTIVE",
           spend: 100,
+          dailyBudget: 500_000,
           ads: [ad({ metrics: metrics({ impressions: undefined }) })],
         },
       ],
@@ -199,6 +256,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
           name: "AdSet 1",
           status: "ACTIVE",
           spend: 100,
+          dailyBudget: 500_000,
           ads: [ad({ metrics: metrics({ impressions: 1_000 }) })],
         },
         {
@@ -208,6 +266,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
           name: "AdSet 2",
           status: "ACTIVE",
           spend: 200,
+          dailyBudget: 500_000,
           ads: [ad({ id: "ad-2", metrics: metrics({ impressions: 2_000 }) })],
         },
       ],
@@ -224,6 +283,8 @@ describe("ctrFromAggregate", () => {
         clicks: 50,
         totalLead: 0,
         impressions: 1_000,
+        reach: null,
+        dailyBudget: 0,
         maxFrequency: 0,
         adCount: 0,
         adSetCount: 0,
@@ -238,11 +299,52 @@ describe("ctrFromAggregate", () => {
         clicks: 50,
         totalLead: 0,
         impressions: null,
+        reach: null,
+        dailyBudget: 0,
         maxFrequency: 0,
         adCount: 0,
         adSetCount: 0,
       }),
     ).toBeNull();
+  });
+});
+
+function baseAggregate(overrides: Partial<CampaignAggregate> = {}): CampaignAggregate {
+  return {
+    spend: 0,
+    clicks: 0,
+    totalLead: 0,
+    impressions: null,
+    reach: null,
+    dailyBudget: 0,
+    maxFrequency: 0,
+    adCount: 0,
+    adSetCount: 0,
+    ...overrides,
+  };
+}
+
+describe("cpcFromAggregate", () => {
+  it("returns spend/clicks when clicks is known and > 0", () => {
+    expect(cpcFromAggregate(baseAggregate({ spend: 100_000, clicks: 50 }))).toBe(2_000);
+  });
+
+  it("returns null (never a fabricated 0) when clicks is 0", () => {
+    expect(cpcFromAggregate(baseAggregate({ spend: 100_000, clicks: 0 }))).toBeNull();
+  });
+});
+
+describe("cpmFromAggregate", () => {
+  it("returns (spend/impressions)*1000 when impressions is known and > 0", () => {
+    expect(cpmFromAggregate(baseAggregate({ spend: 100_000, impressions: 1_000 }))).toBe(100_000);
+  });
+
+  it("returns null when impressions is null", () => {
+    expect(cpmFromAggregate(baseAggregate({ spend: 100_000, impressions: null }))).toBeNull();
+  });
+
+  it("returns null when impressions is 0", () => {
+    expect(cpmFromAggregate(baseAggregate({ spend: 100_000, impressions: 0 }))).toBeNull();
   });
 });
 
@@ -260,6 +362,7 @@ describe("accountBenchmarkCpl", () => {
             name: "AdSet 1",
             status: "ACTIVE",
             spend: 100,
+            dailyBudget: 500_000,
             ads: [ad({ metrics: metrics({ spend: 1_000_000, totalLead: 10 }) })],
           },
         ],
@@ -275,6 +378,7 @@ describe("accountBenchmarkCpl", () => {
             name: "AdSet 2",
             status: "ACTIVE",
             spend: 100,
+            dailyBudget: 500_000,
             ads: [ad({ id: "ad-2", metrics: metrics({ spend: 1_000_000, totalLead: 10 }) })],
           },
         ],

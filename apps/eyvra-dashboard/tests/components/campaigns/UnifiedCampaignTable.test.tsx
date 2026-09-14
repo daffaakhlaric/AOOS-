@@ -59,6 +59,7 @@ function campaignWith(
         name: "AdSet",
         status: "ACTIVE",
         spend: adOverrides.spend ?? 1_000_000,
+        dailyBudget: 500_000,
         ads: [ad({ id: `ad-${id}`, verdict, metrics: metrics(adOverrides) })],
       },
     ],
@@ -136,7 +137,10 @@ describe("UnifiedCampaignTable", () => {
     expect(screen.queryByTestId("frequency-warning")).not.toBeInTheDocument();
   });
 
-  it("shows an honest '—' (never a fabricated cap) in the Budget column — no real per-campaign budget field exists", () => {
+  // AdAdvisor-style table (user-requested: "data table campaign nya lengkap gini kaya di adavisor")
+  // — real, already-pulled Meta fields (`AdSetSummaryDto.dailyBudget`) this app's proxy never
+  // forwarded until now.
+  it("shows the real Daily Budget summed across the campaign's real ad sets, never a fabricated cap", () => {
     const campaigns = [campaignWith("x", "ACTIVE", { totalLead: 10 })];
     render(
       <UnifiedCampaignTable
@@ -147,10 +151,86 @@ describe("UnifiedCampaignTable", () => {
         onPause={vi.fn()}
       />,
     );
-    const budgetCells = screen.getAllByTitle(
-      "Tidak ada field budget per-campaign yang real di data Meta Ads saat ini.",
+    // campaignWith's fixture sets dailyBudget: 500_000 on its one real ad set.
+    expect(screen.getByTestId("daily-budget-x")).toHaveTextContent("Rp 500.000");
+  });
+
+  it("shows an honest '—' for Daily Budget when the campaign genuinely has no real ad sets", () => {
+    const campaigns: CampaignSummaryDto[] = [{ ...campaignWith("x", "ACTIVE", {}), adSets: [] }];
+    render(
+      <UnifiedCampaignTable
+        campaigns={campaigns}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
     );
-    expect(budgetCells).toHaveLength(1);
+    expect(screen.getByTestId("daily-budget-x")).toHaveTextContent("—");
+  });
+
+  it("shows real Impressions/Reach/CTR/CPC/CPM derived from the campaign's own already-loaded ad metrics", () => {
+    const campaigns = [
+      campaignWith("x", "ACTIVE", {
+        spend: 100_000,
+        clicks: 50,
+        impressions: 1_000,
+        reach: 800,
+        totalLead: 10,
+      }),
+    ];
+    render(
+      <UnifiedCampaignTable
+        campaigns={campaigns}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("results-x")).toHaveTextContent("10");
+    expect(screen.getByTestId("impressions-x")).toHaveTextContent("1.000");
+    expect(screen.getByTestId("reach-x")).toHaveTextContent("800");
+    expect(screen.getByTestId("ctr-x")).toHaveTextContent("5"); // 50/1_000 = 5%
+    expect(screen.getByTestId("cpc-x")).toHaveTextContent("Rp 2.000"); // 100_000/50
+    expect(screen.getByTestId("cpm-x")).toHaveTextContent("Rp 100.000"); // 100_000/1_000*1_000
+  });
+
+  it("shows an honest '—' (never a fabricated 0) for Impressions/Reach/CTR/CPM when no ad carries a real value yet", () => {
+    const campaigns = [campaignWith("x", "ACTIVE", { spend: 0, clicks: 0, totalLead: 0 })];
+    render(
+      <UnifiedCampaignTable
+        campaigns={campaigns}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("impressions-x")).toHaveTextContent("—");
+    expect(screen.getByTestId("reach-x")).toHaveTextContent("—");
+    expect(screen.getByTestId("ctr-x")).toHaveTextContent("—");
+    expect(screen.getByTestId("cpc-x")).toHaveTextContent("—");
+    expect(screen.getByTestId("cpm-x")).toHaveTextContent("—");
+  });
+
+  // Deliberate scope boundary (user-confirmed): Revenue/ROAS/AOV and the e-commerce funnel
+  // (View Content/Add to Cart/Init. Checkout/Purchases) are never rendered — this tenant's real
+  // Meta pull carries no revenue/purchase/pixel data (WhatsApp lead-gen, not e-commerce).
+  it("never renders a Revenue/ROAS/AOV column or e-commerce funnel columns — no real data source exists for them", () => {
+    const campaigns = [campaignWith("x", "ACTIVE", { totalLead: 10 })];
+    render(
+      <UnifiedCampaignTable
+        campaigns={campaigns}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    for (const label of ["Revenue", "ROAS", "AOV", "Add to Cart", "Purchases"]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
   });
 
   it("calls onSelect with the campaign id when a row is clicked", async () => {

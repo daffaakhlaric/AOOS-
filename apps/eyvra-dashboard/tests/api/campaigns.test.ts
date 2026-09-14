@@ -120,6 +120,53 @@ describe("GET /api/campaigns", () => {
     expect(body.adCount).toBe(1);
   });
 
+  // AdAdvisor-style campaign table (user-requested: "data table campaign nya lengkap gini kaya di
+  // adavisor") — real, already-pulled `aaos-api` fields (`dailyBudget`, `reach`) that this proxy
+  // silently dropped until now, closing the same class of "already computed server-side, never
+  // plumbed through this app's DTOs" gap `daysSinceCreation` was fixed for above.
+  it("forwards the real dailyBudget (per ad set) and reach (per ad) that aaos-api already returns", async () => {
+    const withBudgetAndReach = {
+      ...AD_ACCOUNT_RESPONSE,
+      campaigns: [
+        {
+          ...AD_ACCOUNT_RESPONSE.campaigns[0]!,
+          adSets: [
+            {
+              ...AD_ACCOUNT_RESPONSE.campaigns[0]!.adSets[0]!,
+              dailyBudget: 500_000,
+              ads: [
+                {
+                  ...AD_ACCOUNT_RESPONSE.campaigns[0]!.adSets[0]!.ads[0]!,
+                  metrics: {
+                    ...AD_ACCOUNT_RESPONSE.campaigns[0]!.adSets[0]!.ads[0]!.metrics,
+                    reach: 5_000,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    global.fetch = vi.fn(
+      async () => new Response(JSON.stringify(withBudgetAndReach), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    const response = await GET(requestWith({ adAccountId: "act_budget_1" }));
+    const body = (await response.json()) as {
+      campaigns: ReadonlyArray<{
+        adSets: ReadonlyArray<{
+          dailyBudget: number;
+          ads: ReadonlyArray<{ metrics: { reach?: number } }>;
+        }>;
+      }>;
+      totals: { reach?: number };
+    };
+    expect(body.campaigns[0]?.adSets[0]?.dailyBudget).toBe(500_000);
+    expect(body.campaigns[0]?.adSets[0]?.ads[0]?.metrics.reach).toBe(5_000);
+    expect(body.totals.reach).toBe(5_000);
+  });
+
   it("passes daysSinceCreation through when the upstream ad has it (AAOS-SAMANTHA-PAGES: powers Audit Biaya's 'Iklan Baru' section)", async () => {
     const withDays = {
       ...AD_ACCOUNT_RESPONSE,

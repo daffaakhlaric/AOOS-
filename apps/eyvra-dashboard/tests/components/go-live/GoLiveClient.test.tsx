@@ -52,6 +52,7 @@ const CAMPAIGNS_DATA: AdAccountSummaryDto = {
           name: "adset",
           status: "ACTIVE",
           spend: 150_000,
+          dailyBudget: 100_000,
           ads: [
             {
               id: "ad-1",
