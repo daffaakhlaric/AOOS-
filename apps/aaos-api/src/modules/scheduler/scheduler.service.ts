@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { ALL_BRANCH_IDS } from "@aos/branch-manager";
+import { scorePropertyAdAngleStrength } from "@aos/creative-agent";
 import { NotFoundError } from "@aos/errors";
 import type { IPublisher } from "@aos/event-bus";
 import type { LeadStore } from "@aos/lead-store";
@@ -2506,6 +2507,15 @@ function toAnalyzeCampaigns(adAccounts: readonly AdAccount[]): AnalyzeRequestDto
  * judgment available to decide video-worthiness) — matches `runNeedCreativeCheck`'s own real
  * `requestedFormat: "IMAGES_ONLY"` fallback default for its own auto-loop brief.
  */
+/**
+ * Kai Creative Engine Sprint 1 — real, data-driven angle priority for the deterministic (no-LLM)
+ * fallback path. Previously picked unused angles in `ALL_PROPERTY_AD_ANGLE_VALUES`'s fixed
+ * declaration order (arbitrary — not related to which angle actually fits THIS listing best). Now
+ * uses `scorePropertyAdAngleStrength` (`@aos/creative-agent`) to rank unused angles by a real signal
+ * this listing's own data supports first; any unused angle the scorer has no honest signal for
+ * (including `TESTIMONIAL`, which the scorer never scores at all — see its own doc) falls back to
+ * the original declared order, appended after every scored angle.
+ */
 function deterministicDiverseBriefFallback(
   listing: ListingResponseDto,
   existingAngles: readonly string[],
@@ -2518,7 +2528,22 @@ function deterministicDiverseBriefFallback(
   readonly description: string;
 }> {
   const existing = new Set(existingAngles);
-  const unusedAngles = ALL_PROPERTY_AD_ANGLE_VALUES.filter((angle) => !existing.has(angle));
+  const scoredAngles = scorePropertyAdAngleStrength({
+    propertyType: listing.propertyType,
+    ...(listing.price !== undefined ? { price: listing.price } : {}),
+    ...(listing.buildArea !== undefined ? { buildArea: listing.buildArea } : {}),
+    ...(listing.condition !== undefined ? { condition: listing.condition } : {}),
+    ...(listing.certificate !== undefined ? { certificate: listing.certificate } : {}),
+    ...(listing.description !== undefined ? { description: listing.description } : {}),
+    highlights: listing.highlights,
+    photoCount: listing.photos.length,
+  }).map((scored) => scored.angle as string);
+  const remainingInDeclaredOrder = ALL_PROPERTY_AD_ANGLE_VALUES.filter(
+    (angle) => !scoredAngles.includes(angle),
+  );
+  const prioritizedAngles = [...scoredAngles, ...remainingInDeclaredOrder];
+
+  const unusedAngles = prioritizedAngles.filter((angle) => !existing.has(angle));
   return unusedAngles.slice(0, effectiveTarget).map((angle) => ({
     angle,
     format: "IMAGES_ONLY" as const,

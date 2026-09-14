@@ -37,9 +37,20 @@ export class OpenAiApiError extends Error {
 
 export type ChatRole = "system" | "user" | "assistant";
 
+/**
+ * Kai Creative Engine Sprint 1 (photo analysis) — OpenAI's real multi-part message content shape
+ * for vision-capable models (`gpt-4o-mini` and later support `image_url` parts alongside `text`).
+ * `image_url.url` is passed as the real, already-public Supabase Storage photo URL directly (no
+ * base64 fetch-and-re-encode round trip needed — unlike the pasted spec's `urlToBase64`, OpenAI's
+ * Chat Completions API accepts a plain HTTPS image URL).
+ */
+export type OpenAiContentPart =
+  | { readonly type: "text"; readonly text: string }
+  | { readonly type: "image_url"; readonly image_url: { readonly url: string } };
+
 export interface OpenAiChatMessage {
   readonly role: ChatRole;
-  readonly content: string;
+  readonly content: string | ReadonlyArray<OpenAiContentPart>;
 }
 
 export interface CreateChatCompletionOptions {

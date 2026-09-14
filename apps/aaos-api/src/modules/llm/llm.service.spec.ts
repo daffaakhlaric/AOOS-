@@ -31,6 +31,7 @@ import type { DiverseCreativeBriefSetRequestDto } from "./dto/diverse-creative-b
 import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
 import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js";
 import type { ImprovementPlanRequestDto } from "./dto/improvement-plan.dto.js";
+import type { PhotoAnalysisRequestDto } from "./dto/photo-analysis.dto.js";
 import type { SelectTargetingRequestDto } from "./dto/select-targeting.dto.js";
 import {
   CHAT_COMPLETIONS_PATH,
@@ -1941,6 +1942,93 @@ describe("LlmService", () => {
         TENANT_ID,
         validDiverseBriefSetBody,
       );
+      expect(second).toEqual(first);
+    });
+  });
+
+  describe("analyzePropertyPhoto (Kai Creative Engine, Sprint 1)", () => {
+    const validPhotoAnalysisBody: PhotoAnalysisRequestDto = {
+      photoUrl: "https://storage.example.com/listings/photo-1.jpg",
+    };
+
+    const validPhotoAnalysisLlmJson = JSON.stringify({
+      scene: "EKSTERIOR",
+      qualityScore: 82,
+      marketingScore: 74,
+      recommendedUse: "HERO",
+      reasoning: "Foto tampak depan rumah dengan pencahayaan alami yang baik.",
+    });
+
+    it("returns available:true with the real analysis from a mocked OpenAI vision response", async () => {
+      registerOpenAiChatHandler(validPhotoAnalysisLlmJson);
+      const service = buildService();
+      const result = await service.analyzePropertyPhoto(TENANT_ID, validPhotoAnalysisBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validPhotoAnalysisLlmJson) });
+    });
+
+    it("returns NO_API_KEY (no fabricated analysis) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.analyzePropertyPhoto(TENANT_ID, validPhotoAnalysisBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns PROVIDER_ERROR (no fabricated analysis) when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.analyzePropertyPhoto(TENANT_ID, validPhotoAnalysisBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.analyzePropertyPhoto(TENANT_ID, validPhotoAnalysisBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when the model invents a scene value outside the small, real vocabulary", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          scene: "BALKON", // not in PHOTO_SCENE_VALUES — never trusted from the prompt alone
+          qualityScore: 80,
+          marketingScore: 70,
+          recommendedUse: "HERO",
+          reasoning: "x",
+        }),
+      );
+      const service = buildService();
+      const result = await service.analyzePropertyPhoto(TENANT_ID, validPhotoAnalysisBody);
+      expect(result.available).toBe(false);
+    });
+
+    it("returns RATE_LIMITED (no fabricated analysis) when the local rate limiter is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.analyzePropertyPhoto(TENANT_ID, validPhotoAnalysisBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for the same photo URL", async () => {
+      registerOpenAiChatHandler(validPhotoAnalysisLlmJson);
+      const service = buildService();
+      const first = await service.analyzePropertyPhoto(TENANT_ID, validPhotoAnalysisBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.analyzePropertyPhoto(TENANT_ID, validPhotoAnalysisBody);
       expect(second).toEqual(first);
     });
   });

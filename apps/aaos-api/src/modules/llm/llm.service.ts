@@ -82,6 +82,11 @@ import {
 } from "./dto/judge-agent-run.dto.js";
 import { unavailable, type LlmUnavailableResponseDto } from "./dto/llm-unavailable.dto.js";
 import {
+  PhotoAnalysisLlmPayloadSchema,
+  type PhotoAnalysisRequestDto,
+  type PhotoAnalysisResponseDto,
+} from "./dto/photo-analysis.dto.js";
+import {
   ResolveLocationLlmPayloadSchema,
   type ResolveLocationRequestDto,
   type ResolveLocationResponseDto,
@@ -650,6 +655,25 @@ Format response JSON:
   "briefs": [
     { "angle": "...", "format": "...", "headline": "...", "primaryText": "...", "description": "..." }
   ]
+}`;
+
+/**
+ * Kai Creative Engine Sprint 1 — `LlmService.analyzePropertyPhoto`'s system prompt. Deliberately a
+ * SMALL, honest vocabulary (see `photo-analysis.dto.ts`'s own doc for why) — the model is told
+ * exactly the 5 `scene`/3 `recommendedUse` values it is allowed to pick from, never invited to
+ * invent its own taxonomy.
+ */
+const PHOTO_ANALYSIS_SYSTEM_PROMPT = `Kamu adalah Samantha, AI Marketing Manager untuk platform properti (PROPERTY) di Indonesia, sedang bertugas sebagai Kai — menganalisa SATU foto listing properti untuk keperluan iklan Meta Ads.
+
+JANGAN mengarang detail yang tidak benar-benar terlihat di foto. HANYA deskripsikan apa yang benar-benar ada di foto yang diberikan.
+
+Balas HANYA dengan JSON:
+{
+  "scene": "EKSTERIOR" | "INTERIOR" | "FASILITAS" | "DENAH" | "LAINNYA",
+  "qualityScore": 0-100 (kualitas teknis: pencahayaan, ketajaman, komposisi),
+  "marketingScore": 0-100 (seberapa kuat foto ini sebagai creative iklan — daya tarik emosional, potensi jadi hero visual; bisa berbeda dari qualityScore),
+  "recommendedUse": "HERO" | "SUPPORTING" | "NOT_RECOMMENDED",
+  "reasoning": "alasan singkat dan jujur berdasarkan apa yang benar-benar terlihat di foto"
 }`;
 
 /**
@@ -1862,6 +1886,63 @@ export class LlmService {
   }
 
   /** Shared "no API key" / "rate limited" checks (spec Sections 6 + 7). Returns `undefined` when clear to call OpenAI. */
+  /**
+   * Kai Creative Engine Sprint 1 — real Vision-based analysis of ONE listing photo. Same
+   * cache/gate/call/validate/cache composition every other method on this service already uses,
+   * through the SAME real `OpenAiClient` gateway (`gpt-4o-mini`, vision-capable) — never a second,
+   * parallel LLM client (the pasted spec assumed a direct `@anthropic-ai/sdk` call, which this
+   * service does not have and should not gain a second competing provider for). The photo is passed
+   * as its real, already-public URL (an `image_url` content part) — no base64 download/re-encode
+   * round trip like the pasted spec's `urlToBase64` needed.
+   */
+  async analyzePropertyPhoto(
+    tenantId: string,
+    body: PhotoAnalysisRequestDto,
+  ): Promise<PhotoAnalysisResponseDto> {
+    const cached = this.cache.get("analyze-property-photo", body) as
+      PhotoAnalysisResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "analyze_property_photo",
+      PHOTO_ANALYSIS_SYSTEM_PROMPT,
+    );
+    const userMessage: OpenAiChatMessage = {
+      role: "user",
+      content: [
+        { type: "text", text: "Analisa foto properti ini untuk keperluan iklan Meta Ads." },
+        { type: "image_url", image_url: { url: body.photoUrl } },
+      ],
+    };
+    const completion = await this.client.createChatCompletion({
+      messages: [{ role: "system", content: systemPrompt }, userMessage],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined ? undefined : PhotoAnalysisLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: PhotoAnalysisResponseDto = { available: true, ...validated.data };
+    this.cache.set("analyze-property-photo", body, response);
+    return response;
+  }
+
   private checkGate(): LlmUnavailableResponseDto | undefined {
     if (this.config.OPENAI_API_KEY.length === 0) {
       return unavailable("NO_API_KEY");

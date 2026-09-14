@@ -76,6 +76,12 @@ export { PropertyFormatDecider } from "./intelligence/PropertyFormatDecider.js";
 export type { IPropertyFormatDecider } from "./contracts/IPropertyFormatDecider.js";
 export { PropertyCopyBuilder } from "./intelligence/PropertyCopyBuilder.js";
 export type { PropertyCopyVariant } from "./intelligence/PropertyCopyBuilder.js";
+// Kai Creative Engine Sprint 1 — real, data-driven angle-strength scoring (reuses PropertyAdAngle).
+export { scorePropertyAdAngleStrength } from "./intelligence/PropertyAngleStrengthScorer.js";
+export type {
+  PropertyListingAngleSignals,
+  PropertyAngleStrength,
+} from "./intelligence/PropertyAngleStrengthScorer.js";
 
 // Additive: the contracts (ports) every intelligence/service class above implements.
 export type { ICreativeAgent } from "./contracts/ICreativeAgent.js";
