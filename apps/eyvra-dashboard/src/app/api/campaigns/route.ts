@@ -28,6 +28,8 @@ interface AdAccountResponseDto {
     readonly objective: string;
     readonly status: string;
     readonly spend: number;
+    /** Real, CBO-only campaign-level daily budget — see `CampaignSummaryDto.dailyBudget`'s own doc in `dashboard.types.ts`. */
+    readonly dailyBudget: number;
     readonly adSets: ReadonlyArray<{
       readonly id: string;
       /** Real, stable Meta ad-set id — same bug fix as `metaId` above. */
@@ -124,6 +126,7 @@ function toCampaignSummary(
     objective: campaign.objective,
     status: campaign.status,
     spend: campaign.spend,
+    dailyBudget: campaign.dailyBudget,
     adSets: campaign.adSets.map(toAdSetSummary),
   };
 }

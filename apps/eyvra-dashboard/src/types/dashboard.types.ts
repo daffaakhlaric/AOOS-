@@ -133,6 +133,17 @@ export interface CampaignSummaryDto {
   readonly objective: string;
   readonly status: string;
   readonly spend: number;
+  /**
+   * Real Meta `daily_budget`, present ONLY for a Campaign Budget Optimization (CBO) campaign —
+   * `0` for a non-CBO campaign, whose real per-ad-set budgets live on each
+   * `AdSetSummaryDto.dailyBudget` instead. AAOS never requested this campaign-level field until
+   * now (user-reported gap: "saya cek daily budget masih... kosong" on the AdAdvisor-style
+   * table — a CBO campaign's Daily Budget column was a permanent "—" even though Meta genuinely
+   * has the number, just not where the ad-set-level sum alone was looking for it). See
+   * `campaignInsightMath.ts`'s `aggregateCampaign` for the real fallback: ad-set-level sum first,
+   * this field only when that sum is 0.
+   */
+  readonly dailyBudget: number;
   readonly adSets: readonly AdSetSummaryDto[];
 }
 

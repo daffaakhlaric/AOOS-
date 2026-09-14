@@ -43,6 +43,7 @@ function adWithRphLead(rphLead: number | null, spend = 100_000): CampaignSummary
     objective: "OUTCOME_LEADS",
     status: "ACTIVE",
     spend,
+    dailyBudget: 0,
     adSets: [
       {
         id: "as1",

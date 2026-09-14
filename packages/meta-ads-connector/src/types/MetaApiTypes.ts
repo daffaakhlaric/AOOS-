@@ -54,6 +54,12 @@ export const MetaCampaignSchema = z.object({
   objective: z.string(),
   status: z.string(),
   created_time: z.string().optional(),
+  /**
+   * Real Meta field, present ONLY for a Campaign Budget Optimization (CBO) campaign — see
+   * `Campaign.dailyBudget`'s own doc (`domain/entities/Campaign.ts`) for the full ABO-vs-CBO
+   * reasoning this closes a real gap for.
+   */
+  daily_budget: z.string().optional(),
   insights: MetaInsightsEdgeSchema.optional(),
 });
 export type MetaCampaign = z.infer<typeof MetaCampaignSchema>;

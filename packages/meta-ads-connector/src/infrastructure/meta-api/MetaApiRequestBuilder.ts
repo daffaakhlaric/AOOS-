@@ -3,8 +3,17 @@ import type { PageCursor } from "../../contracts/IMetaAdsClient.js";
 const API_VERSION = "v21.0";
 const BASE_URL = "https://graph.facebook.com";
 
-/** `created_time` is requested beyond the spec's literal field list — see `mappers/CampaignMapper.ts`'s docstring for why. */
-const CAMPAIGN_FIELDS = ["id", "name", "objective", "status", "created_time"].join(",");
+/**
+ * `created_time` is requested beyond the spec's literal field list — see
+ * `mappers/CampaignMapper.ts`'s docstring for why. `daily_budget` added for the real ABO-vs-CBO
+ * gap fix — see `Campaign.dailyBudget`'s own doc (`domain/entities/Campaign.ts`): Meta only
+ * returns this at the CAMPAIGN level for a Campaign Budget Optimization (CBO) campaign (the
+ * non-CBO case already has it at the AD SET level, `ADSET_FIELDS`' own `daily_budget` below), and
+ * AAOS never requested it here until now.
+ */
+const CAMPAIGN_FIELDS = ["id", "name", "objective", "status", "created_time", "daily_budget"].join(
+  ",",
+);
 
 /**
  * `targeting` added for AAOS Analytics Platform Phase 3's real AdSet-targeting scope extension.

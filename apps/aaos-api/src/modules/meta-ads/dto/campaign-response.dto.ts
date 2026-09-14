@@ -71,6 +71,13 @@ export interface CampaignResponseDto {
   readonly funnel: string;
   readonly branch: string;
   readonly spend: number;
+  /**
+   * Real Meta `daily_budget`, present ONLY for a Campaign Budget Optimization (CBO) campaign — see
+   * `Campaign.dailyBudget`'s own doc (`@aos/meta-ads-connector`) for the full ABO-vs-CBO reasoning.
+   * `0` (never fabricated) for a non-CBO campaign, whose real per-ad-set budgets are each on
+   * `AdSetResponseDto.dailyBudget` instead.
+   */
+  readonly dailyBudget: number;
   readonly createdAt: string;
   readonly adSets: ReadonlyArray<AdSetResponseDto>;
 }
@@ -109,6 +116,7 @@ function toCampaignResponseDto(campaign: Campaign): CampaignResponseDto {
     funnel: campaign.funnel,
     branch: campaign.branch,
     spend: campaign.spend.toNumber(),
+    dailyBudget: campaign.dailyBudget.toNumber(),
     createdAt: campaign.createdAt.toISOString(),
     adSets: campaign.adSets.map(toAdSetResponseDto),
   };

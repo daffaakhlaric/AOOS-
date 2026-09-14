@@ -97,7 +97,13 @@ export function aggregateCampaign(campaign: CampaignSummaryDto): CampaignAggrega
     }
     maxFrequency = Math.max(maxFrequency, ad.metrics.frequency);
   }
-  const dailyBudget = campaign.adSets.reduce((sum, adSet) => sum + adSet.dailyBudget, 0);
+  // Real ABO-vs-CBO fallback (user-reported gap: "saya cek daily budget masih... kosong") — sum
+  // the real per-ad-set budgets first (the non-CBO, ABO case); when that's honestly 0, fall back
+  // to the real campaign-level `daily_budget` (the CBO case — Meta puts the budget there instead,
+  // never on any ad set, for a CBO campaign). Never summed together: exactly one of the two is
+  // real/non-zero for any given real campaign, so adding them could only ever double-count.
+  const adSetLevelDailyBudget = campaign.adSets.reduce((sum, adSet) => sum + adSet.dailyBudget, 0);
+  const dailyBudget = adSetLevelDailyBudget > 0 ? adSetLevelDailyBudget : campaign.dailyBudget;
   return {
     spend,
     clicks,

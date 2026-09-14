@@ -57,6 +57,7 @@ function campaign(overrides: Partial<CampaignSummaryDto> = {}): CampaignSummaryD
     objective: "OUTCOME_LEADS",
     status: "ACTIVE",
     spend: 0,
+    dailyBudget: 0,
     adSets: [],
     ...overrides,
   };
@@ -173,6 +174,32 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
   // AdAdvisor-style table (user-requested) — real fields previously never surfaced.
   it("sums real dailyBudget across every real ad set (not per-ad, per-adset)", () => {
     expect(aggregateCampaign(twoAdSetCampaign).dailyBudget).toBe(1_000_000); // 500_000 + 500_000
+  });
+
+  // Real ABO-vs-CBO fallback (user-reported gap: "saya cek daily budget masih... kosong") — a CBO
+  // campaign's real budget lives on the campaign itself, never on any of its real ad sets.
+  it("falls back to the real campaign-level dailyBudget when every ad set's is honestly 0 (the CBO case)", () => {
+    const cboCampaign = campaign({
+      dailyBudget: 750_000,
+      adSets: [
+        {
+          id: "as1",
+          metaId: "as1",
+          stableId: "#B001",
+          name: "AdSet 1",
+          status: "ACTIVE",
+          spend: 100,
+          dailyBudget: 0,
+          ads: [ad()],
+        },
+      ],
+    });
+    expect(aggregateCampaign(cboCampaign).dailyBudget).toBe(750_000);
+  });
+
+  it("uses the real per-ad-set sum (never the campaign-level field) when the ad-set sum is honestly non-zero (the ABO case)", () => {
+    const aboCampaign = campaign({ dailyBudget: 999_999, adSets: twoAdSetCampaign.adSets });
+    expect(aggregateCampaign(aboCampaign).dailyBudget).toBe(1_000_000); // real per-adset sum, not the bogus campaign-level value
   });
 
   it("reach sums only the ads that carry a real value, same honest convention as impressions", () => {

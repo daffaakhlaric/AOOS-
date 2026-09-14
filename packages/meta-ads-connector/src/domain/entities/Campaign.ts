@@ -4,6 +4,7 @@ import { ValidationError } from "@aos/errors";
 import type { AdAccountId } from "../value-objects/AdAccountId.js";
 import { AdStatus } from "../value-objects/AdStatus.js";
 import type { Branch } from "../value-objects/Branch.js";
+import type { Budget } from "../value-objects/Budget.js";
 import type { CampaignId } from "../value-objects/CampaignId.js";
 import { CampaignObjective } from "../value-objects/CampaignObjective.js";
 import type { Funnel } from "../value-objects/Funnel.js";
@@ -23,6 +24,18 @@ export interface CampaignProps {
   readonly funnel: Funnel;
   readonly branch: Branch;
   readonly spend: Spend;
+  /**
+   * Real Meta `daily_budget`, present ONLY when this campaign uses Campaign Budget Optimization
+   * (CBO) — Meta puts the real budget on the CAMPAIGN object for CBO, vs. on each individual ad
+   * set for the non-CBO case (`AdSet.dailyBudget`, this package's pre-existing field). AAOS never
+   * requested this campaign-level field until now (real gap — the AdAdvisor-style dashboard table
+   * showed a permanent "—" for every CBO campaign's Daily Budget, even though Meta genuinely has
+   * the number, just not where AAOS was looking for it). `Budget.create(0)` (never `undefined`)
+   * when this campaign is non-CBO — the real, additive per-ad-set sum is the correct number there,
+   * this field is honestly 0 so summing both together (never done — see `CampaignMapper`'s own
+   * "never both" doc) can't silently double either one.
+   */
+  readonly dailyBudget: Budget;
   readonly adSets: ReadonlyArray<AdSet>;
   readonly createdAt: Date;
 }
@@ -93,6 +106,10 @@ export class Campaign {
 
   get spend(): Spend {
     return this.props.spend;
+  }
+
+  get dailyBudget(): Budget {
+    return this.props.dailyBudget;
   }
 
   get adSets(): ReadonlyArray<AdSet> {

@@ -4,6 +4,7 @@ import {
   AdBuilder,
   AdMetrics,
   AdSetBuilder,
+  Budget,
   CampaignBuilder,
   Spend,
 } from "@aos/meta-ads-connector";
@@ -70,6 +71,7 @@ describe("toAdAccountResponseDto", () => {
       funnel: campaign.funnel,
       branch: campaign.branch,
       spend: campaign.spend.toNumber(),
+      dailyBudget: campaign.dailyBudget.toNumber(),
     });
     expect(campaignDto?.adSets).toHaveLength(1);
     const adSetDto = campaignDto?.adSets[0];
@@ -92,6 +94,31 @@ describe("toAdAccountResponseDto", () => {
       totalLead: ad.metrics.totalLead,
       rphChat: ad.metrics.rphChat.value,
     });
+  });
+
+  // Real ABO-vs-CBO gap fix (user-reported: "saya cek daily budget masih... kosong" on the
+  // AdAdvisor-style table) — a CBO campaign's real budget lives on the CAMPAIGN entity itself,
+  // never on any of its ad sets.
+  it("serializes the real CBO campaign-level dailyBudget separately from the ad-set-level one", () => {
+    const ad: Ad = unwrap(new AdBuilder().build());
+    const adSet = unwrap(
+      new AdSetBuilder()
+        .withAds([ad])
+        .withDailyBudget(unwrap(Budget.create(0)))
+        .build(),
+    );
+    const campaign = unwrap(
+      new CampaignBuilder()
+        .withAdSets([adSet])
+        .withDailyBudget(unwrap(Budget.create(500_000)))
+        .build(),
+    );
+    const adAccount = wrapInAdAccount(campaign);
+
+    const dto = toAdAccountResponseDto(adAccount);
+
+    expect(dto.campaigns[0]?.dailyBudget).toBe(500_000);
+    expect(dto.campaigns[0]?.adSets[0]?.dailyBudget).toBe(0);
   });
 
   it("serializes an ad account with no campaigns to an empty array", () => {

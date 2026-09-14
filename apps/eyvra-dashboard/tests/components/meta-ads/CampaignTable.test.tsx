@@ -105,6 +105,7 @@ function buildCampaign(
     objective: "OUTCOME_LEADS",
     status: "ACTIVE",
     spend: 6_000_000,
+    dailyBudget: 0,
     adSets,
     ...overrides,
   };

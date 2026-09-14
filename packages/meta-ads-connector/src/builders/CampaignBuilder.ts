@@ -6,6 +6,7 @@ import { Campaign, type CampaignProps } from "../domain/entities/Campaign.js";
 import { AdAccountId } from "../domain/value-objects/AdAccountId.js";
 import { AdStatus } from "../domain/value-objects/AdStatus.js";
 import { Branch } from "../domain/value-objects/Branch.js";
+import { Budget } from "../domain/value-objects/Budget.js";
 import { CampaignId } from "../domain/value-objects/CampaignId.js";
 import { CampaignObjective } from "../domain/value-objects/CampaignObjective.js";
 import { Funnel } from "../domain/value-objects/Funnel.js";
@@ -30,6 +31,7 @@ export class CampaignBuilder {
     funnel: Funnel.BRAND_BOOST,
     branch: Branch.UMUM,
     spend: Spend.zero(),
+    dailyBudget: unwrapOrThrow(Budget.create(0)),
     adSets: [],
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
   };
@@ -81,6 +83,11 @@ export class CampaignBuilder {
 
   withSpend(spend: Spend): this {
     this.props = { ...this.props, spend };
+    return this;
+  }
+
+  withDailyBudget(dailyBudget: Budget): this {
+    this.props = { ...this.props, dailyBudget };
     return this;
   }
 

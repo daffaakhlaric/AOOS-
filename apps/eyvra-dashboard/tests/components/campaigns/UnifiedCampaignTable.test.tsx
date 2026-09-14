@@ -51,6 +51,7 @@ function campaignWith(
     objective: "OUTCOME_LEADS",
     status,
     spend: adOverrides.spend ?? 1_000_000,
+    dailyBudget: 0,
     adSets: [
       {
         id: `as-${id}`,
@@ -167,6 +168,27 @@ describe("UnifiedCampaignTable", () => {
       />,
     );
     expect(screen.getByTestId("daily-budget-x")).toHaveTextContent("—");
+  });
+
+  // Real ABO-vs-CBO fallback (user-reported gap: "saya cek daily budget masih... kosong") — a CBO
+  // campaign's real budget lives on the campaign itself, never on any of its real ad sets.
+  it("falls back to the real campaign-level Daily Budget (CBO) when every real ad set's is honestly 0", () => {
+    const campaign = campaignWith("x", "ACTIVE", {});
+    const cboCampaign: CampaignSummaryDto = {
+      ...campaign,
+      dailyBudget: 750_000,
+      adSets: campaign.adSets.map((adSet) => ({ ...adSet, dailyBudget: 0 })),
+    };
+    render(
+      <UnifiedCampaignTable
+        campaigns={[cboCampaign]}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("daily-budget-x")).toHaveTextContent("Rp 750.000");
   });
 
   it("shows real Impressions/Reach/CTR/CPC/CPM derived from the campaign's own already-loaded ad metrics", () => {

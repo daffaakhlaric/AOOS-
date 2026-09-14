@@ -13,6 +13,7 @@ function campaign(id: string, spend: number): CampaignSummaryDto {
     objective: "OUTCOME_LEADS",
     status: "ACTIVE",
     spend,
+    dailyBudget: 0,
     adSets: [],
   };
 }

@@ -46,6 +46,7 @@ function campaignWith(id: string, verdict: string): CampaignSummaryDto {
     objective: "OUTCOME_LEADS",
     status: "ACTIVE",
     spend: 1_000_000,
+    dailyBudget: 0,
     adSets: [
       {
         id: `as-${id}`,

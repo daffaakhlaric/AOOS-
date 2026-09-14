@@ -4,12 +4,14 @@ import { ValidationError } from "@aos/errors";
 import { Campaign } from "../domain/entities/Campaign.js";
 import type { AdAccountId } from "../domain/value-objects/AdAccountId.js";
 import { AdStatus } from "../domain/value-objects/AdStatus.js";
+import { Budget } from "../domain/value-objects/Budget.js";
 import { CampaignId } from "../domain/value-objects/CampaignId.js";
 import { parseCampaignObjective } from "../domain/value-objects/CampaignObjective.js";
 import { Spend } from "../domain/value-objects/Spend.js";
 import { StableId } from "../domain/value-objects/StableId.js";
 import type { MetaCampaign } from "../types/MetaApiTypes.js";
 import { extractBranch } from "../utils/BranchExtractor.js";
+import { centsToRupiah } from "../utils/CurrencyUtils.js";
 import { classifyFunnel } from "../utils/FunnelClassifier.js";
 
 const KNOWN_STATUSES: ReadonlySet<string> = new Set(Object.values(AdStatus));
@@ -55,6 +57,17 @@ export function mapCampaign(
     return err(spendResult.error);
   }
 
+  // Real, CBO-only field — see `Campaign.dailyBudget`'s own doc for the full ABO-vs-CBO reasoning.
+  // Same cents-to-Rupiah conversion `AdSetMapper.mapAdSet` already uses for its own (non-CBO)
+  // `daily_budget`. `Budget.create(0)` (never `undefined`) when this campaign isn't CBO.
+  const dailyBudgetCents = raw.daily_budget !== undefined ? Number(raw.daily_budget) : 0;
+  const dailyBudgetResult = Budget.create(
+    Number.isFinite(dailyBudgetCents) ? centsToRupiah(dailyBudgetCents) : 0,
+  );
+  if (!dailyBudgetResult.ok) {
+    return err(dailyBudgetResult.error);
+  }
+
   return Campaign.create({
     id: CampaignId.generate(),
     stableId: stableIdResult.value,
@@ -66,6 +79,7 @@ export function mapCampaign(
     funnel: classifyFunnel(raw.name),
     branch: extractBranch(raw.name),
     spend: spendResult.value,
+    dailyBudget: dailyBudgetResult.value,
     adSets: [],
     createdAt: raw.created_time !== undefined ? new Date(raw.created_time) : new Date(),
   });

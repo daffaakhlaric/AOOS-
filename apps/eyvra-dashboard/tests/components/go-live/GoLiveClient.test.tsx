@@ -44,6 +44,7 @@ const CAMPAIGNS_DATA: AdAccountSummaryDto = {
       objective: "OUTCOME_LEADS",
       status: "ACTIVE",
       spend: 150_000,
+      dailyBudget: 0,
       adSets: [
         {
           id: "adset-1",

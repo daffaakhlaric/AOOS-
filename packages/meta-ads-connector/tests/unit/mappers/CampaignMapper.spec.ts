@@ -82,4 +82,33 @@ describe("mapCampaign", () => {
       ).message,
     ).toMatch(/Spend amount/);
   });
+
+  // Real ABO-vs-CBO gap fix (user-reported: "saya cek daily budget masih... kosong" on the
+  // AdAdvisor-style table) — see `Campaign.dailyBudget`'s own doc for the full reasoning: Meta
+  // only puts `daily_budget` on the CAMPAIGN for a Campaign Budget Optimization (CBO) campaign,
+  // which AAOS never even requested/parsed here before this fix.
+  it("converts the real CBO campaign-level daily_budget from Meta cents to whole Rupiah", () => {
+    const campaign = unwrap(
+      mapCampaign(makeCampaign({ daily_budget: "10000000" }), adAccountId, 1),
+    );
+    expect(campaign.dailyBudget.toNumber()).toBe(100_000);
+  });
+
+  it("defaults dailyBudget to 0 when daily_budget is absent (the honest, non-CBO case)", () => {
+    const campaign = unwrap(mapCampaign(makeCampaign({ daily_budget: undefined }), adAccountId, 1));
+    expect(campaign.dailyBudget.toNumber()).toBe(0);
+  });
+
+  it("defaults dailyBudget to 0 for a non-numeric daily_budget string", () => {
+    const campaign = unwrap(
+      mapCampaign(makeCampaign({ daily_budget: "not-a-number" }), adAccountId, 1),
+    );
+    expect(campaign.dailyBudget.toNumber()).toBe(0);
+  });
+
+  it("propagates a Budget mapping failure for a negative daily_budget", () => {
+    expect(
+      unwrapErr(mapCampaign(makeCampaign({ daily_budget: "-100000" }), adAccountId, 1)).message,
+    ).toMatch(/Budget/);
+  });
 });
