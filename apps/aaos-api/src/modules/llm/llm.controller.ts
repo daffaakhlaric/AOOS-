@@ -15,10 +15,15 @@ import {
   type CreativeBriefRequestDto,
   type CreativeBriefResponseDto,
 } from "./dto/creative-brief.dto.js";
+import {
+  PhotoAnalysisRequestSchema,
+  type PhotoAnalysisRequestDto,
+  type PhotoAnalysisResponseDto,
+} from "./dto/photo-analysis.dto.js";
 import { LlmService } from "./llm.service.js";
 
 /**
- * `POST /api/v1/llm/{analyze,creative-brief,chat}` — Samantha's OpenAI-backed endpoints. All
+ * `POST /api/v1/llm/{analyze,creative-brief,chat,photo-analysis}` — Samantha's OpenAI-backed endpoints. All
  * `x-api-key`-guarded via the same `ApiKeyGuard` `modules/meta-ads` uses (this app has one shared
  * secret, not per-user tokens). Every response is `HttpCode(200)` even for the "AI unavailable"
  * fallback case — spec Section 7 requires a distinguishable response body the dashboard can branch
@@ -61,5 +66,23 @@ export class LlmController {
     @Body(new ZodValidationPipe(ChatRequestSchema)) body: ChatRequestDto,
   ): Promise<ChatResponseDto> {
     return this.llmService.chat(tenantId, body);
+  }
+
+  /**
+   * Kai Creative Engine Sprint 2 — real entry point for `LlmService.analyzePropertyPhoto`
+   * (Sprint 1), reachable from the dashboard's own "Brief dari Listing" flow. Deliberately called
+   * per-photo, on demand, from the frontend — NEVER wired into `SchedulerService`'s automatic
+   * morning loop the way `scorePropertyAdAngleStrength` was: a Vision call has real per-photo cost
+   * and latency `scorePropertyAdAngleStrength`'s pure, free scoring does not, so firing it
+   * automatically on every scheduler tick (stacking on top of the Andromeda diversity-refresh check,
+   * which already runs every tick) would be a real, avoidable cost regression.
+   */
+  @Post("photo-analysis")
+  @HttpCode(200)
+  async photoAnalysis(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(PhotoAnalysisRequestSchema)) body: PhotoAnalysisRequestDto,
+  ): Promise<PhotoAnalysisResponseDto> {
+    return this.llmService.analyzePropertyPhoto(tenantId, body);
   }
 }

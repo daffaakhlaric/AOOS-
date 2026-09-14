@@ -10,6 +10,10 @@ import type {
   CreativeBriefRequestDto,
   CreativeBriefResponseDto,
 } from "./dto/creative-brief.dto.js";
+import type {
+  PhotoAnalysisRequestDto,
+  PhotoAnalysisResponseDto,
+} from "./dto/photo-analysis.dto.js";
 import { LlmController } from "./llm.controller.js";
 import type { LlmService } from "./llm.service.js";
 
@@ -23,6 +27,17 @@ function buildFakeService(): LlmService {
         ({ available: false, reason: "NO_API_KEY", message: "x" }) as CreativeBriefResponseDto,
     ),
     chat: vi.fn(async () => ({ available: true, reply: "hi" }) as ChatResponseDto),
+    analyzePropertyPhoto: vi.fn(
+      async () =>
+        ({
+          available: true,
+          scene: "EKSTERIOR",
+          qualityScore: 80,
+          marketingScore: 70,
+          recommendedUse: "HERO",
+          reasoning: "x",
+        }) as PhotoAnalysisResponseDto,
+    ),
   } as unknown as LlmService;
 }
 
@@ -54,6 +69,22 @@ describe("LlmController", () => {
     const result = await controller.chat(TENANT_ID, body);
     expect(service.chat).toHaveBeenCalledWith(TENANT_ID, body);
     expect(result).toEqual({ available: true, reply: "hi" });
+  });
+
+  it("POST /api/v1/llm/photo-analysis delegates to LlmService.analyzePropertyPhoto with the tenantId and body", async () => {
+    const service = buildFakeService();
+    const controller = new LlmController(service);
+    const body: PhotoAnalysisRequestDto = { photoUrl: "https://storage.example.com/photo.jpg" };
+    const result = await controller.photoAnalysis(TENANT_ID, body);
+    expect(service.analyzePropertyPhoto).toHaveBeenCalledWith(TENANT_ID, body);
+    expect(result).toEqual({
+      available: true,
+      scene: "EKSTERIOR",
+      qualityScore: 80,
+      marketingScore: 70,
+      recommendedUse: "HERO",
+      reasoning: "x",
+    });
   });
 
   it("guards the whole controller with ApiKeyGuard", () => {
