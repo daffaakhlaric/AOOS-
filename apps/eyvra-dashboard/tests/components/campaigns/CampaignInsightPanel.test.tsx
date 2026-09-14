@@ -24,6 +24,7 @@ function metrics(overrides: Partial<AdMetricsDto> = {}): AdMetricsDto {
 function ad(overrides: Partial<AdSummaryDto> = {}): AdSummaryDto {
   return {
     id: "ad-1",
+    metaId: "ad-1",
     stableId: "#C001",
     name: "Ad 1",
     status: "ACTIVE",
@@ -37,6 +38,7 @@ function ad(overrides: Partial<AdSummaryDto> = {}): AdSummaryDto {
 
 const CAMPAIGN: CampaignSummaryDto = {
   id: "camp-1",
+  metaId: "camp-1",
   stableId: "#A001",
   name: "Xpander Bintaro",
   objective: "OUTCOME_LEADS",
@@ -45,6 +47,7 @@ const CAMPAIGN: CampaignSummaryDto = {
   adSets: [
     {
       id: "as1",
+      metaId: "as1",
       stableId: "#B001",
       name: "AdSet 1",
       status: "ACTIVE",

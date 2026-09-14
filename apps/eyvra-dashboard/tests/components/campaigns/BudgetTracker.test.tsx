@@ -7,6 +7,7 @@ import type { CampaignSummaryDto } from "@/types/dashboard.types";
 function campaign(id: string, spend: number): CampaignSummaryDto {
   return {
     id,
+    metaId: id,
     stableId: `#A-${id}`,
     name: `Campaign ${id}`,
     objective: "OUTCOME_LEADS",

@@ -37,6 +37,7 @@ function baseObjective(overrides: Partial<PropertyObjectiveDto> = {}): PropertyO
 function adWithRphLead(rphLead: number | null, spend = 100_000): CampaignSummaryDto {
   return {
     id: "c1",
+    metaId: "c1",
     stableId: "#A",
     name: "Campaign 1",
     objective: "OUTCOME_LEADS",
@@ -45,6 +46,7 @@ function adWithRphLead(rphLead: number | null, spend = 100_000): CampaignSummary
     adSets: [
       {
         id: "as1",
+        metaId: "as1",
         stableId: "#A1",
         name: "AdSet 1",
         status: "ACTIVE",
@@ -52,6 +54,7 @@ function adWithRphLead(rphLead: number | null, spend = 100_000): CampaignSummary
         ads: [
           {
             id: "ad1",
+            metaId: "ad1",
             stableId: "#A1a",
             name: "Ad 1",
             status: "ACTIVE",

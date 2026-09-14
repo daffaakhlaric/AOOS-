@@ -239,7 +239,13 @@ export class MetaAdsService {
     tenantId: string,
   ): Promise<AndromedaHealthResponseDto> {
     const adAccount = await this.pullAdAccount(query, correlationId, tenantId);
-    const campaign = adAccount.campaigns.find((c) => c.id.toString() === campaignId);
+    // Real bug fix (live-confirmed via a 404 in production logs): `campaign.id` is a LOCAL id
+    // re-generated randomly by `CampaignMapper` on every single live pull — comparing it against
+    // a `campaignId` the caller obtained from an EARLIER, separate pull (this endpoint always does
+    // its own fresh `pullAdAccount`, never reuses the caller's) can never match, even for the exact
+    // same real Meta campaign. `metaId` is the one real, permanent Meta campaign id — the correct,
+    // stable key for a cross-request lookup like this one.
+    const campaign = adAccount.campaigns.find((c) => c.metaId === campaignId);
     if (campaign === undefined) {
       throw new NotFoundError(`No real campaign in the current pull carries id "${campaignId}"`);
     }

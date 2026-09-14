@@ -33,6 +33,7 @@ function metrics(overrides: Partial<AdMetricsDto> = {}): AdMetricsDto {
 function ad(overrides: Partial<AdSummaryDto> = {}): AdSummaryDto {
   return {
     id: "ad-1",
+    metaId: "ad-1",
     stableId: "#C001",
     name: "Ad 1",
     status: "ACTIVE",
@@ -47,6 +48,7 @@ function ad(overrides: Partial<AdSummaryDto> = {}): AdSummaryDto {
 function campaign(overrides: Partial<CampaignSummaryDto> = {}): CampaignSummaryDto {
   return {
     id: "c1",
+    metaId: "c1",
     stableId: "#A001",
     name: "Campaign 1",
     objective: "OUTCOME_LEADS",
@@ -114,6 +116,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
     adSets: [
       {
         id: "as1",
+        metaId: "as1",
         stableId: "#B001",
         name: "AdSet 1",
         status: "ACTIVE",
@@ -132,6 +135,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
       },
       {
         id: "as2",
+        metaId: "as2",
         stableId: "#B002",
         name: "AdSet 2",
         status: "ACTIVE",
@@ -139,6 +143,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
         ads: [
           ad({
             id: "ad-2",
+            metaId: "ad-2",
             metrics: metrics({ spend: 200, clicks: 20, totalLead: 2, frequency: 5.0 }),
           }),
         ],
@@ -172,6 +177,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
       adSets: [
         {
           id: "as1",
+          metaId: "as1",
           stableId: "#B001",
           name: "AdSet 1",
           status: "ACTIVE",
@@ -188,6 +194,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
       adSets: [
         {
           id: "as1",
+          metaId: "as1",
           stableId: "#B001",
           name: "AdSet 1",
           status: "ACTIVE",
@@ -196,6 +203,7 @@ describe("aggregateCampaign / flattenCampaignAds", () => {
         },
         {
           id: "as2",
+          metaId: "as2",
           stableId: "#B002",
           name: "AdSet 2",
           status: "ACTIVE",
@@ -243,9 +251,11 @@ describe("accountBenchmarkCpl", () => {
     const campaigns: readonly CampaignSummaryDto[] = [
       campaign({
         id: "c1",
+        metaId: "c1",
         adSets: [
           {
             id: "as1",
+            metaId: "as1",
             stableId: "#B001",
             name: "AdSet 1",
             status: "ACTIVE",
@@ -256,9 +266,11 @@ describe("accountBenchmarkCpl", () => {
       }),
       campaign({
         id: "c2",
+        metaId: "c2",
         adSets: [
           {
             id: "as2",
+            metaId: "as2",
             stableId: "#B002",
             name: "AdSet 2",
             status: "ACTIVE",

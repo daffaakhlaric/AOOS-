@@ -34,6 +34,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
   campaigns: [
     {
       id: "c1",
+      metaId: "c1",
       stableId: "#A001",
       name: "Meta-DM-Leads-Cinere",
       objective: "OUTCOME_LEADS",
@@ -42,6 +43,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
       adSets: [
         {
           id: "as1",
+          metaId: "as1",
           stableId: "#B001",
           name: "AdSet 1",
           status: "ACTIVE",
@@ -49,6 +51,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
           ads: [
             {
               id: "ad-1",
+              metaId: "ad-1",
               stableId: "#C001",
               name: "Ad Cinere Cheap",
               status: "ACTIVE",
@@ -63,6 +66,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
     },
     {
       id: "c2",
+      metaId: "c2",
       stableId: "#A002",
       name: "Meta-DM-Leads-Bandung",
       objective: "OUTCOME_LEADS",
@@ -71,6 +75,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
       adSets: [
         {
           id: "as2",
+          metaId: "as2",
           stableId: "#B002",
           name: "AdSet 2",
           status: "ACTIVE",
@@ -78,6 +83,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
           ads: [
             {
               id: "ad-2",
+              metaId: "ad-2",
               stableId: "#C002",
               name: "Ad Bandung Expensive",
               status: "ACTIVE",
@@ -94,6 +100,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
   ads: [
     {
       id: "ad-1",
+      metaId: "ad-1",
       stableId: "#C001",
       name: "Ad Cinere Cheap",
       campaignName: "Meta-DM-Leads-Cinere",
@@ -105,6 +112,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
     },
     {
       id: "ad-2",
+      metaId: "ad-2",
       stableId: "#C002",
       name: "Ad Bandung Expensive",
       campaignName: "Meta-DM-Leads-Bandung",

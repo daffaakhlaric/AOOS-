@@ -56,6 +56,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
   campaigns: [
     {
       id: "c1",
+      metaId: "c1",
       stableId: "#A001",
       name: "Meta-DM-Leads-Mobix",
       objective: "OUTCOME_LEADS",
@@ -64,6 +65,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
       adSets: [
         {
           id: "as1",
+          metaId: "as1",
           stableId: "#B001",
           name: "AdSet 1",
           status: "ACTIVE",
@@ -71,6 +73,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
           ads: [
             {
               id: "ad-1",
+              metaId: "ad-1",
               stableId: "#C001",
               name: "Ad 1",
               status: "ACTIVE",
@@ -99,6 +102,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
   ads: [
     {
       id: "ad-1",
+      metaId: "ad-1",
       stableId: "#C001",
       name: "Ad 1",
       campaignName: "Meta-DM-Leads-Mobix",

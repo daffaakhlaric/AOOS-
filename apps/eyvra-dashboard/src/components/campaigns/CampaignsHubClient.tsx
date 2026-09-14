@@ -149,11 +149,27 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
 
   const selectedCampaign = filteredCampaigns.find((campaign) => campaign.id === selectedCampaignId);
 
+  // Real bug fix (live-confirmed via a 404 in aaos-api's own logs on the sibling Andromeda Health
+  // lookup — the exact same root cause applies here): `UnifiedCampaignTable`/`VerdictCards` call
+  // `onPause`/`onApply` with `campaign.id`, a LOCAL id re-generated randomly on every live pull —
+  // never a real, stable Meta object id. `POST /api/verdicts` sends `targetId` straight through to
+  // Meta's real Graph API (`VerdictExecutionService`: `POST /{ad-id|adset-id|campaign-id}`), so a
+  // random UUID there was silently failing against Meta in LIVE mode every single time — the real
+  // root cause of "verdict masih static" (Terapkan/pause never actually applying). Resolves the
+  // real, stable `metaId` from the already-loaded `campaigns` list before sending.
+  function resolveMetaId(campaignId: string): string {
+    return campaigns.find((campaign) => campaign.id === campaignId)?.metaId ?? campaignId;
+  }
+
   function handlePauseCampaign(campaignId: string): void {
     void fetch("/api/verdicts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ verdict: "PAUSE", targetId: campaignId, targetType: "campaign" }),
+      body: JSON.stringify({
+        verdict: "PAUSE",
+        targetId: resolveMetaId(campaignId),
+        targetType: "campaign",
+      }),
     })
       .then(() => pull(datePreset))
       .catch(() => undefined);
@@ -163,7 +179,11 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
     void fetch("/api/verdicts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ verdict, targetId: campaignId, targetType: "campaign" }),
+      body: JSON.stringify({
+        verdict,
+        targetId: resolveMetaId(campaignId),
+        targetType: "campaign",
+      }),
     })
       .then(() => pull(datePreset))
       .catch(() => undefined);
@@ -301,7 +321,11 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
                 to a disabled, explained state rather than fabricating a resolvable listing. */}
             {selectedCampaign !== undefined ? (
               <AndromedaHealthCard
-                campaignId={selectedCampaign.id}
+                // Real bug fix (live-confirmed 404): `getAndromedaHealth` does its OWN fresh live
+                // pull and looks this campaign back up by its real, stable `metaId` — `id` is a
+                // local id re-generated randomly on every pull, so it can never match across two
+                // separate requests. See `CampaignSummaryDto.metaId`'s own doc.
+                campaignId={selectedCampaign.metaId}
                 campaignName={selectedCampaign.name}
               />
             ) : null}

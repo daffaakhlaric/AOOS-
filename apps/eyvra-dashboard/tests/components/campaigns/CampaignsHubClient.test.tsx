@@ -75,6 +75,12 @@ const SNAPSHOT: AdAccountSummaryDto = {
   campaigns: [
     {
       id: "c1",
+      // Deliberately DIFFERENT from `id` (unlike most fixtures in this suite) — real bug fix
+      // regression coverage: `id` is a local id re-generated randomly on every live pull, `metaId`
+      // is the real, stable Meta campaign id. `POST /api/verdicts`' `targetId` MUST be `metaId`
+      // (see `CampaignsHubClient.tsx`'s own `resolveMetaId` doc) — if a future change reverts to
+      // sending `campaign.id`, the two tests below asserting `targetId: "meta-c1"` will fail.
+      metaId: "meta-c1",
       stableId: "#A001",
       name: "Meta-DM-Leads-Mobix",
       objective: "OUTCOME_LEADS",
@@ -195,6 +201,14 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/campaigns"));
   });
 
+  it("real bug fix: AndromedaHealthCard receives the real metaId, never the local pull-unstable id — root cause of the live-confirmed 404 in aaos-api's own logs", async () => {
+    seedCache();
+    mockSettingsFetch();
+    render(<CampaignsHubClient />);
+    await userEvent.click(screen.getByTestId("fake-select-c1"));
+    expect(screen.getByTestId("real-andromeda-health-card")).toHaveTextContent("meta-c1");
+  });
+
   it("clicking a row opens the real CampaignInsightPanel for that campaign", async () => {
     seedCache();
     mockSettingsFetch();
@@ -213,7 +227,15 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     expect(screen.queryByTestId("real-insight-panel")).not.toBeInTheDocument();
   });
 
-  it("StatusToggle pause calls the real POST /api/verdicts with verdict PAUSE, targetType campaign", async () => {
+  // Real bug fix (live-confirmed via a 404 in aaos-api's own production logs on the sibling
+  // Andromeda Health lookup — root cause: `campaign.id` is a local id re-generated randomly on
+  // every live Meta pull, never a real Meta object id). `POST /api/verdicts` sends `targetId`
+  // straight through to Meta's real Graph API, so sending `campaign.id` there was silently
+  // failing against Meta in LIVE mode every single time — the real root cause of "verdict masih
+  // static" (Terapkan/pause never actually applying). `targetId` MUST be the real, stable
+  // `campaign.metaId` — this fixture deliberately sets `metaId` ("meta-c1") DIFFERENT from `id`
+  // ("c1") so these two tests fail loudly if a future change reverts to sending the wrong one.
+  it("StatusToggle pause calls the real POST /api/verdicts with the real metaId (never the local, pull-unstable id), verdict PAUSE, targetType campaign", async () => {
     seedCache();
     const fetchMock = mockSettingsFetch();
     render(<CampaignsHubClient />);
@@ -223,13 +245,13 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
         "/api/verdicts",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ verdict: "PAUSE", targetId: "c1", targetType: "campaign" }),
+          body: JSON.stringify({ verdict: "PAUSE", targetId: "meta-c1", targetType: "campaign" }),
         }),
       ),
     );
   });
 
-  it("VerdictCards Terapkan calls the SAME real /api/verdicts mechanism with the real verdict", async () => {
+  it("VerdictCards Terapkan calls the SAME real /api/verdicts mechanism with the real metaId and the real verdict", async () => {
     seedCache();
     const fetchMock = mockSettingsFetch();
     render(<CampaignsHubClient />);
@@ -239,7 +261,7 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
         "/api/verdicts",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ verdict: "SCALE", targetId: "c1", targetType: "campaign" }),
+          body: JSON.stringify({ verdict: "SCALE", targetId: "meta-c1", targetType: "campaign" }),
         }),
       ),
     );

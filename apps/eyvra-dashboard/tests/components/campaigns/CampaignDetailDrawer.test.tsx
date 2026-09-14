@@ -24,6 +24,7 @@ function metrics(overrides: Partial<AdSetSummaryDto["ads"][number]["metrics"]> =
 
 const AD_SET: AdSetSummaryDto = {
   id: "as1",
+  metaId: "as1",
   stableId: "#B001",
   name: "AdSet Bintaro",
   status: "ACTIVE",
@@ -31,6 +32,7 @@ const AD_SET: AdSetSummaryDto = {
   ads: [
     {
       id: "ad1",
+      metaId: "ad1",
       stableId: "#C001",
       name: "Xpander Creative 1",
       status: "ACTIVE",
@@ -41,6 +43,7 @@ const AD_SET: AdSetSummaryDto = {
     },
     {
       id: "ad2",
+      metaId: "ad2",
       stableId: "#C002",
       name: "Xpander Creative 2",
       status: "ACTIVE",

@@ -36,6 +36,7 @@ function buildData(fetchedAt: number): AdAccountSummaryDto {
     ads: [
       {
         id: "ad-pause",
+        metaId: "meta-ad-pause",
         stableId: "#C001",
         name: "Ad To Pause",
         campaignName: "Campaign A",
@@ -47,6 +48,7 @@ function buildData(fetchedAt: number): AdAccountSummaryDto {
       },
       {
         id: "ad-scale",
+        metaId: "meta-ad-scale",
         stableId: "#C002",
         name: "Ad To Scale",
         campaignName: "Campaign B",
@@ -58,6 +60,7 @@ function buildData(fetchedAt: number): AdAccountSummaryDto {
       },
       {
         id: "ad-keep",
+        metaId: "meta-ad-keep",
         stableId: "#C003",
         name: "Ad Keep",
         campaignName: "Campaign C",

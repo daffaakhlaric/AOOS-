@@ -34,6 +34,15 @@ export interface AdMetricsDto {
 
 export interface CampaignAdDto {
   readonly id: string;
+  /**
+   * Real, stable Meta ad id (`aaos-api`'s `AdResponseDto.metaId`) — bug fix (live-confirmed via
+   * `aaos-api` logs): `id` is a LOCAL id re-generated randomly on every single live pull
+   * (`CampaignMapper`/`AdSetMapper`/`AdMapper`'s own `*Id.generate()`), so it can never be used to
+   * identify this ad in a LATER, separate request (e.g. `POST /api/verdicts`'s real Meta mutation,
+   * or a second live pull like `getAndromedaHealth`'s own). `metaId` is the one real, permanent
+   * Meta object id — always use THIS for anything crossing a request boundary.
+   */
+  readonly metaId: string;
   readonly stableId: string;
   readonly name: string;
   readonly campaignName: string;
@@ -60,6 +69,8 @@ export interface CampaignAdDto {
 /** One ad within `AdSetSummaryDto.ads` — the `#C` level of the campaign→ad-set→ad hierarchy (spec "meta-ads/page.tsx" MAAO2 redesign). Distinct from `CampaignAdDto` only in that it omits `campaignName` (redundant once nested under its own campaign). */
 export interface AdSummaryDto {
   readonly id: string;
+  /** See `CampaignAdDto.metaId`'s own doc — same real, stable, cross-request-safe Meta ad id, same bug fix. */
+  readonly metaId: string;
   readonly stableId: string;
   readonly name: string;
   readonly status: string;
@@ -78,6 +89,8 @@ export interface AdSummaryDto {
 /** The `#B` level. `stableId`/`spend` come straight from `aaos-api`'s real, already spend-sorted assignment (`@aos/meta-ads-connector`'s `StableIdAssigner`) — never recomputed client-side. */
 export interface AdSetSummaryDto {
   readonly id: string;
+  /** See `CampaignAdDto.metaId`'s own doc — same real, stable, cross-request-safe Meta ad-set id, same bug fix. */
+  readonly metaId: string;
   readonly stableId: string;
   readonly name: string;
   readonly status: string;
@@ -90,6 +103,15 @@ export interface AdSetSummaryDto {
 /** The `#A` level. Same authoritative-`stableId`-from-backend contract as `AdSetSummaryDto`. */
 export interface CampaignSummaryDto {
   readonly id: string;
+  /**
+   * Real, stable Meta campaign id (bug fix — see `CampaignAdDto.metaId`'s own doc for the full
+   * "why `id` alone is unsafe across requests" reasoning, live-confirmed via a 404 from
+   * `getAndromedaHealth`: the SAME campaign got a different random `id` on two separate live
+   * pulls). ALWAYS use `metaId`, never `id`, as `targetId` for `POST /api/verdicts` or as the
+   * `campaignId` param for any endpoint that re-pulls and looks the campaign back up (e.g.
+   * Andromeda Health).
+   */
+  readonly metaId: string;
   readonly stableId: string;
   readonly name: string;
   readonly objective: string;

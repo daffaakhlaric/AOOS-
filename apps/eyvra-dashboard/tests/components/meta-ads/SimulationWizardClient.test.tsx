@@ -35,6 +35,7 @@ const DATA: AdAccountSummaryDto = {
   ads: [
     {
       id: "ad-refresh",
+      metaId: "ad-refresh",
       stableId: "#C001",
       name: "Xpander Cross 2019",
       campaignName: "Campaign A",
@@ -46,6 +47,7 @@ const DATA: AdAccountSummaryDto = {
     },
     {
       id: "ad-fine",
+      metaId: "ad-fine",
       stableId: "#C002",
       name: "Ad Fine",
       campaignName: "Campaign B",

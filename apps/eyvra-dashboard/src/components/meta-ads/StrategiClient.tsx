@@ -369,14 +369,18 @@ export function StrategiClient(): React.ReactElement {
     const outcomes: ExecuteResult[] = [];
     for (const ad of approved) {
       try {
+        // Real bug fix (live-confirmed elsewhere in this app — see `CampaignsHubClient.tsx`'s own
+        // `resolveMetaId` doc): `ad.id` is a local id re-generated randomly on every live pull,
+        // never a real Meta object id — `POST /api/verdicts` sends `targetId` straight to Meta's
+        // real Graph API, so this was silently failing against Meta in LIVE mode every time.
         const res = await fetch("/api/verdicts", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ verdict: ad.verdict, targetId: ad.id, targetType: "ad" }),
+          body: JSON.stringify({ verdict: ad.verdict, targetId: ad.metaId, targetType: "ad" }),
         });
-        outcomes.push({ targetId: ad.id, ok: res.ok });
+        outcomes.push({ targetId: ad.metaId, ok: res.ok });
       } catch {
-        outcomes.push({ targetId: ad.id, ok: false });
+        outcomes.push({ targetId: ad.metaId, ok: false });
       }
     }
     setResults(outcomes);

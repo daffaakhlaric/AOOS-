@@ -225,7 +225,11 @@ describe("MetaAdsService", () => {
         "corr-health-1",
         DEFAULT_TENANT_ID,
       );
-      const campaignId = pulled.campaigns[0]?.id;
+      // Real bug fix (live-confirmed 404 in production): this method does its OWN separate
+      // `pullAdAccount` call, so it must be looked up by the real, stable `metaId` — `id` is
+      // re-generated randomly on every pull and would never match across two separate pulls like
+      // this test deliberately exercises (`pullCampaigns` above, then `getAndromedaHealth` below).
+      const campaignId = pulled.campaigns[0]?.metaId;
       expect(campaignId).toBeDefined();
 
       const health = await service.getAndromedaHealth(

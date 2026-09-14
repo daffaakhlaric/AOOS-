@@ -113,6 +113,7 @@ function flattenWithObjective(data: AdAccountSummaryDto): readonly AdWithObjecti
           campaignObjective: campaign.objective,
           ad: {
             id: ad.id,
+            metaId: ad.metaId,
             stableId: ad.stableId,
             name: ad.name,
             campaignName: campaign.name,

@@ -21,6 +21,8 @@ interface AdAccountResponseDto {
   readonly syncedAt: string;
   readonly campaigns: ReadonlyArray<{
     readonly id: string;
+    /** Real, stable Meta campaign id (`aaos-api`'s `CampaignResponseDto.metaId`) — bug fix, see `CampaignSummaryDto.metaId`'s own doc in `dashboard.types.ts`. */
+    readonly metaId: string;
     readonly stableId: string;
     readonly name: string;
     readonly objective: string;
@@ -28,6 +30,8 @@ interface AdAccountResponseDto {
     readonly spend: number;
     readonly adSets: ReadonlyArray<{
       readonly id: string;
+      /** Real, stable Meta ad-set id — same bug fix as `metaId` above. */
+      readonly metaId: string;
       readonly stableId: string;
       readonly name: string;
       readonly status: string;
@@ -36,6 +40,8 @@ interface AdAccountResponseDto {
       readonly learningStatus?: string;
       readonly ads: ReadonlyArray<{
         readonly id: string;
+        /** Real, stable Meta ad id — same bug fix as `metaId` above. */
+        readonly metaId: string;
         readonly stableId: string;
         readonly name: string;
         readonly status: string;
@@ -73,6 +79,7 @@ function toAdSummary(
 ): AdSummaryDto {
   return {
     id: ad.id,
+    metaId: ad.metaId,
     stableId: ad.stableId,
     name: ad.name,
     status: ad.status,
@@ -92,6 +99,7 @@ function toAdSetSummary(
 ): AdSetSummaryDto {
   return {
     id: adSet.id,
+    metaId: adSet.metaId,
     stableId: adSet.stableId,
     name: adSet.name,
     status: adSet.status,
@@ -106,6 +114,7 @@ function toCampaignSummary(
 ): CampaignSummaryDto {
   return {
     id: campaign.id,
+    metaId: campaign.metaId,
     stableId: campaign.stableId,
     name: campaign.name,
     objective: campaign.objective,
@@ -132,6 +141,7 @@ function toSummary(adAccount: AdAccountResponseDto): AdAccountSummaryDto {
       for (const ad of adSet.ads) {
         ads.push({
           id: ad.id,
+          metaId: ad.metaId,
           stableId: ad.stableId,
           name: ad.name,
           campaignName: campaign.name,

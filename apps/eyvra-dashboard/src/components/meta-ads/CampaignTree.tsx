@@ -279,7 +279,10 @@ export function CampaignTree({
                   <MetricColumn label="D3" value={formatNumber(d3)} variant="d3" accent />
                   <button
                     type="button"
-                    onClick={() => onExecute(campaign.id, "campaign", verdict)}
+                    // Real bug fix — see `CampaignsHubClient.tsx`'s own `resolveMetaId` doc:
+                    // `campaign.id` is a local id re-generated randomly on every live pull, never
+                    // a real Meta object id `POST /api/verdicts` can act on.
+                    onClick={() => onExecute(campaign.metaId, "campaign", verdict)}
                     className={styles.executeButton}
                   >
                     ⚡ Execute
@@ -395,7 +398,8 @@ export function CampaignTree({
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => onExecute(ad.id, "ad", ad.verdict)}
+                                      // Same real bug fix as the campaign-level Execute button above.
+                                      onClick={() => onExecute(ad.metaId, "ad", ad.verdict)}
                                       className={`${styles.executeButton} ${styles.executeButtonSmall}`}
                                     >
                                       ⚡ Execute

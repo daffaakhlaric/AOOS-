@@ -52,6 +52,7 @@ function stubViewportSize(): void {
 function buildAd(overrides: Partial<AdSummaryDto> = {}): AdSummaryDto {
   return {
     id: "A001",
+    metaId: "A001",
     stableId: "#C001",
     name: "#C001 Meta-DM-Leads-Mobix",
     status: "ACTIVE",
@@ -81,6 +82,7 @@ function buildAdSet(
 ): AdSetSummaryDto {
   return {
     id: "B001",
+    metaId: "B001",
     stableId: "#B001",
     name: "#B001 Ad Set",
     status: "ACTIVE",
@@ -96,6 +98,7 @@ function buildCampaign(
 ): CampaignSummaryDto {
   return {
     id: "CAMP001",
+    metaId: "CAMP001",
     stableId: "#A001",
     name: "#A001 Meta-DM-Leads-Mobix",
     objective: "OUTCOME_LEADS",

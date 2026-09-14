@@ -27,6 +27,7 @@ function metrics(
 const CAMPAIGNS: readonly CampaignSummaryDto[] = [
   {
     id: "c1",
+    metaId: "c1",
     stableId: "#A001",
     name: "Meta-DM-Leads-Mobix",
     objective: "OUTCOME_LEADS",
@@ -35,6 +36,7 @@ const CAMPAIGNS: readonly CampaignSummaryDto[] = [
     adSets: [
       {
         id: "as1",
+        metaId: "as1",
         stableId: "#B001",
         name: "AdSet Bintaro",
         status: "ACTIVE",
@@ -42,6 +44,7 @@ const CAMPAIGNS: readonly CampaignSummaryDto[] = [
         ads: [
           {
             id: "ad1",
+            metaId: "ad1",
             stableId: "#C001",
             name: "Xpander Creative 1",
             status: "ACTIVE",
@@ -52,6 +55,7 @@ const CAMPAIGNS: readonly CampaignSummaryDto[] = [
           },
           {
             id: "ad2",
+            metaId: "ad2",
             stableId: "#C002",
             name: "Xpander Creative 2",
             status: "ACTIVE",

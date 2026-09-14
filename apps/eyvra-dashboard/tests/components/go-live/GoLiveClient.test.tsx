@@ -38,6 +38,7 @@ const CAMPAIGNS_DATA: AdAccountSummaryDto = {
   campaigns: [
     {
       id: "campaign-1",
+      metaId: "campaign-1",
       stableId: "#A001",
       name: "GoLive campaign",
       objective: "OUTCOME_LEADS",
@@ -46,6 +47,7 @@ const CAMPAIGNS_DATA: AdAccountSummaryDto = {
       adSets: [
         {
           id: "adset-1",
+          metaId: "adset-1",
           stableId: "#B001",
           name: "adset",
           status: "ACTIVE",
@@ -53,6 +55,7 @@ const CAMPAIGNS_DATA: AdAccountSummaryDto = {
           ads: [
             {
               id: "ad-1",
+              metaId: "ad-1",
               stableId: "#C001",
               name: "ad",
               status: "ACTIVE",

@@ -30,6 +30,7 @@ function metrics(overrides: Partial<CampaignAdDto["metrics"]> = {}): CampaignAdD
 function buildAd(overrides: Partial<CampaignAdDto> = {}): CampaignAdDto {
   return {
     id: "ad-1",
+    metaId: "ad-1",
     stableId: "#C001",
     name: "Ad 1",
     campaignName: "SUV Premium — Lookalike",

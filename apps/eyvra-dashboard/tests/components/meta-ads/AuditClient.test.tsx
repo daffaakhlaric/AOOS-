@@ -34,6 +34,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
   campaigns: [
     {
       id: "c1",
+      metaId: "c1",
       stableId: "#A001",
       name: "Meta-DM-Leads-Mobix",
       objective: "OUTCOME_LEADS",
@@ -42,6 +43,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
       adSets: [
         {
           id: "as1",
+          metaId: "as1",
           stableId: "#B001",
           name: "AdSet 1",
           status: "ACTIVE",
@@ -49,6 +51,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
           ads: [
             {
               id: "ad-1",
+              metaId: "ad-1",
               stableId: "#C001",
               name: "Ad DM Bintaro",
               status: "ACTIVE",
@@ -64,6 +67,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
     },
     {
       id: "c2",
+      metaId: "c2",
       stableId: "#A002",
       name: "Meta-Engagement-Boost",
       objective: "OUTCOME_ENGAGEMENT",
@@ -72,6 +76,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
       adSets: [
         {
           id: "as2",
+          metaId: "as2",
           stableId: "#B002",
           name: "AdSet 2",
           status: "ACTIVE",
@@ -79,6 +84,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
           ads: [
             {
               id: "ad-2",
+              metaId: "ad-2",
               stableId: "#C002",
               name: "Ad Boost Cinere",
               status: "ACTIVE",
@@ -96,6 +102,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
   ads: [
     {
       id: "ad-1",
+      metaId: "ad-1",
       stableId: "#C001",
       name: "Ad DM Bintaro",
       campaignName: "Meta-DM-Leads-Mobix",
@@ -108,6 +115,7 @@ const CAMPAIGNS_BODY: AdAccountSummaryDto = {
     },
     {
       id: "ad-2",
+      metaId: "ad-2",
       stableId: "#C002",
       name: "Ad Boost Cinere",
       campaignName: "Meta-Engagement-Boost",
@@ -242,6 +250,7 @@ describe("AuditClient", () => {
   it("caps 'salah tujuan' rows at 5 shown, with a '+ N lainnya' row for the rest", async () => {
     const manyAds = Array.from({ length: 7 }, (_, i) => ({
       id: `ad-wrong-${i}`,
+      metaId: `ad-wrong-${i}`,
       stableId: `#C10${i}`,
       name: `Ad Salah Tujuan ${i}`,
       campaignName: "Meta-Engagement-Boost",
