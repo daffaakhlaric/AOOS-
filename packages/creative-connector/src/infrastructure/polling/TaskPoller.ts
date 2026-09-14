@@ -14,6 +14,24 @@ import type { TaskId } from "../../domain/value-objects/TaskId.js";
 export const BACKOFF_SCHEDULE_MS: readonly number[] = [5_000, 10_000, 15_000, 20_000, 30_000];
 export const DEFAULT_TIMEOUT_MS = 300_000;
 
+/**
+ * REAL BUG FIX (live-confirmed: 3 parallel image generations all failed with
+ * `KieAiGenerationClient: /api/v1/jobs/<taskId> responded with HTTP 404` immediately after a
+ * successful `createTask` call, different task ids each time — a systemic pattern, not a bad id).
+ * `pollUntilComplete`'s very first status check fires with ZERO delay after task creation (no
+ * sleep before the loop's first `getTaskStatus` call) — a brand-new task can genuinely not be
+ * indexed yet on Kie AI's own status-lookup endpoint that fast, which their API surfaces as a real
+ * HTTP 404, indistinguishable at the transport level from "this task id never existed". Without
+ * this tolerance window, EVERY generation would need to race Kie AI's own indexing latency and can
+ * lose. A 404 in this specific, narrow window is therefore treated the same as `successFlag=0`
+ * (PENDING) — keep polling with the same backoff schedule — rather than an immediate hard
+ * failure. Time-bounded, not indefinite: `NOT_YET_INDEXED_GRACE_MS` caps how long a 404 is given
+ * this benefit of the doubt; past that, a persistent 404 means the task genuinely doesn't exist
+ * (wrong id, or Kie AI purged it) and correctly surfaces as a real `KieApiError`, matching every
+ * pre-existing test's "propagates a getTaskStatus error" expectation for a non-404 failure.
+ */
+export const NOT_YET_INDEXED_GRACE_MS = 30_000;
+
 export interface TaskPollerOptions {
   /** Injected sleep — defaults to a real `setTimeout`-based wait; tests inject an instant sleep. */
   readonly sleep?: (ms: number) => Promise<void>;
@@ -62,26 +80,38 @@ export class TaskPoller implements ITaskPoller {
 
     for (;;) {
       const statusResult = await this.client.getTaskStatus(taskId.toString());
-      if (!statusResult.ok) {
-        return statusResult;
-      }
-
-      const flagResult = parseSuccessFlag(statusResult.value.successFlag);
-      if (!flagResult.ok) {
-        return err(
-          new KieApiError(
-            `TaskPoller: task ${taskId.toString()} returned an unrecognized successFlag`,
-            { cause: flagResult.error },
-          ),
-        );
-      }
-
-      const outcome = this.handleFlag(taskId, kind, flagResult.value, statusResult.value);
-      if (outcome !== undefined) {
-        return outcome;
-      }
-
       const elapsedMs = this.now().getTime() - startedAt.getTime();
+
+      if (!statusResult.ok) {
+        // See NOT_YET_INDEXED_GRACE_MS's own doc — a 404 this early is Kie AI's own indexing
+        // latency, not a genuinely nonexistent task; only within the grace window is it treated
+        // as "keep polling" (falls through to the shared backoff/timeout logic below). Any other
+        // failure (network error, 401, 500, or a 404 that has persisted past the grace window)
+        // still propagates immediately, unchanged from the pre-existing behavior.
+        const isNotYetIndexed =
+          statusResult.error instanceof KieApiError &&
+          statusResult.error.httpStatus === 404 &&
+          elapsedMs < NOT_YET_INDEXED_GRACE_MS;
+        if (!isNotYetIndexed) {
+          return statusResult;
+        }
+      } else {
+        const flagResult = parseSuccessFlag(statusResult.value.successFlag);
+        if (!flagResult.ok) {
+          return err(
+            new KieApiError(
+              `TaskPoller: task ${taskId.toString()} returned an unrecognized successFlag`,
+              { cause: flagResult.error },
+            ),
+          );
+        }
+
+        const outcome = this.handleFlag(taskId, kind, flagResult.value, statusResult.value);
+        if (outcome !== undefined) {
+          return outcome;
+        }
+      }
+
       if (elapsedMs >= effectiveTimeoutMs) {
         return err(
           new TaskTimeoutError(

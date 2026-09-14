@@ -12,7 +12,11 @@ import type {
 } from "../../../src/contracts/ICreativeClient.js";
 import { KieApiError } from "../../../src/domain/errors/KieApiError.js";
 import { TaskId } from "../../../src/domain/value-objects/TaskId.js";
-import { BACKOFF_SCHEDULE_MS, TaskPoller } from "../../../src/infrastructure/polling/TaskPoller.js";
+import {
+  BACKOFF_SCHEDULE_MS,
+  NOT_YET_INDEXED_GRACE_MS,
+  TaskPoller,
+} from "../../../src/infrastructure/polling/TaskPoller.js";
 import { unwrap, unwrapErr } from "../../helpers/result.js";
 
 function fakeClient(getTaskStatus: ICreativeClient["getTaskStatus"]): ICreativeClient {
@@ -147,6 +151,58 @@ describe("TaskPoller", () => {
     const poller = new TaskPoller(client, { sleep: async () => undefined });
     const error = unwrapErr(await poller.pollUntilComplete(taskId(), "video"));
     expect(error.message).toBe("boom");
+  });
+
+  // Real bug fix (live-confirmed: 3 parallel real generations all failed this exact way — every
+  // status check happened at t=0, no delay after task creation, and Kie AI's own status endpoint
+  // 404'd because the brand-new task wasn't indexed yet). A transient 404 must be tolerated within
+  // NOT_YET_INDEXED_GRACE_MS, not treated as an immediate hard failure.
+  it("real bug fix: a 404 on the very first status check (Kie AI hasn't indexed the new task yet) is retried, not treated as a hard failure", async () => {
+    let callCount = 0;
+    const client = fakeClient(async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        return err(
+          new KieApiError("KieAiGenerationClient: /api/v1/jobs/x responded with HTTP 404", {
+            httpStatus: 404,
+          }),
+        );
+      }
+      return ok({ taskId: "task_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v.mp4" });
+    });
+    const sleep = vi.fn(async () => undefined);
+    const poller = new TaskPoller(client, { sleep });
+    const result = unwrap(await poller.pollUntilComplete(taskId(), "video"));
+    expect(callCount).toBe(2);
+    expect(result.kind).toBe("video");
+    expect(sleep).toHaveBeenCalledWith(BACKOFF_SCHEDULE_MS[0]);
+  });
+
+  it("a 404 that persists past NOT_YET_INDEXED_GRACE_MS is a real, permanent failure (a genuinely nonexistent task id), not retried forever", async () => {
+    let callCount = 0;
+    let now = 0;
+    const client = fakeClient(async () => {
+      callCount += 1;
+      return err(new KieApiError("not found", { httpStatus: 404 }));
+    });
+    const poller = new TaskPoller(client, {
+      sleep: async () => {
+        now += NOT_YET_INDEXED_GRACE_MS; // jump straight past the grace window on the first wait
+      },
+      now: () => new Date(now),
+    });
+    const error = unwrapErr(await poller.pollUntilComplete(taskId(), "video"));
+    expect(error.constructor.name).toBe("KieApiError");
+    expect(callCount).toBe(2); // t=0 (tolerated, inside grace) -> sleep jumps past grace -> t=30_000 (hard failure)
+  });
+
+  it("a non-404 error is still an immediate hard failure even at t=0, never tolerated like the 404 case", async () => {
+    const client = fakeClient(async () =>
+      err(new KieApiError("server error", { httpStatus: 500 })),
+    );
+    const poller = new TaskPoller(client, { sleep: async () => undefined });
+    const error = unwrapErr(await poller.pollUntilComplete(taskId(), "video"));
+    expect(error.message).toBe("server error");
   });
 
   it("returns a KieApiError for an unrecognized successFlag", async () => {
