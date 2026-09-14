@@ -106,6 +106,15 @@ const DUE_WINDOW_MS = 60_000;
 const DEFAULT_DATE_PRESET = "last_30d";
 
 /**
+ * Real, deliberately small `requestedCount` `runAndromedaDiversityRefreshCheck` asks
+ * `createDiverseCreativeBriefSet` for per LOW_DIVERSITY campaign per tick — a modest top-up, not a
+ * one-shot attempt to reach the pasted spec's "8-12 creatives" target in a single cycle (that target
+ * is reached gradually, tick over tick, capped every step by the real per-tenant daily brief limit
+ * `createDiverseCreativeBriefSet` already enforces).
+ */
+const ANDROMEDA_DIVERSITY_REFRESH_BRIEF_COUNT = 3;
+
+/**
  * Drives the "Kalender Aktivitas Samantha & Kai" widget's backend (AAOS-KALENDER-AKTIVITAS).
  *
  * SCOPE (see `docs/PROMPT-AAOS-KALENDER-AKTIVITAS.md`'s COORDINATOR NOTE): only 5 of the spec's
@@ -1067,6 +1076,13 @@ export class SchedulerService {
     // auto-executes anything — see `runAndromedaRestructureCheck`'s own doc.
     await this.runAndromedaRestructureCheck(tenantId, perListing);
 
+    // Samantha Andromeda-Aware Campaign System, Sprint 3 — real, additive auto-refresh: when a
+    // matched campaign is LOW_DIVERSITY, ask Kai (already-guardrailed createDiverseCreativeBriefSet)
+    // for a small top-up of new-angle creative briefs, closing the "Samantha otomatis build ... dan
+    // rotate creative" gap from the pasted spec. See runAndromedaDiversityRefreshCheck's own doc for
+    // the full safety reasoning (never a raw Meta mutation, always the same daily-cap/mode guardrail).
+    await this.runAndromedaDiversityRefreshCheck(tenantId, perListing);
+
     // AAOS LOOP UPGRADE, Sprint 8c — real Step 5: Samantha builds/publishes a campaign from a
     // freshly Kai/Kie-AI-generated asset, reusing the SAME `perListing` this method already
     // computed above (`matched.hasActiveCampaign` is the real guardrail input this check needs).
@@ -1690,6 +1706,74 @@ export class SchedulerService {
     }
 
     return { candidatesDetected };
+  }
+
+  /**
+   * `runAndromedaDiversityRefreshCheck` (Samantha Andromeda-Aware Campaign System, Sprint 3 — closes
+   * the one real gap found when a large externally-pasted "Andromeda-aware campaign system" spec was
+   * investigated against this codebase: Sprint 1's `scoreCreativeDiversity`/
+   * `evaluateAndromedaRestructureCandidate` and Sprint 2's `createDiverseCreativeBriefSet` already
+   * covered every real, honest piece of that spec MORE conservatively (no fabricated
+   * `hookType`/`targetPersona`/`messageAngle` fields, no raw Meta Graph API `fetch()`, restructuring
+   * staying strictly human-approval-only) — EXCEPT that `createDiverseCreativeBriefSet` was only ever
+   * reachable via a manual `POST /api/v1/creative-packages/diverse-set` call, never from the morning
+   * loop itself. A LOW_DIVERSITY campaign never actually got MORE diverse creative unless a human
+   * remembered to ask for it. This method closes exactly that gap and nothing else.
+   *
+   * Reuses the SAME `perListing`/`matched.matchedCampaigns` `runAndromedaRestructureCheck` (this
+   * file's own sibling, directly above) already walks — recomputes `scoreCreativeDiversity` per
+   * campaign (cheap, pure, no I/O) rather than threading its result across methods, matching this
+   * file's existing "each best-effort method computes its own fresh signals" discipline.
+   *
+   * SAFETY: the only real effect is calling the ALREADY-GUARDRAILED `createDiverseCreativeBriefSet`
+   * (DEV/LIVE mode, `auto_approve_creative_brief` toggle, and the real per-tenant daily cap are all
+   * already enforced inside that method) — never a raw Meta mutation, never bypasses
+   * `@aos/meta-ads-connector`. Self-limiting on repeat ticks: `createDiverseCreativeBriefSet` already
+   * dedupes against `existingAngles` already on the listing's own `creative_packages` rows, so once
+   * every real `PropertyAdAngle` has a brief, later ticks honestly return `createdCount: 0` rather
+   * than requesting duplicate angles or spending an LLM call for nothing.
+   *
+   * At most one refresh attempt per listing per tick (`break` after the first LOW_DIVERSITY campaign
+   * match) — a listing legitimately matching >1 campaign should not trigger the daily-cap-consuming
+   * brief flow more than once in the same cycle.
+   */
+  private async runAndromedaDiversityRefreshCheck(
+    tenantId: string,
+    perListing: readonly {
+      readonly listing: ListingResponseDto;
+      readonly matched: MatchedCampaignSignals;
+    }[],
+  ): Promise<{ readonly listingsRefreshed: number }> {
+    let listingsRefreshed = 0;
+
+    for (const { listing, matched } of perListing) {
+      for (const campaign of matched.matchedCampaigns) {
+        const allAds = campaign.adSets.flatMap((adSet) => adSet.ads);
+        const diversity: CreativeDiversityScore = scoreCreativeDiversity(allAds);
+        if (diversity.status !== "LOW_DIVERSITY") {
+          continue;
+        }
+
+        try {
+          const result = await this.createDiverseCreativeBriefSet(
+            tenantId,
+            listing.id,
+            ANDROMEDA_DIVERSITY_REFRESH_BRIEF_COUNT,
+            campaign.id.toString(),
+          );
+          if (result.createdCount > 0) {
+            listingsRefreshed += 1;
+          }
+        } catch (caught) {
+          this.logger.warn(
+            `SchedulerService.runAndromedaDiversityRefreshCheck: createDiverseCreativeBriefSet(${listing.id}) failed: ${String(caught)}`,
+          );
+        }
+        break;
+      }
+    }
+
+    return { listingsRefreshed };
   }
 
   /**

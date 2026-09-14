@@ -2426,6 +2426,116 @@ describe("SchedulerService — Andromeda restructure detection (Samantha Androme
   });
 });
 
+describe("SchedulerService — Andromeda diversity auto-refresh (Samantha Andromeda-Aware Campaign System, Sprint 3)", () => {
+  const propertyTenants = [{ tenant_id: "dss-motor", status: "ACTIVE", vertical: "PROPERTY" }];
+
+  function buildAndromedaRefreshListing(): ListingListResponseDto["listings"][number] {
+    return {
+      id: "listing-andromeda-1",
+      title: "Rumah Fragmented Andromeda",
+      propertyType: "RUMAH",
+      listingStatus: "AKTIF",
+      price: 1_000_000_000,
+      branchId: "BINTARO",
+      highlights: [],
+      photos: [],
+      inKnowledgeBase: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+  }
+
+  function buildAndromedaRefreshAdAccount(diverse: boolean): AdAccount {
+    let assetCounter = 0;
+    const ads = Array.from({ length: 4 }, () => {
+      assetCounter += 1;
+      const imageHash = diverse ? `hash-${String(assetCounter)}` : "same-hash";
+      return unwrap(
+        new AdBuilder()
+          .withId(AdId.generate())
+          .withCreativeAsset({ kind: "IMAGE", imageHash })
+          .build(),
+      );
+    });
+    const adSet = unwrap(new AdSetBuilder().withId(AdSetId.generate()).withAds(ads).build());
+    const campaign = unwrap(
+      new CampaignBuilder()
+        .withId(CampaignId.generate())
+        .withName("Rumah Fragmented Andromeda - Product")
+        .withAdSets([adSet])
+        .build(),
+    );
+    return {
+      id: "act_1",
+      name: "Acc",
+      businessManagerId: "bm",
+      currency: "IDR",
+      timezone: "Asia/Jakarta",
+      campaigns: [campaign],
+      syncedAt: new Date(),
+    } as unknown as AdAccount;
+  }
+
+  it("LOW_DIVERSITY campaign (even with only 1 ad set — not a restructure candidate): still calls the already-guardrailed createDiverseCreativeBriefSet to top up new-angle briefs", async () => {
+    const repository = buildFakeRepository();
+    const listingsService = buildFakeListingsService([buildAndromedaRefreshListing()]);
+    listingsService.getById = vi.fn(async () => buildAndromedaRefreshListing());
+    const creativePackageRepository = buildFakeCreativePackageRepository({
+      countAutoLoopSince: vi.fn(async () => 0),
+      list: vi.fn(async () => []),
+    });
+    const propertyObjectiveService = buildFakePropertyObjectiveService({
+      getAutoLoopSettingsSafe: vi.fn(async () => ({
+        maxAutoBriefsPerDay: 5,
+        autoApproveCreativeBrief: false,
+      })),
+    });
+    const service = buildService({
+      repository,
+      listingsService,
+      creativePackageRepository,
+      propertyObjectiveService,
+      connector: buildFakeConnector(buildAndromedaRefreshAdAccount(false)),
+      tenants: buildFakeTenantRepository(propertyTenants),
+      pendingActions: buildFakePendingActionsService(),
+      campaignsService: buildFakeCampaignsService(),
+      modeGuard: buildFakeModeGuardService("DEV"),
+    });
+
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+    // Falls back to the real deterministic angle pick (no llmService override here), so this
+    // proves the real, honest end-to-end wiring — not just that some mock was invoked.
+    expect(creativePackageRepository.create).toHaveBeenCalled();
+    const createCall = (creativePackageRepository.create as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as { reason: string };
+    expect(createCall.reason).toContain("Andromeda Health");
+  });
+
+  it("DIVERSE campaign: never calls createDiverseCreativeBriefSet (no new creative_packages row created)", async () => {
+    const repository = buildFakeRepository();
+    const listingsService = buildFakeListingsService([buildAndromedaRefreshListing()]);
+    const creativePackageRepository = buildFakeCreativePackageRepository({
+      countAutoLoopSince: vi.fn(async () => 0),
+      list: vi.fn(async () => []),
+    });
+    const service = buildService({
+      repository,
+      listingsService,
+      creativePackageRepository,
+      connector: buildFakeConnector(buildAndromedaRefreshAdAccount(true)),
+      tenants: buildFakeTenantRepository(propertyTenants),
+      pendingActions: buildFakePendingActionsService(),
+      campaignsService: buildFakeCampaignsService(),
+      modeGuard: buildFakeModeGuardService("DEV"),
+    });
+
+    await service.executeEvent(buildEvent({ eventType: "SAMANTHA_ANALYZE" }));
+
+    expect(creativePackageRepository.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("SchedulerService.runSamanthaAnalyze — AAOS-AI-JUDGE-SELF-IMPROVING Phase J1", () => {
   it("records a real agent_runs row keyed by the real calendar_events id, with a real minimal context, after a successful analyze", async () => {
     const repository = buildFakeRepository();
