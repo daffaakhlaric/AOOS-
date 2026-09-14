@@ -846,6 +846,28 @@ describe("CreativePackagesService.generateProperty (K2)", () => {
     ]);
   });
 
+  // Kai Creative Engine Sprint 3 — real angle-strength reasoning (scorePropertyAdAngleStrength)
+  // threaded into the real Kie AI image prompt via PropertyPromptBuilder.
+  it("real, honest angle-strength reasoning (price present -> DP_RINGAN always scorable) flows into the actual Kie AI image prompt", async () => {
+    const harness = buildHarness({
+      listing: {
+        id: "listing-1",
+        tenantId: TENANT_A,
+        title: "Rumah Minimalis BSD",
+        photos: ["https://gcs/listing-1/foto-1.jpg"],
+      },
+    });
+    const created = await harness.service.createProperty(TENANT_A, {
+      ...PROPERTY_BODY,
+      angle: PropertyAdAngle.DP_RINGAN,
+    });
+    await harness.service.generateProperty(TENANT_A, created.id);
+    await settle();
+
+    const call = harness.orchestrate.mock.calls[0]?.[0] as { imagePrompts: readonly string[] };
+    expect(call.imagePrompts[0]).toContain("grounded in a specific, data-backed property strength");
+  });
+
   it("caps sourcePhotoUrls at Kie AI's real 2-image limit when a listing has more photos", async () => {
     const harness = buildHarness({
       listing: {

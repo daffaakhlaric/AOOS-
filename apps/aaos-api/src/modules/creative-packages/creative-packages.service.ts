@@ -9,6 +9,7 @@ import {
   PropertyCopyBuilder,
   PropertyFormatDecider,
   PropertyPromptBuilder,
+  scorePropertyAdAngleStrength,
 } from "@aos/creative-agent";
 import type {
   CopyVariant,
@@ -434,6 +435,22 @@ export class CreativePackagesService {
     const sourcePhotoUrls = listing.photos.map((photo) => photo.url).slice(0, MAX_SOURCE_PHOTOS);
     await this.repository.markGenerating(id, sourcePhotoUrls);
 
+    // Kai Creative Engine Sprint 3 — real, honest angle-strength reasoning for THIS package's
+    // already-decided angle (`pkg.angle`), when `scorePropertyAdAngleStrength` (Sprint 1) actually
+    // backs it with a real signal from this listing's own data. `undefined` (never fabricated) when
+    // the angle came from an LLM brief/manual pick the scorer has no honest signal for — see
+    // `PropertyPromptBuilder.hasAngleReasoning`'s own doc for how the prompt treats this.
+    const angleReasoning = scorePropertyAdAngleStrength({
+      propertyType: listing.propertyType,
+      ...(listing.price !== undefined ? { price: listing.price } : {}),
+      ...(listing.buildArea !== undefined ? { buildArea: listing.buildArea } : {}),
+      ...(listing.condition !== undefined ? { condition: listing.condition } : {}),
+      ...(listing.certificate !== undefined ? { certificate: listing.certificate } : {}),
+      ...(listing.description !== undefined ? { description: listing.description } : {}),
+      highlights: listing.highlights,
+      photoCount: listing.photos.length,
+    }).find((scored) => scored.angle === pkg.angle)?.reasoning;
+
     const brief: PropertyCreativeBrief = {
       listingId: listing.id,
       listingTitle: listing.title,
@@ -444,6 +461,7 @@ export class CreativePackagesService {
       ...(listing.highlights.length > 0 ? { highlights: listing.highlights } : {}),
       price: listing.price,
       ...(listing.city !== undefined ? { city: listing.city } : {}),
+      ...(angleReasoning !== undefined ? { angleReasoning } : {}),
     };
 
     const availablePhotos = sourcePhotoUrls.length;

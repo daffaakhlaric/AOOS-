@@ -18,12 +18,15 @@ export class PropertyPromptBuilder implements IPropertyPromptBuilder {
     const highlightsClause = hasHighlights(brief)
       ? ", emphasizing verified quality and buyer confidence"
       : "";
+    const angleReasoningClause = hasAngleReasoning(brief)
+      ? ", grounded in a specific, data-backed property strength"
+      : "";
     const sourceClause = sourcePhotoAvailable ? "" : ", generated from text description only";
 
     return (
       `Professional real estate advertisement video, ${describeProperty(brief)}, ` +
-      `${style}${highlightsClause}, natural soft lighting, smooth camera movement, ` +
-      `elegant architectural photography, 4K quality, no text overlay${sourceClause}`
+      `${style}${highlightsClause}${angleReasoningClause}, natural soft lighting, ` +
+      `smooth camera movement, elegant architectural photography, 4K quality, no text overlay${sourceClause}`
     );
   }
 
@@ -32,17 +35,29 @@ export class PropertyPromptBuilder implements IPropertyPromptBuilder {
     const highlightsClause = hasHighlights(brief)
       ? ", emphasizing verified quality and buyer confidence"
       : "";
+    const angleReasoningClause = hasAngleReasoning(brief)
+      ? ", grounded in a specific, data-backed property strength"
+      : "";
 
     return (
       `Professional real estate photography, ${describeProperty(brief)}, ` +
-      `${style}${highlightsClause}, variant ${variantIndex + 1}, natural lighting, sharp focus, ` +
-      `bright and inviting composition, no watermark`
+      `${style}${highlightsClause}${angleReasoningClause}, variant ${variantIndex + 1}, ` +
+      `natural lighting, sharp focus, bright and inviting composition, no watermark`
     );
   }
 }
 
 function hasHighlights(brief: PropertyCreativeBrief): boolean {
   return brief.highlights !== undefined && brief.highlights.length > 0;
+}
+
+/**
+ * Kai Creative Engine Sprint 3 — `angleReasoning`'s Indonesian VALUE is never interpolated (same
+ * discipline `hasHighlights` already establishes for `brief.highlights`); only its presence nudges
+ * the English prompt with a fixed clause.
+ */
+function hasAngleReasoning(brief: PropertyCreativeBrief): boolean {
+  return brief.angleReasoning !== undefined && brief.angleReasoning.length > 0;
 }
 
 function describeProperty(brief: PropertyCreativeBrief): string {

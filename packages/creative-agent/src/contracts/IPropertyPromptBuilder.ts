@@ -19,6 +19,16 @@ export interface PropertyCreativeBrief {
   readonly price?: number;
   /** Real `Listing.city`, when present (K3 enrichment) — interpolated into `PropertyCopyBuilder`'s location-context phrasing. Omitted entirely when absent. */
   readonly city?: string;
+  /**
+   * Kai Creative Engine Sprint 3 — real reasoning behind why THIS angle was scored strongest for
+   * this listing (`@aos/creative-agent`'s own `scorePropertyAdAngleStrength`'s `reasoning`, when the
+   * caller ran it). `undefined` when the angle came from elsewhere (LLM brief generation, a manual
+   * pick) — never fabricated. Same "presence alone nudges a fixed English clause, Indonesian text
+   * never interpolated raw" discipline `highlights` already establishes (see
+   * `PropertyPromptBuilder.hasHighlights`'s doc) — this field's Indonesian VALUE is never
+   * interpolated into the English prompt, only its presence is read.
+   */
+  readonly angleReasoning?: string;
 }
 
 /** Port (Hexagonal Architecture) for Kai's PROPERTY-vertical Kie AI prompt generation. The only implementation is `intelligence/PropertyPromptBuilder.ts` — deterministic template rendering, no LLM calls, same discipline as `IPromptBuilder`. */

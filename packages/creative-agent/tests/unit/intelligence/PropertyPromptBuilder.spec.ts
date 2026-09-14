@@ -112,4 +112,26 @@ describe("PropertyPromptBuilder", () => {
       "emphasizing verified quality and buyer confidence",
     );
   });
+
+  // Kai Creative Engine Sprint 3 — real angle-strength reasoning (scorePropertyAdAngleStrength)
+  // nudges the prompt with an English clause; its Indonesian VALUE is never interpolated raw, same
+  // discipline `highlights` already establishes above.
+  it("angleReasoning present -> prompt includes the data-backed strength clause, never the raw Indonesian reasoning text", () => {
+    const brief = buildBrief({
+      angleReasoning: "Harga Rp400.000.000 — semakin terjangkau, semakin kuat angle DP ringan.",
+    });
+    const videoPrompt = builder.buildVideoPrompt(brief, true);
+    const imagePrompt = builder.buildImagePrompt(brief, 0);
+    expect(videoPrompt).toContain("grounded in a specific, data-backed property strength");
+    expect(imagePrompt).toContain("grounded in a specific, data-backed property strength");
+    expect(videoPrompt).not.toContain("Harga Rp400.000.000");
+    expect(imagePrompt).not.toContain("Harga Rp400.000.000");
+  });
+
+  it("no angleReasoning -> no data-backed strength clause added", () => {
+    const brief = buildBrief({ angleReasoning: undefined });
+    expect(builder.buildVideoPrompt(brief, true)).not.toContain(
+      "grounded in a specific, data-backed property strength",
+    );
+  });
 });
