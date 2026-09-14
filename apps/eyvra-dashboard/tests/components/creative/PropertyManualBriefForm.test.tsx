@@ -112,6 +112,47 @@ describe("PropertyManualBriefForm", () => {
     expect(screen.getAllByAltText("Foto listing")).toHaveLength(2);
   });
 
+  // Kai Creative Engine Sprint 4 — real, on-demand, per-photo Vision analysis.
+  it("'Analisa Foto' calls the real /api/creative/photo-analysis proxy for that photo and renders the result", async () => {
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/listings")) {
+        return jsonResponse({ listings: [LISTING], total: 1 });
+      }
+      if (url === "/api/creative/photo-analysis") {
+        const body = JSON.parse(init?.body as string) as { photoUrl: string };
+        expect(body.photoUrl).toBe("https://gcs/listing-1/photo-1.jpg");
+        return jsonResponse({
+          available: true,
+          scene: "EKSTERIOR",
+          qualityScore: 82,
+          marketingScore: 74,
+          recommendedUse: "HERO",
+          reasoning: "x",
+        });
+      }
+      if (url.includes("/api/creative") && init?.method !== "POST") {
+        return jsonResponse({ packages: [] });
+      }
+      return jsonResponse({ package: { id: "pkg-1" } });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const { default: userEventModule } = await import("@testing-library/user-event");
+    const user = userEventModule.setup();
+
+    render(<PropertyManualBriefForm onCreated={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTestId("creative-photo-strip")).toBeInTheDocument());
+
+    const [firstButton] = screen.getAllByRole("button", { name: "🔍 Analisa Foto" });
+    await user.click(firstButton!);
+
+    await waitFor(() => expect(screen.getByTestId("photo-analysis-p1")).toBeInTheDocument());
+    expect(screen.getByTestId("photo-analysis-p1")).toHaveTextContent("EKSTERIOR");
+    expect(screen.getByTestId("photo-analysis-p1")).toHaveTextContent("HERO");
+    // The second photo's own button is untouched — this call was scoped to ONE photo, not all.
+    expect(screen.getAllByRole("button", { name: "🔍 Analisa Foto" })).toHaveLength(1);
+  });
+
   it("shows an honest 'belum ada listing' message instead of a broken empty dropdown", async () => {
     global.fetch = mockFetch({ listings: [] }) as unknown as typeof fetch;
     render(<PropertyManualBriefForm onCreated={vi.fn()} />);

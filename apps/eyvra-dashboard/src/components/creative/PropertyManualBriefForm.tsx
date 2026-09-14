@@ -8,7 +8,11 @@ import {
   recommendPropertyAngles,
   type AngleRecommendation,
 } from "@/lib/kaiRecommendations";
-import type { CreativeFormatDto, CreativePackageDto } from "@/types/dashboard.types";
+import type {
+  CreativeFormatDto,
+  CreativePackageDto,
+  PhotoAnalysisDto,
+} from "@/types/dashboard.types";
 import type { ListingDto, ListingListDto } from "@/types/listing.types";
 
 import styles from "./ManualBriefForm.module.css";
@@ -101,6 +105,35 @@ export function PropertyManualBriefForm({
   );
   const [acceptedAngles, setAcceptedAngles] = useState<ReadonlySet<string>>(new Set());
   const [manuallyPickedAngle, setManuallyPickedAngle] = useState(false);
+
+  // Kai Creative Engine Sprint 4 — real, on-demand, per-photo Vision analysis (Sprint 1/2's
+  // LlmService.analyzePropertyPhoto via the new /api/creative/photo-analysis proxy). Keyed by
+  // photo id; "loading" while a call is in flight, the real PhotoAnalysisDto once it resolves.
+  const [photoAnalysis, setPhotoAnalysis] = useState<Record<string, PhotoAnalysisDto | "loading">>(
+    {},
+  );
+
+  async function analyzePhoto(photoId: string, photoUrl: string): Promise<void> {
+    setPhotoAnalysis((current) => ({ ...current, [photoId]: "loading" }));
+    try {
+      const res = await fetch("/api/creative/photo-analysis", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ photoUrl }),
+      });
+      const body = (await res.json()) as PhotoAnalysisDto | { error: { message: string } };
+      const result: PhotoAnalysisDto =
+        "available" in body
+          ? body
+          : { available: false, reason: "PROVIDER_ERROR", message: body.error.message };
+      setPhotoAnalysis((current) => ({ ...current, [photoId]: result }));
+    } catch {
+      setPhotoAnalysis((current) => ({
+        ...current,
+        [photoId]: { available: false, reason: "PROVIDER_ERROR", message: "Gagal analisa foto." },
+      }));
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -289,10 +322,35 @@ export function PropertyManualBriefForm({
           </span>
         ) : (
           <div data-testid="creative-photo-strip" className={styles.photoStrip}>
-            {selectedListing.photos.map((photo) => (
-              // eslint-disable-next-line @next/next/no-img-element -- see CreativePackageCard's note.
-              <img key={photo.id} className={styles.photo} src={photo.url} alt="Foto listing" />
-            ))}
+            {selectedListing.photos.map((photo) => {
+              const analysis = photoAnalysis[photo.id];
+              return (
+                <div key={photo.id} className={styles.photoStripItem}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- see CreativePackageCard's note. */}
+                  <img className={styles.photo} src={photo.url} alt="Foto listing" />
+                  {analysis === undefined ? (
+                    <button
+                      type="button"
+                      className={styles.photoAnalyzeButton}
+                      onClick={() => void analyzePhoto(photo.id, photo.url)}
+                    >
+                      🔍 Analisa Foto
+                    </button>
+                  ) : analysis === "loading" ? (
+                    <span className={styles.hint}>Menganalisa…</span>
+                  ) : analysis.available ? (
+                    <span
+                      data-testid={`photo-analysis-${photo.id}`}
+                      className={styles.photoAnalysisBadge}
+                    >
+                      {analysis.scene} · {analysis.recommendedUse} · skor {analysis.marketingScore}
+                    </span>
+                  ) : (
+                    <span className={styles.hint}>{analysis.message}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

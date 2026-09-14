@@ -362,6 +362,22 @@ export type AssetInsightDto =
   | { readonly available: true; readonly kaiTake: string; readonly samanthaVerdict: string }
   | { readonly available: false; readonly reason: string; readonly message: string };
 
+/**
+ * Kai Creative Engine Sprint 4 — mirrors `aaos-api`'s `PhotoAnalysisResponseDto`
+ * (`POST /api/v1/llm/photo-analysis`, Sprint 1/2). Same `available: false` degrade contract every
+ * other real LLM-backed dashboard call already uses.
+ */
+export type PhotoAnalysisDto =
+  | {
+      readonly available: true;
+      readonly scene: "EKSTERIOR" | "INTERIOR" | "FASILITAS" | "DENAH" | "LAINNYA";
+      readonly qualityScore: number;
+      readonly marketingScore: number;
+      readonly recommendedUse: "HERO" | "SUPPORTING" | "NOT_RECOMMENDED";
+      readonly reasoning: string;
+    }
+  | { readonly available: false; readonly reason: string; readonly message: string };
+
 export interface AssetDetailResponseDto {
   readonly adAccountId: string;
   readonly generatedAt: string;
