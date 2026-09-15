@@ -75,6 +75,26 @@ function summarizeZodIssues(error: z.ZodError): string {
 }
 
 /**
+ * Same real-diagnostic-reason discipline as `summarizeZodIssues` — naming WHICH field Kie AI's
+ * response disagreed with our schema on is only half the picture; without the real raw body
+ * alongside it, answering "so what IS the real field actually called" still requires a live
+ * Kie AI dashboard/network-tab session this codebase's own Activity Log cannot see into. Truncated
+ * so one unexpectedly large/malformed body can never blow up the Activity Log entry.
+ */
+const MAX_RAW_BODY_CHARS = 300;
+function truncateRawBody(json: unknown): string {
+  let text: string;
+  try {
+    text = JSON.stringify(json);
+  } catch {
+    return String(json);
+  }
+  return text.length > MAX_RAW_BODY_CHARS
+    ? `${text.slice(0, MAX_RAW_BODY_CHARS)}…(truncated)`
+    : text;
+}
+
+/**
  * Translates raw Kie AI JSON response bodies (Parts 1-4 of the spec) into typed, validated
  * shapes or a `Result.err`, so the two infrastructure clients never hand-parse `unknown` JSON
  * themselves. Zod-validated per Constitution §5.5 ("all external inputs ... validated against an
@@ -86,7 +106,7 @@ export class KieApiResponseMapper {
     if (!parsed.success) {
       return err(
         new FileUploadError(
-          `Kie AI file-stream-upload response failed schema validation (${summarizeZodIssues(parsed.error)})`,
+          `Kie AI file-stream-upload response failed schema validation (${summarizeZodIssues(parsed.error)}) — raw body: ${truncateRawBody(json)}`,
           {
             cause: new ValidationError("schema validation failed", {
               context: { zodError: parsed.error },
@@ -110,7 +130,7 @@ export class KieApiResponseMapper {
     if (!parsed.success) {
       return err(
         new KieApiError(
-          `Kie AI task-creation response failed schema validation (${summarizeZodIssues(parsed.error)})`,
+          `Kie AI task-creation response failed schema validation (${summarizeZodIssues(parsed.error)}) — raw body: ${truncateRawBody(json)}`,
           {
             cause: new ValidationError("schema validation failed", {
               context: { zodError: parsed.error },
@@ -134,7 +154,7 @@ export class KieApiResponseMapper {
     if (!parsed.success) {
       return err(
         new KieApiError(
-          `Kie AI task-status response failed schema validation (${summarizeZodIssues(parsed.error)})`,
+          `Kie AI task-status response failed schema validation (${summarizeZodIssues(parsed.error)}) — raw body: ${truncateRawBody(json)}`,
           {
             cause: new ValidationError("schema validation failed", {
               context: { zodError: parsed.error },

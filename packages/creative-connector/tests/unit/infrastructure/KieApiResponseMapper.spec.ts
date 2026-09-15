@@ -38,6 +38,19 @@ describe("KieApiResponseMapper", () => {
       );
       expect(error.message).toContain("msg");
     });
+
+    it("real bug fix: includes the real raw response body — so the actual (possibly renamed) field names Kie AI used are visible without a live debugging session", () => {
+      const error = unwrapErr(
+        KieApiResponseMapper.mapUploadResponse({
+          success: true,
+          code: 200,
+          msg: "ok",
+          data: { url: "https://cdn.kie.ai/x.jpg" }, // real field is "url", not "fileUrl"/"fileId"
+        }),
+      );
+      expect(error.message).toContain("raw body");
+      expect(error.message).toContain('"url":"https://cdn.kie.ai/x.jpg"');
+    });
   });
 
   describe("mapTaskCreatedResponse", () => {
