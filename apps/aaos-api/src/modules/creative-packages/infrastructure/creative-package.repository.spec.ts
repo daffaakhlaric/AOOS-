@@ -292,6 +292,29 @@ describe("CreativePackageRepository mutations", () => {
     expect(pkg?.confidenceScore).toBeUndefined();
   });
 
+  // Kai Creative Engine Sprint 5 (foundation) — real, distinct "attempted, got these real ids" vs
+  // "never attempted" states.
+  it("recordPublishedMetaAdIds persists the real Meta ad ids created from this package's copy variants", async () => {
+    const client = createFakeSupabaseClient();
+    seedPackage(client, { id: "pkg-x" });
+    const repo = new CreativePackageRepository(client);
+    await repo.recordPublishedMetaAdIds("pkg-x", ["120000000000901", "120000000000902"]);
+    const pkg = await repo.findById(TENANT, "pkg-x");
+    expect(pkg?.publishedMetaAdIds).toEqual(["120000000000901", "120000000000902"]);
+  });
+
+  it("recordPublishedMetaAdIds([]) is a real, distinct 'attempted, all failed' state — never conflated with 'never attempted' (undefined)", async () => {
+    const client = createFakeSupabaseClient();
+    seedPackage(client, { id: "pkg-x" });
+    const repo = new CreativePackageRepository(client);
+    const before = await repo.findById(TENANT, "pkg-x");
+    expect(before?.publishedMetaAdIds).toBeUndefined();
+
+    await repo.recordPublishedMetaAdIds("pkg-x", []);
+    const after = await repo.findById(TENANT, "pkg-x");
+    expect(after?.publishedMetaAdIds).toEqual([]);
+  });
+
   it("fail sets FAILED plus the real error message", async () => {
     const client = createFakeSupabaseClient();
     seedPackage(client, { id: "pkg-x", status: "GENERATING" });

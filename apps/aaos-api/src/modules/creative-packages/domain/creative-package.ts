@@ -162,6 +162,16 @@ export interface StoredCreativePackage {
   readonly reviewedAt?: string;
   /** `048_campaign_auto_publish.sql`. `undefined` = not yet considered by Step 5's real campaign-publish check. */
   readonly campaignPublishStatus?: CreativePackageCampaignPublishStatus;
+  /**
+   * Kai Creative Engine Sprint 5 (foundation), `052_creative_packages_published_ad_ids.sql` — real
+   * Meta ad ids `CampaignsService.publishPropertyAds` created FROM this package's own copy variants,
+   * recorded right after a real (non-simulated) publish. `undefined` = never attempted (no
+   * `creativePackageId` was threaded into `createPropertyCampaign`, or DEV mode). An empty array is
+   * a real, distinct state (attempted, but every `createAd` call failed) — never conflated with
+   * `undefined`. This is the real join key any future performance-to-angle analysis needs; nothing
+   * in this dispatch computes that analysis yet — see this column's own migration doc.
+   */
+  readonly publishedMetaAdIds?: readonly string[];
   readonly createdAt: string;
   readonly updatedAt: string;
 }

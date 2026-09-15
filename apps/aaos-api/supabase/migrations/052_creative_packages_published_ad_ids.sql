@@ -1,0 +1,27 @@
+-- Kai Creative Engine Sprint 5 (foundation) -- 052_creative_packages_published_ad_ids.sql
+--
+-- Real next migration number verified directly against this folder's actual latest
+-- (051_andromeda_restructure.sql) before choosing 052 -- no other 052 exists.
+--
+-- REAL GAP THIS CLOSES: investigated directly before writing this (against a large externally-
+-- pasted "Kai Creative Engine" spec's Sprint 5 learning-feedback-loop ask) -- there was NO real,
+-- persisted link anywhere from a `creative_packages` row to the live Meta ad id(s) it becomes.
+-- `CampaignsService.publishPropertyAds` (AAOS-SAMANTHA-LLM-AD-COPY) already computes real Meta
+-- `adId`s when a matched creative package's copy variants are published as live ads -- those ids
+-- were returned to the caller and then simply discarded, never persisted back onto the package that
+-- produced them. Without this column, no real "which angle/format performed well" analysis can ever
+-- exist -- there would be nothing to join a live ad's real Meta insights back to.
+--
+-- This migration adds ONLY the storage; it does not itself compute or backfill anything (no
+-- historical `publishPropertyAds` call recorded its ids, so every pre-existing row honestly has
+-- none). `CreativePackageRepository.recordPublishedMetaAdIds` (this sprint's own new repository
+-- method) is the one real writer, called from `CampaignsService.createPropertyCampaign` right after
+-- a real (non-simulated) publish. JSONB, matching `copy_variants`/`image_urls`'s own existing
+-- array-of-string storage convention on this same table (003_creative_packages.sql) -- NOT a
+-- Postgres native array, so the exact same `SupabaseClientLike` read/write path every other JSONB
+-- column on this table already uses works unchanged.
+--
+-- NOT auto-applied by this repo's tooling -- run this against the real Supabase project before
+-- `CreativePackageRepository.recordPublishedMetaAdIds` can persist real published-ad-id rows.
+
+ALTER TABLE creative_packages ADD COLUMN published_meta_ad_ids JSONB;

@@ -209,6 +209,22 @@ export class CreativePackagesService {
     return this.findOrThrowScoped(tenantId, id);
   }
 
+  /**
+   * Kai Creative Engine Sprint 5 (foundation) — the real, tenant-scoped write
+   * `CampaignsService.createPropertyCampaign` uses right after a real (non-simulated) publish, same
+   * "reuse the real service, never reach into `CreativePackageRepository` directly" discipline
+   * `getForCampaignPublish`'s own doc establishes. `findOrThrowScoped` first — never writes a
+   * cross-tenant id blind.
+   */
+  async recordPublishedMetaAdIds(
+    tenantId: string,
+    id: string,
+    adIds: readonly string[],
+  ): Promise<void> {
+    await this.findOrThrowScoped(tenantId, id);
+    await this.repository.recordPublishedMetaAdIds(id, adIds);
+  }
+
   async list(query: GetPackagesQueryDto): Promise<readonly CreativePackageResponseDto[]> {
     const packages = await this.repository.list(this.tenantId, {
       ...(query.status !== undefined ? { status: query.status } : {}),

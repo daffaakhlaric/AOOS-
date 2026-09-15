@@ -68,6 +68,8 @@ export interface CreativePackageRow {
   readonly reviewed_at: string | null;
   /** Additive, `048_campaign_auto_publish.sql`. NULL for every pre-existing row and every row not yet considered by Step 5's real campaign-publish check. */
   readonly campaign_publish_status: string | null;
+  /** Additive, `052_creative_packages_published_ad_ids.sql`. NULL for every pre-existing row and every row never published as a real, non-simulated Meta ad. */
+  readonly published_meta_ad_ids: readonly string[] | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -121,6 +123,9 @@ function toDomain(row: CreativePackageRow): StoredCreativePackage {
           campaignPublishStatus:
             row.campaign_publish_status as CreativePackageCampaignPublishStatus,
         }
+      : {}),
+    ...(row.published_meta_ad_ids !== null
+      ? { publishedMetaAdIds: row.published_meta_ad_ids }
       : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -324,6 +329,17 @@ export class CreativePackageRepository {
     status: CreativePackageCampaignPublishStatus,
   ): Promise<void> {
     await this.patch(id, "markCampaignPublishStatus", { campaign_publish_status: status });
+  }
+
+  /**
+   * Kai Creative Engine Sprint 5 (foundation) — the real write for `publishedMetaAdIds` (this
+   * module's own domain doc). Called exactly once per real (non-simulated) publish attempt, from
+   * `CampaignsService.createPropertyCampaign` right after `publishPropertyAds` returns its real
+   * `adIds` — including an empty array (a real, distinct "attempted, all failed" state, never
+   * conflated with "never attempted" — see the domain field's own doc).
+   */
+  async recordPublishedMetaAdIds(id: string, adIds: readonly string[]): Promise<void> {
+    await this.patch(id, "recordPublishedMetaAdIds", { published_meta_ad_ids: adIds });
   }
 
   private async patch(

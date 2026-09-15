@@ -316,6 +316,27 @@ export class CampaignsService {
                 )
               : [];
 
+          // Kai Creative Engine Sprint 5 (foundation) — real, best-effort persistence of the ids
+          // `publishPropertyAds` just created, so this package's angle/format can eventually be
+          // joined back to real Meta ad performance (see `recordPublishedMetaAdIds`'s own doc). Only
+          // attempted when a real publish was attempted (`creativePackage !== undefined`) — never
+          // writes anything for the manual, package-less endpoint. Best-effort, same "never let a
+          // side-effect write break the real campaign-creation result" discipline this method's own
+          // `publishPropertyAds` call already establishes for its own per-ad failures.
+          if (creativePackage !== undefined) {
+            try {
+              await this.creativePackages.recordPublishedMetaAdIds(
+                tenantId,
+                creativePackage.id,
+                adIds,
+              );
+            } catch (caught) {
+              this.logger.warn(
+                `CampaignsService.createPropertyCampaign(${creativePackage.id}): recordPublishedMetaAdIds failed, continuing: ${caught instanceof Error ? caught.message : String(caught)}`,
+              );
+            }
+          }
+
           return {
             ...executed.value,
             simulated: false,

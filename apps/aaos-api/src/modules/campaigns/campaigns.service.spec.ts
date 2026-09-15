@@ -103,6 +103,9 @@ function buildFakeCreativePackages(
       }
       return pkg;
     }),
+    // Kai Creative Engine Sprint 5 (foundation) — real fake for the new
+    // recordPublishedMetaAdIds write `createPropertyCampaign` makes right after a real publish.
+    recordPublishedMetaAdIds: vi.fn(async () => undefined),
   } as unknown as CreativePackagesService;
 }
 
@@ -644,6 +647,52 @@ describe("CampaignsService.createPropertyCampaign — multi-ad publish (AAOS-SAM
           .creative.object_story_spec.link_data.description,
     );
     expect(descriptions).toEqual(["3KT, carport 2 mobil", "Dekat akses tol", "Unit siap survey"]);
+  });
+
+  // Kai Creative Engine Sprint 5 (foundation) — real persistence of the ids just created, so a
+  // future performance-to-angle analysis has a real join key.
+  it("real, non-simulated publish: records the real published ad ids back onto the creative package", async () => {
+    registerFullLivePipeline();
+    let adCounter = 0;
+    mswServer.use(
+      http.post("https://graph.facebook.com/v21.0/:adAccountId/ads", () => {
+        adCounter += 1;
+        return HttpResponse.json({ id: `120000000000${String(900 + adCounter)}` });
+      }),
+    );
+    const creativePackages = buildFakeCreativePackages(IMAGE_PACKAGE);
+    const service = buildService(false, buildFakeActivityLogger(), {
+      listings: buildFakeListings(LISTING_WITH_WA),
+      creativePackages,
+    });
+    await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-multiad-record",
+      "pkg-1",
+    );
+
+    expect(creativePackages.recordPublishedMetaAdIds).toHaveBeenCalledWith("dss-motor", "pkg-1", [
+      "120000000000901",
+      "120000000000902",
+      "120000000000903",
+    ]);
+  });
+
+  it("DEV mode (simulated, no real publish attempted): never calls recordPublishedMetaAdIds", async () => {
+    const creativePackages = buildFakeCreativePackages(IMAGE_PACKAGE);
+    const service = buildService(true, buildFakeActivityLogger(), {
+      listings: buildFakeListings(LISTING_WITH_WA),
+      creativePackages,
+    });
+    await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-multiad-dev-record",
+      "pkg-1",
+    );
+
+    expect(creativePackages.recordPublishedMetaAdIds).not.toHaveBeenCalled();
   });
 
   it("the manual endpoint (no creativePackageId) never attempts real ad creation", async () => {
