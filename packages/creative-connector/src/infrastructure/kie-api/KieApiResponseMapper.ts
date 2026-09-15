@@ -58,6 +58,23 @@ export interface TaskCreatedResponseData {
 }
 
 /**
+ * REAL BUG FIX (live-confirmed: a real file-stream-upload response failed schema validation with
+ * no way to tell WHICH field disagreed with `UploadResponseSchema` — every schema-validation-failure
+ * message below used to be the same opaque "response failed schema validation" string, with the
+ * real `ZodError` only reachable via `error.cause.context.zodError`, which the Activity Log never
+ * renders). Summarizes the real, specific field(s) Zod actually rejected — e.g. `msg: Required` —
+ * directly into the error message every one of these 3 branches already surfaces, same "never
+ * discard a real diagnostic reason" discipline `CreativeOrchestratorService`'s own recent fix
+ * (`sourcePhotoSkippedReason`) already establishes one layer up this exact call chain.
+ */
+function summarizeZodIssues(error: z.ZodError): string {
+  return error.issues
+    .slice(0, 3)
+    .map((issue) => `${issue.path.length > 0 ? issue.path.join(".") : "(root)"}: ${issue.message}`)
+    .join("; ");
+}
+
+/**
  * Translates raw Kie AI JSON response bodies (Parts 1-4 of the spec) into typed, validated
  * shapes or a `Result.err`, so the two infrastructure clients never hand-parse `unknown` JSON
  * themselves. Zod-validated per Constitution §5.5 ("all external inputs ... validated against an
@@ -68,11 +85,14 @@ export class KieApiResponseMapper {
     const parsed = UploadResponseSchema.safeParse(json);
     if (!parsed.success) {
       return err(
-        new FileUploadError("Kie AI file-stream-upload response failed schema validation", {
-          cause: new ValidationError("schema validation failed", {
-            context: { zodError: parsed.error },
-          }),
-        }),
+        new FileUploadError(
+          `Kie AI file-stream-upload response failed schema validation (${summarizeZodIssues(parsed.error)})`,
+          {
+            cause: new ValidationError("schema validation failed", {
+              context: { zodError: parsed.error },
+            }),
+          },
+        ),
       );
     }
     if (!parsed.data.success || !parsed.data.data) {
@@ -89,11 +109,14 @@ export class KieApiResponseMapper {
     const parsed = TaskCreatedResponseSchema.safeParse(json);
     if (!parsed.success) {
       return err(
-        new KieApiError("Kie AI task-creation response failed schema validation", {
-          cause: new ValidationError("schema validation failed", {
-            context: { zodError: parsed.error },
-          }),
-        }),
+        new KieApiError(
+          `Kie AI task-creation response failed schema validation (${summarizeZodIssues(parsed.error)})`,
+          {
+            cause: new ValidationError("schema validation failed", {
+              context: { zodError: parsed.error },
+            }),
+          },
+        ),
       );
     }
     if (parsed.data.code !== 200 || !parsed.data.data) {
@@ -110,11 +133,14 @@ export class KieApiResponseMapper {
     const parsed = TaskStatusResponseSchema.safeParse(json);
     if (!parsed.success) {
       return err(
-        new KieApiError("Kie AI task-status response failed schema validation", {
-          cause: new ValidationError("schema validation failed", {
-            context: { zodError: parsed.error },
-          }),
-        }),
+        new KieApiError(
+          `Kie AI task-status response failed schema validation (${summarizeZodIssues(parsed.error)})`,
+          {
+            cause: new ValidationError("schema validation failed", {
+              context: { zodError: parsed.error },
+            }),
+          },
+        ),
       );
     }
     if (parsed.data.code !== 200 || !parsed.data.data) {

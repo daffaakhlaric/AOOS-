@@ -28,6 +28,16 @@ describe("KieApiResponseMapper", () => {
       const error = unwrapErr(KieApiResponseMapper.mapUploadResponse({ not: "valid" }));
       expect(error.message).toMatch(/schema validation/);
     });
+
+    // REAL BUG FIX regression guard: the message now names WHICH field(s) Zod actually rejected —
+    // previously an opaque "response failed schema validation" with no way to tell a missing
+    // `msg` apart from a wrong-typed `success` apart from anything else.
+    it("real bug fix: includes the specific field(s) that failed validation, not just an opaque message", () => {
+      const error = unwrapErr(
+        KieApiResponseMapper.mapUploadResponse({ success: true, code: 200 }), // missing required `msg`
+      );
+      expect(error.message).toContain("msg");
+    });
   });
 
   describe("mapTaskCreatedResponse", () => {
@@ -57,6 +67,13 @@ describe("KieApiResponseMapper", () => {
     it("returns an error when the body fails schema validation", () => {
       const error = unwrapErr(KieApiResponseMapper.mapTaskCreatedResponse("not an object"));
       expect(error.message).toMatch(/schema validation/);
+    });
+
+    it("real bug fix: includes the specific field(s) that failed validation, not just an opaque message", () => {
+      const error = unwrapErr(
+        KieApiResponseMapper.mapTaskCreatedResponse({ code: "200" }), // code must be a number
+      );
+      expect(error.message).toContain("code");
     });
 
     it(
@@ -129,6 +146,16 @@ describe("KieApiResponseMapper", () => {
     it("returns an error when the body fails schema validation", () => {
       const error = unwrapErr(KieApiResponseMapper.mapTaskStatusResponse(null));
       expect(error.message).toMatch(/schema validation/);
+    });
+
+    it("real bug fix: includes the specific field(s) that failed validation, not just an opaque message", () => {
+      const error = unwrapErr(
+        KieApiResponseMapper.mapTaskStatusResponse({
+          code: 200,
+          data: { taskId: "task_1", successFlag: "not-a-number" },
+        }),
+      );
+      expect(error.message).toContain("successFlag");
     });
   });
 });
