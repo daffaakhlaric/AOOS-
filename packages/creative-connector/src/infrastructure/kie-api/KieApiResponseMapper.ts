@@ -12,14 +12,23 @@ import { KieApiError } from "../../domain/errors/KieApiError.js";
 // failed it, so every real Kie AI error response was reported as an opaque "response failed schema
 // validation" instead of the real, informative `msg` Kie AI actually sent. `.nullable().optional()`
 // (i.e. `.nullish()`) accepts both shapes.
+// REAL BUG FIX (live-confirmed, 2026-09-15 — the raw body diagnostic added right after the earlier
+// 2026-08-18 fix caught this on its very next real failure): the design doc's own worked example
+// (`docs/PROMPT-AAOS-W3G-CREATIVE-CONNECTOR.md`) documented `data: {fileId, fileUrl}`, but the REAL
+// `https://kieai.redpandaai.co/api/file-stream-upload` response is `data: {success, fileName,
+// filePath, downloadUrl, fileSize, mimeType}` — no `fileId`/`fileUrl` field exists at all. `filePath`
+// (a real, unique per-upload path string) stands in for `fileId`; `downloadUrl` stands in for
+// `fileUrl`. `msg` is also widened to `.optional()` here, matching the other two schemas below —
+// there is no real evidence it is ever actually required either, and being over-strict on it is
+// exactly the class of bug this fix is closing.
 const UploadResponseSchema = z.object({
   success: z.boolean(),
   code: z.number(),
-  msg: z.string(),
+  msg: z.string().optional(),
   data: z
     .object({
-      fileId: z.string(),
-      fileUrl: z.string(),
+      filePath: z.string(),
+      downloadUrl: z.string(),
     })
     .nullish(),
 });
@@ -117,12 +126,14 @@ export class KieApiResponseMapper {
     }
     if (!parsed.data.success || !parsed.data.data) {
       return err(
-        new FileUploadError(`Kie AI file upload failed: ${parsed.data.msg}`, {
+        new FileUploadError(`Kie AI file upload failed: ${parsed.data.msg ?? "unknown error"}`, {
           context: { code: parsed.data.code },
         }),
       );
     }
-    return ok(parsed.data.data);
+    // REAL BUG FIX (see UploadResponseSchema's own doc) — the real response has no fileId/fileUrl
+    // fields at all; filePath/downloadUrl are the real stand-ins.
+    return ok({ fileId: parsed.data.data.filePath, fileUrl: parsed.data.data.downloadUrl });
   }
 
   static mapTaskCreatedResponse(json: unknown): Result<TaskCreatedResponseData, KieApiError> {

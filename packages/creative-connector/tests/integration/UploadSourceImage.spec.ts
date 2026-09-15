@@ -31,8 +31,8 @@ describe("UploadSourceImage (integration, MSW-mocked kieai.redpandaai.co)", () =
           code: 200,
           msg: "File upload successful",
           data: {
-            fileId: "file_abc1234",
-            fileUrl: "https://cdn.kie.ai/images/aaos-dss/xpander-bintaro-001.jpg",
+            filePath: "kieai/197573/images/aaos-dss/xpander-bintaro-001.jpg",
+            downloadUrl: "https://cdn.kie.ai/images/aaos-dss/xpander-bintaro-001.jpg",
           },
         }),
       ),
@@ -53,7 +53,7 @@ describe("UploadSourceImage (integration, MSW-mocked kieai.redpandaai.co)", () =
           success: true,
           code: 200,
           msg: "ok",
-          data: { fileId: "file_1", fileUrl: "https://cdn.kie.ai/a.jpg" },
+          data: { filePath: "file_1", downloadUrl: "https://cdn.kie.ai/a.jpg" },
         }),
       ),
     );

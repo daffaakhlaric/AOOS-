@@ -5,16 +5,31 @@ import { unwrap, unwrapErr } from "../../helpers/result.js";
 
 describe("KieApiResponseMapper", () => {
   describe("mapUploadResponse", () => {
-    it("maps a successful upload response", () => {
-      const data = unwrap(
-        KieApiResponseMapper.mapUploadResponse({
-          success: true,
-          code: 200,
-          msg: "File upload successful",
-          data: { fileId: "file_abc1234", fileUrl: "https://cdn.kie.ai/x.jpg" },
-        }),
-      );
-      expect(data).toEqual({ fileId: "file_abc1234", fileUrl: "https://cdn.kie.ai/x.jpg" });
+    // REAL BUG FIX (live-confirmed, 2026-09-15): the design doc's worked example documented
+    // `data: {fileId, fileUrl}`, but the real https://kieai.redpandaai.co/api/file-stream-upload
+    // response is `data: {success, fileName, filePath, downloadUrl, fileSize, mimeType}` — no
+    // fileId/fileUrl field exists at all. This is the exact real body a live failure produced.
+    const REAL_UPLOAD_RESPONSE = {
+      success: true,
+      code: 200,
+      msg: "File uploaded successfully",
+      data: {
+        success: true,
+        fileName: "source-photo-1.jpg",
+        filePath: "kieai/197573/images/aaos-dss/source-photo-1.jpg",
+        downloadUrl:
+          "https://tempfile.redpandaai.co/kieai/197573/images/aaos-dss/source-photo-1.jpg",
+        fileSize: 2_070_932,
+        mimeType: "image/jpeg",
+      },
+    };
+
+    it("maps a real, live-confirmed successful upload response — filePath -> fileId, downloadUrl -> fileUrl", () => {
+      const data = unwrap(KieApiResponseMapper.mapUploadResponse(REAL_UPLOAD_RESPONSE));
+      expect(data).toEqual({
+        fileId: "kieai/197573/images/aaos-dss/source-photo-1.jpg",
+        fileUrl: "https://tempfile.redpandaai.co/kieai/197573/images/aaos-dss/source-photo-1.jpg",
+      });
     });
 
     it("returns an error when success is false", () => {
@@ -24,6 +39,13 @@ describe("KieApiResponseMapper", () => {
       expect(error.message).toMatch(/boom/);
     });
 
+    it("returns an error (not a fabricated one) when success is false and msg is absent", () => {
+      const error = unwrapErr(
+        KieApiResponseMapper.mapUploadResponse({ success: false, code: 500 }),
+      );
+      expect(error.message).toContain("unknown error");
+    });
+
     it("returns an error when the body fails schema validation", () => {
       const error = unwrapErr(KieApiResponseMapper.mapUploadResponse({ not: "valid" }));
       expect(error.message).toMatch(/schema validation/);
@@ -31,12 +53,17 @@ describe("KieApiResponseMapper", () => {
 
     // REAL BUG FIX regression guard: the message now names WHICH field(s) Zod actually rejected —
     // previously an opaque "response failed schema validation" with no way to tell a missing
-    // `msg` apart from a wrong-typed `success` apart from anything else.
+    // `data.filePath` apart from a wrong-typed `success` apart from anything else.
     it("real bug fix: includes the specific field(s) that failed validation, not just an opaque message", () => {
       const error = unwrapErr(
-        KieApiResponseMapper.mapUploadResponse({ success: true, code: 200 }), // missing required `msg`
+        KieApiResponseMapper.mapUploadResponse({
+          success: true,
+          code: 200,
+          data: { fileId: "file_abc1234", fileUrl: "https://cdn.kie.ai/x.jpg" }, // the OLD, wrong field names
+        }),
       );
-      expect(error.message).toContain("msg");
+      expect(error.message).toContain("filePath");
+      expect(error.message).toContain("downloadUrl");
     });
 
     it("real bug fix: includes the real raw response body — so the actual (possibly renamed) field names Kie AI used are visible without a live debugging session", () => {
@@ -45,7 +72,7 @@ describe("KieApiResponseMapper", () => {
           success: true,
           code: 200,
           msg: "ok",
-          data: { url: "https://cdn.kie.ai/x.jpg" }, // real field is "url", not "fileUrl"/"fileId"
+          data: { url: "https://cdn.kie.ai/x.jpg" }, // some other renamed field, not filePath/downloadUrl either
         }),
       );
       expect(error.message).toContain("raw body");

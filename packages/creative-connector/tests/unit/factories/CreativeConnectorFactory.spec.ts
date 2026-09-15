@@ -54,7 +54,7 @@ describe("CreativeConnectorFactory", () => {
           success: true,
           code: 200,
           msg: "ok",
-          data: { fileId: "file_1", fileUrl: "https://cdn.kie.ai/a.jpg" },
+          data: { filePath: "file_1", downloadUrl: "https://cdn.kie.ai/a.jpg" },
         }),
       ),
     );

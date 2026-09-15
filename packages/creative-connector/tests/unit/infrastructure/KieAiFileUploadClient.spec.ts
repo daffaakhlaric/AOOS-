@@ -22,7 +22,9 @@ function makeClient(): KieAiFileUploadClient {
 }
 
 describe("KieAiFileUploadClient", () => {
-  it("uploads via a real multipart/form-data POST (not JSON) and returns fileId + fileUrl", async () => {
+  // REAL BUG FIX (live-confirmed, 2026-09-15): the real response has no fileId/fileUrl field at
+  // all — filePath/downloadUrl are the real field names Kie AI actually returns.
+  it("uploads via a real multipart/form-data POST (not JSON) and returns fileId + fileUrl, mapped from the real filePath/downloadUrl fields", async () => {
     let receivedContentType: string | null = null;
     let receivedFields: Record<string, string> = {};
     mswServer.use(
@@ -36,10 +38,14 @@ describe("KieAiFileUploadClient", () => {
         return HttpResponse.json({
           success: true,
           code: 200,
-          msg: "File upload successful",
+          msg: "File uploaded successfully",
           data: {
-            fileId: "file_abc1234",
-            fileUrl: "https://cdn.kie.ai/images/aaos-dss/xpander-bintaro-001.jpg",
+            success: true,
+            fileName: "xpander-bintaro-001.jpg",
+            filePath: "kieai/197573/images/aaos-dss/xpander-bintaro-001.jpg",
+            downloadUrl: "https://tempfile.redpandaai.co/images/aaos-dss/xpander-bintaro-001.jpg",
+            fileSize: 12345,
+            mimeType: "image/jpeg",
           },
         });
       }),
@@ -50,9 +56,9 @@ describe("KieAiFileUploadClient", () => {
       await client.upload(Buffer.from("fake-image-bytes"), "xpander-bintaro-001.jpg", "image/jpeg"),
     );
 
-    expect(file.fileId.toString()).toBe("file_abc1234");
+    expect(file.fileId.toString()).toBe("kieai/197573/images/aaos-dss/xpander-bintaro-001.jpg");
     expect(file.fileUrl.toString()).toBe(
-      "https://cdn.kie.ai/images/aaos-dss/xpander-bintaro-001.jpg",
+      "https://tempfile.redpandaai.co/images/aaos-dss/xpander-bintaro-001.jpg",
     );
     expect(receivedContentType).toMatch(/^multipart\/form-data/);
     expect(receivedFields.uploadPath).toBe("images/aaos-dss");
@@ -68,7 +74,7 @@ describe("KieAiFileUploadClient", () => {
           success: true,
           code: 200,
           msg: "ok",
-          data: { fileId: "file_1", fileUrl: "https://cdn.kie.ai/a.jpg" },
+          data: { filePath: "file_1", downloadUrl: "https://cdn.kie.ai/a.jpg" },
         });
       }),
     );
@@ -87,7 +93,7 @@ describe("KieAiFileUploadClient", () => {
           success: true,
           code: 200,
           msg: "ok",
-          data: { fileId: "file_1", fileUrl: "https://cdn.kie.ai/a.jpg" },
+          data: { filePath: "file_1", downloadUrl: "https://cdn.kie.ai/a.jpg" },
         });
       }),
     );
@@ -160,14 +166,14 @@ describe("KieAiFileUploadClient", () => {
     expect(error.message).toMatch(/not valid JSON/);
   });
 
-  it("returns FileUploadError when the returned fileId is empty", async () => {
+  it("returns FileUploadError when the returned filePath (mapped to fileId) is empty", async () => {
     mswServer.use(
       http.post(UPLOAD_URL, () =>
         HttpResponse.json({
           success: true,
           code: 200,
           msg: "ok",
-          data: { fileId: "", fileUrl: "https://cdn.kie.ai/a.jpg" },
+          data: { filePath: "", downloadUrl: "https://cdn.kie.ai/a.jpg" },
         }),
       ),
     );
@@ -183,7 +189,7 @@ describe("KieAiFileUploadClient", () => {
           success: true,
           code: 200,
           msg: "ok",
-          data: { fileId: "file_1", fileUrl: "https://cdn.kie.ai/a.jpg" },
+          data: { filePath: "file_1", downloadUrl: "https://cdn.kie.ai/a.jpg" },
         }),
       ),
     );
@@ -192,14 +198,14 @@ describe("KieAiFileUploadClient", () => {
     expect(error.message).toMatch(/fileName must be a non-empty string/);
   });
 
-  it("returns FileUploadError when the returned fileUrl is malformed", async () => {
+  it("returns FileUploadError when the returned downloadUrl (mapped to fileUrl) is malformed", async () => {
     mswServer.use(
       http.post(UPLOAD_URL, () =>
         HttpResponse.json({
           success: true,
           code: 200,
           msg: "ok",
-          data: { fileId: "file_1", fileUrl: "not-a-url" },
+          data: { filePath: "file_1", downloadUrl: "not-a-url" },
         }),
       ),
     );
@@ -215,7 +221,7 @@ describe("KieAiFileUploadClient", () => {
           success: true,
           code: 200,
           msg: "ok",
-          data: { fileId: "file_1", fileUrl: "https://cdn.kie.ai/a.jpg" },
+          data: { filePath: "file_1", downloadUrl: "https://cdn.kie.ai/a.jpg" },
         }),
       ),
     );
