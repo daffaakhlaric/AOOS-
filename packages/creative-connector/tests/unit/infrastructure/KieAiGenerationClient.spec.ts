@@ -101,7 +101,7 @@ describe("KieAiGenerationClient", () => {
         model: "nano-banana-pro",
         input: {
           prompt: "car photo",
-          image_urls: ["https://cdn.kie.ai/x.jpg"],
+          image_input: ["https://cdn.kie.ai/x.jpg"],
           output_format: "jpg",
           aspect_ratio: "1:1",
         },

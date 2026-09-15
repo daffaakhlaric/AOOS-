@@ -37,7 +37,7 @@ export class ImageGenerationService implements IImageGenerator {
       input: {
         prompt: params.prompt,
         ...(params.sourceImageUrls && params.sourceImageUrls.length > 0
-          ? { image_urls: [...params.sourceImageUrls] }
+          ? { image_input: [...params.sourceImageUrls] }
           : {}),
         output_format: params.outputFormat ?? DEFAULT_OUTPUT_FORMAT,
         aspect_ratio: params.aspectRatio,

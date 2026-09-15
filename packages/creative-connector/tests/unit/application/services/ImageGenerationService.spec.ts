@@ -29,7 +29,7 @@ describe("ImageGenerationService", () => {
     );
     expect(task.kind).toBe("image");
     expect((received as { model: string }).model).toBe("nano-banana-pro");
-    expect((received as { input: { image_urls?: readonly string[] } }).input.image_urls).toEqual([
+    expect((received as { input: { image_input?: readonly string[] } }).input.image_input).toEqual([
       "https://cdn.kie.ai/x.jpg",
     ]);
     expect((received as { input: { output_format: string } }).input.output_format).toBe("jpg");
@@ -37,7 +37,7 @@ describe("ImageGenerationService", () => {
   });
 
   it(
-    "REAL BUG FIX regression guard: sends BOTH real reference photos as image_urls (Kie AI's " +
+    "REAL BUG FIX regression guard: sends BOTH real reference photos as image_input (Kie AI's " +
       "real confirmed-live limit is 2), not just the first one",
     async () => {
       let received: unknown;
@@ -56,14 +56,13 @@ describe("ImageGenerationService", () => {
         prompt: "car photo",
         aspectRatio: AspectRatio.SQUARE,
       });
-      expect((received as { input: { image_urls?: readonly string[] } }).input.image_urls).toEqual([
-        "https://cdn.kie.ai/x1.jpg",
-        "https://cdn.kie.ai/x2.jpg",
-      ]);
+      expect(
+        (received as { input: { image_input?: readonly string[] } }).input.image_input,
+      ).toEqual(["https://cdn.kie.ai/x1.jpg", "https://cdn.kie.ai/x2.jpg"]);
     },
   );
 
-  it("omits image_urls entirely when no sourceImageUrls are given", async () => {
+  it("omits image_input entirely when no sourceImageUrls are given", async () => {
     let received: unknown;
     const client = fakeCreativeClient({
       generateImage: async (payload) => {
@@ -76,10 +75,10 @@ describe("ImageGenerationService", () => {
       new CreativeConnectorEvents(createFakePublisher()),
     );
     await service.generate({ prompt: "car photo", aspectRatio: AspectRatio.SQUARE });
-    expect("image_urls" in (received as { input: object }).input).toBe(false);
+    expect("image_input" in (received as { input: object }).input).toBe(false);
   });
 
-  it("omits image_urls when sourceImageUrls is an empty array", async () => {
+  it("omits image_input when sourceImageUrls is an empty array", async () => {
     let received: unknown;
     const client = fakeCreativeClient({
       generateImage: async (payload) => {
@@ -96,7 +95,7 @@ describe("ImageGenerationService", () => {
       aspectRatio: AspectRatio.SQUARE,
       sourceImageUrls: [],
     });
-    expect("image_urls" in (received as { input: object }).input).toBe(false);
+    expect("image_input" in (received as { input: object }).input).toBe(false);
   });
 
   it("respects an explicit outputFormat override", async () => {

@@ -42,12 +42,17 @@ export interface NanoBananaProGeneratePayload {
   readonly input: {
     readonly prompt: string;
     /**
-     * REAL BUG FIX (confirmed live against api.kie.ai, 2026-08-18): the real nano-banana-pro
-     * endpoint accepts multiple reference images via this plural, array field — a real live call
-     * with 2 real scraped unit photos returned a real `taskId` (200). The old singular `image_url`
-     * was never verified against the real API.
+     * REAL BUG FIX (live-confirmed, 2026-09-15 — corrects the earlier 2026-08-18 "confirmed live"
+     * note below, which was a false positive): the earlier note took a real `taskId`/200 response
+     * as proof `image_urls` was the right field name, but Kie AI's `createTask` endpoint accepts
+     * (and silently ignores) unrecognized JSON fields — a 200 with a real taskId only proves the
+     * REQUEST SHAPE was accepted, not that the reference image was actually used. The real field
+     * name, confirmed directly against Kie AI's own example request for this exact model, is
+     * `image_input` (singular key, plural array value) — every real generation using `image_urls`
+     * was silently falling back to text-only generation from the prompt alone, exactly matching
+     * the live-reported symptom ("dikirim referensi tapi hasilnya nggak berkaitan sama sekali").
      */
-    readonly image_urls?: readonly string[];
+    readonly image_input?: readonly string[];
     readonly output_format: string;
     readonly aspect_ratio: string;
   };
