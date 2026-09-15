@@ -67,6 +67,10 @@ export function CreativePackageCard({
   const hasMedia = pkg.videoUrl !== undefined || pkg.imageUrls.length > 0;
   const isFatigued = pkg.fatigueStatus === "FATIGUED";
   const isWarning = pkg.fatigueStatus === "WARNING";
+  // Kai Creative Engine Sprint 5 (indicator) — real, distinct from `undefined` (never attempted):
+  // an empty array means a real publish was attempted and every createAd call failed, which is NOT
+  // "live" and must not show this badge either.
+  const publishedAdCount = pkg.publishedMetaAdIds?.length ?? 0;
 
   return (
     <section
@@ -82,6 +86,11 @@ export function CreativePackageCard({
           {pkg.aiRecommended ? (
             <span data-testid="ai-suggested-badge" className={styles.aiSuggestedBadge}>
               ✨ AI Suggested
+            </span>
+          ) : null}
+          {publishedAdCount > 0 ? (
+            <span data-testid="published-meta-badge" className={styles.publishedMetaBadge}>
+              🚀 Live di Meta ({publishedAdCount})
             </span>
           ) : null}
           {/* AAOS LOOP UPGRADE, Sprint 6 Prompt 16 — real, scheduler-computed fatigue badge,

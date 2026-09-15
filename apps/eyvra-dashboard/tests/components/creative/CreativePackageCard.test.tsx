@@ -159,4 +159,32 @@ describe("CreativePackageCard", () => {
     );
     expect(screen.getByTestId("ai-suggested-badge")).toHaveTextContent("AI Suggested");
   });
+
+  // Kai Creative Engine Sprint 5 (indicator) — real "Live di Meta" badge, distinct from AI Suggested.
+  it("does NOT show the Live di Meta badge when publishedMetaAdIds is undefined (never attempted)", () => {
+    render(<CreativePackageCard pkg={PACKAGE} onApprove={vi.fn()} onReject={vi.fn()} />);
+    expect(screen.queryByTestId("published-meta-badge")).not.toBeInTheDocument();
+  });
+
+  it("does NOT show the Live di Meta badge when publishedMetaAdIds is [] (attempted, every createAd failed)", () => {
+    render(
+      <CreativePackageCard
+        pkg={{ ...PACKAGE, publishedMetaAdIds: [] }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("published-meta-badge")).not.toBeInTheDocument();
+  });
+
+  it("shows the Live di Meta badge with the real ad count when publishedMetaAdIds has real ids", () => {
+    render(
+      <CreativePackageCard
+        pkg={{ ...PACKAGE, publishedMetaAdIds: ["120000000000901", "120000000000902"] }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("published-meta-badge")).toHaveTextContent("Live di Meta (2)");
+  });
 });

@@ -487,6 +487,13 @@ export interface CreativePackageDto {
   readonly errorMessage?: string;
   readonly generatedAt?: string;
   readonly reviewedAt?: string;
+  /**
+   * Kai Creative Engine Sprint 5 (foundation), `052_creative_packages_published_ad_ids.sql` — real
+   * Meta ad ids this package's own copy variants were published as (`CampaignsService.
+   * publishPropertyAds`). `undefined` = never attempted. An empty array is a real, distinct
+   * "attempted, every createAd failed" state — never conflated with "never attempted".
+   */
+  readonly publishedMetaAdIds?: readonly string[];
   readonly createdAt: string;
   readonly updatedAt: string;
 }

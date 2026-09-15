@@ -232,3 +232,17 @@
   color: var(--v2-perf-good, #059669);
   vertical-align: middle;
 }
+
+/* Kai Creative Engine Sprint 1 (indicator) — distinct color from .recommendedTag: this badge means
+   "this listing's OWN data backs this angle", not "other listings approved this angle before". */
+.angleStrengthTag {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--purple-100, #ede9fe);
+  color: var(--purple-600, #7c3aed);
+  vertical-align: middle;
+  cursor: help;
+}

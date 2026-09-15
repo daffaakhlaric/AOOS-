@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ErrorCard } from "@/components/ui/ErrorCard";
+import { scoreListingAngleStrength } from "@/lib/kaiAngleStrength";
 import {
   getFatigueRecommendation,
   recommendPropertyAngles,
@@ -206,6 +207,17 @@ export function PropertyManualBriefForm({
     () => new Set(recommendations.map((rec) => rec.angle)),
     [recommendations],
   );
+
+  // Kai Creative Engine Sprint 1 (indicator) — real, data-driven angle-strength hints for THIS
+  // listing's own data (price/condition/description/photos), distinct from `recommendedAngleSet`
+  // above (which is approval-history across OTHER listings). Both signals are real and honest, so
+  // both get their own badge rather than one overriding the other.
+  const angleStrengthMap = useMemo(() => {
+    if (selectedListing === undefined) {
+      return new Map<string, string>();
+    }
+    return new Map(scoreListingAngleStrength(selectedListing).map((s) => [s.angle, s.reasoning]));
+  }, [selectedListing]);
 
   // Pre-select the first TINGGI-confidence recommendation's angle automatically (per spec: "angle
   // yang direkomendasikan Step 2 sudah pre-selected") — but only until the user has manually
@@ -433,6 +445,15 @@ export function PropertyManualBriefForm({
               {entry}
               {recommendedAngleSet.has(entry) ? (
                 <span className={styles.recommendedTag}>Direkomendasikan</span>
+              ) : null}
+              {angleStrengthMap.has(entry) ? (
+                <span
+                  className={styles.angleStrengthTag}
+                  title={angleStrengthMap.get(entry)}
+                  data-testid={`angle-strength-badge-${entry}`}
+                >
+                  💡 Kai
+                </span>
               ) : null}
             </button>
           ))}

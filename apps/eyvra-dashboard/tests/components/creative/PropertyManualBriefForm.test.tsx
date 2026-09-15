@@ -89,7 +89,7 @@ describe("PropertyManualBriefForm", () => {
     global.fetch = mockFetch() as unknown as typeof fetch;
     render(<PropertyManualBriefForm onCreated={vi.fn()} />);
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "DP_RINGAN" })).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /^DP_RINGAN/ })).toBeInTheDocument(),
     );
     for (const angle of [
       "DP_RINGAN",
@@ -101,8 +101,26 @@ describe("PropertyManualBriefForm", () => {
       "TESTIMONIAL",
       "VIRTUAL_TOUR",
     ]) {
-      expect(screen.getByRole("button", { name: angle })).toBeInTheDocument();
+      // Prefix match, not exact: a real angle-strength badge (Kai Creative Engine Sprint 1
+      // indicator) may append extra text to a pill's accessible name — this test only cares that
+      // the 8 real angles are all offered, not about badge presence/absence.
+      expect(screen.getByRole("button", { name: new RegExp(`^${angle}`) })).toBeInTheDocument();
     }
+  });
+
+  // Kai Creative Engine Sprint 1 (indicator) — real, data-driven angle-strength badge, distinct
+  // from the approval-history "Direkomendasikan" tag.
+  it("shows a '💡 Kai' badge on DP_RINGAN (this listing's price backs it) but not on SYARIAH (no real signal)", async () => {
+    global.fetch = mockFetch() as unknown as typeof fetch;
+    render(<PropertyManualBriefForm onCreated={vi.fn()} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("angle-strength-badge-DP_RINGAN")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("angle-strength-badge-DP_RINGAN")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Harga"),
+    );
+    expect(screen.queryByTestId("angle-strength-badge-SYARIAH")).not.toBeInTheDocument();
   });
 
   it("previews the selected listing's real photos", async () => {
@@ -347,7 +365,7 @@ describe("PropertyManualBriefForm", () => {
       global.fetch = mockFetch({ packages: [] }) as unknown as typeof fetch;
       render(<PropertyManualBriefForm onCreated={vi.fn()} />);
       await waitFor(() =>
-        expect(screen.getByRole("button", { name: "DP_RINGAN" })).toBeInTheDocument(),
+        expect(screen.getByRole("button", { name: /^DP_RINGAN/ })).toBeInTheDocument(),
       );
       expect(screen.queryByTestId("kai-recommendations")).not.toBeInTheDocument();
     });
