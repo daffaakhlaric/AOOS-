@@ -34,5 +34,9 @@ export interface PropertyCreativeBrief {
 /** Port (Hexagonal Architecture) for Kai's PROPERTY-vertical Kie AI prompt generation. The only implementation is `intelligence/PropertyPromptBuilder.ts` — deterministic template rendering, no LLM calls, same discipline as `IPromptBuilder`. */
 export interface IPropertyPromptBuilder {
   buildVideoPrompt(brief: PropertyCreativeBrief, sourcePhotoAvailable: boolean): string;
-  buildImagePrompt(brief: PropertyCreativeBrief, variantIndex: number): string;
+  buildImagePrompt(
+    brief: PropertyCreativeBrief,
+    variantIndex: number,
+    sourcePhotoAvailable: boolean,
+  ): string;
 }

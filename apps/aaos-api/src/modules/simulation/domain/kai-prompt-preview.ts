@@ -165,7 +165,7 @@ export function buildPropertyKaiPromptDetail(
       ? propertyPromptBuilder.buildVideoPrompt(brief, sourcePhotoAvailable)
       : undefined;
   const imagePrompts = Array.from({ length: imageSpec.count }, (_, index) =>
-    propertyPromptBuilder.buildImagePrompt(brief, index),
+    propertyPromptBuilder.buildImagePrompt(brief, index, sourcePhotoAvailable),
   );
 
   const copyResult = propertyCopyBuilder.buildVariants(brief);

@@ -52,7 +52,7 @@ describe("PropertyPromptBuilder", () => {
   it("all 8 angles produce English-only image prompts (no Indonesian words)", () => {
     for (const angle of ALL_PROPERTY_AD_ANGLES) {
       const brief = buildBrief({ angle });
-      const prompt = builder.buildImagePrompt(brief, 0).toLowerCase();
+      const prompt = builder.buildImagePrompt(brief, 0, false).toLowerCase();
       for (const marker of INDONESIAN_MARKERS) {
         expect(prompt).not.toMatch(new RegExp(`\\b${marker}\\b`));
       }
@@ -66,7 +66,7 @@ describe("PropertyPromptBuilder", () => {
 
   it("listing title is included in the image prompt", () => {
     const brief = buildBrief({ listingTitle: "Rumah Bintaro 88m²" });
-    expect(builder.buildImagePrompt(brief, 0)).toContain("Rumah Bintaro 88m²");
+    expect(builder.buildImagePrompt(brief, 0, false)).toContain("Rumah Bintaro 88m²");
   });
 
   it("sourcePhotoAvailable=false appends a text-only generation note to the video prompt", () => {
@@ -85,8 +85,8 @@ describe("PropertyPromptBuilder", () => {
 
   it("image prompt variant index is reflected as a 1-based 'variant N'", () => {
     const brief = buildBrief();
-    expect(builder.buildImagePrompt(brief, 0)).toContain("variant 1");
-    expect(builder.buildImagePrompt(brief, 2)).toContain("variant 3");
+    expect(builder.buildImagePrompt(brief, 0, false)).toContain("variant 1");
+    expect(builder.buildImagePrompt(brief, 2, false)).toContain("variant 3");
   });
 
   it("highlights presence adds a generic English trust clause, never the raw Indonesian text", () => {
@@ -108,7 +108,7 @@ describe("PropertyPromptBuilder", () => {
 
   it("image prompt also gets the highlights trust clause when present", () => {
     const brief = buildBrief({ highlights: ["Bebas banjir"] });
-    expect(builder.buildImagePrompt(brief, 0)).toContain(
+    expect(builder.buildImagePrompt(brief, 0, false)).toContain(
       "emphasizing verified quality and buyer confidence",
     );
   });
@@ -121,7 +121,7 @@ describe("PropertyPromptBuilder", () => {
       angleReasoning: "Harga Rp400.000.000 — semakin terjangkau, semakin kuat angle DP ringan.",
     });
     const videoPrompt = builder.buildVideoPrompt(brief, true);
-    const imagePrompt = builder.buildImagePrompt(brief, 0);
+    const imagePrompt = builder.buildImagePrompt(brief, 0, false);
     expect(videoPrompt).toContain("grounded in a specific, data-backed property strength");
     expect(imagePrompt).toContain("grounded in a specific, data-backed property strength");
     expect(videoPrompt).not.toContain("Harga Rp400.000.000");
@@ -132,6 +132,25 @@ describe("PropertyPromptBuilder", () => {
     const brief = buildBrief({ angleReasoning: undefined });
     expect(builder.buildVideoPrompt(brief, true)).not.toContain(
       "grounded in a specific, data-backed property strength",
+    );
+  });
+
+  // REAL BUG FIX (live-confirmed, 2026-09-15): the real reference photo (image_input) WAS
+  // reaching Kie AI, but the prompt never told the model to actually base its output on it — Kai
+  // generated a completely unrelated scene every time despite a real photo being attached. This
+  // anchoring clause is the fix; these tests guard it stays wired to the real sourcePhotoAvailable
+  // signal, never fabricated when generation is honestly text-only.
+  it("sourcePhotoAvailable=true anchors the image prompt to the real attached reference photo", () => {
+    const brief = buildBrief();
+    expect(builder.buildImagePrompt(brief, 0, true)).toContain(
+      "Using the attached reference photo as the exact base scene",
+    );
+  });
+
+  it("sourcePhotoAvailable=false omits the anchoring clause — never fabricated when generation is honestly text-only", () => {
+    const brief = buildBrief();
+    expect(builder.buildImagePrompt(brief, 0, false)).not.toContain(
+      "Using the attached reference photo",
     );
   });
 });

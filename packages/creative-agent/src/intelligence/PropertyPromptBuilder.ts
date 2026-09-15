@@ -30,7 +30,11 @@ export class PropertyPromptBuilder implements IPropertyPromptBuilder {
     );
   }
 
-  buildImagePrompt(brief: PropertyCreativeBrief, variantIndex: number): string {
+  buildImagePrompt(
+    brief: PropertyCreativeBrief,
+    variantIndex: number,
+    sourcePhotoAvailable: boolean,
+  ): string {
     const style = PropertyAngleToPromptMapper.styleFor(brief.angle);
     const highlightsClause = hasHighlights(brief)
       ? ", emphasizing verified quality and buyer confidence"
@@ -38,9 +42,21 @@ export class PropertyPromptBuilder implements IPropertyPromptBuilder {
     const angleReasoningClause = hasAngleReasoning(brief)
       ? ", grounded in a specific, data-backed property strength"
       : "";
+    // REAL BUG FIX (live-confirmed, 2026-09-15): the real reference photo (`image_input`) WAS
+    // reaching Kie AI's nano-banana-pro endpoint (the earlier field-name bug, fixed separately),
+    // but the prompt text never told the model to actually BASE its output on that photo — a
+    // generic "Professional real estate photography, <listing>, <style>" description reads as an
+    // instruction to generate a NEW scene from scratch, not to edit/enhance the attached one. Kai
+    // generated a completely different, unrelated scene every time despite a real photo being
+    // attached (live-confirmed: same listing, same angle, output bore no resemblance to the real
+    // reference photo). This anchoring clause is prepended ONLY when a real source photo is
+    // actually attached — never fabricated when generation is honestly text-only.
+    const anchorClause = sourcePhotoAvailable
+      ? "Using the attached reference photo as the exact base scene (same property, same angle, same composition — do not replace it with a different location), "
+      : "";
 
     return (
-      `Professional real estate photography, ${describeProperty(brief)}, ` +
+      `${anchorClause}Professional real estate photography, ${describeProperty(brief)}, ` +
       `${style}${highlightsClause}${angleReasoningClause}, variant ${variantIndex + 1}, ` +
       `natural lighting, sharp focus, bright and inviting composition, no watermark`
     );
