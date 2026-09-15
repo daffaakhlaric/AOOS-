@@ -57,9 +57,24 @@ export class CreativeOrchestratorService implements ICreativeOrchestrator {
       // to tell a Kie AI quota/auth error apart from a bad source-photo URL apart from a timeout.
       // Every real reason is preserved (capped so a large batch can't produce an unreadable
       // message), never fabricated when the underlying calls report nothing.
+      //
+      // REAL BUG FIX #2 (live-confirmed against api.kie.ai): `sourcePhotoSkippedReason` was
+      // computed above (`tryUploadSourcePhotos`'s own real per-photo failure reasons) but never
+      // actually reached this message — a manager saw "all 3 image generation(s) failed — HTTP
+      // 404" with no way to know the REAL upstream cause was that every source photo failed to
+      // upload to Kie AI's file host, so every `generateImage` call silently fell back to
+      // text-to-image (no `image_urls` in the real outgoing request at all, confirmed directly in
+      // Kie AI's own dashboard) instead of the intended image-to-image generation. Prepended first
+      // — it is the more likely ROOT cause when present, `imageFailures` are its downstream symptom.
+      const reasonParts = [
+        ...(sourcePhotoSkippedReason !== undefined
+          ? [`source photo upload: ${sourcePhotoSkippedReason}`]
+          : []),
+        ...imageFailures.slice(0, 3),
+      ];
       const reasons =
-        imageFailures.length > 0
-          ? ` — ${imageFailures.slice(0, 3).join("; ")}${
+        reasonParts.length > 0
+          ? ` — ${reasonParts.join("; ")}${
               imageFailures.length > 3 ? ` (+${String(imageFailures.length - 3)} more)` : ""
             }`
           : "";

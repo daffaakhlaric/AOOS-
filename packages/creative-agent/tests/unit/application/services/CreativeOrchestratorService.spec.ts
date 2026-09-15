@@ -624,6 +624,46 @@ describe("CreativeOrchestratorService", () => {
   });
 
   it(
+    "REAL BUG FIX #2 (live-confirmed): when every source photo failed to upload AND every image " +
+      "generation then failed, the GenerationError leads with the source-photo upload reason — the " +
+      "real root cause (Kie AI silently fell back to text-to-image with no image_urls at all) — " +
+      "not just the downstream Kie AI failure symptom",
+    async () => {
+      const deps = buildDeps();
+      deps.fetchSourcePhoto.mockResolvedValue(mockResponse({ ok: false, status: 403 }));
+      deps.generateImageSet.execute.mockResolvedValue(
+        okResult({
+          succeeded: [],
+          failed: [
+            { index: 0, error: apiError("HTTP 404") },
+            { index: 1, error: apiError("HTTP 404") },
+            { index: 2, error: apiError("HTTP 404") },
+          ],
+        }),
+      );
+
+      const service = new CreativeOrchestratorService(
+        deps.uploadSourceImage,
+        deps.generateLongVideo,
+        deps.generateImageSet,
+        deps.downloadMedia,
+        deps.fetchSourcePhoto,
+      );
+
+      const error = unwrapErr(
+        await service.orchestrate({
+          sourcePhotoUrls: ["https://cdn.supabase.test/listing-photo.jpg"],
+          imagePrompts: ["p1", "p2", "p3"],
+          imageSpec: imageSpec(),
+        }),
+      );
+      expect(error.message).toContain("source photo upload:");
+      expect(error.message).toContain("403");
+      expect(error.message).toContain("HTTP 404");
+    },
+  );
+
+  it(
     "REAL BUG FIX regression guard: includes the real per-request failure reasons in the " +
       "GenerationError message, not just a count (previously discarded, leaving no way to tell a " +
       "Kie AI auth/quota error apart from a bad prompt apart from a timeout)",
