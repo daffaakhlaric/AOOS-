@@ -19,7 +19,6 @@ export { PromptBuildingService } from "./application/services/PromptBuildingServ
 export type { BuiltPrompts } from "./application/services/PromptBuildingService.js";
 export { CopyGenerationService } from "./application/services/CopyGenerationService.js";
 export { CreativeOrchestratorService } from "./application/services/CreativeOrchestratorService.js";
-export type { FetchSourcePhoto } from "./application/services/CreativeOrchestratorService.js";
 
 export type { CreativePackage, CopyVariant, GenerationJob } from "./domain/entities/index.js";
 // Additive: the KaiAgent identity entity itself, and CopyVariant's pinned Meta limits.

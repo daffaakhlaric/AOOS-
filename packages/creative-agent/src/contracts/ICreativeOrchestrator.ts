@@ -26,13 +26,14 @@ export interface OrchestrateGenerationOutput {
   readonly imageSpecs: ReadonlyArray<ImageSpec>;
   readonly videoDelivered: boolean;
   /**
-   * REAL BUG FIX: previously, a real source photo (a genuine `assets` row, a genuinely
-   * publicly-fetchable GCS URL) could silently fail to reach Kie AI — a network hiccup fetching
-   * it, or a failed upload to Kie AI's own file host — and the whole generation would silently
-   * fall back to TEXT_2_VIDEO/text-to-image with zero trace of why. `undefined` when a source
-   * photo genuinely was delivered (or `input.sourcePhotoUrl` was never provided at all — the
-   * ordinary "no scraped photos for this unit" case, also not an error). Set only when a REAL
-   * photo existed but couldn't be gotten to Kie AI.
+   * REAL BUG FIX (live-confirmed, 2026-09-15): `CreativeOrchestratorService` no longer re-uploads
+   * source photos to Kie AI's own file host before generation (see that class's own doc for why —
+   * two real, compounding bugs on that path, both now fixed at their own root, but the upload hop
+   * itself turned out to be unnecessary: Kie AI's generation endpoints accept this codebase's own
+   * already-public source photo URLs directly). This field is kept only because `KaiAgentService`
+   * (the AUTOMOTIVE-vertical pipeline) and `CreativePackageBuilder` still have a real,
+   * independent `sourcePhotoSkippedReason` concept on `CreativePackage` itself — removing this
+   * field would force touching that unrelated pipeline for no benefit. Always `undefined` now.
    */
   readonly sourcePhotoSkippedReason?: string;
 }

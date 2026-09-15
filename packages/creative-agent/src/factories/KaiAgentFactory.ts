@@ -9,10 +9,7 @@ import type {
 import type { IPublisher } from "@aos/event-bus";
 
 import { CopyGenerationService } from "../application/services/CopyGenerationService.js";
-import {
-  CreativeOrchestratorService,
-  type FetchSourcePhoto,
-} from "../application/services/CreativeOrchestratorService.js";
+import { CreativeOrchestratorService } from "../application/services/CreativeOrchestratorService.js";
 import { FormatDecisionService } from "../application/services/FormatDecisionService.js";
 import { KaiAgentService } from "../application/services/KaiAgentService.js";
 import { PromptBuildingService } from "../application/services/PromptBuildingService.js";
@@ -41,12 +38,19 @@ export interface KaiAgentFactoryOptions {
   /** Real `@aos/asset-library` `SaveAiCreative` — called for real, never mocked, after generation. */
   readonly saveAiCreative: SaveAiCreative;
   /** Real `@aos/creative-connector` use cases — called for real by `CreativeOrchestratorService`. */
-  readonly uploadSourceImage: UploadSourceImage;
   readonly generateLongVideo: GenerateLongVideo;
   readonly generateImageSet: GenerateImageSet;
   readonly downloadMedia: DownloadMedia;
-  /** Injectable fetch for pulling a source photo's bytes back from its `@aos/asset-library` public URL — overridable for tests; defaults to the real global `fetch`. */
-  readonly fetchSourcePhoto?: FetchSourcePhoto;
+  /**
+   * REAL BUG FIX (live-confirmed, 2026-09-15): `CreativeOrchestratorService` no longer uploads
+   * source photos to Kie AI's own file host before generation (see that class's own doc). These
+   * two options are kept, accepted, and silently unused rather than removed — removing them would
+   * force every real caller of this factory (`aaos-api`'s `app.module.ts`) to also drop the
+   * `UploadSourceImage`/fetch wiring it still separately needs for other real callers of
+   * `@aos/creative-connector`, for zero real benefit.
+   */
+  readonly uploadSourceImage: UploadSourceImage;
+  readonly fetchSourcePhoto?: (url: string) => Promise<Response>;
   /** Injectable clock — defaults to the real wall clock only here. */
   readonly now?: () => Date;
 }
@@ -96,11 +100,9 @@ export class KaiAgentFactory {
     const promptBuildingService = new PromptBuildingService(new AutomotivePromptBuilder());
     const copyGenerationService = new CopyGenerationService(new CopyBuilder(), events, now);
     const orchestratorService = new CreativeOrchestratorService(
-      options.uploadSourceImage,
       options.generateLongVideo,
       options.generateImageSet,
       options.downloadMedia,
-      options.fetchSourcePhoto,
     );
 
     const kaiAgentService = new KaiAgentService(
