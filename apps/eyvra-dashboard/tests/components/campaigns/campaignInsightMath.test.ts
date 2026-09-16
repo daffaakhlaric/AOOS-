@@ -3,16 +3,19 @@ import { describe, expect, it } from "vitest";
 import {
   accountBenchmarkCpl,
   aggregateCampaign,
+  classifyHealthBucket,
   computeCpl,
   cpcFromAggregate,
   cplTone,
   cpmFromAggregate,
   ctrFromAggregate,
+  FREQUENCY_ATTENTION_THRESHOLD,
   FREQUENCY_WARNING_THRESHOLD,
   flattenCampaignAds,
   isFrequencyWarning,
   rphChatIDR,
   type CampaignAggregate,
+  type HealthBucketInput,
 } from "@/components/campaigns/campaignInsightMath";
 import type { AdMetricsDto, AdSummaryDto, CampaignSummaryDto } from "@/types/dashboard.types";
 
@@ -416,5 +419,73 @@ describe("accountBenchmarkCpl", () => {
 
   it("returns null (never a fabricated number) when the whole account has 0 real leads", () => {
     expect(accountBenchmarkCpl([campaign()])).toBeNull();
+  });
+});
+
+describe("classifyHealthBucket (Campaign Page Rebuild v2 — real grouping, reusing existing boundaries)", () => {
+  function input(overrides: Partial<HealthBucketInput> = {}): HealthBucketInput {
+    return {
+      verdict: "KEEP",
+      cplTone: "good",
+      maxFrequency: 1,
+      status: "ACTIVE",
+      totalLead: 10,
+      spend: 500_000,
+      ...overrides,
+    };
+  }
+
+  it("is healthy for a good-CPL, low-frequency, non-urgent-verdict campaign", () => {
+    expect(classifyHealthBucket(input())).toBe("healthy");
+  });
+
+  it("is urgent for a real PAUSE verdict", () => {
+    expect(classifyHealthBucket(input({ verdict: "PAUSE" }))).toBe("urgent");
+  });
+
+  it("is urgent for a real FIX verdict", () => {
+    expect(classifyHealthBucket(input({ verdict: "FIX" }))).toBe("urgent");
+  });
+
+  it("is urgent when the CPL tone is bad (>115% of benchmark)", () => {
+    expect(classifyHealthBucket(input({ cplTone: "bad" }))).toBe("urgent");
+  });
+
+  it("is urgent above the real frequency warning threshold", () => {
+    expect(classifyHealthBucket(input({ maxFrequency: FREQUENCY_WARNING_THRESHOLD + 0.1 }))).toBe(
+      "urgent",
+    );
+  });
+
+  it("is urgent for an ACTIVE campaign spending real money with honestly 0 leads", () => {
+    expect(classifyHealthBucket(input({ totalLead: 0, spend: 200_000, cplTone: "unknown" }))).toBe(
+      "urgent",
+    );
+  });
+
+  it("is NOT urgent for a PAUSED campaign spending with 0 leads (already stopped)", () => {
+    expect(
+      classifyHealthBucket(
+        input({ status: "PAUSED", totalLead: 0, spend: 200_000, cplTone: "unknown" }),
+      ),
+    ).not.toBe("urgent");
+  });
+
+  it("is attention for a real REVIEW verdict", () => {
+    expect(classifyHealthBucket(input({ verdict: "REVIEW" }))).toBe("attention");
+  });
+
+  it("is attention for a real REFRESH verdict", () => {
+    expect(classifyHealthBucket(input({ verdict: "REFRESH" }))).toBe("attention");
+  });
+
+  it("is attention when the CPL tone is warn (85-115% of benchmark)", () => {
+    expect(classifyHealthBucket(input({ cplTone: "warn" }))).toBe("attention");
+  });
+
+  it("is attention above the softer frequency attention threshold but at/below the hard warning", () => {
+    expect(classifyHealthBucket(input({ maxFrequency: FREQUENCY_ATTENTION_THRESHOLD + 0.1 }))).toBe(
+      "attention",
+    );
   });
 });

@@ -376,4 +376,145 @@ describe("UnifiedCampaignTable", () => {
     );
     expect(screen.queryByTestId("learning-phase-badge")).not.toBeInTheDocument();
   });
+
+  // Campaign Page Rebuild v2 (Prompt 1) — real health-status grouping.
+  describe("health-status grouping", () => {
+    it("groups a PAUSE-verdict campaign under the urgent section", () => {
+      const campaigns = [campaignWith("x", "ACTIVE", { totalLead: 10 }, "PAUSE")];
+      render(
+        <UnifiedCampaignTable
+          campaigns={campaigns}
+          benchmarkCplIDR={null}
+          selectedCampaignId={undefined}
+          onSelect={vi.fn()}
+          onPause={vi.fn()}
+        />,
+      );
+      expect(screen.getByTestId("bucket-header-urgent")).toHaveTextContent("1");
+      expect(screen.queryByTestId("bucket-header-healthy")).not.toBeInTheDocument();
+    });
+
+    it("groups a good-CPL, low-frequency, KEEP-verdict campaign under the healthy section", () => {
+      const campaigns = [campaignWith("x", "ACTIVE", { totalLead: 10 }, "KEEP")];
+      render(
+        <UnifiedCampaignTable
+          campaigns={campaigns}
+          benchmarkCplIDR={null}
+          selectedCampaignId={undefined}
+          onSelect={vi.fn()}
+          onPause={vi.fn()}
+        />,
+      );
+      expect(screen.getByTestId("bucket-header-healthy")).toBeInTheDocument();
+      expect(screen.queryByTestId("bucket-header-urgent")).not.toBeInTheDocument();
+    });
+
+    it("renders each real bucket as a separate section when campaigns span multiple buckets", () => {
+      const campaigns = [
+        campaignWith("a", "ACTIVE", { totalLead: 10 }, "PAUSE"),
+        campaignWith("b", "ACTIVE", { totalLead: 10 }, "KEEP"),
+      ];
+      render(
+        <UnifiedCampaignTable
+          campaigns={campaigns}
+          benchmarkCplIDR={null}
+          selectedCampaignId={undefined}
+          onSelect={vi.fn()}
+          onPause={vi.fn()}
+        />,
+      );
+      expect(screen.getByTestId("bucket-header-urgent")).toBeInTheDocument();
+      expect(screen.getByTestId("bucket-header-healthy")).toBeInTheDocument();
+    });
+  });
+
+  // Campaign Page Rebuild v2 (Prompt 1) — sortable column headers.
+  describe("sortable headers", () => {
+    it("sorts rows within a bucket by Spend, descending on first click", async () => {
+      const campaigns = [
+        campaignWith("low", "ACTIVE", { spend: 100, totalLead: 10 }, "KEEP"),
+        campaignWith("high", "ACTIVE", { spend: 900, totalLead: 10 }, "KEEP"),
+      ];
+      render(
+        <UnifiedCampaignTable
+          campaigns={campaigns}
+          benchmarkCplIDR={null}
+          selectedCampaignId={undefined}
+          onSelect={vi.fn()}
+          onPause={vi.fn()}
+        />,
+      );
+      await userEvent.click(screen.getByTestId("sort-spend"));
+      const rows = screen.getAllByTestId(/^campaign-row-/);
+      expect(rows[0]).toHaveAttribute("data-testid", "campaign-row-high");
+      expect(rows[1]).toHaveAttribute("data-testid", "campaign-row-low");
+    });
+
+    it("reverses sort direction on a second click of the same header", async () => {
+      const campaigns = [
+        campaignWith("low", "ACTIVE", { spend: 100, totalLead: 10 }, "KEEP"),
+        campaignWith("high", "ACTIVE", { spend: 900, totalLead: 10 }, "KEEP"),
+      ];
+      render(
+        <UnifiedCampaignTable
+          campaigns={campaigns}
+          benchmarkCplIDR={null}
+          selectedCampaignId={undefined}
+          onSelect={vi.fn()}
+          onPause={vi.fn()}
+        />,
+      );
+      await userEvent.click(screen.getByTestId("sort-spend"));
+      await userEvent.click(screen.getByTestId("sort-spend"));
+      const rows = screen.getAllByTestId(/^campaign-row-/);
+      expect(rows[0]).toHaveAttribute("data-testid", "campaign-row-low");
+      expect(rows[1]).toHaveAttribute("data-testid", "campaign-row-high");
+    });
+  });
+
+  // Campaign Page Rebuild v2 (Prompt 1) — real email+timestamp campaign-name cleanup.
+  it("splits a real email+timestamp campaign name into a clean name + subtitle", () => {
+    const campaign = campaignWith("x", "ACTIVE", { totalLead: 10 });
+    const named: CampaignSummaryDto = {
+      ...campaign,
+      name: "Pramono - soegeng@email.com - 20260904",
+    };
+    render(
+      <UnifiedCampaignTable
+        campaigns={[named]}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("campaign-row-x")).toHaveTextContent("Pramono");
+    expect(screen.getByTestId("campaign-row-x")).toHaveTextContent("Direct boost campaign");
+  });
+
+  // Campaign Page Rebuild v2 (Prompt 1) — real CPL-vs-benchmark visual bar.
+  it("renders a real CPL-vs-benchmark bar only when both a real CPL and a real benchmark exist", () => {
+    const withBenchmark = [campaignWith("x", "ACTIVE", { spend: 800_000, totalLead: 10 })];
+    const { rerender } = render(
+      <UnifiedCampaignTable
+        campaigns={withBenchmark}
+        benchmarkCplIDR={100_000}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("cpl-bar-track")).toBeInTheDocument();
+
+    rerender(
+      <UnifiedCampaignTable
+        campaigns={withBenchmark}
+        benchmarkCplIDR={null}
+        selectedCampaignId={undefined}
+        onSelect={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("cpl-bar-track")).not.toBeInTheDocument();
+  });
 });

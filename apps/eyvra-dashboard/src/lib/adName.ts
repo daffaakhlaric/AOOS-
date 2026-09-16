@@ -63,3 +63,39 @@ const SUFFIX_PATTERN = new RegExp(
 export function stripAdNameSuffix(name: string): string {
   return name.replace(SUFFIX_PATTERN, "");
 }
+
+export interface CleanedCampaignName {
+  readonly name: string;
+  /** `undefined` unless the real name matched the email+timestamp auto-naming pattern below. */
+  readonly subtitle: string | undefined;
+}
+
+/**
+ * Campaign Page Rebuild v2 — Prompt 1's "clean campaign names" requirement: some real campaign
+ * names carry a trailing "<agent email> - <YYYYMMDD...>" segment (this account's own real
+ * boost-flow auto-naming, e.g. "Pramono - soegeng@email.com - 20260904"), which is genuinely
+ * different from the UUID-suffix quirk `stripAdNameSuffix` already handles above (a different
+ * real naming convention, not a second copy of the same one). Only strips when BOTH an email-
+ * shaped segment AND a 6+ digit timestamp-shaped segment are present, anchored to the end — never
+ * touches a name that merely contains an "@" or digits elsewhere.
+ */
+const EMAIL_TIMESTAMP_SUFFIX = new RegExp(
+  `^(.*?)\\s*${SEP}\\s*\\S+@\\S+\\.\\S+\\s*${SEP}\\s*\\d{6,}$`,
+);
+
+/**
+ * Splits a real campaign name into its clean display name plus an optional subtitle, for the
+ * unified table's "Campaign" column. Runs `stripAdNameSuffix` first (still handles the unrelated
+ * UUID-suffix case), then checks for the email+timestamp pattern above. Returns the
+ * UUID-stripped name unchanged (`subtitle: undefined`) when that pattern doesn't match — never
+ * fabricates a subtitle for a name that doesn't actually carry this convention.
+ */
+export function splitCampaignDisplayName(name: string): CleanedCampaignName {
+  const stripped = stripAdNameSuffix(name);
+  const match = EMAIL_TIMESTAMP_SUFFIX.exec(stripped);
+  const cleanName = match?.[1]?.trim();
+  if (cleanName !== undefined && cleanName.length > 0) {
+    return { name: cleanName, subtitle: "Direct boost campaign" };
+  }
+  return { name: stripped, subtitle: undefined };
+}

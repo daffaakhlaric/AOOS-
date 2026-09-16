@@ -135,6 +135,58 @@ export function cpmFromAggregate(aggregate: CampaignAggregate): number | null {
     : null;
 }
 
+export type HealthBucket = "urgent" | "attention" | "healthy";
+
+/** Below the existing hard `FREQUENCY_WARNING_THRESHOLD` (3.5) — a softer "watch this" line for the "attention" bucket. */
+export const FREQUENCY_ATTENTION_THRESHOLD = 2.5;
+
+/** A real ACTIVE campaign spending real money with honestly 0 leads — this account's own real IDR spend, not a hardcoded USD-shaped guess. */
+const BURNING_WITH_NO_LEADS_SPEND_IDR = 100_000;
+
+export interface HealthBucketInput {
+  readonly verdict: string;
+  readonly cplTone: CplTone;
+  readonly maxFrequency: number;
+  readonly status: string;
+  readonly totalLead: number;
+  readonly spend: number;
+}
+
+/**
+ * Campaign Page Rebuild v2 — Prompt 1's "group by health status" requirement. Deliberately reuses
+ * the SAME real boundaries already shown elsewhere on this page (`cplTone`'s 85%/115% bands,
+ * `isFrequencyWarning`'s 3.5 threshold, the real per-ad `VerdictEngine` verdict) rather than
+ * inventing a second, parallel scoring scale — a row's bucket can never contradict its own visible
+ * CPL pill/frequency badge/verdict badge. Adds exactly two new judgment-call signals this table
+ * didn't already have a name for: `FREQUENCY_ATTENTION_THRESHOLD` (a softer pre-warning band) and
+ * "ACTIVE + spending + zero real leads" (a distinct honest urgent signal `cplTone` can't express
+ * on its own, since `cplTone` is `"unknown"` — not `"bad"` — when there are 0 leads to divide by).
+ */
+export function classifyHealthBucket(input: HealthBucketInput): HealthBucket {
+  const isUrgentVerdict = input.verdict === "PAUSE" || input.verdict === "FIX";
+  const isBurningWithNoLeads =
+    input.status === "ACTIVE" &&
+    input.totalLead === 0 &&
+    input.spend > BURNING_WITH_NO_LEADS_SPEND_IDR;
+  if (
+    isUrgentVerdict ||
+    input.cplTone === "bad" ||
+    isFrequencyWarning(input.maxFrequency) ||
+    isBurningWithNoLeads
+  ) {
+    return "urgent";
+  }
+  const isAttentionVerdict = input.verdict === "REVIEW" || input.verdict === "REFRESH";
+  if (
+    isAttentionVerdict ||
+    input.cplTone === "warn" ||
+    input.maxFrequency > FREQUENCY_ATTENTION_THRESHOLD
+  ) {
+    return "attention";
+  }
+  return "healthy";
+}
+
 /**
  * Real account-wide benchmark CPL fallback: total spend / total leads across every REAL campaign
  * in the current snapshot. Used whenever the tenant's own `property_objectives.targetCpl` business

@@ -114,3 +114,86 @@
   font-weight: 600;
   background: var(--v2-card-flat, #f8fafc);
 }
+
+/* Campaign Page Rebuild v2 — real health-status group header rows. */
+.bucketHeaderRow {
+  cursor: default;
+}
+
+.bucketHeaderCell {
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.bucketUrgent {
+  background: var(--red-light, #fef2f2);
+  color: var(--red, #dc2626);
+}
+
+.bucketAttention {
+  background: var(--amber-light, #fffbeb);
+  color: var(--amber, #d97706);
+}
+
+.bucketHealthy {
+  background: var(--green-light, #f0fdf4);
+  color: var(--green, #16a34a);
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--v2-text-2, #64748b);
+}
+
+.sortButton:hover {
+  color: var(--v2-text-1, #0f172a);
+}
+
+.sortIndicator {
+  font-size: 9px;
+}
+
+/* Real CPL-vs-benchmark ratio bar, under the CPL pill. */
+.cplBarTrack {
+  position: relative;
+  width: 60px;
+  height: 4px;
+  margin-top: 4px;
+  background: var(--v2-card-flat, #f1f5f9);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cplBarFill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+.cplBarFillGood {
+  background: var(--green, #16a34a);
+}
+
+.cplBarFillWarn {
+  background: var(--amber, #d97706);
+}
+
+.cplBarFillBad {
+  background: var(--red, #dc2626);
+}
+
+.cplBarFillUnknown {
+  background: var(--v2-text-2, #94a3b8);
+}
