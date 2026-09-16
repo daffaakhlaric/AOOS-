@@ -153,3 +153,118 @@ describe("MetaSyncRepository.upsertSnapshot", () => {
     await expect(repository.upsertSnapshot(snapshot)).rejects.toThrow(MetaSyncRepositoryError);
   });
 });
+
+// Campaign Page Rebuild v2 — real read-back of `meta_insights_daily` for one campaign's
+// sparkline/trend display. Investigated directly before writing this: the table was already
+// populated by `MetaSyncCronService`'s real 15-minute/daily sweeps (`050_meta_sync.sql`) but had
+// no read path anywhere in this codebase — this is that real read path, not a new table.
+describe("MetaSyncRepository.getCampaignDailyHistory", () => {
+  /** A minimal chainable fake supporting the exact real `.select().eq().eq().maybeSingle()` (campaign lookup) and `.select().eq().eq().eq().gte().order()` (insights query) shapes this method uses. */
+  function makeChainableFakeClient(config: {
+    readonly campaignRow?: { readonly id: string; readonly meta_campaign_id: string } | null;
+    readonly campaignError?: { readonly message: string };
+    readonly insightRows?: readonly Record<string, unknown>[];
+    readonly insightError?: { readonly message: string };
+  }) {
+    const eqCalls: Array<{ table: string; column: string; value: unknown }> = [];
+    function chain(table: string): Record<string, unknown> {
+      const self: Record<string, unknown> = {
+        select: vi.fn(() => self),
+        eq: vi.fn((column: string, value: unknown) => {
+          eqCalls.push({ table, column, value });
+          return self;
+        }),
+        gte: vi.fn(() => self),
+        order: vi.fn(async () => ({
+          data: config.insightRows ?? [],
+          error: config.insightError ?? null,
+        })),
+        maybeSingle: vi.fn(async () => ({
+          data: config.campaignRow ?? null,
+          error: config.campaignError ?? null,
+        })),
+      };
+      return self;
+    }
+    const client = { from: vi.fn((table: string) => chain(table)) };
+    return { client, eqCalls };
+  }
+
+  it("returns an empty array (never fabricated) when this tenant/campaign has no real meta_campaigns row yet", async () => {
+    const { client } = makeChainableFakeClient({ campaignRow: null });
+    const repository = new MetaSyncRepository(client as never);
+
+    const points = await repository.getCampaignDailyHistory("t-1", "camp-1", 7);
+
+    expect(points).toEqual([]);
+  });
+
+  it("throws MetaSyncRepositoryError when the real campaign lookup reports an error", async () => {
+    const { client } = makeChainableFakeClient({
+      campaignError: { message: "db down" },
+    });
+    const repository = new MetaSyncRepository(client as never);
+
+    await expect(repository.getCampaignDailyHistory("t-1", "camp-1", 7)).rejects.toThrow(
+      MetaSyncRepositoryError,
+    );
+  });
+
+  it("maps real meta_insights_daily rows (oldest-to-newest) to the camelCase CampaignDailyHistoryPoint shape", async () => {
+    const { client, eqCalls } = makeChainableFakeClient({
+      campaignRow: { id: "row-uuid-1", meta_campaign_id: "camp-1" },
+      insightRows: [
+        {
+          date: "2026-09-10",
+          spend: 100_000,
+          impressions: 5000,
+          clicks: 50,
+          frequency: 1.2,
+          ctr: 0.01,
+          cpl: 50_000,
+          leads: 2,
+        },
+      ],
+    });
+    const repository = new MetaSyncRepository(client as never);
+
+    const points = await repository.getCampaignDailyHistory("t-1", "camp-1", 7);
+
+    expect(points).toEqual([
+      {
+        date: "2026-09-10",
+        spend: 100_000,
+        impressions: 5000,
+        clicks: 50,
+        frequency: 1.2,
+        ctr: 0.01,
+        cpl: 50_000,
+        leads: 2,
+      },
+    ]);
+    // Real, tenant-scoped, campaign-level filter — never leaks another tenant's or another
+    // campaign's/adset's/ad's rows.
+    expect(eqCalls).toContainEqual({
+      table: "meta_insights_daily",
+      column: "campaign_id",
+      value: "row-uuid-1",
+    });
+    expect(eqCalls).toContainEqual({
+      table: "meta_insights_daily",
+      column: "level",
+      value: "campaign",
+    });
+  });
+
+  it("throws MetaSyncRepositoryError when the real insights query reports an error", async () => {
+    const { client } = makeChainableFakeClient({
+      campaignRow: { id: "row-uuid-1", meta_campaign_id: "camp-1" },
+      insightError: { message: "query timeout" },
+    });
+    const repository = new MetaSyncRepository(client as never);
+
+    await expect(repository.getCampaignDailyHistory("t-1", "camp-1", 7)).rejects.toThrow(
+      MetaSyncRepositoryError,
+    );
+  });
+});

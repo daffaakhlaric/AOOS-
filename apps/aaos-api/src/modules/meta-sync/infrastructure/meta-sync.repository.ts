@@ -3,6 +3,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import type {
   AdDimensionRow,
   AdSetDimensionRow,
+  CampaignDailyHistoryPoint,
   CampaignDimensionRow,
   InsightRow,
   SyncSnapshot,
@@ -45,6 +46,18 @@ interface AdSetIdRow {
   readonly meta_adset_id: string;
 }
 
+/** Raw `meta_insights_daily` row shape as read back — real column names (snake_case), mapped to `CampaignDailyHistoryPoint`'s camelCase shape by `getCampaignDailyHistory`. */
+interface InsightHistoryRow {
+  readonly date: string;
+  readonly spend: number;
+  readonly impressions: number;
+  readonly clicks: number;
+  readonly frequency: number;
+  readonly ctr: number;
+  readonly cpl: number;
+  readonly leads: number;
+}
+
 /**
  * Supabase-backed persistence for `meta_campaigns`/`meta_adsets`/`meta_ads`/`meta_insights_daily`
  * (EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 — `050_meta_sync.sql`). One real, idempotent
@@ -69,6 +82,64 @@ export class MetaSyncRepository {
     const adSetIds = await this.upsertAdSets(snapshot.adSets, campaignIds);
     await this.upsertAds(snapshot.ads, adSetIds);
     await this.upsertInsights(snapshot.insights, campaignIds, adSetIds);
+  }
+
+  /**
+   * Campaign Page Rebuild v2 — real read-back of `meta_insights_daily` for ONE campaign, ordered
+   * oldest-to-newest (the shape a sparkline/trend chart needs directly, no client-side re-sort).
+   * `days` bounds how far back to look (a sparkline only ever needs the last ~7); an empty array is
+   * a real, honest possible result — a campaign this app has never synced insights for (new
+   * campaign, or `MetaSyncCronService` hasn't run yet since it started being tracked), never
+   * fabricated placeholder points.
+   */
+  async getCampaignDailyHistory(
+    tenantId: string,
+    metaCampaignId: string,
+    days: number,
+  ): Promise<readonly CampaignDailyHistoryPoint[]> {
+    const campaignResult = await this.client
+      .from<CampaignIdRow>(CAMPAIGNS_TABLE)
+      .select("id, meta_campaign_id")
+      .eq("tenant_id", tenantId)
+      .eq("meta_campaign_id", metaCampaignId)
+      .maybeSingle();
+    if (campaignResult.error !== null) {
+      throw new MetaSyncRepositoryError(
+        `MetaSyncRepository.getCampaignDailyHistory: campaign lookup failed: ${campaignResult.error.message}`,
+      );
+    }
+    if (campaignResult.data === null) {
+      return [];
+    }
+
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - Math.max(days - 1, 0));
+    const sinceDate = since.toISOString().slice(0, 10);
+
+    const { data, error } = await this.client
+      .from<InsightHistoryRow>(INSIGHTS_TABLE)
+      .select("date, spend, impressions, clicks, frequency, ctr, cpl, leads")
+      .eq("tenant_id", tenantId)
+      .eq("level", "campaign")
+      .eq("campaign_id", campaignResult.data.id)
+      .gte("date", sinceDate)
+      .order("date", { ascending: true });
+    if (error !== null) {
+      throw new MetaSyncRepositoryError(
+        `MetaSyncRepository.getCampaignDailyHistory: insights query failed: ${error.message}`,
+      );
+    }
+
+    return (data ?? []).map((row) => ({
+      date: row.date,
+      spend: row.spend,
+      impressions: row.impressions,
+      clicks: row.clicks,
+      frequency: row.frequency,
+      ctr: row.ctr,
+      cpl: row.cpl,
+      leads: row.leads,
+    }));
   }
 
   private upsertable(): UpsertableSupabaseClient {

@@ -6,7 +6,11 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 
-import { buildSyncSnapshot, type SyncSnapshot } from "./domain/build-sync-snapshot.js";
+import {
+  buildSyncSnapshot,
+  type CampaignDailyHistoryPoint,
+  type SyncSnapshot,
+} from "./domain/build-sync-snapshot.js";
 import { MetaSyncRepository } from "./infrastructure/meta-sync.repository.js";
 
 /** `YYYY-MM-DD` for a given real `Date`, in UTC (same convention `date DATE` columns elsewhere in this schema use — no timezone-local drift). */
@@ -132,6 +136,19 @@ export class MetaSyncService {
    */
   async saveDailySnapshot(tenantId: string, referenceNow: Date = new Date()): Promise<void> {
     await this.syncOnce(tenantId, "yesterday", yesterdayOf(referenceNow));
+  }
+
+  /**
+   * Campaign Page Rebuild v2 — real read-back of one campaign's `meta_insights_daily` history
+   * (see `MetaSyncRepository.getCampaignDailyHistory`'s own doc). Thin pass-through — the real
+   * work is the repository's tenant/campaign-scoped query.
+   */
+  async getCampaignHistory(
+    tenantId: string,
+    metaCampaignId: string,
+    days: number,
+  ): Promise<readonly CampaignDailyHistoryPoint[]> {
+    return this.repository.getCampaignDailyHistory(tenantId, metaCampaignId, days);
   }
 
   private async syncOnce(tenantId: string, datePreset: DatePreset, dateFor: Date): Promise<void> {

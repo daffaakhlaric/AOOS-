@@ -28,6 +28,7 @@ import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AndromedaHealthResponseDto } from "./dto/andromeda-health.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
 import type { AssetRollupResponseDto } from "./dto/asset-rollup.dto.js";
+import type { CampaignHistoryResponseDto } from "./dto/campaign-history.dto.js";
 import { toAdAccountResponseDto, type AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import type {
   ExecuteVerdictBodyDto,
@@ -199,6 +200,23 @@ export class MetaAdsService {
     body: CampaignInsightRequestDto,
   ): Promise<CampaignInsightResponseDto> {
     return this.llmService.campaignInsight(tenantId, body);
+  }
+
+  /**
+   * `GET /api/v1/campaigns/:campaignId/history` — Campaign Page Rebuild v2. `campaignId` is the
+   * real, stable Meta campaign id (same convention `getAndromedaHealth` already establishes —
+   * never the local, per-pull-regenerated `id`). Thin pass-through to
+   * `MetaSyncService.getCampaignHistory`, itself a thin pass-through to the real
+   * `meta_insights_daily` read — see that chain's own docs for why this is a plain DB read, not a
+   * live Meta pull (the data was already captured by `MetaSyncCronService`'s real sweeps).
+   */
+  async getCampaignHistory(
+    tenantId: string,
+    campaignId: string,
+    days: number,
+  ): Promise<CampaignHistoryResponseDto> {
+    const points = await this.metaSync.getCampaignHistory(tenantId, campaignId, days);
+    return { campaignId, points };
   }
 
   /**

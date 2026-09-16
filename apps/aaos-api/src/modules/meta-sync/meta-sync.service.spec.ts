@@ -272,3 +272,28 @@ describe("filterSnapshotToCampaign", () => {
     expect(filtered.insights).toHaveLength(0);
   });
 });
+
+describe("MetaSyncService.getCampaignHistory", () => {
+  it("is a thin pass-through to the real repository read", async () => {
+    const points = [
+      {
+        date: "2026-09-10",
+        spend: 1,
+        impressions: 2,
+        clicks: 3,
+        frequency: 4,
+        ctr: 5,
+        cpl: 6,
+        leads: 7,
+      },
+    ];
+    const getCampaignDailyHistory = vi.fn(async () => points);
+    const repository = { getCampaignDailyHistory } as unknown as MetaSyncRepository;
+    const service = new MetaSyncService({} as never, repository);
+
+    const result = await service.getCampaignHistory("t-1", "camp-1", 7);
+
+    expect(getCampaignDailyHistory).toHaveBeenCalledWith("t-1", "camp-1", 7);
+    expect(result).toEqual(points);
+  });
+});

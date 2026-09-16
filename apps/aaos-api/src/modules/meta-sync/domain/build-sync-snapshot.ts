@@ -74,6 +74,25 @@ export interface SyncSnapshot {
   readonly insights: readonly InsightRow[];
 }
 
+/**
+ * Campaign Page Rebuild v2 — one real day's already-persisted `meta_insights_daily` row for a
+ * single campaign, read back for the dashboard's sparklines/trend displays. `meta_insights_daily`
+ * itself has carried this real data since `050_meta_sync.sql` (`MetaSyncCronService`'s 15-minute
+ * and daily sweeps keep it current) — investigated directly before building anything new: this
+ * table was write-only until now (confirmed via `llm.service.ts`'s own "deliberately DEFERRED"
+ * note), so the real, honest gap is a READ path, not a new table/migration.
+ */
+export interface CampaignDailyHistoryPoint {
+  readonly date: string; // YYYY-MM-DD
+  readonly spend: number;
+  readonly impressions: number;
+  readonly clicks: number;
+  readonly frequency: number;
+  readonly ctr: number;
+  readonly cpl: number;
+  readonly leads: number;
+}
+
 /** Real, safe-division accumulator — mirrors `AdMetrics`'/`Rph`'s own "never divide by zero" discipline (this file has no access to those classes' private constructors, so the same shape is restated here, not imported, matching `MetricsMapper.ts`'s own precedent of module-local safe-math helpers). */
 function safeDiv(numerator: number, denominator: number): number {
   return denominator > 0 ? numerator / denominator : 0;

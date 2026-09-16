@@ -62,9 +62,11 @@ function buildFakeActivityLogger() {
 }
 
 /** Minimal `MetaSyncService` test double (EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4) — `syncCampaign` is a no-op spy, irrelevant to this file's own pre-existing `pullCampaigns`/`getAdAccounts`/`executeVerdict` assertions. */
-function buildFakeMetaSync() {
+function buildFakeMetaSync(overrides: Record<string, unknown> = {}) {
   return {
     syncCampaign: vi.fn(async () => undefined),
+    getCampaignHistory: vi.fn(async () => []),
+    ...overrides,
   };
 }
 
@@ -101,6 +103,7 @@ function buildService(
   dev = false,
   activityLogger: ReturnType<typeof buildFakeActivityLogger> = buildFakeActivityLogger(),
   llmService: ReturnType<typeof buildFakeLlmService> = buildFakeLlmService(),
+  metaSync: ReturnType<typeof buildFakeMetaSync> = buildFakeMetaSync(),
 ): MetaAdsService {
   const config = buildTestConfig();
   const connectorConfig = toConnectorConfig(config);
@@ -117,7 +120,7 @@ function buildService(
     buildFakeModeGuard(dev) as never,
     activityLogger as never,
     llmService as never,
-    buildFakeMetaSync() as never,
+    metaSync as never,
   );
 }
 
@@ -283,6 +286,49 @@ describe("MetaAdsService", () => {
         narrative: "Campaign ini SCALE-worthy.",
         actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
       });
+    });
+  });
+
+  describe("getCampaignHistory (Campaign Page Rebuild v2)", () => {
+    it("delegates to MetaSyncService.getCampaignHistory with the real tenant id/campaignId/days, no Meta re-pull", async () => {
+      const points = [
+        {
+          date: "2026-09-10",
+          spend: 1,
+          impressions: 2,
+          clicks: 3,
+          frequency: 4,
+          ctr: 5,
+          cpl: 6,
+          leads: 7,
+        },
+      ];
+      const metaSync = buildFakeMetaSync({ getCampaignHistory: vi.fn(async () => points) });
+      const service = buildService(
+        false,
+        buildFakeActivityLogger(),
+        buildFakeLlmService(),
+        metaSync,
+      );
+
+      const result = await service.getCampaignHistory(DEFAULT_TENANT_ID, "camp-1", 7);
+
+      expect(metaSync.getCampaignHistory).toHaveBeenCalledWith(DEFAULT_TENANT_ID, "camp-1", 7);
+      expect(result).toEqual({ campaignId: "camp-1", points });
+    });
+
+    it("returns an empty points array (never fabricated) when the real repository has no history yet", async () => {
+      const metaSync = buildFakeMetaSync({ getCampaignHistory: vi.fn(async () => []) });
+      const service = buildService(
+        false,
+        buildFakeActivityLogger(),
+        buildFakeLlmService(),
+        metaSync,
+      );
+
+      const result = await service.getCampaignHistory(DEFAULT_TENANT_ID, "camp-new", 7);
+
+      expect(result).toEqual({ campaignId: "camp-new", points: [] });
     });
   });
 

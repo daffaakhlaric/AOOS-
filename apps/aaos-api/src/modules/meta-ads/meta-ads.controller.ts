@@ -18,6 +18,11 @@ import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AndromedaHealthResponseDto } from "./dto/andromeda-health.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
 import type { AssetRollupResponseDto } from "./dto/asset-rollup.dto.js";
+import {
+  CampaignHistoryQuerySchema,
+  type CampaignHistoryQueryDto,
+  type CampaignHistoryResponseDto,
+} from "./dto/campaign-history.dto.js";
 import type { AdAccountResponseDto } from "./dto/campaign-response.dto.js";
 import {
   ExecuteVerdictBodySchema,
@@ -128,6 +133,20 @@ export class MetaAdsController {
     @TenantId() tenantId: string,
   ): Promise<AndromedaHealthResponseDto> {
     return this.metaAdsService.getAndromedaHealth(campaignId, query, correlationId, tenantId);
+  }
+
+  /**
+   * `GET /api/v1/campaigns/:campaignId/history` — Campaign Page Rebuild v2. Real
+   * `meta_insights_daily` read-back for one campaign's sparkline/trend display — see
+   * `MetaAdsService.getCampaignHistory`'s own doc.
+   */
+  @Get("campaigns/:campaignId/history")
+  async getCampaignHistory(
+    @Param("campaignId") campaignId: string,
+    @Query(new ZodValidationPipe(CampaignHistoryQuerySchema)) query: CampaignHistoryQueryDto,
+    @TenantId() tenantId: string,
+  ): Promise<CampaignHistoryResponseDto> {
+    return this.metaAdsService.getCampaignHistory(tenantId, campaignId, query.days);
   }
 
   @Post("verdicts")
