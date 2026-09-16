@@ -59,3 +59,61 @@
   font-weight: 600;
   color: var(--v2-text-1, #0f172a);
 }
+
+/* Campaign Page Rebuild v2 (Prompt 5) — real dailyBudget-estimated progress bar. */
+.barRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.barTopLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.barTrack {
+  position: relative;
+  height: 6px;
+  background: var(--v2-card-flat, #f1f5f9);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.barFillOnPace {
+  background: var(--green, #16a34a);
+}
+
+.barFillUnder {
+  background: var(--v2-blue, #1e6fd9);
+}
+
+.barFillOver {
+  background: var(--red, #dc2626);
+}
+
+.paceLabel {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.paceOnPace {
+  color: var(--green, #16a34a);
+}
+
+.paceUnder {
+  color: var(--v2-blue, #1e6fd9);
+}
+
+.paceOver {
+  color: var(--red, #dc2626);
+}

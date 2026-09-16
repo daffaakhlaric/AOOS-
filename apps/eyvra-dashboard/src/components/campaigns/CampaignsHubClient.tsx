@@ -337,7 +337,10 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
                 loading={loading}
               />
               <BudgetTracker campaigns={filteredCampaigns} />
-              <ObjectiveStripCard onTargetCplResolved={setTargetCplIDR} />
+              <ObjectiveStripCard
+                onTargetCplResolved={setTargetCplIDR}
+                campaigns={filteredCampaigns}
+              />
             </div>
           </>
         ) : null}

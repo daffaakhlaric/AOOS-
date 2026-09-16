@@ -604,6 +604,14 @@ export interface LeadDto {
   readonly leadSource?: string;
   readonly assignedSalesId?: string;
   readonly lastMessageAt?: string;
+  /**
+   * Campaign Page Rebuild v2 (Prompt 4) — real `aaos-api` `LeadResponseDto.campaignId`, already
+   * forwarded verbatim by `/api/leads`'s JSON passthrough but never modeled on this list-level
+   * type before (only `LeadDetailDto`, the single-lead detail shape, declared it) — same class of
+   * "already in the real response, just never typed" gap as `AdSetSummaryDto.dailyBudget`'s own
+   * doc. `undefined` for a lead Meta/Clara never attributed to a specific campaign.
+   */
+  readonly campaignId?: string;
 }
 
 /**

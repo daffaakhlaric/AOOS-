@@ -40,3 +40,56 @@
   color: var(--v2-text-2, #64748b);
   margin: 0;
 }
+
+/* Campaign Page Rebuild v2 (Prompt 4) — projected end-of-month estimate + per-campaign breakdown. */
+.projectionLabel {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--v2-text-2, #64748b);
+  margin: 6px 0 0;
+}
+
+.breakdownBlock {
+  border-top: 1px solid var(--v2-border, #e2e8f0);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.breakdownTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--v2-text-2, #64748b);
+  margin: 0 0 6px;
+}
+
+.breakdownList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.breakdownRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.breakdownName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--v2-text-1, #0f172a);
+}
+
+.breakdownCount {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--v2-menu-campaigns, #8b5cf6);
+}
