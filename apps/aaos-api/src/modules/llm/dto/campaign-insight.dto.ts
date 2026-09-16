@@ -85,18 +85,50 @@ export const CampaignInsightRequestSchema = z.object({
    * block or fail the campaign-insight call itself).
    */
   marketDigest: z.string().nullable().optional(),
+  /**
+   * Campaign Page Rebuild v2 — real, already-persisted daily CTR values for this campaign's last
+   * up-to-7 real synced days (`GET /api/v1/campaigns/:campaignId/history`, `meta_insights_daily` —
+   * see that endpoint's own doc for why this is a plain DB read, not a second live Meta pull),
+   * oldest-to-newest. `undefined`/omitted (never a fabricated flat line) when the client's
+   * best-effort fetch of that endpoint returned no history yet for this campaign.
+   */
+  ctrTrend7d: z.array(z.number().nonnegative()).max(30).optional(),
 });
 export type CampaignInsightRequestDto = z.infer<typeof CampaignInsightRequestSchema>;
 
 const ACTION_PRIORITIES = ["SEGERA", "MINGGU_INI", "BULAN_INI"] as const;
 
+/** Campaign Page Rebuild v2 — the small, honest vocabulary `metricEvidence` bullets are allowed to use, per the spec's own "diagnosis bukan deskripsi" worked example. Never a free-form emoji — keeps the icon meaningful (critical/warning/good/bad) rather than decorative. */
+const METRIC_EVIDENCE_ICONS = ["◉", "⚠", "✓", "✗"] as const;
+
 export const CampaignInsightLlmPayloadSchema = z.object({
-  narrative: z.string().min(1),
+  /**
+   * Campaign Page Rebuild v2 — REPLACES the old free-form `narrative` paragraph. ONE sentence
+   * naming the single most critical real finding — a diagnosis, not a description (spec's own
+   * worked example: "CTR 3× benchmark → worth scale. Tapi frequency 2.3× akan jenuh dalam ~4 hari
+   * jika budget dinaikkan tanpa creative baru." — not "Campaign ini memiliki CTR 3% yang bagus...").
+   */
+  diagnosis: z.string().min(1).max(400),
+  /** 2-5 real metric+interpretation bullets, ordered most-important-first — see `METRIC_EVIDENCE_ICONS`'s own doc for the bounded icon vocabulary. */
+  metricEvidence: z
+    .array(
+      z.object({
+        icon: z.enum(METRIC_EVIDENCE_ICONS),
+        metric: z.string().min(1),
+        interpretation: z.string().min(1),
+      }),
+    )
+    .min(2)
+    .max(5),
+  /** ONE sentence of real trend/context — e.g. "Tren stabil 7 hari terakhir" — `undefined` when there is honestly no trend data to reference (this endpoint has no obligation to fabricate one; the caller only sends real context, see `CampaignInsightRequestDto.ctrTrend7d`'s own doc). */
+  contextNote: z.string().min(1).optional(),
   actions: z
     .array(
       z.object({
         priority: z.enum(ACTION_PRIORITIES),
         text: z.string().min(1),
+        /** Real, honest estimate the model itself derives from the request's own numbers (e.g. "+8-12 leads/minggu") — `undefined` when there's no honest basis to estimate one, never a fabricated placeholder. */
+        estimatedImpact: z.string().min(1).optional(),
       }),
     )
     .max(8),

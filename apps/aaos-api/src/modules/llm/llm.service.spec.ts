@@ -1410,14 +1410,27 @@ describe("LlmService", () => {
     };
 
     const validCampaignInsightLlmJson = JSON.stringify({
-      narrative: "Campaign ini SCALE-worthy, CPL Rp208rb masih di bawah benchmark Rp250rb.",
+      diagnosis: "CPL Rp208rb 17% di bawah benchmark Rp250rb — worth scale sebelum frequency naik.",
+      metricEvidence: [
+        { icon: "◉", metric: "CPL Rp208rb", interpretation: "17% lebih murah dari benchmark" },
+        {
+          icon: "✓",
+          metric: "Frequency 2.1×",
+          interpretation: "masih aman, jauh dari batas jenuh",
+        },
+      ],
+      contextNote: "Tren CTR stabil 7 hari terakhir.",
       actions: [
-        { priority: "SEGERA", text: "Naikkan budget 20% mumpung CPL efisien." },
+        {
+          priority: "SEGERA",
+          text: "Naikkan budget 20% mumpung CPL efisien.",
+          estimatedImpact: "+5-8 leads/minggu",
+        },
         { priority: "MINGGU_INI", text: "Pantau frequency, masih aman di 2.1." },
       ],
     });
 
-    it("returns available:true with a real, Zod-validated narrative + actions from a mocked OpenAI response", async () => {
+    it("returns available:true with a real, Zod-validated diagnosis + metricEvidence + actions from a mocked OpenAI response", async () => {
       registerOpenAiChatHandler(validCampaignInsightLlmJson);
       const service = buildService();
       const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
@@ -1511,6 +1524,7 @@ describe("LlmService", () => {
         ],
         learningAdSetStableIds: ["#B002"],
         marketDigest: "Musim ini sedang low-season untuk properti KPR.",
+        ctrTrend7d: [0.02, 0.021, 0.019, 0.022, 0.02, 0.021, 0.022],
       };
 
       let receivedBody: unknown;
@@ -1533,6 +1547,7 @@ describe("LlmService", () => {
       expect(userMessage).toContain("Xpander Promo A");
       expect(userMessage).toContain("#B002");
       expect(userMessage).toContain("Musim ini sedang low-season untuk properti KPR.");
+      expect(userMessage).toContain("0.021");
     });
 
     it("does not force a 'worst ad' callout into the prompt data for a healthy campaign with no underperforming ad and no learning ad sets", async () => {
@@ -1583,6 +1598,41 @@ describe("LlmService", () => {
       // digest — never a fabricated non-empty value the client didn't actually provide.
       expect(userMessage).toContain('"learningAdSetStableIds":[]');
       expect(userMessage).toContain('"marketDigest":null');
+    });
+
+    // Campaign Page Rebuild v2 — REPLACES the old free-form `narrative` with `diagnosis` +
+    // `metricEvidence` (+ optional `contextNote`). `contextNote` must stay genuinely optional —
+    // never a fabricated empty string when the model honestly has no real trend data to cite.
+    it("real bug-class prevention: accepts a response with no contextNote at all (never forced to fabricate one)", async () => {
+      const jsonWithoutContextNote = JSON.stringify({
+        diagnosis: "CPL Rp208rb di bawah benchmark — worth scale.",
+        metricEvidence: [
+          { icon: "◉", metric: "CPL Rp208rb", interpretation: "di bawah benchmark" },
+          { icon: "✓", metric: "Frequency 2.1×", interpretation: "masih aman" },
+        ],
+        actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
+      });
+      registerOpenAiChatHandler(jsonWithoutContextNote);
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(jsonWithoutContextNote) });
+    });
+
+    it("returns INVALID_RESPONSE when metricEvidence has fewer than 2 real bullets", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          diagnosis: "x",
+          metricEvidence: [{ icon: "◉", metric: "x", interpretation: "x" }],
+          actions: [{ priority: "SEGERA", text: "x" }],
+        }),
+      );
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
     });
   });
 

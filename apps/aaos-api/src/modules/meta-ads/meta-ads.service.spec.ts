@@ -80,7 +80,8 @@ function buildFakeLlmService() {
     })),
     campaignInsight: vi.fn(async () => ({
       available: true as const,
-      narrative: "Campaign ini SCALE-worthy.",
+      diagnosis: "Campaign ini SCALE-worthy.",
+      metricEvidence: [{ icon: "◉" as const, metric: "CPL", interpretation: "di bawah benchmark" }],
       actions: [{ priority: "SEGERA" as const, text: "Naikkan budget." }],
     })),
     diagnoseAdCopy: vi.fn(async () => ({
@@ -283,7 +284,10 @@ describe("MetaAdsService", () => {
       expect(llmService.campaignInsight).toHaveBeenCalledWith(DEFAULT_TENANT_ID, body);
       expect(result).toEqual({
         available: true,
-        narrative: "Campaign ini SCALE-worthy.",
+        diagnosis: "Campaign ini SCALE-worthy.",
+        metricEvidence: [
+          { icon: "◉" as const, metric: "CPL", interpretation: "di bawah benchmark" },
+        ],
         actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
       });
     });

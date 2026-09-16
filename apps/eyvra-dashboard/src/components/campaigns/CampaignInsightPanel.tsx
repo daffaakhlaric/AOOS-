@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-import { MetricCard } from "@/components/analytics/MetricCard";
+import { MetricCard, type MetricCardDelta } from "@/components/analytics/MetricCard";
 import { CampaignAdDrillDown } from "@/components/campaigns/CampaignAdDrillDown";
 import { aggregateVerdict } from "@/components/meta-ads/CampaignTree";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { formatIdr, formatNumber, formatPercent } from "@/lib/formatters";
 import type {
+  CampaignHistoryPointDto,
   CampaignInsightActionPriority,
   CampaignInsightAdDto,
   CampaignInsightResponseDto,
@@ -38,6 +39,27 @@ const PRIORITY_ORDER: readonly CampaignInsightActionPriority[] = [
 ];
 
 /**
+ * Campaign Page Rebuild v2 — verdict header config. Real 6-value `Verdict` vocabulary
+ * (`@aos/meta-ads-connector`'s own enum: SCALE/KEEP/REVIEW/REFRESH/FIX/PAUSE) — the pasted spec's
+ * own "CREATIVE" verdict does not exist anywhere in this codebase; `REFRESH` (Meta's real
+ * creative-fatigue verdict) is the honest match for that same real-world meaning.
+ */
+const VERDICT_CONFIG: Readonly<
+  Record<
+    string,
+    { readonly bg: string; readonly border: string; readonly icon: string; readonly label: string }
+  >
+> = {
+  SCALE: { bg: "#ecfdf5", border: "#a7f3d0", icon: "↑", label: "SCALE" },
+  KEEP: { bg: "#f8fafc", border: "#e2e8f0", icon: "✓", label: "KEEP" },
+  REFRESH: { bg: "#fffbeb", border: "#fde68a", icon: "✦", label: "PERLU KONTEN" },
+  PAUSE: { bg: "#fef2f2", border: "#fecaca", icon: "∥", label: "PAUSE" },
+  FIX: { bg: "#fff7ed", border: "#fed7aa", icon: "⚠", label: "FIX DULU" },
+  REVIEW: { bg: "#eff6ff", border: "#bfdbfe", icon: "◎", label: "REVIEW" },
+};
+const DEFAULT_VERDICT_CONFIG = VERDICT_CONFIG.KEEP!;
+
+/**
  * SAMANTHA ADVANCED SPRINT 2 — real per-ad breakdown for `CampaignInsightRequestDto.ads`, built
  * from the SAME `campaign.adSets` tree `CampaignAdDrillDown` already renders (never a second Meta
  * pull, never re-derived numbers) — the exact `rphChatIDR` ratio that component's own diagnosis
@@ -65,42 +87,38 @@ function buildLearningAdSetStableIds(campaign: CampaignSummaryDto): readonly str
     .map((adSet) => adSet.stableId);
 }
 
+/** Real, honest percent-change delta between the first and last real history point — `undefined` when fewer than 2 real points exist (never a fabricated 0% delta). */
+function deltaFrom(
+  points: readonly CampaignHistoryPointDto[],
+  pick: (point: CampaignHistoryPointDto) => number,
+  higherIsBetter: boolean,
+): MetricCardDelta | undefined {
+  if (points.length < 2) {
+    return undefined;
+  }
+  const first = pick(points[0]!);
+  const last = pick(points[points.length - 1]!);
+  if (first === 0) {
+    return undefined;
+  }
+  return { percent: ((last - first) / first) * 100, higherIsBetter };
+}
+
 /**
  * AAOS-CAMPAIGNS-UNIFIED-PAGE — the unified page's click-to-expand insight panel (spec: "6 KPI
- * mini + narasi + action list prioritized"). Opens when a row is clicked in `UnifiedCampaignTable`.
+ * mini + narasi + action list prioritized").
  *
- * 6 KPI cards use the exact same `aggregateCampaign` math `UnifiedCampaignTable`'s own row uses
- * (never a second, possibly-drifting aggregation) — Spend/CPL/CTR/Impressions/Frequency/Results,
- * per spec. CTR/Impressions honestly show "Belum tersedia" when no ad in this campaign carries a
- * real `impressions` value (see `AdMetricsDto.impressions`'s own doc — optional, not every fixture
- * populates it).
- *
- * The narrative + prioritized action list is a REAL LLM call (`POST /api/campaign-insight` →
- * `aaos-api`'s `LlmService.campaignInsight`), fetched on-demand only when a campaign is selected
- * (not for every campaign on page load — an LLM call per row on every page view would be wasteful
- * and is not what "click untuk melihat detail" asks for). Honest degrade: `available: false` (no
- * API key / rate-limited / provider error / invalid response) renders a real, non-fabricated
- * message instead of invented narrative text — same discipline every other real LLM-backed surface
- * in this app follows.
- *
- * A/B Testing note: the pre-rebuild "A/B Testing" tab (`AbTestingClient` — real RUNNING/COMPLETE/
- * DRAFT formal test management) has no bottom-strip card in this unified page's spec and is
- * genuinely DISTINCT content from Creative's own "A/B Results" heatmap/WinningCombos tab (test
- * *management* vs. ranked creative-performance *analysis*) — dropping it silently would lose real
- * functionality. It stays reachable via the real link below (`/campaigns?view=ab-testing`, handled
- * by `CampaignsHubClient.tsx`'s own real escape hatch) rather than being deleted.
- *
- * SAMANTHA ADVANCED SPRINT 1 additions:
- *  - Real `campaign.objective` chip in the header (the user's own explicit feedback: "objective
- *    settingannya juga keliatan" — this sprint's scope is honestly showing the CURRENT value only,
- *    not a "what to fix" recommendation engine, which is a separate, later sprint's scope).
- *  - `CampaignAdDrillDown` — a real per-ad-set → per-ad hierarchy for THIS selected campaign,
- *    rendered below the KPI grid. `CampaignTree.tsx`'s own docstring claimed it already "powers the
- *    real per-ad-set/ad drill-down inside `CampaignInsightPanel`'s 'detail' affordance" — but this
- *    file, read in full, never imported the `CampaignTree` component (only its `aggregateVerdict`
- *    helper) and rendered no ad-set/ad hierarchy at all. That claim was stale: `CampaignTree` is
- *    real and working, but wired only into the legacy `/meta-ads` page (`MetaAdsClient.tsx`), not
- *    reachable from here. `CampaignAdDrillDown` is the real, new detail affordance this file needed.
+ * Campaign Page Rebuild v2 — REBUILT: a verdict header bar (real `verdict`, already computed
+ * client-side, was previously never shown in this panel at all — only the `objective` chip was);
+ * real 7-day sparklines/deltas on each KPI card, fed from the new, real
+ * `GET /api/campaigns/:campaignId/history` (`meta_insights_daily` read-back — see that route's own
+ * doc for why this was previously impossible to build honestly, `MetricCard`'s own sparkline prop
+ * had existed unused for exactly this reason); a real CPL-vs-benchmark visual bar; and the old
+ * free-form `narrative` paragraph replaced by Samantha's new, sharper `diagnosis` +
+ * `metricEvidence` + optional `contextNote` structure (see `aaos-api`'s `CAMPAIGN_INSIGHT_SYSTEM_
+ * PROMPT` for the real prompt change behind this). Andromeda health is deliberately NOT duplicated
+ * here — `AndromedaHealthCard` already renders immediately after this panel (see that component's
+ * own "PLACEMENT" doc), so a second, redundant mini-widget here would just drift from that one.
  */
 export function CampaignInsightPanel({
   campaign,
@@ -115,6 +133,10 @@ export function CampaignInsightPanel({
   // until this best-effort fetch resolves (or forever, if it fails) — the campaign-insight request
   // below is composed with whatever this state holds AT THAT MOMENT and never blocks/waits on it.
   const [marketDigest, setMarketDigest] = useState<string | null | undefined>(undefined);
+  // Campaign Page Rebuild v2 — real, best-effort 7-day history for sparklines/deltas + the CTR
+  // trend context Samantha's own prompt can cite. `undefined` while loading/unavailable — every
+  // sparkline/delta below honestly renders nothing rather than a fabricated flat line.
+  const [history, setHistory] = useState<readonly CampaignHistoryPointDto[] | undefined>(undefined);
 
   // Real bug fix (live-confirmed report, see `VerdictCards.tsx`'s own identical fix and doc): a
   // delayed/partial ad-level Meta Insights pull can leave `campaign.adSets` genuinely empty/zeroed
@@ -133,6 +155,7 @@ export function CampaignInsightPanel({
   const verdict = aggregateVerdict(
     campaign.adSets.flatMap((adSet) => adSet.ads.map((ad) => ad.verdict)),
   );
+  const verdictConfig = VERDICT_CONFIG[verdict] ?? DEFAULT_VERDICT_CONFIG;
 
   useEffect(() => {
     let cancelled = false;
@@ -158,6 +181,7 @@ export function CampaignInsightPanel({
         ads: buildInsightAds(campaign),
         learningAdSetStableIds: buildLearningAdSetStableIds(campaign),
         marketDigest,
+        ctrTrend7d: history?.map((point) => point.ctr),
       }),
     })
       .then(async (res) => {
@@ -188,8 +212,8 @@ export function CampaignInsightPanel({
     };
     // Re-fetch only when the selected campaign genuinely changes — `benchmarkCplIDR` is stable for
     // a given page session, `aggregate`/`cpl`/`verdict` are pure derivations of `campaign` itself.
-    // `marketDigest` is deliberately NOT a dependency (see its own doc above) — using whatever value
-    // it holds right now, not re-triggering a second campaign-insight call when it later resolves.
+    // `marketDigest`/`history` are deliberately NOT dependencies — using whatever value they hold
+    // right now, not re-triggering a second campaign-insight call when either resolves later.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign.id]);
 
@@ -222,6 +246,37 @@ export function CampaignInsightPanel({
     };
   }, []);
 
+  // Campaign Page Rebuild v2 — real, best-effort fetch of this campaign's 7-day history
+  // (`meta_insights_daily` read-back) for sparklines/deltas. Campaign-scoped, keyed by the real,
+  // stable `metaId` (never `id` — see `CampaignSummaryDto.metaId`'s own doc for why `id` alone is
+  // unsafe across a separate request). Best-effort: a failure here just leaves every sparkline/
+  // delta below honestly absent, never blocks or fails the rest of the panel.
+  useEffect(() => {
+    let cancelled = false;
+    setHistory(undefined);
+    fetch(`/api/campaigns/${encodeURIComponent(campaign.metaId)}/history?days=7`)
+      .then(async (res) => {
+        if (!res.ok) {
+          return undefined;
+        }
+        return (await res.json()) as { points?: readonly CampaignHistoryPointDto[] };
+      })
+      .then((body) => {
+        if (!cancelled) {
+          setHistory(body?.points ?? []);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — sparklines/deltas just stay absent.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign.metaId]);
+
+  const cplRatio =
+    cpl !== null && benchmarkCplIDR !== null && benchmarkCplIDR > 0 ? cpl / benchmarkCplIDR : null;
+
   return (
     <section data-testid="campaign-insight-panel" className={styles.panel}>
       <div className={styles.header}>
@@ -236,11 +291,36 @@ export function CampaignInsightPanel({
         </button>
       </div>
 
+      <div
+        className={styles.verdictHeader}
+        data-testid="insight-verdict-header"
+        style={{ background: verdictConfig.bg, borderColor: verdictConfig.border }}
+      >
+        <div className={styles.verdictIcon} style={{ background: verdictConfig.border }}>
+          {verdictConfig.icon}
+        </div>
+        <div className={styles.verdictBody}>
+          <span
+            className={styles.verdictBadge}
+            data-testid="insight-verdict-badge"
+            style={{ background: verdictConfig.border }}
+          >
+            {verdictConfig.label}
+          </span>
+          {!loading && insight?.available === true ? (
+            <p className={styles.diagnosis} data-testid="insight-diagnosis">
+              {insight.diagnosis}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
       <div className={styles.kpiGrid} data-testid="insight-kpi-grid">
         <MetricCard
           label="Spend"
           value={formatIdr(displaySpend)}
           testId="insight-kpi-spend"
+          sparkline={history?.map((point) => point.spend)}
           {...(!adLevelSpendAvailable && displaySpend > 0
             ? { warningLabel: "Breakdown per-iklan belum tersedia, ini spend campaign" }
             : {})}
@@ -249,11 +329,15 @@ export function CampaignInsightPanel({
           label="CPL"
           value={cpl !== null ? formatIdr(cpl) : "—"}
           testId="insight-kpi-cpl"
+          sparkline={history?.map((point) => point.cpl)}
+          delta={history !== undefined ? deltaFrom(history, (p) => p.cpl, false) : undefined}
         />
         <MetricCard
           label="CTR"
           value={ctr !== null ? formatPercent(ctr) : "Belum tersedia"}
           testId="insight-kpi-ctr"
+          sparkline={history?.map((point) => point.ctr)}
+          delta={history !== undefined ? deltaFrom(history, (p) => p.ctr, true) : undefined}
         />
         <MetricCard
           label="Impressions"
@@ -261,18 +345,51 @@ export function CampaignInsightPanel({
             aggregate.impressions !== null ? formatNumber(aggregate.impressions) : "Belum tersedia"
           }
           testId="insight-kpi-impressions"
+          sparkline={history?.map((point) => point.impressions)}
         />
         <MetricCard
           label="Frequency"
           value={aggregate.maxFrequency.toFixed(2)}
           testId="insight-kpi-frequency"
+          sparkline={history?.map((point) => point.frequency)}
         />
         <MetricCard
           label="Results"
           value={formatNumber(aggregate.totalLead)}
           testId="insight-kpi-results"
+          sparkline={history?.map((point) => point.leads)}
+          delta={history !== undefined ? deltaFrom(history, (p) => p.leads, true) : undefined}
         />
       </div>
+
+      {cplRatio !== null ? (
+        <div className={styles.cplBarBlock} data-testid="insight-cpl-bar">
+          <div className={styles.cplBarLabelRow}>
+            <span>Rp 0</span>
+            <span>Benchmark {formatIdr(benchmarkCplIDR as number)}</span>
+            <span>{formatIdr((benchmarkCplIDR as number) * 2)}</span>
+          </div>
+          <div className={styles.cplBarTrack}>
+            <div className={styles.cplBarBenchmarkLine} />
+            <div
+              className={styles.cplBarFill}
+              style={{
+                width: `${Math.min((cplRatio / 2) * 100, 100)}%`,
+                background: cplRatio < 0.85 ? "#10b981" : cplRatio <= 1.15 ? "#f59f00" : "#ef4444",
+              }}
+            />
+          </div>
+          <p
+            className={styles.cplBarNote}
+            style={{ color: cplRatio < 1 ? "#059669" : "#dc2626" }}
+            data-testid="insight-cpl-bar-note"
+          >
+            {cplRatio < 1
+              ? `${Math.round((1 - cplRatio) * 100)}% lebih murah dari benchmark`
+              : `${Math.round((cplRatio - 1) * 100)}% lebih mahal dari benchmark`}
+          </p>
+        </div>
+      ) : null}
 
       <div className={styles.drillDownBlock} data-testid="insight-drilldown-block">
         <h4 className={styles.aiTitle}>Ad Set &amp; Iklan</h4>
@@ -286,9 +403,20 @@ export function CampaignInsightPanel({
         {!loading && insight !== undefined ? (
           insight.available ? (
             <>
-              <p className={styles.narrative} data-testid="insight-narrative">
-                {insight.narrative}
-              </p>
+              <ul className={styles.evidenceList} data-testid="insight-evidence-list">
+                {insight.metricEvidence.map((evidence, index) => (
+                  <li key={index} className={styles.evidenceItem}>
+                    <span className={styles.evidenceIcon}>{evidence.icon}</span>
+                    <span className={styles.evidenceMetric}>{evidence.metric}</span>
+                    <span className={styles.evidenceInterpretation}>{evidence.interpretation}</span>
+                  </li>
+                ))}
+              </ul>
+              {insight.contextNote !== undefined ? (
+                <p className={styles.contextNote} data-testid="insight-context-note">
+                  {insight.contextNote}
+                </p>
+              ) : null}
               <ul className={styles.actionList} data-testid="insight-action-list">
                 {PRIORITY_ORDER.flatMap((priority) =>
                   insight.actions
@@ -301,6 +429,9 @@ export function CampaignInsightPanel({
                           {PRIORITY_LABEL[priority]}
                         </span>
                         <span>{action.text}</span>
+                        {action.estimatedImpact !== undefined ? (
+                          <span className={styles.actionImpact}>{action.estimatedImpact}</span>
+                        ) : null}
                       </li>
                     )),
                 )}

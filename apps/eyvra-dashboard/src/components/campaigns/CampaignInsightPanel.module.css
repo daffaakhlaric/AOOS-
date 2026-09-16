@@ -81,6 +81,143 @@
   margin: 0 0 12px;
 }
 
+/* Campaign Page Rebuild v2 — verdict header bar, colored per real verdict. */
+.verdictHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+}
+
+.verdictIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.verdictBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.verdictBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 10px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.diagnosis {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--v2-text-1, #0f172a);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Real CPL-vs-benchmark visual comparison bar. */
+.cplBarBlock {
+  margin-bottom: 20px;
+}
+
+.cplBarLabelRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--v2-text-2, #64748b);
+  margin-bottom: 4px;
+}
+
+.cplBarTrack {
+  position: relative;
+  height: 6px;
+  background: var(--v2-card-flat, #f1f5f9);
+  border-radius: 3px;
+}
+
+.cplBarFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.cplBarBenchmarkLine {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 2px;
+  height: 10px;
+  background: var(--v2-text-2, #94a3b8);
+}
+
+.cplBarNote {
+  font-size: 10px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.evidenceList {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.evidenceItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--v2-text-1, #0f172a);
+}
+
+.evidenceIcon {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.evidenceMetric {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.evidenceInterpretation {
+  color: var(--v2-text-2, #64748b);
+}
+
+.contextNote {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--v2-text-2, #64748b);
+  margin: 0 0 12px;
+}
+
+.actionImpact {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--green, #16a34a);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .unavailable {
   font-size: 13px;
   color: var(--v2-text-2, #64748b);

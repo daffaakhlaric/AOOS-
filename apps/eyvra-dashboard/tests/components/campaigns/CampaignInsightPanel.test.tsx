@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CampaignInsightPanel } from "@/components/campaigns/CampaignInsightPanel";
@@ -73,9 +73,12 @@ describe("CampaignInsightPanel", () => {
   it("posts the real, already-aggregated campaign context to /api/campaign-insight", async () => {
     const fetchMock = vi.fn(
       async (_url: string, _init: RequestInit) =>
-        new Response(JSON.stringify({ available: true, narrative: "OK", actions: [] }), {
-          status: 200,
-        }),
+        new Response(
+          JSON.stringify({ available: true, diagnosis: "OK", metricEvidence: [], actions: [] }),
+          {
+            status: 200,
+          },
+        ),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -99,9 +102,12 @@ describe("CampaignInsightPanel", () => {
   it("composes the real per-ad breakdown and learning-ad-set stableIds into the /api/campaign-insight request", async () => {
     const fetchMock = vi.fn(
       async (_url: string, _init: RequestInit) =>
-        new Response(JSON.stringify({ available: true, narrative: "OK", actions: [] }), {
-          status: 200,
-        }),
+        new Response(
+          JSON.stringify({ available: true, diagnosis: "OK", metricEvidence: [], actions: [] }),
+          {
+            status: 200,
+          },
+        ),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -140,9 +146,12 @@ describe("CampaignInsightPanel", () => {
   it("sends an empty learningAdSetStableIds array when no ad set is in Learning Phase", async () => {
     const fetchMock = vi.fn(
       async (_url: string, _init: RequestInit) =>
-        new Response(JSON.stringify({ available: true, narrative: "OK", actions: [] }), {
-          status: 200,
-        }),
+        new Response(
+          JSON.stringify({ available: true, diagnosis: "OK", metricEvidence: [], actions: [] }),
+          {
+            status: 200,
+          },
+        ),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -170,9 +179,12 @@ describe("CampaignInsightPanel", () => {
   it("real bug fix: falls back to the real campaign.spend (with a warning badge) when the ad-level rollup is Rp 0, and sends that real spend to /api/campaign-insight instead of a misleading 0", async () => {
     const fetchMock = vi.fn(
       async (_url: string, _init: RequestInit) =>
-        new Response(JSON.stringify({ available: true, narrative: "OK", actions: [] }), {
-          status: 200,
-        }),
+        new Response(
+          JSON.stringify({ available: true, diagnosis: "OK", metricEvidence: [], actions: [] }),
+          {
+            status: 200,
+          },
+        ),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -214,7 +226,7 @@ describe("CampaignInsightPanel", () => {
   });
 
   it("does NOT show the spend-fallback warning for a genuinely zero-spend campaign", () => {
-    mockFetchOnce({ available: true, narrative: "x", actions: [] });
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
     const genuineZero: CampaignSummaryDto = {
       ...CAMPAIGN,
       spend: 0,
@@ -232,27 +244,57 @@ describe("CampaignInsightPanel", () => {
     expect(screen.queryByTestId("metric-card-warning")).not.toBeInTheDocument();
   });
 
-  it("renders the real narrative + grouped, prioritized action list when available", async () => {
+  it("renders the real diagnosis in the verdict header + evidence bullets + grouped, prioritized action list when available", async () => {
     mockFetchOnce({
       available: true,
-      narrative: "Campaign ini SCALE-worthy.",
+      diagnosis: "Campaign ini SCALE-worthy, CPL di bawah benchmark.",
+      metricEvidence: [
+        { icon: "◉", metric: "CPL Rp100rb", interpretation: "di bawah benchmark" },
+        { icon: "✓", metric: "Frequency 1.0×", interpretation: "masih aman" },
+      ],
+      contextNote: "Tren stabil 7 hari terakhir.",
       actions: [
         { priority: "MINGGU_INI", text: "Pantau frequency." },
-        { priority: "SEGERA", text: "Naikkan budget." },
+        { priority: "SEGERA", text: "Naikkan budget.", estimatedImpact: "+5 leads/minggu" },
       ],
     });
     render(
       <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
     );
     await waitFor(() =>
-      expect(screen.getByTestId("insight-narrative")).toHaveTextContent(
-        "Campaign ini SCALE-worthy.",
+      expect(screen.getByTestId("insight-diagnosis")).toHaveTextContent(
+        "Campaign ini SCALE-worthy, CPL di bawah benchmark.",
       ),
     );
-    const items = screen.getAllByRole("listitem");
+    expect(screen.getByTestId("insight-evidence-list")).toHaveTextContent("CPL Rp100rb");
+    expect(screen.getByTestId("insight-evidence-list")).toHaveTextContent("di bawah benchmark");
+    expect(screen.getByTestId("insight-context-note")).toHaveTextContent(
+      "Tren stabil 7 hari terakhir.",
+    );
+    const items = within(screen.getByTestId("insight-action-list")).getAllByRole("listitem");
     // SEGERA sorts before MINGGU_INI regardless of the response's own order.
     expect(items[0]).toHaveTextContent("Naikkan budget.");
+    expect(items[0]).toHaveTextContent("+5 leads/minggu");
     expect(items[1]).toHaveTextContent("Pantau frequency.");
+  });
+
+  it("shows a real verdict header badge, never fabricated when the verdict is neutral", () => {
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
+    render(
+      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+    );
+    // Every real ad in CAMPAIGN carries verdict "SCALE" -> aggregateVerdict resolves SCALE.
+    expect(screen.getByTestId("insight-verdict-badge")).toHaveTextContent("SCALE");
+  });
+
+  it("does not render insight-diagnosis before the LLM response resolves (no fabricated placeholder)", () => {
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
+    render(
+      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+    );
+    // Synchronously right after render, the fetch hasn't resolved yet — the verdict header must
+    // show only the real, already-known verdict badge, never a placeholder diagnosis sentence.
+    expect(screen.queryByTestId("insight-diagnosis")).not.toBeInTheDocument();
   });
 
   it("honest degrade: renders the real 'belum tersedia' message, never a fabricated narrative, when available:false", async () => {
@@ -269,7 +311,7 @@ describe("CampaignInsightPanel", () => {
   });
 
   it("shows the real 6-KPI grid computed from already-loaded data, not the LLM response", () => {
-    mockFetchOnce({ available: true, narrative: "x", actions: [] });
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
     render(
       <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
     );
@@ -283,7 +325,7 @@ describe("CampaignInsightPanel", () => {
   });
 
   it("shows the real campaign objective prominently (user feedback: 'objective settingannya juga keliatan')", () => {
-    mockFetchOnce({ available: true, narrative: "x", actions: [] });
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
     render(
       <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
     );
@@ -291,7 +333,7 @@ describe("CampaignInsightPanel", () => {
   });
 
   it("renders the real ad-set/ad drill-down (CampaignAdDrillDown) for the selected campaign", () => {
-    mockFetchOnce({ available: true, narrative: "x", actions: [] });
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
     render(
       <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
     );
@@ -301,7 +343,7 @@ describe("CampaignInsightPanel", () => {
   });
 
   it("links to the real A/B Testing escape hatch (?view=ab-testing), never silently dropped", () => {
-    mockFetchOnce({ available: true, narrative: "x", actions: [] });
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
     render(
       <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
     );
@@ -309,5 +351,112 @@ describe("CampaignInsightPanel", () => {
       "href",
       "/campaigns?view=ab-testing",
     );
+  });
+
+  // Campaign Page Rebuild v2 — real sparkline/delta data, fetched from the new
+  // GET /api/campaigns/:metaId/history endpoint (meta_insights_daily read-back).
+  it("fetches real 7-day history by the campaign's real, stable metaId (never the local, regenerated id)", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.startsWith("/api/campaigns/")) {
+        return new Response(JSON.stringify({ campaignId: "camp-1", points: [] }), { status: 200 });
+      }
+      return new Response(
+        JSON.stringify({ available: true, diagnosis: "x", metricEvidence: [], actions: [] }),
+        { status: 200 },
+      );
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+    );
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url]) => String(url) === "/api/campaigns/camp-1/history?days=7",
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("real, honest sparkline: renders a sparkline on the CPL card once real history resolves", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.startsWith("/api/campaigns/")) {
+        return new Response(
+          JSON.stringify({
+            campaignId: "camp-1",
+            points: [
+              {
+                date: "2026-09-09",
+                spend: 1,
+                impressions: 1,
+                clicks: 1,
+                frequency: 1,
+                ctr: 1,
+                cpl: 90_000,
+                leads: 1,
+              },
+              {
+                date: "2026-09-10",
+                spend: 1,
+                impressions: 1,
+                clicks: 1,
+                frequency: 1,
+                ctr: 1,
+                cpl: 100_000,
+                leads: 1,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({ available: true, diagnosis: "x", metricEvidence: [], actions: [] }),
+        { status: 200 },
+      );
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+    );
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("insight-kpi-cpl")).getByTestId("metric-card-sparkline"),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("real CPL-vs-benchmark bar: renders with an honest 'lebih murah'/'lebih mahal' note, never shown with no real benchmark", () => {
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
+    const cheaperCampaign: CampaignSummaryDto = {
+      ...CAMPAIGN,
+      adSets: [
+        {
+          ...CAMPAIGN.adSets[0]!,
+          ads: [ad({ metrics: metrics({ spend: 500_000, totalLead: 10 }) })], // cpl = 50_000
+        },
+      ],
+    };
+    render(
+      <CampaignInsightPanel
+        campaign={cheaperCampaign}
+        benchmarkCplIDR={150_000}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("insight-cpl-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("insight-cpl-bar-note")).toHaveTextContent(
+      /lebih murah dari benchmark/,
+    );
+  });
+
+  it("does not render the CPL bar at all when there is honestly no real benchmark to compare against", () => {
+    mockFetchOnce({ available: true, diagnosis: "x", metricEvidence: [], actions: [] });
+    render(<CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={null} onClose={vi.fn()} />);
+    expect(screen.queryByTestId("insight-cpl-bar")).not.toBeInTheDocument();
   });
 });

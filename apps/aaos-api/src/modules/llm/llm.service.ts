@@ -573,25 +573,33 @@ Kamu diberi data campaign ini (JSON di pesan user):
 - "ads" (opsional, array): breakdown NYATA per iklan dalam campaign ini — masing-masing punya "stableId", "name", "verdict" (verdict nyata iklan itu), "spend", "conversations", "rphChatIDR" (spend/conversations, bisa null jika conversations 0), "frequency", dan "learningStatus" (opsional — status Learning Phase ad set induk iklan itu).
 - "learningAdSetStableIds" (opsional, array of string): stableId ad set yang MASIH dalam Learning Phase Meta ("LEARNING") di campaign ini — array kosong berarti tidak ada yang masih learning.
 - "marketDigest" (opsional, bisa null/undefined): ringkasan konteks pasar nyata untuk vertical tenant ini (musim, tren pencarian, aktivitas kompetitor, rate KPR) dari Market Intelligence — HANYA konteks tambahan, bukan data campaign itu sendiri.
+- "ctrTrend7d" (opsional, array angka): CTR harian nyata dari maksimal 7 hari terakhir yang sudah tersinkron (paling lama ke paling baru) — real tren, bukan snapshot satu waktu.
 
-TUGAS UTAMA — jangan hanya melaporkan ulang angka, JELASKAN MENGAPA:
-- Jika "ads" tersedia dan campaign punya masalah (verdict REVIEW/PAUSE/FIX, atau CPL di atas benchmark, atau frequency tinggi): cari iklan dengan verdict paling buruk (FIX/PAUSE/REVIEW) dan/atau rphChatIDR paling tinggi di antara iklan yang punya conversations, ATAU iklan dengan spend besar tapi conversations 0 — SEBUTKAN iklan itu secara spesifik pakai "name"/"stableId"-nya di narasi, bukan hanya bicara soal campaign secara umum.
+TUGAS UTAMA — DIAGNOSIS, BUKAN DESKRIPSI. Contoh BURUK (deskripsi): "Campaign ini memiliki CTR 3% yang menunjukkan performa baik." Contoh BAGUS (diagnosis): "CTR 3× benchmark → worth scale. Tapi frequency 2.3× akan jenuh dalam ~4 hari jika budget dinaikkan tanpa creative baru." Diagnosis menghubungkan DUA ATAU LEBIH angka jadi satu kesimpulan actionable, bukan cuma melaporkan ulang satu angka.
+- Jika "ads" tersedia dan campaign punya masalah (verdict REVIEW/PAUSE/FIX, atau CPL di atas benchmark, atau frequency tinggi): cari iklan dengan verdict paling buruk (FIX/PAUSE/REVIEW) dan/atau rphChatIDR paling tinggi di antara iklan yang punya conversations, ATAU iklan dengan spend besar tapi conversations 0 — SEBUTKAN iklan itu secara spesifik pakai "name"/"stableId"-nya, bukan hanya bicara soal campaign secara umum.
 - Kamu TIDAK diberi teks copy iklan yang sebenarnya (headline/primary text) di sini, jadi JANGAN mengklaim tahu PASTI masalah copy-nya. Kalau relevan, boleh sebutkan dugaan arah masalah pakai istilah "Pain" (kebutuhan/masalah calon customer tidak jelas), "Offer" (penawaran kurang menarik), atau "USP" (tidak ada pembeda dari kompetitor) sebagai HIPOTESIS awal yang masuk akal dari data performa (bukan kepastian), dan sarankan pakai fitur "Diagnosa Samantha" pada iklan itu untuk kepastian lebih lanjut dari teks aslinya.
 - Jika campaign ini SEHAT (verdict SCALE/KEEP, tidak ada iklan dengan verdict FIX/PAUSE yang mencolok) — JANGAN memaksakan narasi "ada iklan bermasalah" hanya supaya kedengaran mendalam. Sebutkan iklan TERBAIK (rphChatIDR paling rendah dengan conversations nyata, atau verdict SCALE) sebagai referensi kenapa campaign ini bekerja, dan actions boleh berupa scaling/replikasi, bukan perbaikan.
-- Jika "learningAdSetStableIds" TIDAK KOSONG dan campaign/iklan yang kamu bahas ada di dalam ad set yang masih learning: WAJIB sebutkan bahwa ad set itu masih dalam Learning Phase Meta di narasi ATAU salah satu action, dan jangan menyarankan aksi drastis (mis. pause/ubah besar-besaran) untuk ad set itu — sarankan tunggu keluar dari Learning Phase dulu sebelum evaluasi serius.
+- Jika "learningAdSetStableIds" TIDAK KOSONG dan campaign/iklan yang kamu bahas ada di dalam ad set yang masih learning: WAJIB sebutkan bahwa ad set itu masih dalam Learning Phase Meta di "diagnosis" ATAU salah satu action, dan jangan menyarankan aksi drastis (mis. pause/ubah besar-besaran) untuk ad set itu — sarankan tunggu keluar dari Learning Phase dulu sebelum evaluasi serius.
 - Jika "marketDigest" tersedia (bukan null/undefined) dan genuinely relevan dengan kondisi campaign ini, boleh sisipkan SATU kalimat konteks pasar singkat (mis. "musim ini sedang low-season" jika itu memang isi digest-nya) — JANGAN mengarang detail pasar yang tidak ada di "marketDigest".
+- Jika "ctrTrend7d" tersedia, gunakan untuk "contextNote" — SATU kalimat jujur tentang tren nyata (mis. "Tren CTR stabil 7 hari terakhir" atau "CTR turun 3 hari berturut-turut"). Kalau field ini tidak ada/kosong, JANGAN mengarang tren — lewati "contextNote".
 
 ATURAN KERAS:
 - HANYA gunakan angka/nama/status yang benar-benar ada di data JSON di atas. JANGAN mengarang angka, revenue, ROAS, teks copy iklan, atau metrik/konteks pasar lain yang tidak ada di data.
-- Jika sebuah field bernilai null/undefined, JANGAN mengarang isinya — lewati saja di narasimu.
-- Narasi 2-5 kalimat, bahasa Indonesia, casual tapi actionable dan SPESIFIK (sebut nama iklan/ad set/angka nyata, bukan kalimat generik seperti "tinjau dan perbaiki materi iklan" tanpa merujuk data apa pun).
-- Action list: 1-5 item, masing-masing punya "priority" (SEGERA = butuh aksi hari ini/besok, MINGGU_INI, atau BULAN_INI) dan "text" singkat, actionable, dan SPESIFIK — merujuk nama iklan/ad set/angka nyata dari data (mis. "Refresh creative iklan '#C014 Xpander Promo', frequency sudah 4.2" atau "Ad set masih Learning Phase, tunggu dulu sebelum ubah budget" — bukan saran generik tanpa data).
+- Jika sebuah field bernilai null/undefined, JANGAN mengarang isinya — lewati saja.
+- "diagnosis": SATU kalimat, bahasa Indonesia, tajam dan actionable, menghubungkan minimal 2 angka nyata jadi satu kesimpulan (bukan deskripsi satu metrik).
+- "metricEvidence": 2-5 bullet, urut dari paling penting. Setiap bullet: "icon" (◉=temuan utama, ⚠=peringatan, ✓=bagus, ✗=buruk), "metric" (angka singkat, mis. "CTR 3%"), "interpretation" (SATU frasa makna angka itu, mis. "2× rata-rata akun — audience masih responsif").
+- "contextNote": opsional, SATU kalimat tren/konteks nyata dari "ctrTrend7d" atau "marketDigest" — lewati field ini sama sekali kalau tidak ada data nyata untuk itu (jangan kirim string kosong/karangan).
+- "actions": 1-5 item, masing-masing punya "priority" (SEGERA/MINGGU_INI/BULAN_INI), "text" singkat actionable SPESIFIK (sebut nama iklan/ad set/angka nyata — mis. "Refresh creative iklan '#C014 Xpander Promo', frequency sudah 4.2"), dan "estimatedImpact" OPSIONAL (estimasi jujur dari angka yang ada, mis. "+8-12 leads/minggu" — HANYA isi kalau ada basis perhitungan nyata dari data, jangan mengarang angka proyeksi).
 
 Format response JSON:
 {
-  "narrative": "2-5 kalimat analisa campaign ini, spesifik dan merujuk data nyata",
+  "diagnosis": "1 kalimat diagnosis tajam, menghubungkan minimal 2 angka nyata",
+  "metricEvidence": [
+    { "icon": "◉", "metric": "CTR 3%", "interpretation": "2× rata-rata akun" }
+  ],
+  "contextNote": "1 kalimat tren nyata (opsional, lewati kalau tidak ada data)",
   "actions": [
-    { "priority": "SEGERA", "text": "aksi konkret 1" },
+    { "priority": "SEGERA", "text": "aksi konkret 1", "estimatedImpact": "+8-12 leads/minggu" },
     { "priority": "MINGGU_INI", "text": "aksi konkret 2" }
   ]
 }`;

@@ -266,16 +266,56 @@ export type CampaignInsightActionPriority = "SEGERA" | "MINGGU_INI" | "BULAN_INI
 export interface CampaignInsightActionDto {
   readonly priority: CampaignInsightActionPriority;
   readonly text: string;
+  /** Real, honest estimate Samantha derives from the request's own numbers (e.g. "+8-12 leads/minggu") — `undefined` when there's no honest basis to estimate one, never a fabricated placeholder. */
+  readonly estimatedImpact?: string;
 }
 
-/** Mirrors `aaos-api`'s `CampaignInsightResponseDto` — a discriminated union on `available`, same `LlmUnavailableResponseDto` shape every other real `llm` endpoint in this app can return (never a fabricated narrative when `available: false`). */
+export type CampaignInsightEvidenceIcon = "◉" | "⚠" | "✓" | "✗";
+
+export interface CampaignInsightEvidenceDto {
+  readonly icon: CampaignInsightEvidenceIcon;
+  readonly metric: string;
+  readonly interpretation: string;
+}
+
+/**
+ * Campaign Page Rebuild v2 — mirrors `aaos-api`'s `CampaignInsightResponseDto`, a discriminated
+ * union on `available`, same `LlmUnavailableResponseDto` shape every other real `llm` endpoint in
+ * this app can return (never a fabricated diagnosis when `available: false`). REPLACES the old
+ * free-form `narrative` paragraph with `diagnosis` (one sharp, data-connecting sentence) +
+ * `metricEvidence` (2-5 real bullets) + `contextNote` (optional, real trend/context only).
+ */
 export type CampaignInsightResponseDto =
   | {
       readonly available: true;
-      readonly narrative: string;
+      readonly diagnosis: string;
+      readonly metricEvidence: readonly CampaignInsightEvidenceDto[];
+      readonly contextNote?: string;
       readonly actions: readonly CampaignInsightActionDto[];
     }
   | { readonly available: false; readonly reason: string; readonly message: string };
+
+/**
+ * Campaign Page Rebuild v2 — mirrors `aaos-api`'s `CampaignHistoryResponseDto`
+ * (`GET /api/v1/campaigns/:campaignId/history`, real already-persisted `meta_insights_daily` rows).
+ * `points` is ordered oldest-to-newest — exactly the shape a sparkline needs. An empty array is a
+ * real, honest result (never fabricated) for a campaign with no captured history yet.
+ */
+export interface CampaignHistoryPointDto {
+  readonly date: string;
+  readonly spend: number;
+  readonly impressions: number;
+  readonly clicks: number;
+  readonly frequency: number;
+  readonly ctr: number;
+  readonly cpl: number;
+  readonly leads: number;
+}
+
+export interface CampaignHistoryResponseDto {
+  readonly campaignId: string;
+  readonly points: readonly CampaignHistoryPointDto[];
+}
 
 /** `GET /api/v1/meta-ads/accounts` proxy response entry (AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE coordinator note #6) — powers the multi-account pill selector on "Lead & Spend per Cabang × Source". */
 export interface AdAccountOptionDto {
