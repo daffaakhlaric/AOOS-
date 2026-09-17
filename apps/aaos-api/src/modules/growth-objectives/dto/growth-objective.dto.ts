@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import type { FeasibilityResult } from "../domain/feasibility.js";
+import type { ReverseFunnelResult } from "../domain/reverse-funnel.js";
+
 /**
  * `054_growth_objectives.sql`'s `metric` CHECK — a `z.literal`, not a `z.enum` of several values,
  * because only `HOT_LEADS` is real, queryable data in this codebase's CRM model today (see that
@@ -57,6 +60,12 @@ export const CreateGrowthObjectiveBodySchema = z
   });
 export type CreateGrowthObjectiveBodyDto = z.infer<typeof CreateGrowthObjectiveBodySchema>;
 
+/** The real `{reverseFunnel, feasibility}` object `GrowthObjectivesService.analyze` computes and persists — see `055_growth_objective_forecast.sql`. */
+export interface GrowthObjectiveForecastDto {
+  readonly reverseFunnel: ReverseFunnelResult;
+  readonly feasibility: FeasibilityResult;
+}
+
 export interface GrowthObjectiveResponseDto {
   readonly id: string;
   readonly tenantId: string;
@@ -71,6 +80,9 @@ export interface GrowthObjectiveResponseDto {
   readonly manualAreas: readonly string[];
   readonly automationMode: AutomationMode;
   readonly status: GrowthObjectiveStatus;
+  /** `undefined` until `/analyze` has been called at least once for this objective — never a fabricated default. */
+  readonly forecast?: GrowthObjectiveForecastDto;
+  readonly forecastComputedAt?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -94,6 +106,8 @@ export interface GrowthObjectiveRowLike {
   readonly manual_areas: readonly string[];
   readonly automation_mode: string;
   readonly status: string;
+  readonly forecast?: unknown | null;
+  readonly forecast_computed_at?: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -115,6 +129,12 @@ export function toGrowthObjectiveResponseDto(
     manualAreas: row.manual_areas,
     automationMode: row.automation_mode as AutomationMode,
     status: row.status as GrowthObjectiveStatus,
+    ...(row.forecast !== undefined && row.forecast !== null
+      ? { forecast: row.forecast as GrowthObjectiveForecastDto }
+      : {}),
+    ...(row.forecast_computed_at !== undefined && row.forecast_computed_at !== null
+      ? { forecastComputedAt: row.forecast_computed_at }
+      : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

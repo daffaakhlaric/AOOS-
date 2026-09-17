@@ -31,6 +31,7 @@ function buildFakeService(): GrowthObjectivesService {
     create: vi.fn(async () => OBJECTIVE_SAMPLE),
     getById: vi.fn(async () => OBJECTIVE_SAMPLE),
     activate: vi.fn(async () => ({ ...OBJECTIVE_SAMPLE, status: "ACTIVE" })),
+    analyze: vi.fn(async () => ({ ...OBJECTIVE_SAMPLE, status: "PLANNED" })),
   } as unknown as GrowthObjectivesService;
 }
 
@@ -74,5 +75,13 @@ describe("GrowthObjectivesController", () => {
     const result = await controller.activate(TENANT, "obj-1");
     expect(service.activate).toHaveBeenCalledWith(TENANT, "obj-1");
     expect(result.status).toBe("ACTIVE");
+  });
+
+  it("analyze() delegates to the service", async () => {
+    const service = buildFakeService();
+    const controller = new GrowthObjectivesController(service);
+    const result = await controller.analyze(TENANT, "obj-1");
+    expect(service.analyze).toHaveBeenCalledWith(TENANT, "obj-1");
+    expect(result.status).toBe("PLANNED");
   });
 });

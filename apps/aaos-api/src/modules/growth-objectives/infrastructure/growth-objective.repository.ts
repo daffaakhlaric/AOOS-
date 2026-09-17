@@ -17,11 +17,19 @@ export interface GrowthObjectiveRow {
   readonly manual_areas: readonly string[];
   readonly automation_mode: string;
   readonly status: string;
+  /** `055_growth_objective_forecast.sql` — the real `{reverseFunnel, feasibility}` object `GrowthObjectivesService.analyze` computes. `null` until `/analyze` has been called at least once for this objective. */
+  readonly forecast: unknown | null;
+  /** `055_growth_objective_forecast.sql` — when `forecast` was actually computed. `null` until the first `/analyze` call. */
+  readonly forecast_computed_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
 
-export type GrowthObjectiveInsert = Omit<GrowthObjectiveRow, "id" | "created_at" | "updated_at">;
+/** `forecast`/`forecast_computed_at` are never set on create (every new objective starts `DRAFT` with no forecast yet — the DB column defaults both to `NULL`) — only `GrowthObjectivesService.analyze`'s `update()` call ever writes them. */
+export type GrowthObjectiveInsert = Omit<
+  GrowthObjectiveRow,
+  "id" | "created_at" | "updated_at" | "forecast" | "forecast_computed_at"
+>;
 export type GrowthObjectiveUpdate = Partial<
   Omit<GrowthObjectiveRow, "id" | "tenant_id" | "created_at">
 >;

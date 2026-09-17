@@ -13,12 +13,13 @@ import {
 import { GrowthObjectivesService } from "./growth-objectives.service.js";
 
 /**
- * `GET/POST /api/v1/growth-objectives`, `GET /:id`, `POST /:id/activate` — `x-api-key` auth (same
- * perimeter as every other `aaos-api` module), tenant-scoped via `@TenantId()`.
+ * `GET/POST /api/v1/growth-objectives`, `GET /:id`, `POST /:id/activate`, `POST /:id/analyze` —
+ * `x-api-key` auth (same perimeter as every other `aaos-api` module), tenant-scoped via `@TenantId()`.
  *
- * `/analyze`, `/replan`, `/forecast` are deliberately NOT implemented here — those need the
- * Reverse Funnel/Feasibility engines, a separate, later phase (Phase 1 Part B). Stub routes are
- * left commented out below as a landing spot for that work, never as dead/fake endpoints.
+ * `/replan` (a dedicated re-analysis trigger distinct from `/analyze`) and a standalone `/forecast`
+ * read route remain out of scope for this phase — `GET /:id` already exposes the last stored
+ * `forecast`/`forecastComputedAt`, and `/analyze` itself is the only real way to (re)compute one
+ * today (legal from `DRAFT`/`REPLANNING`, see `GrowthObjectivesService.analyze`'s own doc).
  */
 @Controller("api/v1/growth-objectives")
 @UseGuards(ApiKeyGuard)
@@ -56,7 +57,12 @@ export class GrowthObjectivesController {
     return this.service.activate(tenantId, id);
   }
 
-  // Phase 1 Part B — POST ":id/analyze" (Reverse Funnel + Feasibility, produces PLANNED)
-  // Phase 1 Part B — POST ":id/replan"
-  // Phase 1 Part B — GET ":id/forecast"
+  @Post(":id/analyze")
+  @HttpCode(200)
+  async analyze(
+    @TenantId() tenantId: string,
+    @Param("id") id: string,
+  ): Promise<GrowthObjectiveResponseDto> {
+    return this.service.analyze(tenantId, id);
+  }
 }
