@@ -177,15 +177,31 @@ export interface CampaignInsightAdDto {
   readonly learningStatus?: string;
 }
 
+export type CampaignInsightDiversityStatus = "NOT_ENOUGH_DATA" | "LOW_DIVERSITY" | "DIVERSE";
+
+/**
+ * SAMANTHA ADVANCED INSIGHT ENGINE — real Andromeda creative-diversity signal, mirrored from
+ * `AndromedaHealthDto.diversity` (the SAME real, already-fetched data `AndromedaHealthCard.tsx`
+ * shows immediately below `CampaignInsightPanel`) — reused rather than re-scored, so the two can
+ * never disagree about the same campaign.
+ */
+export interface CampaignInsightAndromedaDiversityDto {
+  readonly status: CampaignInsightDiversityStatus;
+  readonly totalAdCount: number;
+  readonly distinctCreativeAssetCount?: number;
+  readonly reasoning: string;
+}
+
 /**
  * AAOS-CAMPAIGNS-UNIFIED-PAGE — `POST /api/campaign-insight` request body (proxies `aaos-api`'s
  * real `POST /api/v1/campaigns/insight`). Composed CLIENT-SIDE from one selected campaign's
  * already-loaded real aggregate metrics — see `aaos-api`'s `CampaignInsightRequestSchema` (the
  * server-side Zod trust boundary this shape mirrors) for the full field-by-field real-source doc.
  *
- * SAMANTHA ADVANCED SPRINT 2 additions (`ads`/`learningAdSetStableIds`/`marketDigest`) are all
- * optional, additive fields — see `aaos-api`'s `CampaignInsightRequestSchema` for why each is
- * genuinely real/cheap/already-computed rather than fabricated.
+ * SAMANTHA ADVANCED SPRINT 2 additions (`ads`/`learningAdSetStableIds`/`marketDigest`) and SAMANTHA
+ * ADVANCED INSIGHT ENGINE additions (`dailyBudget`/`cpc`/`cpm`/`reach`/`*Trend7d`/
+ * `andromedaDiversity`/`hotLeadsCount`) are all real, already-computed/already-fetched fields — see
+ * `aaos-api`'s `CampaignInsightRequestSchema` for the full real-source doc per field.
  */
 export interface CampaignInsightRequestDto {
   readonly campaignId: string;
@@ -200,9 +216,19 @@ export interface CampaignInsightRequestDto {
   readonly adSetCount: number;
   readonly cpl: number | null;
   readonly benchmarkCplIDR: number | null;
+  readonly dailyBudget: number;
+  readonly cpc: number | null;
+  readonly cpm: number | null;
+  readonly reach: number | null;
   readonly ads?: readonly CampaignInsightAdDto[];
   readonly learningAdSetStableIds?: readonly string[];
   readonly marketDigest?: string | null;
+  readonly ctrTrend7d?: readonly number[];
+  readonly spendTrend7d?: readonly number[];
+  readonly resultsTrend7d?: readonly number[];
+  readonly freqTrend7d?: readonly number[];
+  readonly andromedaDiversity?: CampaignInsightAndromedaDiversityDto;
+  readonly hotLeadsCount?: number;
 }
 
 /**
@@ -261,37 +287,86 @@ export type DiagnoseAdCopyResponseDto =
       readonly message: string;
     };
 
-export type CampaignInsightActionPriority = "SEGERA" | "MINGGU_INI" | "BULAN_INI";
+export type CampaignInsightTriageLevel = "DARURAT" | "KRITIS" | "PERLU_PERHATIAN" | "SEHAT";
+export type CampaignInsightVerdict = "SCALE" | "KEEP" | "REVIEW" | "REFRESH" | "FIX" | "PAUSE";
+export type CampaignInsightMetricStatus = "critical" | "warning" | "good" | "neutral";
+export type CampaignInsightTrend = "naik" | "turun" | "stabil";
+export type CampaignInsightKaiUrgency = "immediate" | "this_week" | "next_cycle";
+export type CampaignInsightBudgetRecommendation = "increase" | "maintain" | "decrease" | "pause";
 
-export interface CampaignInsightActionDto {
-  readonly priority: CampaignInsightActionPriority;
-  readonly text: string;
-  /** Real, honest estimate Samantha derives from the request's own numbers (e.g. "+8-12 leads/minggu") — `undefined` when there's no honest basis to estimate one, never a fabricated placeholder. */
-  readonly estimatedImpact?: string;
+export interface CampaignInsightPlaybookStep {
+  readonly action: string;
+  readonly how: string;
+  readonly why: string;
+  readonly expectedResult: string;
+  readonly risk_if_not?: string;
 }
 
-export type CampaignInsightEvidenceIcon = "◉" | "⚠" | "✓" | "✗";
-
-export interface CampaignInsightEvidenceDto {
-  readonly icon: CampaignInsightEvidenceIcon;
+export interface CampaignInsightMetricBreakdownDto {
   readonly metric: string;
+  readonly status: CampaignInsightMetricStatus;
   readonly interpretation: string;
+  readonly vsContext: string;
+  readonly trend: CampaignInsightTrend;
+  readonly trendDetail: string;
+}
+
+export interface CampaignInsightScenarioDto {
+  readonly name: string;
+  readonly probability: string;
+  readonly steps: readonly string[];
+  readonly expectedOutcome: string;
+  readonly timeToResult: string;
+  readonly risk?: string;
 }
 
 /**
- * Campaign Page Rebuild v2 — mirrors `aaos-api`'s `CampaignInsightResponseDto`, a discriminated
- * union on `available`, same `LlmUnavailableResponseDto` shape every other real `llm` endpoint in
- * this app can return (never a fabricated diagnosis when `available: false`). REPLACES the old
- * free-form `narrative` paragraph with `diagnosis` (one sharp, data-connecting sentence) +
- * `metricEvidence` (2-5 real bullets) + `contextNote` (optional, real trend/context only).
+ * SAMANTHA ADVANCED INSIGHT ENGINE — mirrors `aaos-api`'s `CampaignInsightLlmPayloadSchema`, a
+ * full rewrite of Campaign Page Rebuild v2's `diagnosis`/`metricEvidence`/`actions` shape into a
+ * senior-media-buyer diagnosis framework (Triage → Root Cause → Evidence → Treatment →
+ * Prognosis). See that schema's own doc for why each field is real model REASONING over real
+ * inputs, never a fabricated metric.
  */
 export type CampaignInsightResponseDto =
   | {
       readonly available: true;
-      readonly diagnosis: string;
-      readonly metricEvidence: readonly CampaignInsightEvidenceDto[];
-      readonly contextNote?: string;
-      readonly actions: readonly CampaignInsightActionDto[];
+      readonly triage: { readonly level: CampaignInsightTriageLevel; readonly why: string };
+      readonly verdict: CampaignInsightVerdict;
+      readonly confidence: number;
+      readonly verdictOneLiner: string;
+      readonly rootCause: {
+        readonly primary: string;
+        readonly primaryEvidence: string;
+        readonly secondary?: string;
+        readonly ruled_out?: string;
+      };
+      readonly metricBreakdown: readonly CampaignInsightMetricBreakdownDto[];
+      readonly whatHappened: string;
+      readonly playbook: {
+        readonly immediate: CampaignInsightPlaybookStep;
+        readonly shortTerm: CampaignInsightPlaybookStep;
+        readonly mediumTerm: CampaignInsightPlaybookStep;
+      };
+      readonly kaiDirective: {
+        readonly needed: boolean;
+        readonly urgency?: CampaignInsightKaiUrgency;
+        readonly brief?: string;
+        readonly angles_to_avoid?: string;
+        readonly reasoning?: string;
+      };
+      readonly budgetDecision: {
+        readonly recommendation: CampaignInsightBudgetRecommendation;
+        readonly currentBudget: number;
+        readonly recommendedBudget: number;
+        readonly changePercent: number;
+        readonly reasoning: string;
+        readonly prerequisite?: string;
+        readonly opportunityCost?: string;
+      };
+      readonly scenarios: readonly CampaignInsightScenarioDto[];
+      readonly competitorContext?: string;
+      readonly learnings: readonly string[];
+      readonly proTip?: string;
     }
   | { readonly available: false; readonly reason: string; readonly message: string };
 

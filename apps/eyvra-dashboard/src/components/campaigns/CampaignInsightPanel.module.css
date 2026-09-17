@@ -81,7 +81,7 @@
   margin: 0 0 12px;
 }
 
-/* Campaign Page Rebuild v2 — verdict header bar, colored per real verdict. */
+/* SAMANTHA ADVANCED INSIGHT ENGINE — Section A: triage + verdict header bar, colored per real verdict/triage level. */
 .verdictHeader {
   display: flex;
   align-items: center;
@@ -125,6 +125,586 @@
   color: var(--v2-text-1, #0f172a);
   line-height: 1.5;
   margin: 0;
+}
+
+.triageDotWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.triageDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.3);
+  }
+}
+
+.triageDotPulse {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+.triageLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.triageSub {
+  font-size: 9px;
+  color: var(--v2-text-2, #64748b);
+}
+
+.triageDivider {
+  width: 1px;
+  height: 32px;
+  background: var(--v2-border, #e2e8f0);
+  flex-shrink: 0;
+}
+
+.confidenceNote {
+  font-size: 10px;
+  color: var(--v2-text-2, #94a3b8);
+}
+
+.samanthaAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Section C — root cause card. */
+.rootCauseBlock {
+  background: var(--v2-warm-tint, #fffbeb);
+  border: 1px solid var(--v2-warm-light, #fde68a);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.blockLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--amber, #92400e);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px;
+}
+
+.rootCauseRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.rootCauseIcon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #fef3c7;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.rootCausePrimary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-text-1, #0f172a);
+  margin: 0 0 2px;
+}
+
+.rootCauseEvidence {
+  font-size: 11px;
+  color: var(--v2-text-2, #475569);
+  margin: 0;
+}
+
+.rootCauseSecondary {
+  font-size: 10px;
+  color: var(--v2-text-2, #64748b);
+  margin: 0 0 8px 30px;
+}
+
+.rootCauseRuledOut {
+  font-size: 10px;
+  color: var(--v2-text-2, #64748b);
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+  border-left: 2px solid var(--v2-border, #e2e8f0);
+}
+
+/* Section D — what happened story. */
+.whatHappenedBlock {
+  background: var(--v2-card-flat, #f8fafc);
+  border-radius: 10px;
+  padding: 12px 14px;
+  border-left: 3px solid #7c3aed;
+  margin-bottom: 12px;
+}
+
+.whatHappenedLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: #7c3aed;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.whatHappenedText {
+  font-size: 12px;
+  color: var(--v2-text-2, #475569);
+  line-height: 1.7;
+  font-style: italic;
+  margin: 0;
+}
+
+/* Section E — metric breakdown (evidence) list. */
+.metricBreakdownList {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metricBreakdownItem {
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.metricBreakdownTop {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.metricBreakdownMetric {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--v2-text-1, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+
+.metricStatusCritical {
+  color: var(--red, #dc2626);
+}
+
+.metricStatusWarning {
+  color: var(--amber, #d97706);
+}
+
+.metricStatusGood {
+  color: var(--green, #16a34a);
+}
+
+.metricStatusNeutral {
+  color: var(--v2-text-2, #64748b);
+}
+
+.metricBreakdownInterpretation {
+  font-size: 11px;
+  color: var(--v2-text-1, #0f172a);
+  margin: 0 0 2px;
+}
+
+.metricBreakdownContext {
+  font-size: 10px;
+  color: var(--v2-text-2, #64748b);
+  margin: 0;
+}
+
+.metricBreakdownTrend {
+  font-size: 10px;
+  color: var(--v2-text-2, #94a3b8);
+  margin: 2px 0 0;
+}
+
+/* Section F — playbook timeline. */
+.playbookBlock {
+  margin-bottom: 12px;
+}
+
+.playbookPhase {
+  border-radius: 9px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+}
+
+.playbookPhaseImmediate {
+  background: var(--red-light, #fef2f2);
+  border-color: #fecaca;
+}
+
+.playbookPhaseShortTerm {
+  background: var(--v2-warm-tint, #fffbeb);
+  border-color: #fde68a;
+}
+
+.playbookPhaseMediumTerm {
+  background: var(--green-light, #ecfdf5);
+  border-color: #a7f3d0;
+}
+
+.playbookPhaseHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.playbookBadge {
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.playbookBadgeImmediate {
+  background: var(--red, #ef4444);
+}
+
+.playbookBadgeShortTerm {
+  background: var(--amber, #d97706);
+}
+
+.playbookBadgeMediumTerm {
+  background: var(--green, #059669);
+}
+
+.playbookAction {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-text-1, #0f172a);
+}
+
+.playbookHow {
+  font-size: 11px;
+  color: var(--v2-text-2, #475569);
+  line-height: 1.5;
+  margin: 0 0 5px;
+}
+
+.playbookFooter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.playbookExpected {
+  font-size: 10px;
+  color: #065f46;
+  background: #d1fae5;
+  border-radius: 5px;
+  padding: 2px 8px;
+}
+
+.playbookRisk {
+  font-size: 10px;
+  color: #991b1b;
+  background: #fee2e2;
+  border-radius: 5px;
+  padding: 2px 8px;
+}
+
+/* Section G — Kai directive (informational only — the real "Brief Kai" action lives on
+   AndromedaHealthCard immediately below this panel, never duplicated here). */
+.kaiBlock {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.kaiHeader {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.kaiAvatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.kaiTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.kaiUrgency {
+  font-size: 9px;
+  color: #8b5cf6;
+}
+
+.kaiBriefBox {
+  background: rgba(124, 58, 237, 0.06);
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.kaiBriefLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: #6d28d9;
+  margin: 0 0 4px;
+}
+
+.kaiBriefText {
+  font-size: 11px;
+  color: #4c1d95;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.kaiAvoid {
+  font-size: 10px;
+  color: #7c3aed;
+  opacity: 0.8;
+  margin: 0 0 6px;
+}
+
+.kaiActionNote {
+  font-size: 10px;
+  color: #6d28d9;
+  margin: 0;
+}
+
+/* Section H — budget decision. */
+.budgetBlock {
+  background: var(--v2-card-flat, #f8fafc);
+  border: 1px solid var(--v2-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.budgetRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.budgetCurrent {
+  font-size: 13px;
+  color: var(--v2-text-2, #94a3b8);
+  text-decoration: line-through;
+}
+
+.budgetRecommendedIncrease {
+  color: var(--green, #059669);
+}
+
+.budgetRecommendedDecrease {
+  color: var(--red, #ef4444);
+}
+
+.budgetRecommendedPause {
+  color: var(--v2-text-2, #94a3b8);
+}
+
+.budgetRecommendedMaintain {
+  color: var(--v2-text-1, #0f172a);
+}
+
+.budgetRecommended {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.budgetChangePositive {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--green, #059669);
+}
+
+.budgetChangeNegative {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--red, #ef4444);
+}
+
+.budgetReasoning {
+  font-size: 10px;
+  color: var(--v2-text-2, #64748b);
+  margin: 4px 0 0;
+}
+
+.budgetPrerequisite {
+  background: var(--v2-warm-tint, #fffbeb);
+  border-radius: 7px;
+  padding: 7px 9px;
+  font-size: 10px;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.budgetOpportunityCost {
+  font-size: 10px;
+  color: var(--v2-text-2, #94a3b8);
+  margin: 6px 0 0;
+}
+
+/* Section I — scenario comparison. */
+.scenarioBlock {
+  margin-bottom: 12px;
+}
+
+.scenarioGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.scenarioCard {
+  border-radius: 9px;
+  padding: 10px 12px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-flat, #f8fafc);
+}
+
+.scenarioCardPrimary {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.scenarioHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.scenarioName {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v2-text-2, #475569);
+}
+
+.scenarioNamePrimary {
+  color: #1e40af;
+}
+
+.scenarioProbability {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--v2-text-2, #94a3b8);
+  flex-shrink: 0;
+}
+
+.scenarioProbabilityPrimary {
+  color: #1e40af;
+}
+
+.scenarioOutcome {
+  font-size: 10px;
+  color: var(--v2-text-2, #475569);
+  line-height: 1.5;
+  margin: 0 0 6px;
+}
+
+.scenarioTime {
+  font-size: 9px;
+  color: var(--v2-text-2, #94a3b8);
+}
+
+.scenarioRisk {
+  font-size: 9px;
+  color: var(--red, #ef4444);
+  margin: 4px 0 0;
+}
+
+/* Section J — pro tip (dark card). */
+.proTipBlock {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.proTipLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: #a5b4fc;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 6px;
+}
+
+.proTipText {
+  font-size: 12px;
+  color: #e0e7ff;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Section K — learnings. */
+.learningsBlock {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--v2-border, #e2e8f0);
+}
+
+.learningsLabel {
+  font-size: 9px;
+  color: var(--v2-text-2, #94a3b8);
+  margin: 0 0 5px;
+}
+
+.learningItem {
+  font-size: 10px;
+  color: var(--v2-text-2, #64748b);
+  margin: 0 0 3px;
 }
 
 /* Real CPL-vs-benchmark visual comparison bar. */
@@ -171,51 +751,11 @@
   margin-top: 4px;
 }
 
-.evidenceList {
-  list-style: none;
-  margin: 0 0 10px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.evidenceItem {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--v2-text-1, #0f172a);
-}
-
-.evidenceIcon {
-  flex-shrink: 0;
-  font-weight: 700;
-}
-
-.evidenceMetric {
-  flex-shrink: 0;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.evidenceInterpretation {
-  color: var(--v2-text-2, #64748b);
-}
-
 .contextNote {
   font-size: 11px;
   font-style: italic;
   color: var(--v2-text-2, #64748b);
   margin: 0 0 12px;
-}
-
-.actionImpact {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--green, #16a34a);
-  margin-left: auto;
-  flex-shrink: 0;
 }
 
 .unavailable {
@@ -226,48 +766,6 @@
   border-radius: 8px;
   padding: 10px 14px;
   margin: 0;
-}
-
-.actionList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.actionItem {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--v2-text-1, #0f172a);
-}
-
-.priorityBadge {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.prioritySEGERA {
-  background: var(--red-light, #fef2f2);
-  color: var(--red, #dc2626);
-}
-
-.priorityMINGGU_INI {
-  background: var(--amber-light, #fffbeb);
-  color: var(--amber, #d97706);
-}
-
-.priorityBULAN_INI {
-  background: var(--green-light, #f0fdf4);
-  color: var(--green, #16a34a);
 }
 
 .abTestingLink {

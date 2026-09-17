@@ -8,16 +8,25 @@ import { aggregateVerdict } from "@/components/meta-ads/CampaignTree";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { formatIdr, formatNumber, formatPercent } from "@/lib/formatters";
+import type { AndromedaHealthDto } from "@/types/andromeda-health.types";
 import type {
   CampaignHistoryPointDto,
-  CampaignInsightActionPriority,
-  CampaignInsightAdDto,
+  CampaignInsightBudgetRecommendation,
   CampaignInsightResponseDto,
+  CampaignInsightTriageLevel,
   CampaignSummaryDto,
+  LeadDto,
 } from "@/types/dashboard.types";
 import type { MarketSignalsDto } from "@/types/market-signals.types";
 
-import { aggregateCampaign, computeCpl, ctrFromAggregate, rphChatIDR } from "./campaignInsightMath";
+import {
+  aggregateCampaign,
+  computeCpl,
+  cpcFromAggregate,
+  cpmFromAggregate,
+  ctrFromAggregate,
+  rphChatIDR,
+} from "./campaignInsightMath";
 import styles from "./CampaignInsightPanel.module.css";
 
 export interface CampaignInsightPanelProps {
@@ -26,23 +35,12 @@ export interface CampaignInsightPanelProps {
   readonly onClose: () => void;
 }
 
-const PRIORITY_LABEL: Readonly<Record<CampaignInsightActionPriority, string>> = {
-  SEGERA: "Segera",
-  MINGGU_INI: "Minggu ini",
-  BULAN_INI: "Bulan ini",
-};
-
-const PRIORITY_ORDER: readonly CampaignInsightActionPriority[] = [
-  "SEGERA",
-  "MINGGU_INI",
-  "BULAN_INI",
-];
-
 /**
- * Campaign Page Rebuild v2 — verdict header config. Real 6-value `Verdict` vocabulary
- * (`@aos/meta-ads-connector`'s own enum: SCALE/KEEP/REVIEW/REFRESH/FIX/PAUSE) — the pasted spec's
- * own "CREATIVE" verdict does not exist anywhere in this codebase; `REFRESH` (Meta's real
- * creative-fatigue verdict) is the honest match for that same real-world meaning.
+ * SAMANTHA ADVANCED INSIGHT ENGINE — real 6-value `Verdict` vocabulary (`@aos/meta-ads-connector`'s
+ * own enum: SCALE/KEEP/REVIEW/REFRESH/FIX/PAUSE) — the pasted spec's own "CREATIVE" verdict does
+ * not exist anywhere in this codebase; `REFRESH` (Meta's real creative-fatigue verdict) is the
+ * honest match for that same real-world meaning (see `aaos-api`'s `CAMPAIGN_INSIGHT_SYSTEM_PROMPT`
+ * for the same note on the model side).
  */
 const VERDICT_CONFIG: Readonly<
   Record<
@@ -59,13 +57,45 @@ const VERDICT_CONFIG: Readonly<
 };
 const DEFAULT_VERDICT_CONFIG = VERDICT_CONFIG.KEEP!;
 
+const TRIAGE_CONFIG: Readonly<
+  Record<
+    CampaignInsightTriageLevel,
+    { readonly dot: string; readonly label: string; readonly pulse: boolean }
+  >
+> = {
+  DARURAT: { dot: "#ef4444", label: "DARURAT", pulse: true },
+  KRITIS: { dot: "#f59f00", label: "KRITIS", pulse: true },
+  PERLU_PERHATIAN: { dot: "#d97706", label: "PERLU PERHATIAN", pulse: false },
+  SEHAT: { dot: "#10b981", label: "SEHAT", pulse: false },
+};
+
+const BUDGET_RECOMMENDATION_CLASS: Readonly<Record<CampaignInsightBudgetRecommendation, string>> = {
+  increase: styles.budgetRecommendedIncrease!,
+  decrease: styles.budgetRecommendedDecrease!,
+  pause: styles.budgetRecommendedPause!,
+  maintain: styles.budgetRecommendedMaintain!,
+};
+
+const PLAYBOOK_PHASES = [
+  { key: "immediate" as const, label: "Sekarang", suffix: "Immediate" },
+  { key: "shortTerm" as const, label: "3-7 hari", suffix: "ShortTerm" },
+  { key: "mediumTerm" as const, label: "2-4 minggu", suffix: "MediumTerm" },
+];
+
+const METRIC_STATUS_CLASS: Readonly<Record<string, string>> = {
+  critical: styles.metricStatusCritical!,
+  warning: styles.metricStatusWarning!,
+  good: styles.metricStatusGood!,
+  neutral: styles.metricStatusNeutral!,
+};
+
 /**
  * SAMANTHA ADVANCED SPRINT 2 — real per-ad breakdown for `CampaignInsightRequestDto.ads`, built
  * from the SAME `campaign.adSets` tree `CampaignAdDrillDown` already renders (never a second Meta
  * pull, never re-derived numbers) — the exact `rphChatIDR` ratio that component's own diagnosis
  * request already computes, shared via `campaignInsightMath.ts` so the two surfaces can never drift.
  */
-function buildInsightAds(campaign: CampaignSummaryDto): readonly CampaignInsightAdDto[] {
+function buildInsightAds(campaign: CampaignSummaryDto) {
   return campaign.adSets.flatMap((adSet) =>
     adSet.ads.map((ad) => ({
       stableId: ad.stableId,
@@ -105,20 +135,23 @@ function deltaFrom(
 }
 
 /**
- * AAOS-CAMPAIGNS-UNIFIED-PAGE — the unified page's click-to-expand insight panel (spec: "6 KPI
- * mini + narasi + action list prioritized").
+ * AAOS-CAMPAIGNS-UNIFIED-PAGE — the unified page's click-to-expand insight panel.
  *
- * Campaign Page Rebuild v2 — REBUILT: a verdict header bar (real `verdict`, already computed
- * client-side, was previously never shown in this panel at all — only the `objective` chip was);
- * real 7-day sparklines/deltas on each KPI card, fed from the new, real
- * `GET /api/campaigns/:campaignId/history` (`meta_insights_daily` read-back — see that route's own
- * doc for why this was previously impossible to build honestly, `MetricCard`'s own sparkline prop
- * had existed unused for exactly this reason); a real CPL-vs-benchmark visual bar; and the old
- * free-form `narrative` paragraph replaced by Samantha's new, sharper `diagnosis` +
- * `metricEvidence` + optional `contextNote` structure (see `aaos-api`'s `CAMPAIGN_INSIGHT_SYSTEM_
- * PROMPT` for the real prompt change behind this). Andromeda health is deliberately NOT duplicated
- * here — `AndromedaHealthCard` already renders immediately after this panel (see that component's
- * own "PLACEMENT" doc), so a second, redundant mini-widget here would just drift from that one.
+ * SAMANTHA ADVANCED INSIGHT ENGINE — full rewrite of the "Analisa Samantha" section from the
+ * previous `diagnosis`/`metricEvidence`/`actions` shape (Campaign Page Rebuild v2) into a
+ * senior-media-buyer diagnosis layout: triage header, root cause, "yang terjadi" story, metric
+ * breakdown, a 3-phase playbook, a Kai directive (informational — the real "Brief Kai" ACTION
+ * still lives on `AndromedaHealthCard` immediately below this panel, never duplicated here), a
+ * budget decision, 2 scenarios, an optional competitor-context note, learnings, and an optional
+ * pro tip. The KPI grid / CPL bar / ad drill-down below are unchanged from the previous rebuild.
+ *
+ * Real new request inputs this rewrite adds (see `aaos-api`'s `CampaignInsightRequestSchema` for
+ * the full doc): `dailyBudget`/`cpc`/`cpm`/`reach` (already-aggregated, just not previously sent),
+ * `spendTrend7d`/`resultsTrend7d`/`freqTrend7d` (the same real `history` this panel already
+ * fetches for sparklines), `andromedaDiversity` (best-effort fetch of the SAME real
+ * `andromeda-health` endpoint `AndromedaHealthCard` uses — reused, never re-scored), and
+ * `hotLeadsCount` (best-effort fetch of `/api/leads`, grouped by the real `LeadDto.campaignId`
+ * field, the same real attribution `ObjectiveStripCard.tsx`'s own breakdown uses).
  */
 export function CampaignInsightPanel({
   campaign,
@@ -128,30 +161,23 @@ export function CampaignInsightPanel({
   const [insight, setInsight] = useState<CampaignInsightResponseDto | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | undefined>(undefined);
-  // SAMANTHA ADVANCED SPRINT 2 — real, already-persisted Market Intelligence digest for this
-  // tenant's vertical (see `MarketSignalsCard.tsx`'s own real fetch of the same endpoint). `undefined`
-  // until this best-effort fetch resolves (or forever, if it fails) — the campaign-insight request
-  // below is composed with whatever this state holds AT THAT MOMENT and never blocks/waits on it.
   const [marketDigest, setMarketDigest] = useState<string | null | undefined>(undefined);
-  // Campaign Page Rebuild v2 — real, best-effort 7-day history for sparklines/deltas + the CTR
-  // trend context Samantha's own prompt can cite. `undefined` while loading/unavailable — every
-  // sparkline/delta below honestly renders nothing rather than a fabricated flat line.
   const [history, setHistory] = useState<readonly CampaignHistoryPointDto[] | undefined>(undefined);
+  const [andromedaHealth, setAndromedaHealth] = useState<AndromedaHealthDto | undefined>(undefined);
+  const [hotLeadsCount, setHotLeadsCount] = useState<number | undefined>(undefined);
 
   // Real bug fix (live-confirmed report, see `VerdictCards.tsx`'s own identical fix and doc): a
   // delayed/partial ad-level Meta Insights pull can leave `campaign.adSets` genuinely empty/zeroed
-  // while the campaign-level Insights row (`campaign.spend`) already has the real number. Before
-  // this fix, both the KPI grid AND the `/api/campaign-insight` request body silently sent the
-  // misleading ad-level Rp 0 — which is exactly why Samantha's narrative stayed generic/aggregate-
-  // only: she was being told (honestly, per her own data) that this campaign spent nothing, so she
-  // had no real per-ad signal to reason about. Falling back to the real `campaign.spend` (never
-  // paired with a CPL that has no real relationship to it) fixes the KPI display AND gives the LLM
-  // the real, non-zero spend context it needs.
+  // while the campaign-level Insights row (`campaign.spend`) already has the real number. Falling
+  // back to the real `campaign.spend` gives the KPI display AND the LLM the real, non-zero spend
+  // context it needs.
   const aggregate = aggregateCampaign(campaign);
   const adLevelSpendAvailable = aggregate.spend > 0;
   const displaySpend = adLevelSpendAvailable ? aggregate.spend : campaign.spend;
   const cpl = adLevelSpendAvailable ? computeCpl(aggregate.spend, aggregate.totalLead) : null;
   const ctr = ctrFromAggregate(aggregate);
+  const cpc = cpcFromAggregate(aggregate);
+  const cpm = cpmFromAggregate(aggregate);
   const verdict = aggregateVerdict(
     campaign.adSets.flatMap((adSet) => adSet.ads.map((ad) => ad.verdict)),
   );
@@ -178,10 +204,19 @@ export function CampaignInsightPanel({
         adSetCount: aggregate.adSetCount,
         cpl,
         benchmarkCplIDR,
+        dailyBudget: aggregate.dailyBudget,
+        cpc,
+        cpm,
+        reach: aggregate.reach,
         ads: buildInsightAds(campaign),
         learningAdSetStableIds: buildLearningAdSetStableIds(campaign),
         marketDigest,
         ctrTrend7d: history?.map((point) => point.ctr),
+        spendTrend7d: history?.map((point) => point.spend),
+        resultsTrend7d: history?.map((point) => point.leads),
+        freqTrend7d: history?.map((point) => point.frequency),
+        andromedaDiversity: andromedaHealth?.diversity,
+        hotLeadsCount,
       }),
     })
       .then(async (res) => {
@@ -210,20 +245,13 @@ export function CampaignInsightPanel({
     return () => {
       cancelled = true;
     };
-    // Re-fetch only when the selected campaign genuinely changes — `benchmarkCplIDR` is stable for
-    // a given page session, `aggregate`/`cpl`/`verdict` are pure derivations of `campaign` itself.
-    // `marketDigest`/`history` are deliberately NOT dependencies — using whatever value they hold
-    // right now, not re-triggering a second campaign-insight call when either resolves later.
+    // Re-fetch only when the selected campaign genuinely changes — every other value used above
+    // (`marketDigest`/`history`/`andromedaHealth`/`hotLeadsCount`) is deliberately NOT a dependency:
+    // this uses whichever value each best-effort fetch holds right now, never re-triggering a
+    // second campaign-insight call when one of them resolves later.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign.id]);
 
-  // SAMANTHA ADVANCED SPRINT 2 — real, best-effort fetch of this tenant's persisted Market
-  // Intelligence digest (`GET /api/market-signals/latest`, the SAME endpoint `MarketSignalsCard.tsx`
-  // already reads — no new backend call site). Declared AFTER the campaign-insight effect above so
-  // its own fetch always fires first on a given commit; intentionally NOT campaign-scoped (the
-  // digest is tenant/vertical-level, not per-campaign) and never blocks/fails the insight panel —
-  // any error here just leaves `marketDigest` `undefined`, an honest "not available" the prompt
-  // schema already treats as optional.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/market-signals/latest")
@@ -247,10 +275,8 @@ export function CampaignInsightPanel({
   }, []);
 
   // Campaign Page Rebuild v2 — real, best-effort fetch of this campaign's 7-day history
-  // (`meta_insights_daily` read-back) for sparklines/deltas. Campaign-scoped, keyed by the real,
-  // stable `metaId` (never `id` — see `CampaignSummaryDto.metaId`'s own doc for why `id` alone is
-  // unsafe across a separate request). Best-effort: a failure here just leaves every sparkline/
-  // delta below honestly absent, never blocks or fails the rest of the panel.
+  // (`meta_insights_daily` read-back) for sparklines/deltas AND the trend arrays fed to Samantha.
+  // Campaign-scoped, keyed by the real, stable `metaId` (never `id`).
   useEffect(() => {
     let cancelled = false;
     setHistory(undefined);
@@ -267,15 +293,64 @@ export function CampaignInsightPanel({
         }
       })
       .catch(() => {
-        // Best-effort only — sparklines/deltas just stay absent.
+        // Best-effort only — sparklines/deltas/trend arrays just stay absent.
       });
     return () => {
       cancelled = true;
     };
   }, [campaign.metaId]);
 
+  // SAMANTHA ADVANCED INSIGHT ENGINE — real, best-effort fetch of the SAME `andromeda-health`
+  // endpoint `AndromedaHealthCard` (rendered right below this panel) already uses, reused here
+  // only to feed Samantha's prompt the real diversity signal — never a second scoring mechanism.
+  useEffect(() => {
+    let cancelled = false;
+    setAndromedaHealth(undefined);
+    fetch(`/api/campaigns/${encodeURIComponent(campaign.id)}/andromeda-health`)
+      .then((res) => (res.ok ? (res.json() as Promise<AndromedaHealthDto>) : undefined))
+      .then((body) => {
+        if (!cancelled) {
+          setAndromedaHealth(body);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — `andromedaDiversity` just stays absent from the Samantha request.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign.id]);
+
+  // SAMANTHA ADVANCED INSIGHT ENGINE — real, best-effort HOT-lead count for this campaign, grouped
+  // client-side from `/api/leads` by the real `LeadDto.campaignId` (the SAME real attribution
+  // `ObjectiveStripCard.tsx`'s own per-campaign breakdown uses). `campaign.id` (not `metaId`) since
+  // `LeadDto.campaignId` is populated by `aaos-api` from its own internal campaign id.
+  useEffect(() => {
+    let cancelled = false;
+    setHotLeadsCount(undefined);
+    fetch("/api/leads")
+      .then((res) => (res.ok ? (res.json() as Promise<{ leads?: readonly LeadDto[] }>) : undefined))
+      .then((body) => {
+        if (cancelled || body?.leads === undefined) {
+          return;
+        }
+        const count = body.leads.filter(
+          (lead) => lead.temperature === "HOT" && lead.campaignId === campaign.id,
+        ).length;
+        setHotLeadsCount(count);
+      })
+      .catch(() => {
+        // Best-effort only — `hotLeadsCount` just stays absent from the Samantha request.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign.id]);
+
   const cplRatio =
     cpl !== null && benchmarkCplIDR !== null && benchmarkCplIDR > 0 ? cpl / benchmarkCplIDR : null;
+  const triageConfig =
+    insight?.available === true ? TRIAGE_CONFIG[insight.triage.level] : undefined;
 
   return (
     <section data-testid="campaign-insight-panel" className={styles.panel}>
@@ -296,9 +371,33 @@ export function CampaignInsightPanel({
         data-testid="insight-verdict-header"
         style={{ background: verdictConfig.bg, borderColor: verdictConfig.border }}
       >
-        <div className={styles.verdictIcon} style={{ background: verdictConfig.border }}>
-          {verdictConfig.icon}
-        </div>
+        {triageConfig !== undefined ? (
+          <>
+            <div className={styles.triageDotWrap} data-testid="insight-triage">
+              <span
+                className={`${styles.triageDot} ${triageConfig.pulse ? styles.triageDotPulse : ""}`}
+                style={{ background: triageConfig.dot }}
+              />
+              <div>
+                <div
+                  className={styles.triageLabel}
+                  data-testid="insight-triage-label"
+                  style={{ color: triageConfig.dot }}
+                >
+                  {triageConfig.label}
+                </div>
+                <div className={styles.triageSub}>
+                  {insight?.available === true ? insight.triage.why : ""}
+                </div>
+              </div>
+            </div>
+            <div className={styles.triageDivider} />
+          </>
+        ) : (
+          <div className={styles.verdictIcon} style={{ background: verdictConfig.border }}>
+            {verdictConfig.icon}
+          </div>
+        )}
         <div className={styles.verdictBody}>
           <span
             className={styles.verdictBadge}
@@ -308,11 +407,18 @@ export function CampaignInsightPanel({
             {verdictConfig.label}
           </span>
           {!loading && insight?.available === true ? (
-            <p className={styles.diagnosis} data-testid="insight-diagnosis">
-              {insight.diagnosis}
+            <span className={styles.confidenceNote} data-testid="insight-confidence">
+              {" "}
+              {insight.confidence}% yakin
+            </span>
+          ) : null}
+          {!loading && insight?.available === true ? (
+            <p className={styles.diagnosis} data-testid="insight-verdict-oneliner">
+              {insight.verdictOneLiner}
             </p>
           ) : null}
         </div>
+        <div className={styles.samanthaAvatar}>S</div>
       </div>
 
       <div className={styles.kpiGrid} data-testid="insight-kpi-grid">
@@ -403,39 +509,220 @@ export function CampaignInsightPanel({
         {!loading && insight !== undefined ? (
           insight.available ? (
             <>
-              <ul className={styles.evidenceList} data-testid="insight-evidence-list">
-                {insight.metricEvidence.map((evidence, index) => (
-                  <li key={index} className={styles.evidenceItem}>
-                    <span className={styles.evidenceIcon}>{evidence.icon}</span>
-                    <span className={styles.evidenceMetric}>{evidence.metric}</span>
-                    <span className={styles.evidenceInterpretation}>{evidence.interpretation}</span>
+              {/* Section C — Root Cause */}
+              <div className={styles.rootCauseBlock} data-testid="insight-root-cause">
+                <p className={styles.blockLabel}>Root Cause Analysis</p>
+                <div className={styles.rootCauseRow}>
+                  <span className={styles.rootCauseIcon}>!</span>
+                  <div>
+                    <p className={styles.rootCausePrimary}>{insight.rootCause.primary}</p>
+                    <p className={styles.rootCauseEvidence}>{insight.rootCause.primaryEvidence}</p>
+                  </div>
+                </div>
+                {insight.rootCause.secondary !== undefined ? (
+                  <p className={styles.rootCauseSecondary}>{insight.rootCause.secondary}</p>
+                ) : null}
+                {insight.rootCause.ruled_out !== undefined ? (
+                  <p className={styles.rootCauseRuledOut} data-testid="insight-ruled-out">
+                    <strong>Bukan karena:</strong> {insight.rootCause.ruled_out}
+                  </p>
+                ) : null}
+              </div>
+
+              {/* Section D — What Happened */}
+              <div className={styles.whatHappenedBlock} data-testid="insight-what-happened">
+                <p className={styles.whatHappenedLabel}>Yang Terjadi</p>
+                <p className={styles.whatHappenedText}>&ldquo;{insight.whatHappened}&rdquo;</p>
+              </div>
+
+              {/* Section E — Metric Breakdown */}
+              <ul className={styles.metricBreakdownList} data-testid="insight-metric-breakdown">
+                {insight.metricBreakdown.map((entry, index) => (
+                  <li key={index} className={styles.metricBreakdownItem}>
+                    <div className={styles.metricBreakdownTop}>
+                      <span
+                        className={`${styles.metricBreakdownMetric} ${METRIC_STATUS_CLASS[entry.status] ?? ""}`}
+                      >
+                        {entry.metric}
+                      </span>
+                    </div>
+                    <p className={styles.metricBreakdownInterpretation}>{entry.interpretation}</p>
+                    <p className={styles.metricBreakdownContext}>{entry.vsContext}</p>
+                    <p className={styles.metricBreakdownTrend}>
+                      {entry.trend === "naik" ? "↑" : entry.trend === "turun" ? "↓" : "→"}{" "}
+                      {entry.trendDetail}
+                    </p>
                   </li>
                 ))}
               </ul>
-              {insight.contextNote !== undefined ? (
-                <p className={styles.contextNote} data-testid="insight-context-note">
-                  {insight.contextNote}
+
+              {/* Section F — Playbook */}
+              <div className={styles.playbookBlock} data-testid="insight-playbook">
+                <p className={styles.blockLabel}>Playbook — Apa yang harus dilakukan</p>
+                {PLAYBOOK_PHASES.map((phase) => {
+                  const step = insight.playbook[phase.key];
+                  return (
+                    <div
+                      key={phase.key}
+                      data-testid={`insight-playbook-${phase.key}`}
+                      className={`${styles.playbookPhase} ${styles[`playbookPhase${phase.suffix}`]}`}
+                    >
+                      <div className={styles.playbookPhaseHeader}>
+                        <span
+                          className={`${styles.playbookBadge} ${styles[`playbookBadge${phase.suffix}`]}`}
+                        >
+                          {phase.label}
+                        </span>
+                        <span className={styles.playbookAction}>{step.action}</span>
+                      </div>
+                      <p className={styles.playbookHow}>{step.how}</p>
+                      <div className={styles.playbookFooter}>
+                        <span className={styles.playbookExpected}>✓ {step.expectedResult}</span>
+                        {step.risk_if_not !== undefined ? (
+                          <span className={styles.playbookRisk}>✗ {step.risk_if_not}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Section G — Kai Directive (informational; real action on AndromedaHealthCard below) */}
+              {insight.kaiDirective.needed ? (
+                <div className={styles.kaiBlock} data-testid="insight-kai-directive">
+                  <div className={styles.kaiHeader}>
+                    <div className={styles.kaiAvatar}>K</div>
+                    <div>
+                      <div className={styles.kaiTitle}>Samantha → Kai Directive</div>
+                      <div className={styles.kaiUrgency}>
+                        {insight.kaiDirective.urgency === "immediate"
+                          ? "⚡ Segera"
+                          : insight.kaiDirective.urgency === "this_week"
+                            ? "📅 Minggu ini"
+                            : insight.kaiDirective.urgency === "next_cycle"
+                              ? "🔄 Cycle berikutnya"
+                              : ""}
+                      </div>
+                    </div>
+                  </div>
+                  {insight.kaiDirective.brief !== undefined ? (
+                    <div className={styles.kaiBriefBox}>
+                      <p className={styles.kaiBriefLabel}>Brief untuk Kai:</p>
+                      <p className={styles.kaiBriefText}>{insight.kaiDirective.brief}</p>
+                    </div>
+                  ) : null}
+                  {insight.kaiDirective.angles_to_avoid !== undefined ? (
+                    <p className={styles.kaiAvoid}>
+                      ✗ Hindari: {insight.kaiDirective.angles_to_avoid}
+                    </p>
+                  ) : null}
+                  <p className={styles.kaiActionNote}>
+                    Gunakan tombol &ldquo;Brief Kai sekarang&rdquo; di kartu Andromeda Health di
+                    bawah untuk membuat brief ini.
+                  </p>
+                </div>
+              ) : null}
+
+              {/* Section H — Budget Decision */}
+              <div className={styles.budgetBlock} data-testid="insight-budget-decision">
+                <div>
+                  <p className={styles.blockLabel}>Keputusan Budget</p>
+                  <div className={styles.budgetRow}>
+                    <span className={styles.budgetCurrent}>
+                      {formatIdr(insight.budgetDecision.currentBudget)}
+                    </span>
+                    <span
+                      className={`${styles.budgetRecommended} ${BUDGET_RECOMMENDATION_CLASS[insight.budgetDecision.recommendation]}`}
+                    >
+                      {insight.budgetDecision.recommendation === "pause"
+                        ? "PAUSE"
+                        : formatIdr(insight.budgetDecision.recommendedBudget)}
+                    </span>
+                    {insight.budgetDecision.changePercent !== 0 ? (
+                      <span
+                        className={
+                          insight.budgetDecision.changePercent > 0
+                            ? styles.budgetChangePositive
+                            : styles.budgetChangeNegative
+                        }
+                      >
+                        {insight.budgetDecision.changePercent > 0 ? "+" : ""}
+                        {insight.budgetDecision.changePercent}%
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className={styles.budgetReasoning}>{insight.budgetDecision.reasoning}</p>
+                </div>
+                <div>
+                  {insight.budgetDecision.prerequisite !== undefined ? (
+                    <p className={styles.budgetPrerequisite}>
+                      <strong>Syarat dulu:</strong> {insight.budgetDecision.prerequisite}
+                    </p>
+                  ) : null}
+                  {insight.budgetDecision.opportunityCost !== undefined ? (
+                    <p className={styles.budgetOpportunityCost}>
+                      Opportunity cost: {insight.budgetDecision.opportunityCost}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Section I — Scenarios */}
+              <div className={styles.scenarioBlock} data-testid="insight-scenarios">
+                <p className={styles.blockLabel}>2 Skenario</p>
+                <div className={styles.scenarioGrid}>
+                  {insight.scenarios.map((scenario, index) => (
+                    <div
+                      key={index}
+                      className={`${styles.scenarioCard} ${index === 0 ? styles.scenarioCardPrimary : ""}`}
+                    >
+                      <div className={styles.scenarioHeaderRow}>
+                        <span
+                          className={`${styles.scenarioName} ${index === 0 ? styles.scenarioNamePrimary : ""}`}
+                        >
+                          {scenario.name}
+                        </span>
+                        <span
+                          className={`${styles.scenarioProbability} ${index === 0 ? styles.scenarioProbabilityPrimary : ""}`}
+                        >
+                          {scenario.probability}
+                        </span>
+                      </div>
+                      <p className={styles.scenarioOutcome}>{scenario.expectedOutcome}</p>
+                      <p className={styles.scenarioTime}>Waktu: {scenario.timeToResult}</p>
+                      {scenario.risk !== undefined ? (
+                        <p className={styles.scenarioRisk}>⚠ {scenario.risk}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {insight.competitorContext !== undefined ? (
+                <p className={styles.contextNote} data-testid="insight-competitor-context">
+                  {insight.competitorContext}
                 </p>
               ) : null}
-              <ul className={styles.actionList} data-testid="insight-action-list">
-                {PRIORITY_ORDER.flatMap((priority) =>
-                  insight.actions
-                    .filter((action) => action.priority === priority)
-                    .map((action, index) => (
-                      <li key={`${priority}-${index}`} className={styles.actionItem}>
-                        <span
-                          className={`${styles.priorityBadge} ${styles[`priority${priority}`]}`}
-                        >
-                          {PRIORITY_LABEL[priority]}
-                        </span>
-                        <span>{action.text}</span>
-                        {action.estimatedImpact !== undefined ? (
-                          <span className={styles.actionImpact}>{action.estimatedImpact}</span>
-                        ) : null}
-                      </li>
-                    )),
-                )}
-              </ul>
+
+              {/* Section J — Pro Tip */}
+              {insight.proTip !== undefined ? (
+                <div className={styles.proTipBlock} data-testid="insight-pro-tip">
+                  <p className={styles.proTipLabel}>💡 Pro Tip dari Samantha</p>
+                  <p className={styles.proTipText}>{insight.proTip}</p>
+                </div>
+              ) : null}
+
+              {/* Section K — Learnings */}
+              {insight.learnings.length > 0 ? (
+                <div className={styles.learningsBlock} data-testid="insight-learnings">
+                  <p className={styles.learningsLabel}>Yang bisa dipelajari untuk campaign lain:</p>
+                  {insight.learnings.map((learning, index) => (
+                    <p key={index} className={styles.learningItem}>
+                      → {learning}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
             </>
           ) : (
             <p className={styles.unavailable} data-testid="insight-unavailable">
