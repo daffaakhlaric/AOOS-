@@ -146,7 +146,13 @@ describe("AppModule.forRoot", () => {
     // WabaConfigRepository/EncryptionService/MetaOAuthConfigService locally from the existing
     // SUPABASE_CLIENT/AAOS_API_CONFIG, same "each module composes its own instance" pattern
     // SettingsModule/SosmedModule already establish).
-    expect(dynamicModule.imports).toHaveLength(34);
+    // EYVRA — SAMANTHA V2 Phase 1 Part A: +2 imports (GrowthObjectivesModule/
+    // HotLeadDefinitionsModule, the new real `/api/v1/growth-objectives`/
+    // `/api/v1/hot-lead-definitions` HTTP surfaces) — no new global provider (each composes its
+    // own repository locally from the existing SUPABASE_CLIENT via `useFactory`, same
+    // "each module composes its own instance of a shared repository class" pattern
+    // SuperadminModule's TenantRepository provider already establishes).
+    expect(dynamicModule.imports).toHaveLength(36);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

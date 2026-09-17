@@ -79,7 +79,9 @@ import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { ClosingsModule } from "./modules/closings/closings.module.js";
 import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
 import { GoLiveModule } from "./modules/go-live/go-live.module.js";
+import { GrowthObjectivesModule } from "./modules/growth-objectives/growth-objectives.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
+import { HotLeadDefinitionsModule } from "./modules/hot-lead-definitions/hot-lead-definitions.module.js";
 import { IntelligenceModule } from "./modules/intelligence/intelligence.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
 import { ListingsModule } from "./modules/listings/listings.module.js";
@@ -460,6 +462,13 @@ export class AppModule {
         // above, or read/write any column either of them reads; wiring those registries to the new
         // OAuth columns is explicitly Sprint 3's job.
         MetaOAuthModule,
+        // EYVRA -- SAMANTHA V2 Phase 1 Part A -- Growth Objective domain + tenant-level Hot Lead
+        // Definition config. Neither module touches `@aos/lead-store`, `@aos/meta-ads-connector`,
+        // or any Kai/creative-connector code (out of scope for this phase) -- both build their own
+        // repository instance from the shared `SUPABASE_CLIENT`, same pattern `ListingsModule`
+        // establishes.
+        GrowthObjectivesModule,
+        HotLeadDefinitionsModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },
