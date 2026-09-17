@@ -41,6 +41,28 @@ export const CampaignInsightAdSchema = z.object({
 });
 export type CampaignInsightAdDto = z.infer<typeof CampaignInsightAdSchema>;
 
+const DIVERSITY_STATUSES = ["NOT_ENOUGH_DATA", "LOW_DIVERSITY", "DIVERSE"] as const;
+
+/**
+ * SAMANTHA ADVANCED INSIGHT ENGINE — real Andromeda creative-diversity signal, mirrored field-for-
+ * field from `AndromedaHealthDto.diversity` (`AndromedaHealthCard.tsx`'s own real, already-fetched
+ * `GET /api/campaigns/:campaignId/andromeda-health` data — Sprint 1's `scoreCreativeDiversity`).
+ * Deliberately reused rather than re-scored here: this is the exact real number/status the manager
+ * already sees on the Andromeda Health card immediately below this panel, so the two can never say
+ * different things about the same campaign. Replaces the pasted spec's fabricated "0-100 diversity
+ * score" / "estimated Entity IDs" concepts — neither exists as a real field anywhere in this
+ * codebase; this real status/count pair is the honest substitute.
+ */
+export const CampaignInsightAndromedaDiversitySchema = z.object({
+  status: z.enum(DIVERSITY_STATUSES),
+  totalAdCount: z.number().int().nonnegative(),
+  distinctCreativeAssetCount: z.number().int().nonnegative().optional(),
+  reasoning: z.string().min(1),
+});
+export type CampaignInsightAndromedaDiversityDto = z.infer<
+  typeof CampaignInsightAndromedaDiversitySchema
+>;
+
 export const CampaignInsightRequestSchema = z.object({
   campaignId: z.string().min(1),
   campaignName: z.string().min(1),
@@ -58,6 +80,19 @@ export const CampaignInsightRequestSchema = z.object({
   cpl: z.number().nonnegative().nullable(),
   /** Real account-wide benchmark CPL for the CPL color-pill comparison (`< 85%` green / `85-115%` amber / `> 115%` red) — either the tenant's real `property_objectives.targetCpl` business-context field when filled in, or a real account-wide average CPL computed from the same snapshot as a fallback. `null` when neither is available (a brand-new tenant with 0 total leads account-wide). */
   benchmarkCplIDR: z.number().positive().nullable(),
+  /**
+   * SAMANTHA ADVANCED INSIGHT ENGINE — real, already-pulled `AdSetSummaryDto.dailyBudget` summed
+   * per-campaign (`aggregateCampaign`, the SAME real ABO/CBO-aware sum `UnifiedCampaignTable`'s
+   * "Daily Budget" column and `BudgetTracker`'s estimate already use) — lets the model reason about
+   * `budgetDecision.currentBudget`/`recommendedBudget` against a real starting number, never a
+   * guess. `0` (never `null`) for a campaign with genuinely no real ad-set/campaign-level budget yet.
+   */
+  dailyBudget: z.number().nonnegative(),
+  /** Real, division-by-zero-safe CPC/CPM (`campaignInsightMath.ts`'s own `cpcFromAggregate`/`cpmFromAggregate`) — `null` when clicks/impressions are honestly 0, same convention as `cpl`. */
+  cpc: z.number().nonnegative().nullable(),
+  cpm: z.number().nonnegative().nullable(),
+  /** Real, additive Meta `reach` (`CampaignAggregate.reach`) — `null` when no ad carries a real value yet, same convention as `impressions`. */
+  reach: z.number().nonnegative().nullable(),
   /**
    * SAMANTHA ADVANCED SPRINT 2 — real per-ad breakdown for THIS campaign (see `CampaignInsightAdSchema`
    * above), composed client-side from the same `campaign.adSets` tree `CampaignAdDrillDown` already
@@ -86,52 +121,154 @@ export const CampaignInsightRequestSchema = z.object({
    */
   marketDigest: z.string().nullable().optional(),
   /**
-   * Campaign Page Rebuild v2 — real, already-persisted daily CTR values for this campaign's last
-   * up-to-7 real synced days (`GET /api/v1/campaigns/:campaignId/history`, `meta_insights_daily` —
-   * see that endpoint's own doc for why this is a plain DB read, not a second live Meta pull),
-   * oldest-to-newest. `undefined`/omitted (never a fabricated flat line) when the client's
-   * best-effort fetch of that endpoint returned no history yet for this campaign.
+   * Campaign Page Rebuild v2 / SAMANTHA ADVANCED INSIGHT ENGINE — real, already-persisted daily
+   * values for this campaign's last up-to-7 real synced days (`GET /api/v1/campaigns/:campaignId/
+   * history`, `meta_insights_daily` — see that endpoint's own doc for why this is a plain DB read,
+   * not a second live Meta pull), oldest-to-newest. Each `undefined`/omitted independently (never a
+   * fabricated flat line) when the client's own best-effort history fetch returned no rows yet.
    */
   ctrTrend7d: z.array(z.number().nonnegative()).max(30).optional(),
+  spendTrend7d: z.array(z.number().nonnegative()).max(30).optional(),
+  resultsTrend7d: z.array(z.number().nonnegative()).max(30).optional(),
+  freqTrend7d: z.array(z.number().nonnegative()).max(30).optional(),
+  /** SAMANTHA ADVANCED INSIGHT ENGINE — see `CampaignInsightAndromedaDiversitySchema`'s own doc. `undefined` when the client's best-effort `andromeda-health` fetch hasn't resolved yet or failed. */
+  andromedaDiversity: CampaignInsightAndromedaDiversitySchema.optional(),
+  /**
+   * SAMANTHA ADVANCED INSIGHT ENGINE — real count of this campaign's real `LeadDto`s with
+   * `temperature === "HOT"` (grouped client-side by the real `LeadDto.campaignId`, the same
+   * real attribution `ObjectiveStripCard.tsx`'s own per-campaign breakdown uses — see that field's
+   * own doc for why it was only recently modeled). `undefined` when the client's best-effort
+   * `/api/leads` fetch hasn't resolved yet or failed — never a fabricated 0. Deliberately no real
+   * "deals"/"revenue" field exists anywhere in this codebase (no CRM deal/revenue tracking — see
+   * `BudgetTracker.tsx`'s own investigation for the same conclusion), so this is the ONLY real
+   * revenue-adjacent signal available to Samantha here.
+   */
+  hotLeadsCount: z.number().int().nonnegative().optional(),
 });
 export type CampaignInsightRequestDto = z.infer<typeof CampaignInsightRequestSchema>;
 
-const ACTION_PRIORITIES = ["SEGERA", "MINGGU_INI", "BULAN_INI"] as const;
+/**
+ * SAMANTHA ADVANCED INSIGHT ENGINE — real 6-value `Verdict` vocabulary (`@aos/meta-ads-connector`'s
+ * own enum) the model must pick from. The pasted spec's own "CREATIVE" verdict does not exist
+ * anywhere in this codebase; the prompt instructs the model to use `REFRESH` (Meta's real
+ * creative-fatigue verdict) for that same real-world meaning instead — see `CAMPAIGN_INSIGHT_
+ * SYSTEM_PROMPT`'s own note.
+ */
+const VERDICTS = ["SCALE", "KEEP", "REVIEW", "REFRESH", "FIX", "PAUSE"] as const;
+const TRIAGE_LEVELS = ["DARURAT", "KRITIS", "PERLU_PERHATIAN", "SEHAT"] as const;
+const METRIC_STATUSES = ["critical", "warning", "good", "neutral"] as const;
+const TRENDS = ["naik", "turun", "stabil"] as const;
+const KAI_URGENCIES = ["immediate", "this_week", "next_cycle"] as const;
+const BUDGET_RECOMMENDATIONS = ["increase", "maintain", "decrease", "pause"] as const;
 
-/** Campaign Page Rebuild v2 — the small, honest vocabulary `metricEvidence` bullets are allowed to use, per the spec's own "diagnosis bukan deskripsi" worked example. Never a free-form emoji — keeps the icon meaningful (critical/warning/good/bad) rather than decorative. */
-const METRIC_EVIDENCE_ICONS = ["◉", "⚠", "✓", "✗"] as const;
+const PlaybookStepSchema = z.object({
+  action: z.string().min(1),
+  how: z.string().min(1),
+  why: z.string().min(1),
+  expectedResult: z.string().min(1),
+  /** Optional — a HEALTHY campaign's `immediate`/`shortTerm` step (e.g. "monitor") may honestly have no "if not done" risk worth naming. */
+  risk_if_not: z.string().min(1).optional(),
+});
 
+/**
+ * SAMANTHA ADVANCED INSIGHT ENGINE — full rewrite of the campaign-insight LLM payload, replacing
+ * Campaign Page Rebuild v2's `diagnosis`/`metricEvidence`/`contextNote`/`actions` shape with a
+ * senior-media-buyer diagnosis framework: Triage → Root Cause → Evidence (`metricBreakdown`) →
+ * Treatment (`playbook`) → Prognosis (`scenarios`). Every field here is the model's own generated
+ * diagnostic REASONING over the real, already-verified inputs above — not a "real metric" that
+ * could itself be fabricated, the same category as the superseded `diagnosis`/`actions` fields
+ * were. Deliberately DROPS the pasted spec's `kpis` block (a set of LLM-formatted metric strings) —
+ * `CampaignInsightPanel`'s own KPI grid already renders every one of those numbers with real,
+ * client-side `formatIdr`/`formatPercent` formatting; duplicating them as LLM-generated strings
+ * would only risk the two disagreeing. Also drops `andromedaScore`-adjacent output (no such field
+ * exists in the request either — see `CampaignInsightAndromedaDiversitySchema`'s own doc).
+ */
 export const CampaignInsightLlmPayloadSchema = z.object({
-  /**
-   * Campaign Page Rebuild v2 — REPLACES the old free-form `narrative` paragraph. ONE sentence
-   * naming the single most critical real finding — a diagnosis, not a description (spec's own
-   * worked example: "CTR 3× benchmark → worth scale. Tapi frequency 2.3× akan jenuh dalam ~4 hari
-   * jika budget dinaikkan tanpa creative baru." — not "Campaign ini memiliki CTR 3% yang bagus...").
-   */
-  diagnosis: z.string().min(1).max(400),
-  /** 2-5 real metric+interpretation bullets, ordered most-important-first — see `METRIC_EVIDENCE_ICONS`'s own doc for the bounded icon vocabulary. */
-  metricEvidence: z
+  triage: z.object({
+    level: z.enum(TRIAGE_LEVELS),
+    /** ONE sentence, specific to this campaign's own real numbers — never a generic level description. */
+    why: z.string().min(1).max(300),
+  }),
+  verdict: z.enum(VERDICTS),
+  confidence: z.number().int().min(0).max(100),
+  /** ONE sharp sentence max 200 chars — real number + real reason + concrete next step, not a description. */
+  verdictOneLiner: z.string().min(1).max(200),
+
+  rootCause: z.object({
+    primary: z.string().min(1),
+    primaryEvidence: z.string().min(1),
+    secondary: z.string().min(1).optional(),
+    /** What this is NOT, and why — excludes false alarms (e.g. "bukan audience exhaustion karena reach masih naik"). Optional only because a SEHAT campaign may have nothing to rule out. */
+    ruled_out: z.string().min(1).optional(),
+  }),
+
+  /** 3-8 real metrics, most-important first. Every `metric`/`vsContext`/`trendDetail` must cite a real number from the request body — never invented. */
+  metricBreakdown: z
     .array(
       z.object({
-        icon: z.enum(METRIC_EVIDENCE_ICONS),
         metric: z.string().min(1),
+        status: z.enum(METRIC_STATUSES),
         interpretation: z.string().min(1),
+        vsContext: z.string().min(1),
+        trend: z.enum(TRENDS),
+        trendDetail: z.string().min(1),
       }),
     )
-    .min(2)
-    .max(5),
-  /** ONE sentence of real trend/context — e.g. "Tren stabil 7 hari terakhir" — `undefined` when there is honestly no trend data to reference (this endpoint has no obligation to fabricate one; the caller only sends real context, see `CampaignInsightRequestDto.ctrTrend7d`'s own doc). */
-  contextNote: z.string().min(1).optional(),
-  actions: z
+    .min(3)
+    .max(8),
+
+  /** 2-4 sentence real narrative of what happened to this specific campaign — not bullet points. */
+  whatHappened: z.string().min(1).max(800),
+
+  playbook: z.object({
+    immediate: PlaybookStepSchema,
+    shortTerm: PlaybookStepSchema,
+    mediumTerm: PlaybookStepSchema,
+  }),
+
+  kaiDirective: z.object({
+    needed: z.boolean(),
+    urgency: z.enum(KAI_URGENCIES).optional(),
+    /** Specific: how many creatives, which angles, why — required when `needed` is true, omitted when false. */
+    brief: z.string().min(1).optional(),
+    angles_to_avoid: z.string().min(1).optional(),
+    reasoning: z.string().min(1).optional(),
+  }),
+
+  budgetDecision: z.object({
+    recommendation: z.enum(BUDGET_RECOMMENDATIONS),
+    /** Mirrors the request's real `dailyBudget` — the model must not invent a different "current" number. */
+    currentBudget: z.number().nonnegative(),
+    recommendedBudget: z.number().nonnegative(),
+    changePercent: z.number(),
+    reasoning: z.string().min(1),
+    prerequisite: z.string().min(1).optional(),
+    opportunityCost: z.string().min(1).optional(),
+  }),
+
+  /** Exactly 2 — the recommended path and one honest alternative, per the spec's own "2 skenario" instruction. */
+  scenarios: z
     .array(
       z.object({
-        priority: z.enum(ACTION_PRIORITIES),
-        text: z.string().min(1),
-        /** Real, honest estimate the model itself derives from the request's own numbers (e.g. "+8-12 leads/minggu") — `undefined` when there's no honest basis to estimate one, never a fabricated placeholder. */
-        estimatedImpact: z.string().min(1).optional(),
+        name: z.string().min(1),
+        /** A percentage string, e.g. "70%" — the model's own honest confidence split between the 2 scenarios (must sum to ~100% across both, enforced by prompt instruction, not schema). */
+        probability: z.string().min(1),
+        steps: z.array(z.string().min(1)).min(1).max(6),
+        expectedOutcome: z.string().min(1),
+        timeToResult: z.string().min(1),
+        risk: z.string().min(1).optional(),
       }),
     )
-    .max(8),
+    .length(2),
+
+  /** Optional real context from CPM trend/`marketDigest` — omitted when there is honestly nothing real to say. */
+  competitorContext: z.string().min(1).optional(),
+
+  /** 1-2 transferable learnings for OTHER campaigns, derived from this campaign's real data. */
+  learnings: z.array(z.string().min(1)).min(1).max(2),
+
+  /** Optional — one non-obvious, senior-level insight. Omitted rather than forced when there's honestly nothing beyond what `rootCause`/`playbook` already said. */
+  proTip: z.string().min(1).max(600).optional(),
 });
 export type CampaignInsightLlmPayload = z.infer<typeof CampaignInsightLlmPayloadSchema>;
 

@@ -80,9 +80,83 @@ function buildFakeLlmService() {
     })),
     campaignInsight: vi.fn(async () => ({
       available: true as const,
-      diagnosis: "Campaign ini SCALE-worthy.",
-      metricEvidence: [{ icon: "◉" as const, metric: "CPL", interpretation: "di bawah benchmark" }],
-      actions: [{ priority: "SEGERA" as const, text: "Naikkan budget." }],
+      triage: { level: "SEHAT" as const, why: "CPL di bawah benchmark." },
+      verdict: "SCALE" as const,
+      confidence: 80,
+      verdictOneLiner: "Campaign ini SCALE-worthy.",
+      rootCause: { primary: "CPL efisien.", primaryEvidence: "CPL di bawah benchmark." },
+      metricBreakdown: [
+        {
+          metric: "CPL",
+          status: "good" as const,
+          interpretation: "di bawah benchmark",
+          vsContext: "vs benchmark akun",
+          trend: "stabil" as const,
+          trendDetail: "stabil",
+        },
+        {
+          metric: "Frequency",
+          status: "good" as const,
+          interpretation: "aman",
+          vsContext: "vs threshold",
+          trend: "stabil" as const,
+          trendDetail: "stabil",
+        },
+        {
+          metric: "CTR",
+          status: "neutral" as const,
+          interpretation: "responsif",
+          vsContext: "vs rata-rata",
+          trend: "stabil" as const,
+          trendDetail: "stabil",
+        },
+      ],
+      whatHappened: "Campaign berjalan stabil.",
+      playbook: {
+        immediate: {
+          action: "Naikkan budget.",
+          how: "Naikkan daily budget.",
+          why: "CPL efisien.",
+          expectedResult: "Lebih banyak leads.",
+        },
+        shortTerm: {
+          action: "Pantau frequency.",
+          how: "Cek dashboard harian.",
+          why: "Antisipasi jenuh.",
+          expectedResult: "Deteksi dini.",
+        },
+        mediumTerm: {
+          action: "Siapkan creative baru.",
+          how: "Brief Kai.",
+          why: "Jaga sustainability.",
+          expectedResult: "Scale berkelanjutan.",
+        },
+      },
+      kaiDirective: { needed: false as const },
+      budgetDecision: {
+        recommendation: "increase" as const,
+        currentBudget: 750_000,
+        recommendedBudget: 900_000,
+        changePercent: 20,
+        reasoning: "CPL efisien.",
+      },
+      scenarios: [
+        {
+          name: "Scale",
+          probability: "70%",
+          steps: ["Naikkan budget"],
+          expectedOutcome: "Leads naik.",
+          timeToResult: "5-7 hari",
+        },
+        {
+          name: "Pertahankan",
+          probability: "30%",
+          steps: ["Biarkan tetap"],
+          expectedOutcome: "Stabil.",
+          timeToResult: "N/A",
+        },
+      ],
+      learnings: ["CPL rendah = ruang scale."],
     })),
     diagnoseAdCopy: vi.fn(async () => ({
       available: true as const,
@@ -282,14 +356,7 @@ describe("MetaAdsService", () => {
       } as const;
       const result = await service.getCampaignInsight(DEFAULT_TENANT_ID, body as never);
       expect(llmService.campaignInsight).toHaveBeenCalledWith(DEFAULT_TENANT_ID, body);
-      expect(result).toEqual({
-        available: true,
-        diagnosis: "Campaign ini SCALE-worthy.",
-        metricEvidence: [
-          { icon: "◉" as const, metric: "CPL", interpretation: "di bawah benchmark" },
-        ],
-        actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
-      });
+      expect(result).toMatchObject({ available: true, verdict: "SCALE" });
     });
   });
 

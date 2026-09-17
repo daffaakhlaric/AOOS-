@@ -15,6 +15,10 @@ const baseRequest = {
   adSetCount: 2,
   cpl: 208_333,
   benchmarkCplIDR: 250_000,
+  dailyBudget: 750_000,
+  cpc: 7_353,
+  cpm: 166_667,
+  reach: 12_000,
 };
 
 describe("CampaignInsightRequestSchema", () => {
@@ -51,6 +55,36 @@ describe("CampaignInsightRequestSchema", () => {
       marketDigest: null,
     });
     expect(result.success).toBe(true);
+  });
+
+  // SAMANTHA ADVANCED INSIGHT ENGINE — new real optional fields, additive/backward-compatible.
+  it("accepts a body with real andromedaDiversity/hotLeadsCount/trend arrays", () => {
+    const result = CampaignInsightRequestSchema.safeParse({
+      ...baseRequest,
+      spendTrend7d: [100_000, 110_000],
+      resultsTrend7d: [1, 2],
+      freqTrend7d: [1.5, 1.8],
+      andromedaDiversity: {
+        status: "LOW_DIVERSITY",
+        totalAdCount: 2,
+        distinctCreativeAssetCount: 1,
+        reasoning: "Hanya 1 creative unik aktif.",
+      },
+      hotLeadsCount: 3,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unknown andromedaDiversity.status value (never a fabricated status)", () => {
+    const result = CampaignInsightRequestSchema.safeParse({
+      ...baseRequest,
+      andromedaDiversity: {
+        status: "SUPER_DIVERSE",
+        totalAdCount: 2,
+        reasoning: "x",
+      },
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects an ad missing a real stableId", () => {

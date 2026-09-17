@@ -1407,27 +1407,96 @@ describe("LlmService", () => {
       adSetCount: 2,
       cpl: 208_333,
       benchmarkCplIDR: 250_000,
+      dailyBudget: 750_000,
+      cpc: 7_353,
+      cpm: 166_667,
+      reach: 12_000,
     };
 
     const validCampaignInsightLlmJson = JSON.stringify({
-      diagnosis: "CPL Rp208rb 17% di bawah benchmark Rp250rb — worth scale sebelum frequency naik.",
-      metricEvidence: [
-        { icon: "◉", metric: "CPL Rp208rb", interpretation: "17% lebih murah dari benchmark" },
+      triage: { level: "SEHAT", why: "CPL 17% di bawah benchmark, frequency masih aman di 2.1x." },
+      verdict: "SCALE",
+      confidence: 82,
+      verdictOneLiner:
+        "CPL Rp208rb 17% di bawah benchmark Rp250rb — worth scale sebelum frequency naik.",
+      rootCause: {
+        primary: "Creative masih fresh, CTR masih responsif terhadap audience saat ini.",
+        primaryEvidence: "CPL Rp208rb vs benchmark Rp250rb, frequency baru 2.1x.",
+        ruled_out: "Bukan sinyal creative fatigue — frequency masih jauh dari 2.5x.",
+      },
+      metricBreakdown: [
         {
-          icon: "✓",
-          metric: "Frequency 2.1×",
+          metric: "CPL Rp208rb",
+          status: "good",
+          interpretation: "17% lebih murah dari benchmark",
+          vsContext: "vs benchmark akun Rp250rb",
+          trend: "stabil",
+          trendDetail: "Belum ada tanda kenaikan CPL",
+        },
+        {
+          metric: "Frequency 2.1x",
+          status: "good",
           interpretation: "masih aman, jauh dari batas jenuh",
+          vsContext: "vs threshold jenuh 2.5x",
+          trend: "stabil",
+          trendDetail: "Naik perlahan, belum mengkhawatirkan",
         },
-      ],
-      contextNote: "Tren CTR stabil 7 hari terakhir.",
-      actions: [
         {
-          priority: "SEGERA",
-          text: "Naikkan budget 20% mumpung CPL efisien.",
-          estimatedImpact: "+5-8 leads/minggu",
+          metric: "CTR",
+          status: "neutral",
+          interpretation: "audience masih responsif",
+          vsContext: "vs rata-rata properti 2-4%",
+          trend: "stabil",
+          trendDetail: "Belum ada data tren yang cukup",
         },
-        { priority: "MINGGU_INI", text: "Pantau frequency, masih aman di 2.1." },
       ],
+      whatHappened:
+        "Campaign ini berjalan stabil dengan CPL yang lebih murah dari benchmark akun. Frequency masih terkendali sehingga belum ada tanda kejenuhan creative.",
+      playbook: {
+        immediate: {
+          action: "Naikkan budget 20% mumpung CPL efisien.",
+          how: "Naikkan daily budget dari Rp750rb ke Rp900rb di Meta Ads Manager.",
+          why: "CPL masih 17% di bawah benchmark — ruang untuk scale masih ada.",
+          expectedResult: "+5-8 leads/minggu tanpa CPL naik signifikan.",
+        },
+        shortTerm: {
+          action: "Pantau frequency setiap hari.",
+          how: "Cek dashboard campaign setiap pagi, waspada kalau tembus 2.5x.",
+          why: "Frequency naik seiring budget naik — perlu diawasi sebelum jenuh.",
+          expectedResult: "Deteksi dini kalau creative mulai jenuh.",
+        },
+        mediumTerm: {
+          action: "Siapkan 2-3 creative baru sebagai cadangan.",
+          how: "Brief Kai untuk angle baru sebelum frequency tembus 2.5x.",
+          why: "Supaya scale bisa berlanjut tanpa jeda saat creative saat ini jenuh.",
+          expectedResult: "Campaign bisa terus scale 2-4 minggu ke depan.",
+        },
+      },
+      kaiDirective: { needed: false },
+      budgetDecision: {
+        recommendation: "increase",
+        currentBudget: 750_000,
+        recommendedBudget: 900_000,
+        changePercent: 20,
+        reasoning: "CPL masih di bawah benchmark, ruang scale masih ada.",
+      },
+      scenarios: [
+        {
+          name: "Scale bertahap (recommended)",
+          probability: "70%",
+          steps: ["Naikkan budget 20%", "Pantau frequency mingguan"],
+          expectedOutcome: "+5-8 leads/minggu dengan CPL terjaga.",
+          timeToResult: "5-7 hari",
+        },
+        {
+          name: "Pertahankan budget saat ini",
+          probability: "30%",
+          steps: ["Biarkan budget tetap", "Fokus ke campaign lain"],
+          expectedOutcome: "Performa stabil tanpa risiko tambahan.",
+          timeToResult: "N/A",
+        },
+      ],
+      learnings: ["CPL rendah + frequency rendah = ruang scale aman sebelum creative fatigue."],
     });
 
     it("returns available:true with a real, Zod-validated diagnosis + metricEvidence + actions from a mocked OpenAI response", async () => {
@@ -1600,30 +1669,82 @@ describe("LlmService", () => {
       expect(userMessage).toContain('"marketDigest":null');
     });
 
-    // Campaign Page Rebuild v2 — REPLACES the old free-form `narrative` with `diagnosis` +
-    // `metricEvidence` (+ optional `contextNote`). `contextNote` must stay genuinely optional —
-    // never a fabricated empty string when the model honestly has no real trend data to cite.
-    it("real bug-class prevention: accepts a response with no contextNote at all (never forced to fabricate one)", async () => {
-      const jsonWithoutContextNote = JSON.stringify({
-        diagnosis: "CPL Rp208rb di bawah benchmark — worth scale.",
-        metricEvidence: [
-          { icon: "◉", metric: "CPL Rp208rb", interpretation: "di bawah benchmark" },
-          { icon: "✓", metric: "Frequency 2.1×", interpretation: "masih aman" },
+    // SAMANTHA ADVANCED INSIGHT ENGINE — `competitorContext`/`proTip`/`rootCause.secondary`/
+    // `rootCause.ruled_out` must stay genuinely optional — never forced to fabricate one when the
+    // model honestly has no real basis to include it.
+    it("real bug-class prevention: accepts a response with no competitorContext/proTip/rootCause.secondary at all (never forced to fabricate one)", async () => {
+      const jsonWithoutOptionals = JSON.stringify({
+        triage: { level: "SEHAT", why: "x" },
+        verdict: "SCALE",
+        confidence: 70,
+        verdictOneLiner: "x",
+        rootCause: { primary: "x", primaryEvidence: "x" },
+        metricBreakdown: [
+          {
+            metric: "x",
+            status: "good",
+            interpretation: "x",
+            vsContext: "x",
+            trend: "stabil",
+            trendDetail: "x",
+          },
+          {
+            metric: "y",
+            status: "good",
+            interpretation: "y",
+            vsContext: "y",
+            trend: "stabil",
+            trendDetail: "y",
+          },
+          {
+            metric: "z",
+            status: "good",
+            interpretation: "z",
+            vsContext: "z",
+            trend: "stabil",
+            trendDetail: "z",
+          },
         ],
-        actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
+        whatHappened: "x",
+        playbook: {
+          immediate: { action: "x", how: "x", why: "x", expectedResult: "x" },
+          shortTerm: { action: "x", how: "x", why: "x", expectedResult: "x" },
+          mediumTerm: { action: "x", how: "x", why: "x", expectedResult: "x" },
+        },
+        kaiDirective: { needed: false },
+        budgetDecision: {
+          recommendation: "maintain",
+          currentBudget: 750_000,
+          recommendedBudget: 750_000,
+          changePercent: 0,
+          reasoning: "x",
+        },
+        scenarios: [
+          { name: "A", probability: "70%", steps: ["1"], expectedOutcome: "x", timeToResult: "x" },
+          { name: "B", probability: "30%", steps: ["1"], expectedOutcome: "x", timeToResult: "x" },
+        ],
+        learnings: ["x"],
       });
-      registerOpenAiChatHandler(jsonWithoutContextNote);
+      registerOpenAiChatHandler(jsonWithoutOptionals);
       const service = buildService();
       const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
-      expect(result).toEqual({ available: true, ...JSON.parse(jsonWithoutContextNote) });
+      expect(result).toEqual({ available: true, ...JSON.parse(jsonWithoutOptionals) });
     });
 
-    it("returns INVALID_RESPONSE when metricEvidence has fewer than 2 real bullets", async () => {
+    it("returns INVALID_RESPONSE when metricBreakdown has fewer than 3 real entries", async () => {
       registerOpenAiChatHandler(
         JSON.stringify({
-          diagnosis: "x",
-          metricEvidence: [{ icon: "◉", metric: "x", interpretation: "x" }],
-          actions: [{ priority: "SEGERA", text: "x" }],
+          ...JSON.parse(validCampaignInsightLlmJson),
+          metricBreakdown: [
+            {
+              metric: "x",
+              status: "good",
+              interpretation: "x",
+              vsContext: "x",
+              trend: "stabil",
+              trendDetail: "x",
+            },
+          ],
         }),
       );
       const service = buildService();
@@ -1633,6 +1754,70 @@ describe("LlmService", () => {
         reason: "INVALID_RESPONSE",
         message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
       });
+    });
+
+    it("returns INVALID_RESPONSE when scenarios does not have exactly 2 entries", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          ...JSON.parse(validCampaignInsightLlmJson),
+          scenarios: [
+            {
+              name: "A",
+              probability: "100%",
+              steps: ["1"],
+              expectedOutcome: "x",
+              timeToResult: "x",
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    // SAMANTHA ADVANCED INSIGHT ENGINE — dailyBudget/cpc/cpm/reach/andromedaDiversity/
+    // hotLeadsCount/spendTrend7d/resultsTrend7d/freqTrend7d must actually reach the LLM's user
+    // message, not just validate against the schema.
+    it("threads the real dailyBudget/cpc/cpm/reach/andromedaDiversity/hotLeadsCount into the actual LLM user-message payload", async () => {
+      const enrichedBody: CampaignInsightRequestDto = {
+        ...validCampaignInsightBody,
+        spendTrend7d: [100_000, 110_000, 120_000],
+        resultsTrend7d: [1, 2, 3],
+        freqTrend7d: [1.5, 1.8, 2.1],
+        andromedaDiversity: {
+          status: "LOW_DIVERSITY",
+          totalAdCount: 2,
+          distinctCreativeAssetCount: 1,
+          reasoning: "Hanya 1 creative unik aktif di campaign ini.",
+        },
+        hotLeadsCount: 5,
+      };
+
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            choices: [{ message: { content: validCampaignInsightLlmJson } }],
+          });
+        }),
+      );
+
+      const service = buildService();
+      await service.campaignInsight(TENANT_ID, enrichedBody);
+
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      const userMessage = messages[1]?.content ?? "";
+      expect(userMessage).toContain('"dailyBudget":750000');
+      expect(userMessage).toContain('"cpc":7353');
+      expect(userMessage).toContain("LOW_DIVERSITY");
+      expect(userMessage).toContain('"hotLeadsCount":5');
     });
   });
 
