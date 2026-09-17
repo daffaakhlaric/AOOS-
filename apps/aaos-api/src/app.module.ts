@@ -77,6 +77,7 @@ import { AuditLogModule } from "./modules/audit-log/audit-log.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { ClosingsModule } from "./modules/closings/closings.module.js";
+import { CreativeMemoryModule } from "./modules/creative-memory/creative-memory.module.js";
 import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
 import { GoLiveModule } from "./modules/go-live/go-live.module.js";
 import { GrowthObjectivesModule } from "./modules/growth-objectives/growth-objectives.module.js";
@@ -476,6 +477,14 @@ export class AppModule {
         // establish. Does not touch `meta-sync`/`meta-ads` -- reads the same real table those
         // modules already write, nothing more.
         MetricSnapshotModule,
+        // EYVRA -- SAMANTHA V2 + KAI V2 Phase 2 -- Creative Performance Memory: real, read-only
+        // `GET /api/v1/creative-memory/angle-performance` joining `creative_packages
+        // .published_meta_ad_ids` through `meta_ads`/`meta_insights_daily`. Builds its own
+        // repository instance from the shared `SUPABASE_CLIENT`, same pattern `MetricSnapshotModule`
+        // establishes -- deliberately does NOT import `CreativePackagesModule` (see
+        // `creative-memory.module.ts`'s own doc for why). Never writes to any of the three tables it
+        // reads and never touches the real KIE.ai generation pipeline.
+        CreativeMemoryModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

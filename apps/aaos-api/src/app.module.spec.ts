@@ -156,7 +156,12 @@ describe("AppModule.forRoot", () => {
     // real `/api/v1/metric-snapshots/*` HTTP surface) — no new global provider (composes its own
     // MetricSnapshotRepository locally from the existing SUPABASE_CLIENT via `useFactory`, same
     // pattern GrowthObjectivesModule/HotLeadDefinitionsModule already establish).
-    expect(dynamicModule.imports).toHaveLength(37);
+    // EYVRA — SAMANTHA V2 + KAI V2 Phase 2: +1 import (CreativeMemoryModule, the new real
+    // `GET /api/v1/creative-memory/angle-performance` HTTP surface) — no new global provider
+    // (composes its own CreativeMemoryRepository locally from the existing SUPABASE_CLIENT via
+    // `useFactory`, same pattern MetricSnapshotModule establishes; deliberately does not import
+    // CreativePackagesModule — see creative-memory.module.ts's own doc for why).
+    expect(dynamicModule.imports).toHaveLength(38);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 
