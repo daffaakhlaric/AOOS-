@@ -19,11 +19,13 @@ export interface AndromedaHealthCardProps {
    * The real, tenant-scoped `listings.id` this campaign maps to, when the caller can honestly
    * resolve one — `creative_packages` (and therefore "Brief Kai sekarang") is fundamentally
    * listing-scoped, not campaign-scoped (see `SchedulerService.createDiverseCreativeBriefSet`'s own
-   * doc). `CampaignsHubClient`'s real, currently-loaded `AdAccountSummaryDto` campaign tree carries
-   * no `listingId` field (investigated directly — no persisted campaign→listing mapping exists
-   * anywhere in this codebase's real data model, only a scheduler-side, in-memory name-substring
-   * heuristic, `matchActiveCampaignForListing`). When `undefined`, "Brief Kai sekarang" is honestly
-   * disabled with an explanation, never silently hidden or fabricated as clickable.
+   * doc). Campaign->Listing Mapping (053_meta_campaigns_listing_id.sql) gives `CampaignsHubClient`
+   * a real, persisted `meta_campaigns.listing_id` to fetch and pass here — previously (before that
+   * migration) no such mapping existed anywhere, only a scheduler-side, in-memory name-substring
+   * heuristic (`matchActiveCampaignForListing`), which this prop still never uses. Still `undefined`
+   * for a campaign with no real link yet (e.g. one created before that migration/write path
+   * existed, or an AUTOMOTIVE campaign) — "Brief Kai sekarang" is then honestly disabled with an
+   * explanation, never silently hidden or fabricated as clickable.
    */
   readonly listingId?: string;
 }

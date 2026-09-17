@@ -88,6 +88,11 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>(undefined);
   const [targetCplIDR, setTargetCplIDR] = useState<number | null | undefined>(undefined);
   const [datePreset, setDatePreset] = useState("last_30d");
+  // Campaign->Listing Mapping — real, best-effort lookup of the selected campaign's real
+  // `listings.id`, so `AndromedaHealthCard`/`CampaignInsightPanel`'s `MetaSettingsPanel` can
+  // enable their real "Brief Kai" actions instead of always rendering honestly disabled.
+  // `undefined` while loading or when the real link genuinely doesn't exist yet.
+  const [selectedListingId, setSelectedListingId] = useState<string | undefined>(undefined);
 
   const { data, fetchedAt, loading, error, pull } = useCampaignsSnapshot();
 
@@ -153,6 +158,37 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
   const benchmarkCtr = useMemo(() => accountBenchmarkCtr(campaigns), [campaigns]);
 
   const selectedCampaign = filteredCampaigns.find((campaign) => campaign.id === selectedCampaignId);
+
+  // Campaign->Listing Mapping — real, best-effort fetch of the selected campaign's real
+  // `listings.id` link (`GET /api/campaigns/:campaignId/listing-id`, `meta_campaigns.listing_id`).
+  // Keyed by the real, stable `metaId` (never `id` — same convention `andromeda-health`/`history`
+  // already establish). A failure or a genuinely-absent link just leaves `selectedListingId`
+  // `undefined` — the real "Brief Kai" buttons below degrade to their existing honest-disabled
+  // state, never a fabricated id.
+  useEffect(() => {
+    let cancelled = false;
+    setSelectedListingId(undefined);
+    if (selectedCampaign === undefined) {
+      return;
+    }
+    fetch(`/api/campaigns/${encodeURIComponent(selectedCampaign.metaId)}/listing-id`)
+      .then((res) => (res.ok ? (res.json() as Promise<{ listingId?: string | null }>) : undefined))
+      .then((body) => {
+        if (!cancelled && body?.listingId !== null && body?.listingId !== undefined) {
+          setSelectedListingId(body.listingId);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — the real "Brief Kai" buttons just stay honestly disabled.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Keyed on the real, stable `metaId` primitive, never the `selectedCampaign` object itself
+    // (re-derived fresh on every render via `.find(...)`, which would re-fire this effect on
+    // every render instead of only on a genuine selection change).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCampaign?.metaId]);
 
   // Real bug fix (live-confirmed via a 404 in aaos-api's own logs on the sibling Andromeda Health
   // lookup — the exact same root cause applies here): `UnifiedCampaignTable`/`VerdictCards` call
@@ -314,6 +350,7 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
                 campaign={selectedCampaign}
                 benchmarkCplIDR={benchmarkCplIDR}
                 benchmarkCtr={benchmarkCtr}
+                listingId={selectedListingId}
                 onClose={() => setSelectedCampaignId(undefined)}
               />
             ) : null}
@@ -321,10 +358,11 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
             {/* Samantha Andromeda-Aware Campaign System, Sprint 2 — "after the campaign table,
                 before Verdict cards" (the pasted spec's own placement instruction), rendered only
                 for the currently-selected campaign since Sprint 1's diversity scoring is real
-                per-campaign, not per-tenant (see `AndromedaHealthCard`'s own doc). No real
-                campaign→listing mapping exists client-side yet (investigated directly), so
-                `listingId` is honestly omitted here — the card itself degrades "Brief Kai sekarang"
-                to a disabled, explained state rather than fabricating a resolvable listing. */}
+                per-campaign, not per-tenant (see `AndromedaHealthCard`'s own doc). `listingId` is
+                the real Campaign->Listing Mapping lookup above (053_meta_campaigns_listing_id.sql)
+                — `undefined` (never fabricated) for the honest common case of a campaign with no
+                real link yet, in which case the card itself degrades "Brief Kai sekarang" to its
+                existing disabled, explained state. */}
             {selectedCampaign !== undefined ? (
               <AndromedaHealthCard
                 // Real bug fix (live-confirmed 404): `getAndromedaHealth` does its OWN fresh live
@@ -333,6 +371,7 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
                 // separate requests. See `CampaignSummaryDto.metaId`'s own doc.
                 campaignId={selectedCampaign.metaId}
                 campaignName={selectedCampaign.name}
+                listingId={selectedListingId}
               />
             ) : null}
 

@@ -39,6 +39,8 @@ export interface CampaignInsightPanelProps {
   readonly benchmarkCplIDR: number | null;
   /** SAMANTHA META ADS SETTINGS + CREATIVE COPY — real account-wide average CTR (`accountBenchmarkCtr`), `null` when no campaign has real impressions data yet. */
   readonly benchmarkCtr: number | null;
+  /** Campaign->Listing Mapping — real `meta_campaigns.listing_id` lookup, forwarded to `MetaSettingsPanel`'s "Brief Kai" buttons. `undefined` (never fabricated) when this campaign has no real link yet. */
+  readonly listingId?: string;
   readonly onClose: () => void;
 }
 
@@ -164,6 +166,7 @@ export function CampaignInsightPanel({
   campaign,
   benchmarkCplIDR,
   benchmarkCtr,
+  listingId,
   onClose,
 }: CampaignInsightPanelProps): React.ReactElement {
   const [insight, setInsight] = useState<CampaignInsightResponseDto | undefined>(undefined);
@@ -832,7 +835,7 @@ export function CampaignInsightPanel({
         </button>
         {settingsExpanded && settingsRec !== undefined ? (
           settingsRec.available ? (
-            <MetaSettingsPanel recommendation={settingsRec} />
+            <MetaSettingsPanel recommendation={settingsRec} listingId={listingId} />
           ) : (
             <MetaSettingsPanelUnavailable message={settingsRec.message} />
           )

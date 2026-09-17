@@ -34,8 +34,10 @@ vi.mock("@/components/campaigns/CampaignInsightPanel", () => ({
   ),
 }));
 vi.mock("@/components/campaigns/AndromedaHealthCard", () => ({
-  AndromedaHealthCard: (props: { readonly campaignId: string }) => (
-    <div data-testid="real-andromeda-health-card">{props.campaignId}</div>
+  AndromedaHealthCard: (props: { readonly campaignId: string; readonly listingId?: string }) => (
+    <div data-testid="real-andromeda-health-card">
+      {props.campaignId} listingId:{props.listingId ?? "none"}
+    </div>
   ),
 }));
 vi.mock("@/components/campaigns/VerdictCards", () => ({
@@ -208,6 +210,46 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     render(<CampaignsHubClient />);
     await userEvent.click(screen.getByTestId("fake-select-c1"));
     expect(screen.getByTestId("real-andromeda-health-card")).toHaveTextContent("meta-c1");
+  });
+
+  // Campaign->Listing Mapping — real, best-effort fetch of the selected campaign's real
+  // `listings.id` link, keyed by the real, stable `metaId` (never the local `id`).
+  it("Campaign->Listing Mapping: fetches /api/campaigns/:metaId/listing-id on selection and forwards the real listingId to AndromedaHealthCard", async () => {
+    seedCache();
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/settings") {
+        return new Response(JSON.stringify({ tenant: { mode: "DEV" } }), { status: 200 });
+      }
+      if (url === "/api/campaigns/meta-c1/listing-id") {
+        return new Response(
+          JSON.stringify({ campaignId: "meta-c1", listingId: "listing-real-1" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    render(<CampaignsHubClient />);
+    await userEvent.click(screen.getByTestId("fake-select-c1"));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/campaigns/meta-c1/listing-id"),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("real-andromeda-health-card")).toHaveTextContent(
+        "listingId:listing-real-1",
+      ),
+    );
+  });
+
+  it("Campaign->Listing Mapping: degrades honestly (listingId stays undefined) when this campaign has no real link yet", async () => {
+    seedCache();
+    mockSettingsFetch();
+    render(<CampaignsHubClient />);
+    await userEvent.click(screen.getByTestId("fake-select-c1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("real-andromeda-health-card")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("real-andromeda-health-card")).toHaveTextContent("listingId:none");
   });
 
   it("clicking a row opens the real CampaignInsightPanel for that campaign", async () => {
