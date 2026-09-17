@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { CampaignInsightResponseDto } from "../llm/dto/campaign-insight.dto.js";
 import type { DiagnoseAdCopyResponseDto } from "../llm/dto/diagnose-ad-copy.dto.js";
+import type { MetaSettingsRecommendationResponseDto } from "../llm/dto/meta-settings-recommendation.dto.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AssetDetailResponseDto } from "./dto/asset-detail.dto.js";
@@ -48,6 +49,13 @@ function buildFakeService(): MetaAdsService {
             softCta: { status: "NO", reasoning: "Tidak ada CTA." },
           },
         }) as unknown as DiagnoseAdCopyResponseDto,
+    ),
+    getMetaSettingsRecommendation: vi.fn(
+      async () =>
+        ({
+          available: true,
+          settingsSummaryCard: { oneLineRecommendation: "Gunakan broad targeting." },
+        }) as unknown as MetaSettingsRecommendationResponseDto,
     ),
   } as unknown as MetaAdsService;
 }
@@ -132,6 +140,32 @@ describe("MetaAdsController", () => {
       available: true,
       narrative: "Campaign ini SCALE-worthy.",
       actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
+    });
+  });
+
+  it("POST /api/v1/campaigns/settings-recommendation delegates to MetaAdsService.getMetaSettingsRecommendation with the body + real per-request tenant id", async () => {
+    const service = buildFakeService();
+    const controller = new MetaAdsController(service);
+    const body = {
+      campaignId: "camp-1",
+      campaignName: "Dijual Tanah di BSD 500m² SHM",
+      objective: "OUTCOME_LEADS",
+      status: "ACTIVE",
+      verdict: "SCALE",
+      ctr: 0.02,
+      cpl: 35_746,
+      benchmarkCplIDR: 100_000,
+      benchmarkCtr: 0.025,
+      maxFrequency: 1.8,
+      totalLead: 60,
+      spend: 2_144_749,
+      dailyBudget: 750_000,
+    } as const;
+    const result = await controller.getMetaSettingsRecommendation(body, "tenant-a");
+    expect(service.getMetaSettingsRecommendation).toHaveBeenCalledWith("tenant-a", body);
+    expect(result).toEqual({
+      available: true,
+      settingsSummaryCard: { oneLineRecommendation: "Gunakan broad targeting." },
     });
   });
 

@@ -83,6 +83,11 @@ import {
 } from "./dto/judge-agent-run.dto.js";
 import { unavailable, type LlmUnavailableResponseDto } from "./dto/llm-unavailable.dto.js";
 import {
+  MetaSettingsRecommendationLlmPayloadSchema,
+  type MetaSettingsRecommendationRequestDto,
+  type MetaSettingsRecommendationResponseDto,
+} from "./dto/meta-settings-recommendation.dto.js";
+import {
   PhotoAnalysisLlmPayloadSchema,
   type PhotoAnalysisRequestDto,
   type PhotoAnalysisResponseDto,
@@ -629,6 +634,89 @@ Format response JSON:
 }`;
 
 /**
+ * SAMANTHA META ADS SETTINGS + CREATIVE COPY — `LlmService.metaSettingsRecommendation`'s system
+ * prompt. Powers the unified `/campaigns` page's "Rekomendasi Settings + Creative Copy" panel
+ * (rendered below `CampaignInsightPanel`'s own diagnosis). Real inputs only (`MetaSettingsRecommendation
+ * RequestDto` — see that DTO's own doc for the full field-by-field real-source doc, including which
+ * pasted-spec assumptions — Meta geo/interest IDs, an "apply settings" mutation, KPR/facilities
+ * listing fields — have no real backing in this codebase and were adapted or dropped).
+ */
+const META_SETTINGS_SYSTEM_PROMPT = `Kamu adalah Samantha — Senior Meta Ads Specialist untuk properti Indonesia. Kamu akan merekomendasikan SETTINGS META ADS yang optimal dan COPY IKLAN yang bervariasi untuk SATU campaign.
+
+KEAHLIANMU:
+- Paham interest/geo targeting yang relevan untuk properti Indonesia — TAPI kamu TIDAK tahu ID asli Meta untuk lokasi/interest manapun (tidak ada database ID di sistem ini). Kamu HANYA boleh memberi NAMA lokasi/interest sebagai titik awal pencarian — media buyer akan mencari ID aslinya sendiri secara live di Meta Ads Manager. JANGAN PERNAH mengarang angka ID Meta.
+- Paham bahwa di era Andromeda 2026, BROAD targeting biasanya lebih baik dari interest stacking.
+- Bisa buat copy yang terasa ditulis manusia, bukan AI — natural, spesifik, ada angka, ada lokasi, ada unique hook. TIDAK BOLEH generik seperti "Dijual rumah bagus lokasi strategis".
+- Paham psikologi pembeli properti Indonesia dan perbedaan copy untuk tanah vs rumah vs apartemen vs ruko.
+
+ATURAN COPY:
+- Headline: max 27 karakter — kuat, spesifik, memorable.
+- Primary text: max 125 karakter — hook langsung, tidak basi.
+- Description: max 30 karakter — supporting CTA.
+- Setiap copy WAJIB punya "angle" yang BERBEDA dari 8 nilai berikut, JANGAN mengarang nilai lain: DP_RINGAN, READY_HUNI, INVESTASI, EXCLUSIVE, SYARIAH, PROMO_TERBATAS, TESTIMONIAL, VIRTUAL_TOUR. Buat SATU copy untuk SETIAP angle (8 copy total) — masing-masing harus terasa jelas berbeda satu sama lain, bukan hanya kata yang diganti.
+
+Kamu diberi data campaign ini (JSON di pesan user) — SEMUA angka NYATA, JANGAN dihitung ulang:
+- "campaignName", "objective", "status", "verdict" (real VerdictEngine verdict).
+- "ctr"/"cpl" (bisa null), "benchmarkCplIDR"/"benchmarkCtr" (bisa null jika belum ada data pembanding akun).
+- "maxFrequency", "totalLead", "spend", "dailyBudget".
+- "listing" (opsional — TIDAK SELALU ADA, karena tidak semua campaign punya listing yang bisa dipetakan secara otomatis di sistem ini): "propertyType", "price", "city"/"kecamatan" (opsional), "landArea"/"buildArea" m² (opsional), "bedrooms"/"bathrooms" (opsional), "certificate" (status legal, mis. "SHM" — opsional), "highlights" (array fitur nyata), "description" (opsional).
+- Jika "listing" TIDAK ADA di data: JANGAN mengarang detail properti — gunakan HANYA "campaignName" untuk inferensi tipe properti/lokasi/segmen (mis. dari nama campaign "Dijual Tanah BSD 500m² SHM" kamu bisa infer tanah, lokasi BSD, SHM — tapi JANGAN mengarang harga atau detail lain yang tidak disebut di nama campaign).
+
+ATURAN KERAS:
+- HANYA gunakan angka/nama yang benar-benar ada di data JSON atau bisa di-infer jujur dari "campaignName". JANGAN mengarang harga, KPR/cicilan (tidak ada data KPR di sistem ini — JANGAN pernah menyebut angka cicilan spesifik), fasilitas yang tidak ada di "highlights", atau ID Meta apapun.
+- "geoTargeting.locations"/"interestTargeting.interests": HANYA nama tempat/interest sebagai saran pencarian, TIDAK PERNAH sertakan ID numerik atau klaim ID itu nyata.
+- "specialAdCategory.required" harus true dan "category" harus "HOUSING" — properti Indonesia di Meta selalu masuk kategori iklan khusus perumahan (special ad category), yang membatasi beberapa opsi targeting demografis.
+- SETIAP field yang ditandai "opsional" di format di bawah: kalau tidak ada isi jujur, JANGAN sertakan key itu sama sekali dan JANGAN isi dengan null — hilangkan key-nya sepenuhnya.
+- "budgetRecommendation.dailyBudget" harus proporsional dengan "dailyBudget" nyata di data (bukan angka acak) kecuali ada alasan kuat dari performa untuk menaikkan/menurunkan.
+
+Format response JSON:
+{
+  "audienceSettings": {
+    "strategy": "BROAD_ADVANTAGE_PLUS|INTEREST|RETARGETING|LOOKALIKE",
+    "strategyRationale": "...",
+    "geoTargeting": { "locations": [{ "name": "...", "radiusKm": 15, "radiusRationale": "..." }], "excluded": [], "geoRationale": "..." },
+    "demographics": { "ageMin": 25, "ageMax": 55, "gender": "all|male|female", "ageRationale": "...", "note": "opsional" },
+    "interestTargeting": { "use": true, "useRationale": "...", "interests": [{ "name": "...", "category": "property|finance|lifestyle|location", "relevance": "...", "estimatedReach": "kecil|medium|besar" }], "interestStacking": false, "stackingWarning": "opsional" },
+    "customAudiences": { "retargeting": { "recommended": true, "source": "opsional", "rationale": "..." }, "lookalike": { "recommended": true, "sourcePct": "opsional, mis. 2%", "rationale": "..." } },
+    "specialAdCategory": { "required": true, "category": "HOUSING", "implications": "..." }
+  },
+  "campaignSettings": {
+    "objective": "OUTCOME_LEADS|OUTCOME_SALES|OUTCOME_ENGAGEMENT",
+    "objectiveRationale": "...",
+    "buyingType": "AUCTION",
+    "campaignBudgetOptimization": false,
+    "cboRationale": "...",
+    "bidStrategy": "LOWEST_COST|BID_CAP|COST_CAP",
+    "bidStrategyRationale": "...",
+    "bidCap": null,
+    "adSchedule": { "use": false, "rationale": "..." }
+  },
+  "adSetSettings": {
+    "structure": "1 campaign -> 1 ad set -> N ads (Andromeda optimal)",
+    "optimizationGoal": "LEAD_GENERATION|CONVERSATIONS|LINK_CLICKS",
+    "optimizationRationale": "...",
+    "billingEvent": "IMPRESSIONS",
+    "budgetRecommendation": { "dailyBudget": 750000, "minViable": 300000, "idealForLearning": 1000000, "rationale": "..." },
+    "placementStrategy": { "type": "ADVANTAGE_PLUS|MANUAL", "placements": ["Facebook Feed", "Instagram Feed", "Instagram Reels", "Facebook Reels"], "excluded": ["Audience Network"], "rationale": "..." }
+  },
+  "creativeRecommendations": {
+    "diversityTarget": "8 angle berbeda, minimum 2 format berbeda",
+    "copies": [
+      { "angle": "DP_RINGAN", "targetPersona": "...", "hook": "...", "headline": "max 27 char", "primaryText": "max 125 char", "description": "max 30 char", "cta": "Send Message|WhatsApp|Learn More|Get Quote|Apply Now", "recommendedFormat": "VIDEO_AND_IMAGES|IMAGES_ONLY", "visualDirection": "...", "whyThisWorks": "..." }
+    ],
+    "copyPrinciples": ["opsional, apa yang harus ada/dihindari di semua copy"],
+    "abTestMatrix": [{ "test": "...", "variantAAngle": "DP_RINGAN", "variantBAngle": "INVESTASI", "hypothesis": "...", "metric": "CTR dalam 3 hari pertama", "winnerCriteria": "..." }]
+  },
+  "trackingSetup": {
+    "pixelRequired": true,
+    "capi": { "required": true, "rationale": "...", "eventsToTrack": ["Lead", "Contact", "ViewContent"] },
+    "utmParams": { "template": "utm_source=meta&utm_medium=paid_social&utm_campaign=...&utm_content=...", "rationale": "..." },
+    "waLinkSetup": "contoh format wa.me link dengan pesan pre-filled"
+  },
+  "settingsSummaryCard": { "oneLineRecommendation": "max 200 karakter", "topPriorityChange": "...", "estimatedImpact": "..." }
+}`;
+
+/**
  * AAOS-SAMANTHA-LLM-AD-COPY — `LlmService.generateAdCopyVariants`'s system prompt. Real,
  * PROPERTY-vertical listing data (`AdCopyVariantsRequestDto`) is sent as the user message's
  * `JSON.stringify(body)`, same static-persona-plus-JSON-user-message shape every other prompt in
@@ -888,11 +976,26 @@ const llmServiceLogger = createLogger({ serviceName: "aaos-api" });
  * failed on, making a live "analisa tidak muncul" report undiagnosable without this.
  */
 function logCampaignInsightValidationFailure(rawContent: string, issues: string): void {
+  logSchemaValidationFailure(
+    "campaignInsight",
+    "CampaignInsightLlmPayloadSchema",
+    rawContent,
+    issues,
+  );
+}
+
+/** Same diagnostic discipline as `logCampaignInsightValidationFailure`, generalized so `metaSettingsRecommendation` (and any future method) gets the same real visibility into schema-validation failures without a copy-pasted helper. */
+function logSchemaValidationFailure(
+  methodName: string,
+  schemaName: string,
+  rawContent: string,
+  issues: string,
+): void {
   const truncated =
     rawContent.length > 2000 ? `${rawContent.slice(0, 2000)}…(truncated)` : rawContent;
   llmServiceLogger.warn(
     { rawContent: truncated, issues },
-    "LlmService.campaignInsight: real OpenAI response failed CampaignInsightLlmPayloadSchema validation",
+    `LlmService.${methodName}: real OpenAI response failed ${schemaName} validation`,
   );
 }
 
@@ -1736,6 +1839,70 @@ export class LlmService {
 
     const response: CampaignInsightResponseDto = { available: true, ...validated.data };
     this.cache.set("campaign-insight", body, response);
+    return response;
+  }
+
+  /**
+   * SAMANTHA META ADS SETTINGS + CREATIVE COPY — real Meta Ads settings recommendation + 8-angle
+   * creative copy for ONE campaign, rendered below `CampaignInsightPanel`'s diagnosis. Same
+   * cache/gate/call/validate/cache composition as every other method on this service — no bespoke
+   * caching table (the pasted spec's own `campaign_insights_cache` DB table does not exist and was
+   * never built; this reuses the SAME in-memory `ResponseCache` every other method already uses).
+   * Advisory-only: see `MetaSettingsRecommendationLlmPayloadSchema`'s own doc for why there is no
+   * "apply settings" mutation anywhere in this method or its real caller.
+   */
+  async metaSettingsRecommendation(
+    tenantId: string,
+    body: MetaSettingsRecommendationRequestDto,
+  ): Promise<MetaSettingsRecommendationResponseDto> {
+    const cached = this.cache.get("meta-settings-recommendation", body) as
+      MetaSettingsRecommendationResponseDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return gate;
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "meta_settings_recommendation",
+      META_SETTINGS_SYSTEM_PROMPT,
+    );
+    const completion = await this.client.createChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(body) },
+      ],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return unavailable("PROVIDER_ERROR");
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined
+        ? undefined
+        : MetaSettingsRecommendationLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      logSchemaValidationFailure(
+        "metaSettingsRecommendation",
+        "MetaSettingsRecommendationLlmPayloadSchema",
+        completion.value,
+        validated === undefined ? "response was not valid JSON at all" : validated.error.message,
+      );
+      return unavailable("INVALID_RESPONSE");
+    }
+
+    const response: MetaSettingsRecommendationResponseDto = {
+      available: true,
+      ...validated.data,
+    };
+    this.cache.set("meta-settings-recommendation", body, response);
     return response;
   }
 

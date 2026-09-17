@@ -167,6 +167,12 @@ function buildFakeLlmService() {
         softCta: { status: "NO" as const, reasoning: "Tidak ada CTA." },
       },
     })),
+    metaSettingsRecommendation: vi.fn(async () => ({
+      available: true as const,
+      settingsSummaryCard: {
+        oneLineRecommendation: "Gunakan broad targeting dan 8 angle creative.",
+      },
+    })),
   };
 }
 
@@ -357,6 +363,31 @@ describe("MetaAdsService", () => {
       const result = await service.getCampaignInsight(DEFAULT_TENANT_ID, body as never);
       expect(llmService.campaignInsight).toHaveBeenCalledWith(DEFAULT_TENANT_ID, body);
       expect(result).toMatchObject({ available: true, verdict: "SCALE" });
+    });
+  });
+
+  describe("getMetaSettingsRecommendation", () => {
+    it("delegates straight to LlmService.metaSettingsRecommendation with the real tenant id, no Meta re-pull", async () => {
+      const llmService = buildFakeLlmService();
+      const service = buildService(false, buildFakeActivityLogger(), llmService);
+      const body = {
+        campaignId: "camp-1",
+        campaignName: "Dijual Tanah di BSD 500m² SHM",
+        objective: "OUTCOME_LEADS",
+        status: "ACTIVE",
+        verdict: "SCALE",
+        ctr: 0.02,
+        cpl: 35_746,
+        benchmarkCplIDR: 100_000,
+        benchmarkCtr: 0.025,
+        maxFrequency: 1.8,
+        totalLead: 60,
+        spend: 2_144_749,
+        dailyBudget: 750_000,
+      } as const;
+      const result = await service.getMetaSettingsRecommendation(DEFAULT_TENANT_ID, body as never);
+      expect(llmService.metaSettingsRecommendation).toHaveBeenCalledWith(DEFAULT_TENANT_ID, body);
+      expect(result).toMatchObject({ available: true });
     });
   });
 

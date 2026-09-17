@@ -13,6 +13,11 @@ import {
   type DiagnoseAdCopyRequestDto,
   type DiagnoseAdCopyResponseDto,
 } from "../llm/dto/diagnose-ad-copy.dto.js";
+import {
+  MetaSettingsRecommendationRequestSchema,
+  type MetaSettingsRecommendationRequestDto,
+  type MetaSettingsRecommendationResponseDto,
+} from "../llm/dto/meta-settings-recommendation.dto.js";
 
 import type { AdAccountOptionDto } from "./dto/ad-account-option.dto.js";
 import type { AndromedaHealthResponseDto } from "./dto/andromeda-health.dto.js";
@@ -172,6 +177,21 @@ export class MetaAdsController {
     @TenantId() tenantId: string,
   ): Promise<CampaignInsightResponseDto> {
     return this.metaAdsService.getCampaignInsight(tenantId, body);
+  }
+
+  /**
+   * `POST /api/v1/campaigns/settings-recommendation` — SAMANTHA META ADS SETTINGS + CREATIVE
+   * COPY. Same dedicated pass-through shape as `POST /api/v1/campaigns/insight` above — see
+   * `MetaAdsService.getMetaSettingsRecommendation`'s own doc.
+   */
+  @Post("campaigns/settings-recommendation")
+  @HttpCode(200)
+  async getMetaSettingsRecommendation(
+    @Body(new ZodValidationPipe(MetaSettingsRecommendationRequestSchema))
+    body: MetaSettingsRecommendationRequestDto,
+    @TenantId() tenantId: string,
+  ): Promise<MetaSettingsRecommendationResponseDto> {
+    return this.metaAdsService.getMetaSettingsRecommendation(tenantId, body);
   }
 
   /**

@@ -31,6 +31,7 @@ import type { DiverseCreativeBriefSetRequestDto } from "./dto/diverse-creative-b
 import type { GenerateCaptionRequestDto } from "./dto/generate-caption.dto.js";
 import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js";
 import type { ImprovementPlanRequestDto } from "./dto/improvement-plan.dto.js";
+import type { MetaSettingsRecommendationRequestDto } from "./dto/meta-settings-recommendation.dto.js";
 import type { PhotoAnalysisRequestDto } from "./dto/photo-analysis.dto.js";
 import type { SelectTargetingRequestDto } from "./dto/select-targeting.dto.js";
 import {
@@ -1871,6 +1872,197 @@ describe("LlmService", () => {
       expect(userMessage).toContain('"cpc":7353');
       expect(userMessage).toContain("LOW_DIVERSITY");
       expect(userMessage).toContain('"hotLeadsCount":5');
+    });
+  });
+
+  describe("metaSettingsRecommendation", () => {
+    const validBody: MetaSettingsRecommendationRequestDto = {
+      campaignId: "camp-1",
+      campaignName: "Dijual Tanah di BSD 500m² SHM",
+      objective: "OUTCOME_LEADS",
+      status: "ACTIVE",
+      verdict: "SCALE",
+      ctr: 0.02,
+      cpl: 35_746,
+      benchmarkCplIDR: 100_000,
+      benchmarkCtr: 0.025,
+      maxFrequency: 1.8,
+      totalLead: 60,
+      spend: 2_144_749,
+      dailyBudget: 750_000,
+    };
+
+    const validLlmJson = JSON.stringify({
+      audienceSettings: {
+        strategy: "BROAD_ADVANTAGE_PLUS",
+        strategyRationale: "Broad lebih efisien di era Andromeda untuk properti.",
+        geoTargeting: {
+          locations: [
+            { name: "BSD City", radiusKm: 15, radiusRationale: "Coverage buyer commuter." },
+          ],
+          geoRationale: "BSD adalah lokasi listing.",
+        },
+        demographics: {
+          ageMin: 28,
+          ageMax: 55,
+          gender: "all",
+          ageRationale: "Segmen investor & keluarga.",
+        },
+        interestTargeting: { use: false, useRationale: "Broad lebih baik di Andromeda." },
+        customAudiences: {
+          retargeting: { recommended: false, rationale: "Belum ada data WA leads." },
+          lookalike: { recommended: false, rationale: "Belum ada source untuk LAL." },
+        },
+        specialAdCategory: {
+          required: true,
+          category: "HOUSING",
+          implications: "Demografi dibatasi Meta.",
+        },
+      },
+      campaignSettings: {
+        objective: "OUTCOME_LEADS",
+        objectiveRationale: "WA conversation cocok untuk properti Indonesia.",
+        buyingType: "AUCTION",
+        campaignBudgetOptimization: false,
+        cboRationale: "1 ad set, CBO tidak relevan.",
+        bidStrategy: "LOWEST_COST",
+        bidStrategyRationale: "Volume leads maksimal.",
+        adSchedule: { use: false, rationale: "Lead bisa datang kapan saja." },
+      },
+      adSetSettings: {
+        structure: "1 campaign -> 1 ad set -> N ads",
+        optimizationGoal: "LEAD_GENERATION",
+        optimizationRationale: "Objective leads.",
+        billingEvent: "IMPRESSIONS",
+        budgetRecommendation: {
+          dailyBudget: 750_000,
+          minViable: 300_000,
+          idealForLearning: 1_000_000,
+          rationale: "Sesuai budget saat ini.",
+        },
+        placementStrategy: {
+          type: "ADVANTAGE_PLUS",
+          placements: ["Facebook Feed", "Instagram Feed"],
+          rationale: "Placement luas untuk Andromeda.",
+        },
+      },
+      creativeRecommendations: {
+        diversityTarget: "8 angle berbeda",
+        copies: [
+          {
+            angle: "DP_RINGAN",
+            targetPersona: "first_home_buyer",
+            hook: "Tanah BSD 500m² SHM.",
+            headline: "BSD 500m² SHM",
+            primaryText: "Kavling BSD City 500m² SHM, siap bangun.",
+            description: "Chat sekarang",
+            cta: "Send Message",
+            recommendedFormat: "IMAGES_ONLY",
+            visualDirection: "Foto bird eye lokasi.",
+            whyThisWorks: "Investor langsung tahu ukuran & legal.",
+          },
+        ],
+      },
+      trackingSetup: {
+        pixelRequired: true,
+        capi: { required: true, rationale: "Signal quality Andromeda.", eventsToTrack: ["Lead"] },
+        utmParams: { template: "utm_source=meta&utm_campaign=x", rationale: "Attribution WA/CRM." },
+        waLinkSetup: "wa.me/628xxx?text=Halo",
+      },
+      settingsSummaryCard: {
+        oneLineRecommendation: "Gunakan broad targeting dan 8 angle creative.",
+        topPriorityChange: "Aktifkan Advantage+ placements.",
+        estimatedImpact: "CPL target ~Rp80rb.",
+      },
+    });
+
+    it("returns available:true with a real, Zod-validated settings + copy recommendation from a mocked OpenAI response", async () => {
+      registerOpenAiChatHandler(validLlmJson);
+      const service = buildService();
+      const result = await service.metaSettingsRecommendation(TENANT_ID, validBody);
+      // copyPrinciples/abTestMatrix default to [] (see the schema's own null-tolerance doc) even
+      // though the raw fixture JSON above omits them entirely — toMatchObject, not toEqual.
+      expect(result).toMatchObject({ available: true, ...JSON.parse(validLlmJson) });
+    });
+
+    it("returns NO_API_KEY (no fabricated recommendation) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.metaSettingsRecommendation(TENANT_ID, validBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns PROVIDER_ERROR (no fabricated recommendation) when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.metaSettingsRecommendation(TENANT_ID, validBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when a copy uses a fabricated angle not in the real 8-member PropertyAdAngle enum", async () => {
+      const invalidJson = JSON.stringify({
+        ...JSON.parse(validLlmJson),
+        creativeRecommendations: {
+          ...JSON.parse(validLlmJson).creativeRecommendations,
+          copies: [
+            { ...JSON.parse(validLlmJson).creativeRecommendations.copies[0], angle: "harga" },
+          ],
+        },
+      });
+      registerOpenAiChatHandler(invalidJson);
+      const service = buildService();
+      const result = await service.metaSettingsRecommendation(TENANT_ID, validBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validLlmJson);
+      const service = buildService();
+      const first = await service.metaSettingsRecommendation(TENANT_ID, validBody);
+      mswServer.resetHandlers();
+      const second = await service.metaSettingsRecommendation(TENANT_ID, validBody);
+      expect(second).toEqual(first);
+    });
+
+    it("accepts a real listing and threads it into the actual LLM user-message payload", async () => {
+      const bodyWithListing: MetaSettingsRecommendationRequestDto = {
+        ...validBody,
+        listing: {
+          propertyType: "TANAH",
+          price: 2_000_000_000,
+          city: "Tangerang Selatan",
+          certificate: "SHM",
+          highlights: ["Dekat pintu tol BSD"],
+        },
+      };
+
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({ choices: [{ message: { content: validLlmJson } }] });
+        }),
+      );
+
+      const service = buildService();
+      await service.metaSettingsRecommendation(TENANT_ID, bodyWithListing);
+
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      const userMessage = messages[1]?.content ?? "";
+      expect(userMessage).toContain("Tangerang Selatan");
+      expect(userMessage).toContain("SHM");
     });
   });
 

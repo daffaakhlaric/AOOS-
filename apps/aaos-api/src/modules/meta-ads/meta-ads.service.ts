@@ -17,6 +17,10 @@ import type {
   DiagnoseAdCopyRequestDto,
   DiagnoseAdCopyResponseDto,
 } from "../llm/dto/diagnose-ad-copy.dto.js";
+import type {
+  MetaSettingsRecommendationRequestDto,
+  MetaSettingsRecommendationResponseDto,
+} from "../llm/dto/meta-settings-recommendation.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
@@ -200,6 +204,19 @@ export class MetaAdsService {
     body: CampaignInsightRequestDto,
   ): Promise<CampaignInsightResponseDto> {
     return this.llmService.campaignInsight(tenantId, body);
+  }
+
+  /**
+   * `POST /api/v1/campaigns/settings-recommendation` — SAMANTHA META ADS SETTINGS + CREATIVE
+   * COPY. Same thin pass-through shape as `getCampaignInsight` above — the caller already has the
+   * one selected campaign's real aggregate metrics (and, best-effort, a real `listings` row when a
+   * `listingId` is known for it) loaded client-side.
+   */
+  async getMetaSettingsRecommendation(
+    tenantId: string,
+    body: MetaSettingsRecommendationRequestDto,
+  ): Promise<MetaSettingsRecommendationResponseDto> {
+    return this.llmService.metaSettingsRecommendation(tenantId, body);
   }
 
   /**
