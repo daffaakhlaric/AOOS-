@@ -152,7 +152,11 @@ describe("AppModule.forRoot", () => {
     // own repository locally from the existing SUPABASE_CLIENT via `useFactory`, same
     // "each module composes its own instance of a shared repository class" pattern
     // SuperadminModule's TenantRepository provider already establishes).
-    expect(dynamicModule.imports).toHaveLength(36);
+    // EYVRA — SAMANTHA V2 Phase 1 Part B (first half): +1 import (MetricSnapshotModule, the new
+    // real `/api/v1/metric-snapshots/*` HTTP surface) — no new global provider (composes its own
+    // MetricSnapshotRepository locally from the existing SUPABASE_CLIENT via `useFactory`, same
+    // pattern GrowthObjectivesModule/HotLeadDefinitionsModule already establish).
+    expect(dynamicModule.imports).toHaveLength(37);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

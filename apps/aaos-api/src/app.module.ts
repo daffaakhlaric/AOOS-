@@ -92,6 +92,7 @@ import { MetaAdsConnectorRegistry } from "./modules/meta-ads/infrastructure/meta
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { MetaOAuthModule } from "./modules/meta-oauth/meta-oauth.module.js";
+import { MetricSnapshotModule } from "./modules/metric-snapshot/metric-snapshot.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
 import { OverviewModule } from "./modules/overview/overview.module.js";
 import { PropertyObjectiveModule } from "./modules/property-objective/property-objective.module.js";
@@ -469,6 +470,12 @@ export class AppModule {
         // establishes.
         GrowthObjectivesModule,
         HotLeadDefinitionsModule,
+        // EYVRA -- SAMANTHA V2 Phase 1 Part B (first half) -- Metric Snapshot domain: real windowed
+        // aggregates + data sufficiency + benchmark over `meta_insights_daily`. Builds its own
+        // repository instance from the shared `SUPABASE_CLIENT`, same pattern the two modules above
+        // establish. Does not touch `meta-sync`/`meta-ads` -- reads the same real table those
+        // modules already write, nothing more.
+        MetricSnapshotModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },
