@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CampaignInsightPanel } from "@/components/campaigns/CampaignInsightPanel";
@@ -170,7 +171,12 @@ describe("CampaignInsightPanel", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
 
     await waitFor(() =>
@@ -212,6 +218,7 @@ describe("CampaignInsightPanel", () => {
       <CampaignInsightPanel
         campaign={learningCampaign}
         benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
         onClose={vi.fn()}
       />,
     );
@@ -243,7 +250,12 @@ describe("CampaignInsightPanel", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
 
     await waitFor(() =>
@@ -283,6 +295,7 @@ describe("CampaignInsightPanel", () => {
       <CampaignInsightPanel
         campaign={delayedAdLevelPull}
         benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
         onClose={vi.fn()}
       />,
     );
@@ -318,7 +331,12 @@ describe("CampaignInsightPanel", () => {
       ],
     };
     render(
-      <CampaignInsightPanel campaign={genuineZero} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={genuineZero}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     expect(screen.getByTestId("insight-kpi-spend")).toHaveTextContent("0");
     expect(screen.queryByTestId("metric-card-warning")).not.toBeInTheDocument();
@@ -333,7 +351,12 @@ describe("CampaignInsightPanel", () => {
       }),
     );
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() =>
       expect(screen.getByTestId("insight-verdict-oneliner")).toHaveTextContent(
@@ -356,7 +379,12 @@ describe("CampaignInsightPanel", () => {
       }),
     );
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() =>
       expect(screen.getByTestId("insight-root-cause")).toHaveTextContent("Creative fatigue."),
@@ -370,7 +398,12 @@ describe("CampaignInsightPanel", () => {
   it("renders the whatHappened story and the metric breakdown list", async () => {
     mockFetchOnce(validInsight({ whatHappened: "Campaign berjalan stabil sejak awal bulan." }));
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() =>
       expect(screen.getByTestId("insight-what-happened")).toHaveTextContent(
@@ -385,7 +418,12 @@ describe("CampaignInsightPanel", () => {
   it("renders all 3 playbook phases (immediate/shortTerm/mediumTerm) with their real action/how/expectedResult", async () => {
     mockFetchOnce(validInsight());
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() =>
       expect(screen.getByTestId("insight-playbook-immediate")).toHaveTextContent("Naikkan budget."),
@@ -408,7 +446,12 @@ describe("CampaignInsightPanel", () => {
       }),
     );
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() =>
       expect(screen.getByTestId("insight-kai-directive")).toHaveTextContent(
@@ -422,7 +465,12 @@ describe("CampaignInsightPanel", () => {
   it("does NOT render the Kai directive block when needed is false", async () => {
     mockFetchOnce(validInsight({ kaiDirective: { needed: false } }));
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() => expect(screen.getByTestId("insight-playbook")).toBeInTheDocument());
     expect(screen.queryByTestId("insight-kai-directive")).not.toBeInTheDocument();
@@ -443,7 +491,12 @@ describe("CampaignInsightPanel", () => {
       }),
     );
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() =>
       expect(screen.getByTestId("insight-budget-decision")).toHaveTextContent("Rp 750.000"),
@@ -460,7 +513,12 @@ describe("CampaignInsightPanel", () => {
   it("renders exactly 2 scenarios", async () => {
     mockFetchOnce(validInsight());
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() =>
       expect(screen.getByTestId("insight-scenarios")).toHaveTextContent("Scale bertahap"),
@@ -479,7 +537,12 @@ describe("CampaignInsightPanel", () => {
       }),
     );
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() =>
       expect(screen.getByTestId("insight-competitor-context")).toHaveTextContent(
@@ -496,7 +559,12 @@ describe("CampaignInsightPanel", () => {
   it("does NOT render competitorContext/proTip blocks when the real response honestly omits them", async () => {
     mockFetchOnce(validInsight({ competitorContext: undefined, proTip: undefined }));
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() => expect(screen.getByTestId("insight-scenarios")).toBeInTheDocument());
     expect(screen.queryByTestId("insight-competitor-context")).not.toBeInTheDocument();
@@ -506,7 +574,12 @@ describe("CampaignInsightPanel", () => {
   it("shows a real verdict header badge, never fabricated when the verdict is neutral", () => {
     mockFetchOnce(validInsight());
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     // Every real ad in CAMPAIGN carries verdict "SCALE" -> aggregateVerdict resolves SCALE.
     expect(screen.getByTestId("insight-verdict-badge")).toHaveTextContent("SCALE");
@@ -515,7 +588,12 @@ describe("CampaignInsightPanel", () => {
   it("does not render insight-verdict-oneliner before the LLM response resolves (no fabricated placeholder)", () => {
     mockFetchOnce(validInsight());
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     // Synchronously right after render, the fetch hasn't resolved yet.
     expect(screen.queryByTestId("insight-verdict-oneliner")).not.toBeInTheDocument();
@@ -528,7 +606,12 @@ describe("CampaignInsightPanel", () => {
       message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
     });
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     await waitFor(() => expect(screen.getByTestId("insight-unavailable")).toBeInTheDocument());
     expect(screen.getByTestId("insight-unavailable")).toHaveTextContent("Analisa belum tersedia");
@@ -537,7 +620,12 @@ describe("CampaignInsightPanel", () => {
   it("shows the real 6-KPI grid computed from already-loaded data, not the LLM response", () => {
     mockFetchOnce(validInsight());
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     const grid = screen.getByTestId("insight-kpi-grid");
     expect(grid).toHaveTextContent("Spend");
@@ -551,7 +639,12 @@ describe("CampaignInsightPanel", () => {
   it("shows the real campaign objective prominently (user feedback: 'objective settingannya juga keliatan')", () => {
     mockFetchOnce(validInsight());
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     expect(screen.getByTestId("insight-objective")).toHaveTextContent("OUTCOME_LEADS");
   });
@@ -559,7 +652,12 @@ describe("CampaignInsightPanel", () => {
   it("renders the real ad-set/ad drill-down (CampaignAdDrillDown) for the selected campaign", () => {
     mockFetchOnce(validInsight());
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     expect(screen.getByTestId("insight-drilldown-block")).toBeInTheDocument();
     expect(screen.getByTestId("ad-drilldown")).toBeInTheDocument();
@@ -569,7 +667,12 @@ describe("CampaignInsightPanel", () => {
   it("links to the real A/B Testing escape hatch (?view=ab-testing), never silently dropped", () => {
     mockFetchOnce(validInsight());
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
     expect(screen.getByText("Kelola A/B Test ↗")).toHaveAttribute(
       "href",
@@ -589,7 +692,12 @@ describe("CampaignInsightPanel", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
 
     await waitFor(() =>
@@ -638,7 +746,12 @@ describe("CampaignInsightPanel", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
 
     await waitFor(() =>
@@ -663,6 +776,7 @@ describe("CampaignInsightPanel", () => {
       <CampaignInsightPanel
         campaign={cheaperCampaign}
         benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
         onClose={vi.fn()}
       />,
     );
@@ -674,7 +788,14 @@ describe("CampaignInsightPanel", () => {
 
   it("does not render the CPL bar at all when there is honestly no real benchmark to compare against", () => {
     mockFetchOnce(validInsight());
-    render(<CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={null} onClose={vi.fn()} />);
+    render(
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={null}
+        benchmarkCtr={null}
+        onClose={vi.fn()}
+      />,
+    );
     expect(screen.queryByTestId("insight-cpl-bar")).not.toBeInTheDocument();
   });
 
@@ -709,7 +830,12 @@ describe("CampaignInsightPanel", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
 
     await waitFor(() =>
@@ -732,9 +858,183 @@ describe("CampaignInsightPanel", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     render(
-      <CampaignInsightPanel campaign={CAMPAIGN} benchmarkCplIDR={150_000} onClose={vi.fn()} />,
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
     );
 
     await waitFor(() => expect(screen.getByTestId("insight-verdict-oneliner")).toBeInTheDocument());
+  });
+
+  // SAMANTHA META ADS SETTINGS + CREATIVE COPY — lazy-loaded accordion: only fetched once
+  // expanded, never on mount alongside the diagnosis panel's own fetch.
+  describe("settings recommendation accordion", () => {
+    function settingsRecommendationFixture() {
+      return {
+        available: true,
+        audienceSettings: {
+          strategy: "BROAD_ADVANTAGE_PLUS",
+          strategyRationale: "x",
+          geoTargeting: {
+            locations: [{ name: "BSD City", radiusKm: 15, radiusRationale: "x" }],
+            excluded: [],
+            geoRationale: "x",
+          },
+          demographics: { ageMin: 28, ageMax: 55, gender: "all", ageRationale: "x" },
+          interestTargeting: {
+            use: false,
+            useRationale: "x",
+            interests: [],
+            interestStacking: false,
+          },
+          customAudiences: {
+            retargeting: { recommended: false, rationale: "x" },
+            lookalike: { recommended: false, rationale: "x" },
+          },
+          specialAdCategory: { required: true, category: "HOUSING", implications: "x" },
+        },
+        campaignSettings: {
+          objective: "OUTCOME_LEADS",
+          objectiveRationale: "x",
+          buyingType: "AUCTION",
+          campaignBudgetOptimization: false,
+          cboRationale: "x",
+          bidStrategy: "LOWEST_COST",
+          bidStrategyRationale: "x",
+          adSchedule: { use: false, rationale: "x" },
+        },
+        adSetSettings: {
+          structure: "x",
+          optimizationGoal: "LEAD_GENERATION",
+          optimizationRationale: "x",
+          billingEvent: "IMPRESSIONS",
+          budgetRecommendation: {
+            dailyBudget: 500_000,
+            minViable: 300_000,
+            idealForLearning: 1_000_000,
+            rationale: "x",
+          },
+          placementStrategy: {
+            type: "ADVANTAGE_PLUS",
+            placements: ["Facebook Feed"],
+            excluded: [],
+            rationale: "x",
+          },
+        },
+        creativeRecommendations: {
+          diversityTarget: "x",
+          copies: [
+            {
+              angle: "DP_RINGAN",
+              targetPersona: "x",
+              hook: "x",
+              headline: "x",
+              primaryText: "x",
+              description: "x",
+              cta: "Send Message",
+              recommendedFormat: "IMAGES_ONLY",
+              visualDirection: "x",
+              whyThisWorks: "x",
+            },
+          ],
+          copyPrinciples: [],
+          abTestMatrix: [],
+        },
+        trackingSetup: {
+          pixelRequired: true,
+          capi: { required: true, rationale: "x", eventsToTrack: ["Lead"] },
+          utmParams: { template: "x", rationale: "x" },
+          waLinkSetup: "x",
+        },
+        settingsSummaryCard: {
+          oneLineRecommendation: "Gunakan broad targeting.",
+          topPriorityChange: "x",
+          estimatedImpact: "x",
+        },
+      };
+    }
+
+    it("does NOT fetch the settings recommendation until the accordion is expanded", async () => {
+      const fetchMock = vi.fn(
+        async (_url: string, _init?: RequestInit) =>
+          new Response(JSON.stringify(validInsight()), { status: 200 }),
+      );
+      global.fetch = fetchMock as unknown as typeof fetch;
+      render(
+        <CampaignInsightPanel
+          campaign={CAMPAIGN}
+          benchmarkCplIDR={150_000}
+          benchmarkCtr={0.025}
+          onClose={vi.fn()}
+        />,
+      );
+      await waitFor(() => expect(screen.getByTestId("settings-toggle")).toBeInTheDocument());
+      expect(
+        fetchMock.mock.calls.some(([url]) => String(url).includes("settings-recommendation")),
+      ).toBe(false);
+    });
+
+    it("fetches and renders the real settings recommendation once expanded", async () => {
+      const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+        if (url.includes("settings-recommendation")) {
+          return new Response(JSON.stringify(settingsRecommendationFixture()), { status: 200 });
+        }
+        return new Response(JSON.stringify(validInsight()), { status: 200 });
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      render(
+        <CampaignInsightPanel
+          campaign={CAMPAIGN}
+          benchmarkCplIDR={150_000}
+          benchmarkCtr={0.025}
+          onClose={vi.fn()}
+        />,
+      );
+      await waitFor(() => expect(screen.getByTestId("settings-toggle")).toBeInTheDocument());
+      await userEvent.click(screen.getByTestId("settings-toggle"));
+
+      await waitFor(() => expect(screen.getByTestId("meta-settings-panel")).toBeInTheDocument());
+      expect(screen.getByTestId("settings-one-liner")).toHaveTextContent(
+        "Gunakan broad targeting.",
+      );
+
+      const insightCall = fetchMock.mock.calls.find(([url]) =>
+        String(url).includes("settings-recommendation"),
+      )!;
+      expect(insightCall[0]).toBe("/api/campaigns/camp-1/settings-recommendation");
+      const body = JSON.parse((insightCall[1] as RequestInit).body as string) as Record<
+        string,
+        unknown
+      >;
+      expect(body["campaignId"]).toBe("camp-1");
+      expect(body["benchmarkCtr"]).toBe(0.025);
+    });
+
+    it("shows the real 'belum tersedia' degrade, never a fabricated recommendation, when available:false", async () => {
+      const fetchMock = vi.fn(async (url: string) => {
+        if (url.includes("settings-recommendation")) {
+          return new Response(
+            JSON.stringify({ available: false, reason: "NO_API_KEY", message: "test" }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify(validInsight()), { status: 200 });
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      render(
+        <CampaignInsightPanel
+          campaign={CAMPAIGN}
+          benchmarkCplIDR={150_000}
+          benchmarkCtr={0.025}
+          onClose={vi.fn()}
+        />,
+      );
+      await waitFor(() => expect(screen.getByTestId("settings-toggle")).toBeInTheDocument());
+      await userEvent.click(screen.getByTestId("settings-toggle"));
+      await waitFor(() => expect(screen.getByTestId("settings-unavailable")).toBeInTheDocument());
+    });
   });
 });

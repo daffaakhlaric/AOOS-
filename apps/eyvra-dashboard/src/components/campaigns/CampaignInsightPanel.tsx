@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 
 import { MetricCard, type MetricCardDelta } from "@/components/analytics/MetricCard";
 import { CampaignAdDrillDown } from "@/components/campaigns/CampaignAdDrillDown";
+import {
+  MetaSettingsPanel,
+  MetaSettingsPanelUnavailable,
+} from "@/components/campaigns/MetaSettingsPanel";
 import { aggregateVerdict } from "@/components/meta-ads/CampaignTree";
 import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -16,6 +20,7 @@ import type {
   CampaignInsightTriageLevel,
   CampaignSummaryDto,
   LeadDto,
+  MetaSettingsRecommendationResponseDto,
 } from "@/types/dashboard.types";
 import type { MarketSignalsDto } from "@/types/market-signals.types";
 
@@ -32,6 +37,8 @@ import styles from "./CampaignInsightPanel.module.css";
 export interface CampaignInsightPanelProps {
   readonly campaign: CampaignSummaryDto;
   readonly benchmarkCplIDR: number | null;
+  /** SAMANTHA META ADS SETTINGS + CREATIVE COPY — real account-wide average CTR (`accountBenchmarkCtr`), `null` when no campaign has real impressions data yet. */
+  readonly benchmarkCtr: number | null;
   readonly onClose: () => void;
 }
 
@@ -156,6 +163,7 @@ function deltaFrom(
 export function CampaignInsightPanel({
   campaign,
   benchmarkCplIDR,
+  benchmarkCtr,
   onClose,
 }: CampaignInsightPanelProps): React.ReactElement {
   const [insight, setInsight] = useState<CampaignInsightResponseDto | undefined>(undefined);
@@ -165,6 +173,15 @@ export function CampaignInsightPanel({
   const [history, setHistory] = useState<readonly CampaignHistoryPointDto[] | undefined>(undefined);
   const [andromedaHealth, setAndromedaHealth] = useState<AndromedaHealthDto | undefined>(undefined);
   const [hotLeadsCount, setHotLeadsCount] = useState<number | undefined>(undefined);
+
+  // SAMANTHA META ADS SETTINGS + CREATIVE COPY — deliberately lazy: only fetched once the manager
+  // actually expands this section (real cost concern — a second, larger LLM call per campaign
+  // click would be wasteful for the common case of just reading the diagnosis above).
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [settingsRec, setSettingsRec] = useState<MetaSettingsRecommendationResponseDto | undefined>(
+    undefined,
+  );
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   // Real bug fix (live-confirmed report, see `VerdictCards.tsx`'s own identical fix and doc): a
   // delayed/partial ad-level Meta Insights pull can leave `campaign.adSets` genuinely empty/zeroed
@@ -346,6 +363,72 @@ export function CampaignInsightPanel({
       cancelled = true;
     };
   }, [campaign.id]);
+
+  // Collapse the settings section and drop any stale recommendation whenever the selected
+  // campaign changes — never show a PREVIOUS campaign's settings/copy under a NEW campaign's
+  // header while the real fetch for the new one hasn't happened yet.
+  useEffect(() => {
+    setSettingsExpanded(false);
+    setSettingsRec(undefined);
+  }, [campaign.id]);
+
+  useEffect(() => {
+    if (!settingsExpanded || settingsRec !== undefined) {
+      return;
+    }
+    let cancelled = false;
+    setSettingsLoading(true);
+    fetch(`/api/campaigns/${encodeURIComponent(campaign.id)}/settings-recommendation`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        objective: campaign.objective,
+        status: campaign.status,
+        verdict,
+        ctr,
+        cpl,
+        benchmarkCplIDR,
+        benchmarkCtr,
+        maxFrequency: aggregate.maxFrequency,
+        totalLead: aggregate.totalLead,
+        spend: displaySpend,
+        dailyBudget: aggregate.dailyBudget,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("Gagal memuat rekomendasi settings.");
+        }
+        return (await res.json()) as MetaSettingsRecommendationResponseDto;
+      })
+      .then((body) => {
+        if (!cancelled) {
+          setSettingsRec(body);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSettingsRec({
+            available: false,
+            reason: "PROVIDER_ERROR",
+            message: "Gagal memuat rekomendasi settings.",
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSettingsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Fires once per real expand — every value it reads is a pure derivation of `campaign`/
+    // `benchmarkCplIDR`/`benchmarkCtr`, all stable for the lifetime of one expand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsExpanded]);
 
   const cplRatio =
     cpl !== null && benchmarkCplIDR !== null && benchmarkCplIDR > 0 ? cpl / benchmarkCplIDR : null;
@@ -728,6 +811,30 @@ export function CampaignInsightPanel({
             <p className={styles.unavailable} data-testid="insight-unavailable">
               Analisa belum tersedia, coba lagi nanti. ({insight.message})
             </p>
+          )
+        ) : null}
+      </div>
+
+      <div className={styles.settingsToggleBlock}>
+        <button
+          type="button"
+          data-testid="settings-toggle"
+          onClick={() => setSettingsExpanded((current) => !current)}
+          className={`${styles.settingsToggleButton} ${settingsExpanded ? styles.settingsToggleButtonActive : ""}`}
+        >
+          <span>
+            Rekomendasi Settings + Creative Copy
+            {settingsLoading ? (
+              <span className={styles.settingsToggleLoading}> · generating...</span>
+            ) : null}
+          </span>
+          <span>{settingsExpanded ? "▲" : "▼"}</span>
+        </button>
+        {settingsExpanded && settingsRec !== undefined ? (
+          settingsRec.available ? (
+            <MetaSettingsPanel recommendation={settingsRec} />
+          ) : (
+            <MetaSettingsPanelUnavailable message={settingsRec.message} />
           )
         ) : null}
       </div>

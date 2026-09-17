@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   accountBenchmarkCpl,
+  accountBenchmarkCtr,
   aggregateCampaign,
   classifyHealthBucket,
   computeCpl,
@@ -419,6 +420,50 @@ describe("accountBenchmarkCpl", () => {
 
   it("returns null (never a fabricated number) when the whole account has 0 real leads", () => {
     expect(accountBenchmarkCpl([campaign()])).toBeNull();
+  });
+});
+
+describe("accountBenchmarkCtr", () => {
+  it("computes real total clicks / total impressions across every campaign", () => {
+    const campaigns: readonly CampaignSummaryDto[] = [
+      campaign({
+        id: "c1",
+        metaId: "c1",
+        adSets: [
+          {
+            id: "as1",
+            metaId: "as1",
+            stableId: "#B001",
+            name: "AdSet 1",
+            status: "ACTIVE",
+            spend: 100,
+            dailyBudget: 500_000,
+            ads: [ad({ metrics: metrics({ clicks: 50, impressions: 1_000 }) })],
+          },
+        ],
+      }),
+      campaign({
+        id: "c2",
+        metaId: "c2",
+        adSets: [
+          {
+            id: "as2",
+            metaId: "as2",
+            stableId: "#B002",
+            name: "AdSet 2",
+            status: "ACTIVE",
+            spend: 100,
+            dailyBudget: 500_000,
+            ads: [ad({ id: "ad-2", metrics: metrics({ clicks: 50, impressions: 1_000 }) })],
+          },
+        ],
+      }),
+    ];
+    expect(accountBenchmarkCtr(campaigns)).toBe(0.05);
+  });
+
+  it("returns null (never a fabricated 0%) when no real campaign carries a real impressions value", () => {
+    expect(accountBenchmarkCtr([campaign()])).toBeNull();
   });
 });
 

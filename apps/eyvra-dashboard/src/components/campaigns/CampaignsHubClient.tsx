@@ -14,7 +14,7 @@ import { formatDateTimeIdWib } from "@/lib/formatters";
 import { useCampaignsSnapshot } from "@/lib/useCampaignsSnapshot";
 import type { SettingsDto } from "@/types/tenant.types";
 
-import { accountBenchmarkCpl } from "./campaignInsightMath";
+import { accountBenchmarkCpl, accountBenchmarkCtr } from "./campaignInsightMath";
 import { AndromedaHealthCard } from "./AndromedaHealthCard";
 import { BudgetTracker } from "./BudgetTracker";
 import { CampaignInsightPanel } from "./CampaignInsightPanel";
@@ -146,6 +146,11 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
   const accountFallbackBenchmark = useMemo(() => accountBenchmarkCpl(campaigns), [campaigns]);
   const benchmarkCplIDR =
     targetCplIDR !== undefined && targetCplIDR !== null ? targetCplIDR : accountFallbackBenchmark;
+  // SAMANTHA META ADS SETTINGS + CREATIVE COPY — real account-wide average CTR, no equivalent
+  // tenant-filled-in business-context field exists for CTR (unlike `targetCplIDR` above), so this
+  // is always the real account-wide computed value, `null` only when no campaign has real
+  // impressions data yet.
+  const benchmarkCtr = useMemo(() => accountBenchmarkCtr(campaigns), [campaigns]);
 
   const selectedCampaign = filteredCampaigns.find((campaign) => campaign.id === selectedCampaignId);
 
@@ -308,6 +313,7 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
               <CampaignInsightPanel
                 campaign={selectedCampaign}
                 benchmarkCplIDR={benchmarkCplIDR}
+                benchmarkCtr={benchmarkCtr}
                 onClose={() => setSelectedCampaignId(undefined)}
               />
             ) : null}

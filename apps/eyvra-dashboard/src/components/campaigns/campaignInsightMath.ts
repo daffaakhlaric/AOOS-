@@ -203,3 +203,24 @@ export function accountBenchmarkCpl(campaigns: readonly CampaignSummaryDto[]): n
   }
   return totalLead > 0 ? spend / totalLead : null;
 }
+
+/**
+ * SAMANTHA META ADS SETTINGS + CREATIVE COPY — real account-wide average CTR, same
+ * sum-then-divide convention as `accountBenchmarkCpl` (mirrored so the two benchmarks can never
+ * silently disagree about which campaigns they cover). `null` when no real campaign in the
+ * snapshot carries a real `impressions` value yet (never a fabricated 0%).
+ */
+export function accountBenchmarkCtr(campaigns: readonly CampaignSummaryDto[]): number | null {
+  let clicks = 0;
+  let impressions = 0;
+  let impressionsKnown = false;
+  for (const campaign of campaigns) {
+    const aggregate = aggregateCampaign(campaign);
+    clicks += aggregate.clicks;
+    if (aggregate.impressions !== null) {
+      impressions += aggregate.impressions;
+      impressionsKnown = true;
+    }
+  }
+  return impressionsKnown && impressions > 0 ? clicks / impressions : null;
+}

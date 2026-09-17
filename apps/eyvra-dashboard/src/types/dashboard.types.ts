@@ -392,6 +392,210 @@ export interface CampaignHistoryResponseDto {
   readonly points: readonly CampaignHistoryPointDto[];
 }
 
+/**
+ * SAMANTHA META ADS SETTINGS + CREATIVE COPY — mirrors `aaos-api`'s `MetaSettingsListingSchema`
+ * field-for-field (the REAL `ListingDto` fields this feature actually has access to — see that
+ * schema's own doc for why there's no `facilities`/KPR field anywhere in this codebase).
+ */
+export interface MetaSettingsListingDto {
+  readonly propertyType: string;
+  readonly price: number;
+  readonly city?: string;
+  readonly kecamatan?: string;
+  readonly landArea?: number;
+  readonly buildArea?: number;
+  readonly bedrooms?: number;
+  readonly bathrooms?: number;
+  readonly certificate?: string;
+  readonly highlights: readonly string[];
+  readonly description?: string;
+}
+
+/**
+ * `POST /api/campaigns/:campaignId/settings-recommendation` request body (proxies `aaos-api`'s
+ * real `POST /api/v1/campaigns/settings-recommendation`). Composed CLIENT-SIDE from the same
+ * already-loaded real aggregate metrics `CampaignInsightRequestDto` uses, plus a real `listing`
+ * only when a `listingId` prop was passed to the panel — see `MetaSettingsPanel`'s own doc for why
+ * that's `undefined` in the common case today (no persisted campaign→listing mapping exists).
+ */
+export interface MetaSettingsRecommendationRequestDto {
+  readonly campaignId: string;
+  readonly campaignName: string;
+  readonly objective: string;
+  readonly status: string;
+  readonly verdict: string;
+  readonly ctr: number | null;
+  readonly cpl: number | null;
+  readonly benchmarkCplIDR: number | null;
+  readonly benchmarkCtr: number | null;
+  readonly maxFrequency: number;
+  readonly totalLead: number;
+  readonly spend: number;
+  readonly dailyBudget: number;
+  readonly listing?: MetaSettingsListingDto;
+}
+
+export type MetaAudienceStrategy =
+  "BROAD_ADVANTAGE_PLUS" | "INTEREST" | "RETARGETING" | "LOOKALIKE";
+export type MetaGender = "all" | "male" | "female";
+export type MetaInterestCategory = "property" | "finance" | "lifestyle" | "location";
+export type MetaReachSize = "kecil" | "medium" | "besar";
+export type MetaCampaignObjective = "OUTCOME_LEADS" | "OUTCOME_SALES" | "OUTCOME_ENGAGEMENT";
+export type MetaBidStrategy = "LOWEST_COST" | "BID_CAP" | "COST_CAP";
+export type MetaOptimizationGoal = "LEAD_GENERATION" | "CONVERSATIONS" | "LINK_CLICKS";
+export type MetaPlacementType = "ADVANTAGE_PLUS" | "MANUAL";
+/** Real, already-existing 2-member format enum (`DiverseCreativeBriefSetRequestDto`/`PropertyCreatePackageBodySchema`). */
+export type MetaCreativeFormat = "VIDEO_AND_IMAGES" | "IMAGES_ONLY";
+/** Real 8-member `PropertyAdAngle` enum (`@aos/creative-agent`) — see `aaos-api`'s `meta-settings-recommendation.dto.ts` for why this replaces a fabricated angle taxonomy. */
+export type PropertyAdAngleValue =
+  | "DP_RINGAN"
+  | "READY_HUNI"
+  | "INVESTASI"
+  | "EXCLUSIVE"
+  | "SYARIAH"
+  | "PROMO_TERBATAS"
+  | "TESTIMONIAL"
+  | "VIRTUAL_TOUR";
+
+export interface MetaGeoLocationDto {
+  readonly name: string;
+  readonly radiusKm: number;
+  readonly radiusRationale: string;
+}
+
+export interface MetaInterestDto {
+  readonly name: string;
+  readonly category: MetaInterestCategory;
+  readonly relevance: string;
+  readonly estimatedReach: MetaReachSize;
+}
+
+export interface MetaCreativeCopyDto {
+  readonly angle: PropertyAdAngleValue;
+  readonly targetPersona: string;
+  readonly hook: string;
+  readonly headline: string;
+  readonly primaryText: string;
+  readonly description: string;
+  readonly cta: string;
+  readonly recommendedFormat: MetaCreativeFormat;
+  readonly visualDirection: string;
+  readonly whyThisWorks: string;
+}
+
+export interface MetaAbTestEntryDto {
+  readonly test: string;
+  readonly variantAAngle: PropertyAdAngleValue;
+  readonly variantBAngle: PropertyAdAngleValue;
+  readonly hypothesis: string;
+  readonly metric: string;
+  readonly winnerCriteria: string;
+}
+
+/**
+ * SAMANTHA META ADS SETTINGS + CREATIVE COPY — mirrors `aaos-api`'s
+ * `MetaSettingsRecommendationLlmPayloadSchema` field-for-field. Every field is Samantha's own
+ * generated recommendation/reasoning over real inputs — advisory text for a human media buyer to
+ * apply manually in Meta Ads Manager. Deliberately NO Meta geo/interest ID field and NO "apply
+ * settings" action anywhere in this shape — see that schema's own doc for why neither has real
+ * backing in this codebase.
+ */
+export type MetaSettingsRecommendationResponseDto =
+  | {
+      readonly available: true;
+      readonly audienceSettings: {
+        readonly strategy: MetaAudienceStrategy;
+        readonly strategyRationale: string;
+        readonly geoTargeting: {
+          readonly locations: readonly MetaGeoLocationDto[];
+          readonly excluded: readonly string[];
+          readonly geoRationale: string;
+        };
+        readonly demographics: {
+          readonly ageMin: number;
+          readonly ageMax: number;
+          readonly gender: MetaGender;
+          readonly ageRationale: string;
+          readonly note?: string;
+        };
+        readonly interestTargeting: {
+          readonly use: boolean;
+          readonly useRationale: string;
+          readonly interests: readonly MetaInterestDto[];
+          readonly interestStacking: boolean;
+          readonly stackingWarning?: string;
+        };
+        readonly customAudiences: {
+          readonly retargeting: {
+            readonly recommended: boolean;
+            readonly source?: string;
+            readonly rationale: string;
+          };
+          readonly lookalike: {
+            readonly recommended: boolean;
+            readonly sourcePct?: string;
+            readonly rationale: string;
+          };
+        };
+        readonly specialAdCategory: {
+          readonly required: boolean;
+          readonly category: string;
+          readonly implications: string;
+        };
+      };
+      readonly campaignSettings: {
+        readonly objective: MetaCampaignObjective;
+        readonly objectiveRationale: string;
+        readonly buyingType: string;
+        readonly campaignBudgetOptimization: boolean;
+        readonly cboRationale: string;
+        readonly bidStrategy: MetaBidStrategy;
+        readonly bidStrategyRationale: string;
+        readonly bidCap?: number;
+        readonly adSchedule: { readonly use: boolean; readonly rationale: string };
+      };
+      readonly adSetSettings: {
+        readonly structure: string;
+        readonly optimizationGoal: MetaOptimizationGoal;
+        readonly optimizationRationale: string;
+        readonly billingEvent: string;
+        readonly budgetRecommendation: {
+          readonly dailyBudget: number;
+          readonly minViable: number;
+          readonly idealForLearning: number;
+          readonly rationale: string;
+        };
+        readonly placementStrategy: {
+          readonly type: MetaPlacementType;
+          readonly placements: readonly string[];
+          readonly excluded: readonly string[];
+          readonly rationale: string;
+        };
+      };
+      readonly creativeRecommendations: {
+        readonly diversityTarget: string;
+        readonly copies: readonly MetaCreativeCopyDto[];
+        readonly copyPrinciples: readonly string[];
+        readonly abTestMatrix: readonly MetaAbTestEntryDto[];
+      };
+      readonly trackingSetup: {
+        readonly pixelRequired: boolean;
+        readonly capi: {
+          readonly required: boolean;
+          readonly rationale: string;
+          readonly eventsToTrack: readonly string[];
+        };
+        readonly utmParams: { readonly template: string; readonly rationale: string };
+        readonly waLinkSetup: string;
+      };
+      readonly settingsSummaryCard: {
+        readonly oneLineRecommendation: string;
+        readonly topPriorityChange: string;
+        readonly estimatedImpact: string;
+      };
+    }
+  | { readonly available: false; readonly reason: string; readonly message: string };
+
 /** `GET /api/v1/meta-ads/accounts` proxy response entry (AAOS-DASHBOARD-LEAD-SPEND-CABANG-SOURCE coordinator note #6) — powers the multi-account pill selector on "Lead & Spend per Cabang × Source". */
 export interface AdAccountOptionDto {
   readonly id: string;
