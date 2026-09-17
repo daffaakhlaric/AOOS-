@@ -178,10 +178,25 @@ export const MetaSettingsRecommendationLlmPayloadSchema = z.object({
     bidStrategy: z.enum(BID_STRATEGIES),
     bidStrategyRationale: z.string().min(1),
     bidCap: optionalNumber(),
-    adSchedule: z.object({
-      use: z.boolean(),
-      rationale: z.string().min(1),
-    }),
+    /**
+     * Real, live-confirmed model behavior: this whole key is sometimes omitted entirely despite
+     * the prompt asking for it (same "no retry loop" class of gap as `optionalString`'s own doc)
+     * — defaults to the same honest "no schedule, leads can arrive any time" recommendation the
+     * prompt itself asks for as the default case, rather than discarding an otherwise-good real
+     * recommendation over one missing sub-object.
+     */
+    adSchedule: z
+      .object({
+        use: z.boolean().optional(),
+        rationale: z.string().min(1).nullish(),
+      })
+      .nullish()
+      .transform((value) => ({
+        use: value?.use ?? false,
+        rationale:
+          value?.rationale ??
+          "Properti Indonesia: lead bisa datang kapan saja, ad schedule jarang worth it.",
+      })),
   }),
 
   adSetSettings: z.object({
@@ -216,9 +231,19 @@ export const MetaSettingsRecommendationLlmPayloadSchema = z.object({
           angle: z.enum(PROPERTY_AD_ANGLES),
           targetPersona: z.string().min(1),
           hook: z.string().min(1),
-          headline: z.string().min(1).max(27),
-          primaryText: z.string().min(1).max(125),
-          description: z.string().min(1).max(30),
+          /**
+           * The prompt asks for Meta's real 27/125/30-character limits (see `META_SETTINGS_
+           * SYSTEM_PROMPT`), but the schema itself only caps at a generous safety ceiling — real,
+           * live-confirmed model behavior occasionally overshoots the tight limit by a few
+           * characters on one field out of 8 real copies, and there is no retry loop in this
+           * codebase to ask for a fix. `MetaSettingsPanel`'s own character-count display already
+           * turns red and shows the real overage to the media buyer, so nothing is silently
+           * hidden — the schema just stops discarding an otherwise-good real recommendation over
+           * a minor overage on one field.
+           */
+          headline: z.string().min(1).max(80),
+          primaryText: z.string().min(1).max(300),
+          description: z.string().min(1).max(80),
           cta: z.string().min(1),
           recommendedFormat: z.enum(CREATIVE_FORMATS),
           visualDirection: z.string().min(1),

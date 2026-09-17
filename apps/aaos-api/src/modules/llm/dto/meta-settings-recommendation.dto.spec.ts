@@ -195,7 +195,12 @@ describe("MetaSettingsRecommendationLlmPayloadSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects a headline longer than 27 characters (real Meta headline limit)", () => {
+  // The prompt asks for Meta's real 27-character headline limit, but the schema itself only caps
+  // at a generous safety ceiling (80) — real, live-confirmed model behavior occasionally overshoots
+  // the tight limit by a few characters, and there is no retry loop to ask for a fix. A headline
+  // slightly over 27 (but under the safety ceiling) must NOT discard an otherwise-good real
+  // recommendation; `MetaSettingsPanel`'s own character-count display shows the real overage.
+  it("accepts a headline slightly over the real 27-character Meta limit (no retry loop — don't discard a good real recommendation)", () => {
     const result = MetaSettingsRecommendationLlmPayloadSchema.safeParse(
       minimalPayload({
         creativeRecommendations: {
@@ -205,7 +210,32 @@ describe("MetaSettingsRecommendationLlmPayloadSchema", () => {
               angle: PropertyAdAngle.DP_RINGAN,
               targetPersona: "x",
               hook: "x",
-              headline: "This headline is definitely way too long",
+              headline: "Tanah BSD 500m2 SHM Siap Bangun",
+              primaryText: "x",
+              description: "x",
+              cta: "WhatsApp",
+              recommendedFormat: "IMAGES_ONLY",
+              visualDirection: "x",
+              whyThisWorks: "x",
+            },
+          ],
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a headline that blows past even the generous safety ceiling (genuinely broken output)", () => {
+    const result = MetaSettingsRecommendationLlmPayloadSchema.safeParse(
+      minimalPayload({
+        creativeRecommendations: {
+          ...(minimalPayload().creativeRecommendations as Record<string, unknown>),
+          copies: [
+            {
+              angle: PropertyAdAngle.DP_RINGAN,
+              targetPersona: "x",
+              hook: "x",
+              headline: "x".repeat(200),
               primaryText: "x",
               description: "x",
               cta: "WhatsApp",
@@ -218,6 +248,36 @@ describe("MetaSettingsRecommendationLlmPayloadSchema", () => {
       }),
     );
     expect(result.success).toBe(false);
+  });
+
+  it("accepts a body with campaignSettings.adSchedule omitted entirely (real, live-confirmed model behavior), defaulting to a real honest fallback", () => {
+    const payload = minimalPayload();
+    const { adSchedule: _adSchedule, ...campaignSettingsWithoutSchedule } =
+      payload.campaignSettings;
+    const result = MetaSettingsRecommendationLlmPayloadSchema.safeParse({
+      ...payload,
+      campaignSettings: campaignSettingsWithoutSchedule,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.campaignSettings.adSchedule.use).toBe(false);
+    }
+  });
+
+  // Real, live-confirmed second variant of the same gap: the model sometimes DOES include the
+  // adSchedule key, but with its own "rationale" sub-field missing — a partial object, not full
+  // omission. Must be tolerated the same way.
+  it("accepts campaignSettings.adSchedule present but missing its rationale sub-field, defaulting the rationale", () => {
+    const payload = minimalPayload();
+    const result = MetaSettingsRecommendationLlmPayloadSchema.safeParse({
+      ...payload,
+      campaignSettings: { ...payload.campaignSettings, adSchedule: { use: true } },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.campaignSettings.adSchedule.use).toBe(true);
+      expect(result.data.campaignSettings.adSchedule.rationale.length).toBeGreaterThan(0);
+    }
   });
 
   it("accepts explicit null for every optional field, normalizing to undefined/empty array", () => {
