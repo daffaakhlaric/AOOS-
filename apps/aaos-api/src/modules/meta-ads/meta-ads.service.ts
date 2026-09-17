@@ -237,6 +237,21 @@ export class MetaAdsService {
   }
 
   /**
+   * `GET /api/v1/campaigns/:campaignId/listing-id` — Campaign->Listing Mapping. Same real,
+   * stable-Meta-campaign-id convention as `getCampaignHistory`/`getAndromedaHealth` above. Thin
+   * pass-through to `MetaSyncService.getCampaignListingId` — `listingId: null` (never a fabricated
+   * id) for the honest common case of a campaign with no real link yet (AUTOMOTIVE campaigns, or
+   * any PROPERTY campaign created before this mapping existed).
+   */
+  async getCampaignListingId(
+    tenantId: string,
+    campaignId: string,
+  ): Promise<{ readonly campaignId: string; readonly listingId: string | null }> {
+    const listingId = await this.metaSync.getCampaignListingId(tenantId, campaignId);
+    return { campaignId, listingId };
+  }
+
+  /**
    * `POST /api/v1/ads/diagnose-copy` — AAOS Samantha Professional Optimizer, Part C. Same thin
    * pass-through shape as `getCampaignInsight` above: the caller already has the one selected ad's
    * real, already-pulled `primaryText`/`headline`/`description`/`verdict`/metrics/`learningStatus`

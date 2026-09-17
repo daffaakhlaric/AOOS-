@@ -142,6 +142,55 @@ export class MetaSyncRepository {
     }));
   }
 
+  /**
+   * Campaign->Listing Mapping (053_meta_campaigns_listing_id.sql) — real write path called once,
+   * right after `CampaignsService.createPropertyCampaign`'s existing `metaSync.syncCampaign` hook
+   * (so the real `meta_campaigns` row already exists by the time this UPDATE runs). A plain UPDATE,
+   * never an upsert with guessed placeholder `name`/`status`/`objective` values — if the row
+   * genuinely doesn't exist yet (real sync failed/hasn't run), this is a real, honest no-op logged
+   * by the caller, not a fabricated row. The periodic sync's own `upsertCampaigns` never includes
+   * `listing_id` in its payload, so it can never silently overwrite what this sets.
+   */
+  async linkCampaignListing(
+    tenantId: string,
+    metaCampaignId: string,
+    listingId: string,
+  ): Promise<boolean> {
+    const { data, error } = await this.client
+      .from<CampaignIdRow & { readonly listing_id: string | null }>(CAMPAIGNS_TABLE)
+      .update({ listing_id: listingId })
+      .eq("tenant_id", tenantId)
+      .eq("meta_campaign_id", metaCampaignId)
+      .select("id");
+    if (error !== null) {
+      throw new MetaSyncRepositoryError(
+        `MetaSyncRepository.linkCampaignListing failed: ${error.message}`,
+      );
+    }
+    return (data?.length ?? 0) > 0;
+  }
+
+  /**
+   * Campaign->Listing Mapping — real read path for `GET /api/v1/campaigns/:campaignId/listing-id`.
+   * `null` (never a fabricated id) when this campaign genuinely has no real link yet — most
+   * campaigns (AUTOMOTIVE ones, or any PROPERTY campaign created before this migration/before the
+   * write path existed) are honestly in this state.
+   */
+  async getCampaignListingId(tenantId: string, metaCampaignId: string): Promise<string | null> {
+    const { data, error } = await this.client
+      .from<{ readonly listing_id: string | null }>(CAMPAIGNS_TABLE)
+      .select("listing_id")
+      .eq("tenant_id", tenantId)
+      .eq("meta_campaign_id", metaCampaignId)
+      .maybeSingle();
+    if (error !== null) {
+      throw new MetaSyncRepositoryError(
+        `MetaSyncRepository.getCampaignListingId failed: ${error.message}`,
+      );
+    }
+    return data?.listing_id ?? null;
+  }
+
   private upsertable(): UpsertableSupabaseClient {
     return this.client as unknown as UpsertableSupabaseClient;
   }

@@ -66,6 +66,7 @@ function buildFakeMetaSync(overrides: Record<string, unknown> = {}) {
   return {
     syncCampaign: vi.fn(async () => undefined),
     getCampaignHistory: vi.fn(async () => []),
+    getCampaignListingId: vi.fn(async () => null),
     ...overrides,
   };
 }
@@ -431,6 +432,37 @@ describe("MetaAdsService", () => {
       const result = await service.getCampaignHistory(DEFAULT_TENANT_ID, "camp-new", 7);
 
       expect(result).toEqual({ campaignId: "camp-new", points: [] });
+    });
+  });
+
+  describe("getCampaignListingId (Campaign->Listing Mapping)", () => {
+    it("delegates to MetaSyncService.getCampaignListingId with the real tenant id/campaignId", async () => {
+      const metaSync = buildFakeMetaSync({ getCampaignListingId: vi.fn(async () => "listing-1") });
+      const service = buildService(
+        false,
+        buildFakeActivityLogger(),
+        buildFakeLlmService(),
+        metaSync,
+      );
+
+      const result = await service.getCampaignListingId(DEFAULT_TENANT_ID, "camp-1");
+
+      expect(metaSync.getCampaignListingId).toHaveBeenCalledWith(DEFAULT_TENANT_ID, "camp-1");
+      expect(result).toEqual({ campaignId: "camp-1", listingId: "listing-1" });
+    });
+
+    it("returns listingId: null (never fabricated) when this campaign has no real link yet", async () => {
+      const metaSync = buildFakeMetaSync({ getCampaignListingId: vi.fn(async () => null) });
+      const service = buildService(
+        false,
+        buildFakeActivityLogger(),
+        buildFakeLlmService(),
+        metaSync,
+      );
+
+      const result = await service.getCampaignListingId(DEFAULT_TENANT_ID, "camp-1");
+
+      expect(result).toEqual({ campaignId: "camp-1", listingId: null });
     });
   });
 

@@ -268,3 +268,114 @@ describe("MetaSyncRepository.getCampaignDailyHistory", () => {
     );
   });
 });
+
+// Campaign->Listing Mapping (053_meta_campaigns_listing_id.sql) — real write path
+// (`linkCampaignListing`, a plain UPDATE on the real (tenant_id, meta_campaign_id) row, never an
+// upsert with guessed placeholder values) and read path (`getCampaignListingId`).
+describe("MetaSyncRepository.linkCampaignListing", () => {
+  function makeUpdateFakeClient(config: {
+    readonly updatedRows?: readonly { readonly id: string }[];
+    readonly error?: { readonly message: string };
+  }) {
+    const updateCalls: Array<{ table: string; values: unknown }> = [];
+    const eqCalls: Array<{ column: string; value: unknown }> = [];
+    function chain(table: string): Record<string, unknown> {
+      const self: Record<string, unknown> = {
+        update: vi.fn((values: Record<string, unknown>) => {
+          updateCalls.push({ table, values });
+          return self;
+        }),
+        eq: vi.fn((column: string, value: unknown) => {
+          eqCalls.push({ column, value });
+          return self;
+        }),
+        select: vi.fn(async () => ({
+          data: config.updatedRows ?? [],
+          error: config.error ?? null,
+        })),
+      };
+      return self;
+    }
+    const client = { from: vi.fn((table: string) => chain(table)) };
+    return { client, updateCalls, eqCalls };
+  }
+
+  it("returns true when the real UPDATE affects a real, already-synced meta_campaigns row", async () => {
+    const { client, updateCalls, eqCalls } = makeUpdateFakeClient({
+      updatedRows: [{ id: "row-uuid-1" }],
+    });
+    const repository = new MetaSyncRepository(client as never);
+
+    const linked = await repository.linkCampaignListing("t-1", "camp-1", "listing-1");
+
+    expect(linked).toBe(true);
+    expect(updateCalls).toEqual([{ table: "meta_campaigns", values: { listing_id: "listing-1" } }]);
+    expect(eqCalls).toContainEqual({ column: "tenant_id", value: "t-1" });
+    expect(eqCalls).toContainEqual({ column: "meta_campaign_id", value: "camp-1" });
+  });
+
+  it("returns false (never fabricates a row) when the real sync hasn't created this campaign's row yet", async () => {
+    const { client } = makeUpdateFakeClient({ updatedRows: [] });
+    const repository = new MetaSyncRepository(client as never);
+
+    const linked = await repository.linkCampaignListing("t-1", "camp-1", "listing-1");
+
+    expect(linked).toBe(false);
+  });
+
+  it("throws MetaSyncRepositoryError when the real UPDATE reports an error", async () => {
+    const { client } = makeUpdateFakeClient({ error: { message: "db down" } });
+    const repository = new MetaSyncRepository(client as never);
+
+    await expect(repository.linkCampaignListing("t-1", "camp-1", "listing-1")).rejects.toThrow(
+      MetaSyncRepositoryError,
+    );
+  });
+});
+
+describe("MetaSyncRepository.getCampaignListingId", () => {
+  function makeSelectFakeClient(config: {
+    readonly row?: { readonly listing_id: string | null } | null;
+    readonly error?: { readonly message: string };
+  }) {
+    function chain(): Record<string, unknown> {
+      const self: Record<string, unknown> = {
+        select: vi.fn(() => self),
+        eq: vi.fn(() => self),
+        maybeSingle: vi.fn(async () => ({ data: config.row ?? null, error: config.error ?? null })),
+      };
+      return self;
+    }
+    return { client: { from: vi.fn(() => chain()) } };
+  }
+
+  it("returns the real listing_id when this campaign has a real link", async () => {
+    const { client } = makeSelectFakeClient({ row: { listing_id: "listing-1" } });
+    const repository = new MetaSyncRepository(client as never);
+
+    expect(await repository.getCampaignListingId("t-1", "camp-1")).toBe("listing-1");
+  });
+
+  it("returns null (never a fabricated id) when this campaign has no real link yet", async () => {
+    const { client } = makeSelectFakeClient({ row: { listing_id: null } });
+    const repository = new MetaSyncRepository(client as never);
+
+    expect(await repository.getCampaignListingId("t-1", "camp-1")).toBeNull();
+  });
+
+  it("returns null when this tenant/campaign has no real meta_campaigns row at all", async () => {
+    const { client } = makeSelectFakeClient({ row: null });
+    const repository = new MetaSyncRepository(client as never);
+
+    expect(await repository.getCampaignListingId("t-1", "camp-1")).toBeNull();
+  });
+
+  it("throws MetaSyncRepositoryError when the real lookup reports an error", async () => {
+    const { client } = makeSelectFakeClient({ error: { message: "db down" } });
+    const repository = new MetaSyncRepository(client as never);
+
+    await expect(repository.getCampaignListingId("t-1", "camp-1")).rejects.toThrow(
+      MetaSyncRepositoryError,
+    );
+  });
+});

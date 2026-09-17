@@ -367,7 +367,20 @@ export class CampaignsService {
       // `SchedulerService.runCampaignPublishCheck`'s own auto-publish flow goes through (it calls
       // this same method), so no separate hook is needed there.
       if (!result.simulated && result.campaignId !== undefined) {
-        void this.metaSync.syncCampaign(tenantId, result.campaignId);
+        const campaignId = result.campaignId;
+        void this.metaSync
+          .syncCampaign(tenantId, campaignId)
+          // Campaign->Listing Mapping — chained AFTER `syncCampaign` (not a parallel `void`) so
+          // the real `meta_campaigns` row it upserts already exists by the time this UPDATE runs.
+          // Real LIVE-only: DEV/simulated mode has no real Meta campaign id to link to (see the
+          // `!result.simulated` guard above), never a fabricated link for a preview. Best-effort —
+          // a failure here never fails the real campaign-creation call itself.
+          .then(() => this.metaSync.linkCampaignListing(tenantId, campaignId, body.listingId))
+          .catch((caught: unknown) => {
+            this.logger.warn(
+              `CampaignsService.createPropertyCampaign(${campaignId}): linkCampaignListing failed, continuing: ${caught instanceof Error ? caught.message : String(caught)}`,
+            );
+          });
       }
 
       return result;

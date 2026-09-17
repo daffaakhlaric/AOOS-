@@ -50,6 +50,7 @@ function buildFakeService(): MetaAdsService {
           },
         }) as unknown as DiagnoseAdCopyResponseDto,
     ),
+    getCampaignListingId: vi.fn(async () => ({ campaignId: "camp-1", listingId: null }) as const),
     getMetaSettingsRecommendation: vi.fn(
       async () =>
         ({
@@ -141,6 +142,14 @@ describe("MetaAdsController", () => {
       narrative: "Campaign ini SCALE-worthy.",
       actions: [{ priority: "SEGERA", text: "Naikkan budget." }],
     });
+  });
+
+  it("GET /api/v1/campaigns/:campaignId/listing-id delegates to MetaAdsService.getCampaignListingId with the real per-request tenant id", async () => {
+    const service = buildFakeService();
+    const controller = new MetaAdsController(service);
+    const result = await controller.getCampaignListingId("camp-1", "tenant-a");
+    expect(service.getCampaignListingId).toHaveBeenCalledWith("tenant-a", "camp-1");
+    expect(result).toEqual({ campaignId: "camp-1", listingId: null });
   });
 
   it("POST /api/v1/campaigns/settings-recommendation delegates to MetaAdsService.getMetaSettingsRecommendation with the body + real per-request tenant id", async () => {

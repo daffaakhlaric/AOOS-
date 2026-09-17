@@ -151,6 +151,29 @@ export class MetaSyncService {
     return this.repository.getCampaignDailyHistory(tenantId, metaCampaignId, days);
   }
 
+  /**
+   * Campaign->Listing Mapping — real write path, called once by `CampaignsService.
+   * createPropertyCampaign`'s real LIVE branch right after `syncCampaign` above (so the real
+   * `meta_campaigns` row already exists). Thin pass-through — see `MetaSyncRepository.
+   * linkCampaignListing`'s own doc for why this is a plain UPDATE, never an upsert with guessed
+   * placeholder values.
+   */
+  async linkCampaignListing(
+    tenantId: string,
+    metaCampaignId: string,
+    listingId: string,
+  ): Promise<boolean> {
+    return this.repository.linkCampaignListing(tenantId, metaCampaignId, listingId);
+  }
+
+  /**
+   * Campaign->Listing Mapping — real read path for `GET /api/v1/campaigns/:campaignId/listing-id`.
+   * Thin pass-through.
+   */
+  async getCampaignListingId(tenantId: string, metaCampaignId: string): Promise<string | null> {
+    return this.repository.getCampaignListingId(tenantId, metaCampaignId);
+  }
+
   private async syncOnce(tenantId: string, datePreset: DatePreset, dateFor: Date): Promise<void> {
     const connectorResult = await this.connectorRegistry.resolve(tenantId);
     if (!connectorResult.ok) {

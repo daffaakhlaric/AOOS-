@@ -297,3 +297,35 @@ describe("MetaSyncService.getCampaignHistory", () => {
     expect(result).toEqual(points);
   });
 });
+
+describe("MetaSyncService.linkCampaignListing / getCampaignListingId", () => {
+  it("linkCampaignListing is a thin pass-through to the real repository write", async () => {
+    const linkCampaignListing = vi.fn(async () => true);
+    const repository = { linkCampaignListing } as unknown as MetaSyncRepository;
+    const service = new MetaSyncService({} as never, repository);
+
+    const result = await service.linkCampaignListing("t-1", "camp-1", "listing-1");
+
+    expect(linkCampaignListing).toHaveBeenCalledWith("t-1", "camp-1", "listing-1");
+    expect(result).toBe(true);
+  });
+
+  it("getCampaignListingId is a thin pass-through to the real repository read", async () => {
+    const getCampaignListingId = vi.fn(async () => "listing-1");
+    const repository = { getCampaignListingId } as unknown as MetaSyncRepository;
+    const service = new MetaSyncService({} as never, repository);
+
+    const result = await service.getCampaignListingId("t-1", "camp-1");
+
+    expect(getCampaignListingId).toHaveBeenCalledWith("t-1", "camp-1");
+    expect(result).toBe("listing-1");
+  });
+
+  it("getCampaignListingId returns null (never fabricated) when the real repository has no link", async () => {
+    const getCampaignListingId = vi.fn(async () => null);
+    const repository = { getCampaignListingId } as unknown as MetaSyncRepository;
+    const service = new MetaSyncService({} as never, repository);
+
+    expect(await service.getCampaignListingId("t-1", "camp-1")).toBeNull();
+  });
+});

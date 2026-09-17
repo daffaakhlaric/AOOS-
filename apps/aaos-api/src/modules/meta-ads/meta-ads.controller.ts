@@ -154,6 +154,19 @@ export class MetaAdsController {
     return this.metaAdsService.getCampaignHistory(tenantId, campaignId, query.days);
   }
 
+  /**
+   * `GET /api/v1/campaigns/:campaignId/listing-id` — Campaign->Listing Mapping. Real,
+   * already-persisted link (053_meta_campaigns_listing_id.sql) — see `MetaAdsService.
+   * getCampaignListingId`'s own doc.
+   */
+  @Get("campaigns/:campaignId/listing-id")
+  async getCampaignListingId(
+    @Param("campaignId") campaignId: string,
+    @TenantId() tenantId: string,
+  ): Promise<{ readonly campaignId: string; readonly listingId: string | null }> {
+    return this.metaAdsService.getCampaignListingId(tenantId, campaignId);
+  }
+
   @Post("verdicts")
   @HttpCode(200)
   async postVerdict(

@@ -109,10 +109,12 @@ function buildFakeCreativePackages(
   } as unknown as CreativePackagesService;
 }
 
-/** Minimal `MetaSyncService` test double (EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4) — `syncCampaign` is a no-op spy, irrelevant to this file's own pre-existing `createCampaign`/`createPropertyCampaign` assertions. */
-function buildFakeMetaSync() {
+/** Minimal `MetaSyncService` test double (EYVRA-META-OAUTH-WHATSAPP-SETUP Sprint 4 / Campaign->Listing Mapping) — `syncCampaign`/`linkCampaignListing` are no-op spies by default, irrelevant to this file's own pre-existing `createCampaign`/`createPropertyCampaign` assertions unless a test explicitly overrides/asserts on them. */
+function buildFakeMetaSync(overrides: Record<string, unknown> = {}) {
   return {
     syncCampaign: vi.fn(async () => undefined),
+    linkCampaignListing: vi.fn(async () => true),
+    ...overrides,
   };
 }
 
@@ -123,6 +125,7 @@ function buildService(
     readonly listings?: ListingsService;
     readonly locationResolver?: LocationResolverService;
     readonly creativePackages?: CreativePackagesService;
+    readonly metaSync?: ReturnType<typeof buildFakeMetaSync>;
   } = {},
 ): CampaignsService {
   const config = buildTestConfig();
@@ -150,7 +153,7 @@ function buildService(
     options.listings ?? buildFakeListings(),
     options.locationResolver ?? buildFakeLocationResolver(),
     options.creativePackages ?? buildFakeCreativePackages(),
-    buildFakeMetaSync() as never,
+    (options.metaSync ?? buildFakeMetaSync()) as never,
   );
 }
 
@@ -387,6 +390,63 @@ describe("CampaignsService.createPropertyCampaign (AAOS EPIC S, Phase S3/S4)", (
     expect(targeting).not.toHaveProperty("age_min");
     expect(targeting).not.toHaveProperty("age_max");
     expect(targeting).not.toHaveProperty("genders");
+  });
+
+  it("Campaign->Listing Mapping: LIVE mode links the real listingId to the real new campaignId, chained AFTER syncCampaign", async () => {
+    registerSearchAdLocationsMswHandler({
+      "Tangerang Selatan": [{ key: "2360586", name: "Tangerang Selatan, Banten" }],
+    });
+    mswServer.use(
+      http.post("https://graph.facebook.com/v21.0/:adAccountId/campaigns", () =>
+        HttpResponse.json({ id: "120000000000099" }),
+      ),
+      http.post("https://graph.facebook.com/v21.0/:adAccountId/adsets", () =>
+        HttpResponse.json({ id: "120000000000100" }),
+      ),
+    );
+
+    const callOrder: string[] = [];
+    const metaSync = buildFakeMetaSync({
+      syncCampaign: vi.fn(async () => {
+        callOrder.push("syncCampaign");
+      }),
+      linkCampaignListing: vi.fn(async () => {
+        callOrder.push("linkCampaignListing");
+        return true;
+      }),
+    });
+    const service = buildService(false, undefined, { metaSync });
+
+    await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-property-link-1",
+    );
+    // `linkCampaignListing` is chained via `.then()` off the fire-and-forget `syncCampaign` call,
+    // not awaited by `createPropertyCampaign` itself — flush the microtask queue before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(metaSync.syncCampaign).toHaveBeenCalledWith("dss-motor", "120000000000099");
+    expect(metaSync.linkCampaignListing).toHaveBeenCalledWith(
+      "dss-motor",
+      "120000000000099",
+      "listing-1",
+    );
+    expect(callOrder).toEqual(["syncCampaign", "linkCampaignListing"]);
+  });
+
+  it("Campaign->Listing Mapping: DEV mode never calls linkCampaignListing (no real campaignId to link to)", async () => {
+    const metaSync = buildFakeMetaSync();
+    const service = buildService(true, undefined, { metaSync });
+
+    await service.createPropertyCampaign(
+      "dss-motor",
+      { listingId: "listing-1" },
+      "corr-property-link-dev-1",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(metaSync.linkCampaignListing).not.toHaveBeenCalled();
   });
 
   it("a listing whose only resolved city has zero real Meta matches is a real, thrown failure (not a broken empty-targeting campaign)", async () => {
