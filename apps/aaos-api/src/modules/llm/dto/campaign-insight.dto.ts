@@ -302,8 +302,19 @@ export const CampaignInsightLlmPayloadSchema = z.object({
   /** Optional real context from CPM trend/`marketDigest` — omitted when there is honestly nothing real to say. */
   competitorContext: optionalString(),
 
-  /** 1-2 transferable learnings for OTHER campaigns, derived from this campaign's real data. */
-  learnings: z.array(z.string().min(1)).min(1).max(2),
+  /**
+   * 1-2 transferable learnings for OTHER campaigns, derived from this campaign's real data. The
+   * prompt asks for at least 1, but the schema itself tolerates the model omitting the key
+   * entirely (real, live-confirmed behavior — see `optionalString`'s own doc for the same class
+   * of "no retry loop, don't discard an otherwise-good real analysis" reasoning) by defaulting to
+   * an empty array. `CampaignInsightPanel` already only renders the learnings block when the
+   * array is non-empty, so this degrades silently and honestly rather than failing the whole call.
+   */
+  learnings: z
+    .array(z.string().min(1))
+    .max(2)
+    .nullish()
+    .transform((value) => value ?? []),
 
   /** Optional — one non-obvious, senior-level insight. Omitted rather than forced when there's honestly nothing beyond what `rootCause`/`playbook` already said. */
   proTip: optionalString(600),
