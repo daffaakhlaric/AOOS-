@@ -1,4 +1,5 @@
-import type { Verdict, AdStatus, type AdAccount, type Campaign } from "@aos/meta-ads-connector";
+import { AdStatus } from "@aos/meta-ads-connector";
+import type { AdAccount, Campaign, Verdict } from "@aos/meta-ads-connector";
 
 import type { ListingResponseDto } from "../../listings/dto/listing.dto.js";
 
