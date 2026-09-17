@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CampaignHealthController } from "./campaign-health.controller.js";
 import type { CampaignHealthService } from "./campaign-health.service.js";
 import type { CampaignHealth } from "./domain/campaign-health.js";
+import type { SamanthaDecision } from "./domain/decision.js";
 import type { CampaignDiagnosis } from "./domain/diagnosis.js";
 import type { CampaignHealthResponseDto } from "./dto/campaign-health-response.dto.js";
 
@@ -33,10 +34,25 @@ const DIAGNOSIS_SAMPLE: CampaignDiagnosis = {
   recommendedFocus: [],
 };
 
+const DECISION_SAMPLE: SamanthaDecision = {
+  decision: "NO_ACTION",
+  confidence: 1,
+  impact: "LOW",
+  reason: "Semua dimensi campaign health yang punya data nyata berstatus HEALTHY.",
+  riskOfDoingNothing: "Tidak ada risiko signifikan.",
+  expectedOutcome: "Performa campaign berpotensi tetap stabil selama tidak ada perubahan berarti.",
+  monitoringPlan: {
+    reviewAfterHours: 72,
+    successConditions: ["overallStatus tetap HEALTHY pada penilaian berikutnya."],
+    rollbackConditions: [],
+  },
+};
+
 const RESPONSE_SAMPLE: CampaignHealthResponseDto = {
   campaignId: "meta-cmp-1",
   health: HEALTH_SAMPLE,
   diagnosis: DIAGNOSIS_SAMPLE,
+  decision: DECISION_SAMPLE,
 };
 
 function buildFakeService(): CampaignHealthService {
@@ -53,5 +69,6 @@ describe("CampaignHealthController", () => {
     expect(service.assess).toHaveBeenCalledWith(TENANT, "meta-cmp-1");
     expect(result.campaignId).toBe("meta-cmp-1");
     expect(result.health.overallStatus).toBe("HEALTHY");
+    expect(result.decision.decision).toBe("NO_ACTION");
   });
 });

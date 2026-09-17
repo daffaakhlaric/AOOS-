@@ -5,6 +5,7 @@ import { detectSignals } from "../metric-snapshot/domain/signal-engine.js";
 import { MetricSnapshotService } from "../metric-snapshot/metric-snapshot.service.js";
 
 import { assessCampaignHealth } from "./domain/campaign-health.js";
+import { decideNextAction } from "./domain/decision.js";
 import { diagnoseCampaign } from "./domain/diagnosis.js";
 import {
   toCampaignHealthResponseDto,
@@ -12,12 +13,13 @@ import {
 } from "./dto/campaign-health-response.dto.js";
 
 /**
- * `modules/campaign-health` (EYVRA — SAMANTHA V2 Phase 3). Orchestrates real calls into the
- * already-shipped Phase 1/2 building blocks — `MetricSnapshotService` for the real `last_7_days`/
- * `previous_7_days`/`lifetime` snapshots, `resolveBenchmark`/`detectSignals` (pure domain
- * functions) over them — then `assessCampaignHealth` -> `diagnoseCampaign` (also pure, no I/O of
- * their own). This module has ZERO I/O of its own beyond what `MetricSnapshotService` already
- * provides — no new repository, no new table.
+ * `modules/campaign-health` (EYVRA — SAMANTHA V2 Phase 3 + Phase 4). Orchestrates real calls into
+ * the already-shipped Phase 1/2 building blocks — `MetricSnapshotService` for the real
+ * `last_7_days`/`previous_7_days`/`lifetime` snapshots, `resolveBenchmark`/`detectSignals` (pure
+ * domain functions) over them — then `assessCampaignHealth` -> `diagnoseCampaign` ->
+ * `decideNextAction` (Phase 4, also pure, no I/O of its own — see `domain/decision.ts`'s header
+ * doc for why it only ever returns a recommendation, never executes one). This module has ZERO I/O
+ * of its own beyond what `MetricSnapshotService` already provides — no new repository, no new table.
  */
 @Injectable()
 export class CampaignHealthService {
@@ -63,7 +65,8 @@ export class CampaignHealthService {
       frequencyDataAvailable,
     });
     const diagnosis = diagnoseCampaign(health, signals);
+    const decision = decideNextAction(health, diagnosis);
 
-    return toCampaignHealthResponseDto(metaCampaignId, health, diagnosis);
+    return toCampaignHealthResponseDto(metaCampaignId, health, diagnosis, decision);
   }
 }

@@ -91,6 +91,7 @@ describe("CampaignHealthService", () => {
     expect(result.campaignId).toBe(META_CAMPAIGN_ID);
     expect(result.health.overallStatus).toBeDefined();
     expect(result.diagnosis).toBeDefined();
+    expect(result.decision).toBeDefined();
   });
 
   it("a healthy, stable campaign against a HIGH-confidence benchmark reports HEALTHY overallStatus", async () => {
@@ -103,6 +104,7 @@ describe("CampaignHealthService", () => {
     expect(result.health.audience.status).toBe("UNKNOWN");
     expect(result.health.tracking.status).toBe("UNKNOWN");
     expect(result.health.leadQuality.status).toBe("UNKNOWN");
+    expect(result.decision.decision).toBe("NO_ACTION");
   });
 
   it("a real CPL spike vs. a usable benchmark surfaces as CRITICAL overallStatus with a rootCause", async () => {
@@ -116,6 +118,8 @@ describe("CampaignHealthService", () => {
 
     expect(result.diagnosis.rootCause).toBe("CPL_SPIKE");
     expect(result.diagnosis.confidence).toBeGreaterThan(0);
+    expect(result.decision.decision).toBe("REVIEW");
+    expect(result.decision.primaryDiagnosis).toBe("CPL_SPIKE");
   });
 
   it("computes ctrTrendForFatigue only when the previous window has real coverage", async () => {
