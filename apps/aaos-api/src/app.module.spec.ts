@@ -161,7 +161,11 @@ describe("AppModule.forRoot", () => {
     // (composes its own CreativeMemoryRepository locally from the existing SUPABASE_CLIENT via
     // `useFactory`, same pattern MetricSnapshotModule establishes; deliberately does not import
     // CreativePackagesModule — see creative-memory.module.ts's own doc for why).
-    expect(dynamicModule.imports).toHaveLength(38);
+    // EYVRA — SAMANTHA V2 Phase 3: +1 import (CampaignHealthModule, the new real
+    // `GET /api/v1/campaign-health/:campaignId` HTTP surface) — no new global provider and no new
+    // repository at all (imports MetricSnapshotModule to reuse its already-exported
+    // MetricSnapshotService instead of composing its own repository, unlike every module above).
+    expect(dynamicModule.imports).toHaveLength(39);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 

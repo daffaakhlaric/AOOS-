@@ -75,6 +75,7 @@ import { ActivityLogModule } from "./modules/activity-log/activity-log.module.js
 import { AssetsModule } from "./modules/assets/assets.module.js";
 import { AuditLogModule } from "./modules/audit-log/audit-log.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
+import { CampaignHealthModule } from "./modules/campaign-health/campaign-health.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { ClosingsModule } from "./modules/closings/closings.module.js";
 import { CreativeMemoryModule } from "./modules/creative-memory/creative-memory.module.js";
@@ -485,6 +486,14 @@ export class AppModule {
         // `creative-memory.module.ts`'s own doc for why). Never writes to any of the three tables it
         // reads and never touches the real KIE.ai generation pipeline.
         CreativeMemoryModule,
+        // EYVRA -- SAMANTHA V2 Phase 3 -- Campaign Health: real, read-only
+        // `GET /api/v1/campaign-health/:campaignId`, a 7-dimension deterministic health assessment
+        // + root-cause diagnosis over MetricSnapshotService's already-shipped snapshots/signals/
+        // benchmark. Zero I/O of its own -- imports MetricSnapshotModule to reuse its exported
+        // MetricSnapshotService rather than composing a new repository, unlike every module above.
+        // Never calls LlmService.campaignInsight (see campaign-health/domain/diagnosis.ts's own doc
+        // for why that wiring is explicitly out of scope for this phase).
+        CampaignHealthModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },
