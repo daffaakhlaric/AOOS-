@@ -1,3 +1,4 @@
+import { createLogger } from "@aos/logger";
 import type { IRateLimiter } from "@aos/meta-ads-connector";
 import { Inject, Injectable } from "@nestjs/common";
 
@@ -875,6 +876,25 @@ const JUDGE_SYSTEM_PROMPTS: Record<"SAMANTHA" | "KAI" | "CLARA", string> = {
   CLARA: CLARA_JUDGE_SYSTEM_PROMPT,
 };
 
+const llmServiceLogger = createLogger({ serviceName: "aaos-api" });
+
+/**
+ * SAMANTHA ADVANCED INSIGHT ENGINE — diagnostic-only helper (same "log the real reason, don't just
+ * silently degrade" discipline the Kie AI `KieApiResponseMapper` raw-body diagnostic established
+ * earlier this project). `CampaignInsightLlmPayloadSchema` is a genuinely large, strict schema
+ * (exactly-2 `scenarios`, min-3 `metricBreakdown`, a required 3-phase `playbook`, etc.) — an
+ * `INVALID_RESPONSE` here previously gave NO visibility into which real field the model's own JSON
+ * failed on, making a live "analisa tidak muncul" report undiagnosable without this.
+ */
+function logCampaignInsightValidationFailure(rawContent: string, issues: string): void {
+  const truncated =
+    rawContent.length > 2000 ? `${rawContent.slice(0, 2000)}…(truncated)` : rawContent;
+  llmServiceLogger.warn(
+    { rawContent: truncated, issues },
+    "LlmService.campaignInsight: real OpenAI response failed CampaignInsightLlmPayloadSchema validation",
+  );
+}
+
 /**
  * OpenAI-backed implementation of Samantha's `analyze`/`creativeBrief`/`chat` capabilities
  * (`src/modules/llm/llm.controller.ts`'s three endpoints), plus `selectTargeting`
@@ -1706,6 +1726,10 @@ export class LlmService {
     const validated =
       parsed === undefined ? undefined : CampaignInsightLlmPayloadSchema.safeParse(parsed);
     if (validated === undefined || !validated.success) {
+      logCampaignInsightValidationFailure(
+        completion.value,
+        validated === undefined ? "response was not valid JSON at all" : validated.error.message,
+      );
       return unavailable("INVALID_RESPONSE");
     }
 

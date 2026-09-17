@@ -1731,7 +1731,7 @@ describe("LlmService", () => {
       expect(result).toEqual({ available: true, ...JSON.parse(jsonWithoutOptionals) });
     });
 
-    it("returns INVALID_RESPONSE when metricBreakdown has fewer than 3 real entries", async () => {
+    it("returns INVALID_RESPONSE when metricBreakdown has fewer than 2 real entries (the real, lenient minimum — no retry loop exists, so this must not be stricter than necessary)", async () => {
       registerOpenAiChatHandler(
         JSON.stringify({
           ...JSON.parse(validCampaignInsightLlmJson),
@@ -1756,7 +1756,52 @@ describe("LlmService", () => {
       });
     });
 
-    it("returns INVALID_RESPONSE when scenarios does not have exactly 2 entries", async () => {
+    it("accepts exactly 2 metricBreakdown entries (the real, lenient minimum)", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          ...JSON.parse(validCampaignInsightLlmJson),
+          metricBreakdown: [
+            {
+              metric: "x",
+              status: "good",
+              interpretation: "x",
+              vsContext: "x",
+              trend: "stabil",
+              trendDetail: "x",
+            },
+            {
+              metric: "y",
+              status: "good",
+              interpretation: "y",
+              vsContext: "y",
+              trend: "stabil",
+              trendDetail: "y",
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toMatchObject({ available: true });
+    });
+
+    it("returns INVALID_RESPONSE when scenarios is empty (the real, lenient minimum is 1 — no retry loop exists, so an off-by-one from the prompt's '2 skenario' guidance must not discard an otherwise-real analysis)", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          ...JSON.parse(validCampaignInsightLlmJson),
+          scenarios: [],
+        }),
+      );
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("accepts a single real scenario (the real, lenient minimum, even though the prompt asks for 2)", async () => {
       registerOpenAiChatHandler(
         JSON.stringify({
           ...JSON.parse(validCampaignInsightLlmJson),
@@ -1773,11 +1818,7 @@ describe("LlmService", () => {
       );
       const service = buildService();
       const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
-      expect(result).toEqual({
-        available: false,
-        reason: "INVALID_RESPONSE",
-        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
-      });
+      expect(result).toMatchObject({ available: true });
     });
 
     // SAMANTHA ADVANCED INSIGHT ENGINE — dailyBudget/cpc/cpm/reach/andromedaDiversity/

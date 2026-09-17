@@ -202,7 +202,14 @@ export const CampaignInsightLlmPayloadSchema = z.object({
     ruled_out: z.string().min(1).optional(),
   }),
 
-  /** 3-8 real metrics, most-important first. Every `metric`/`vsContext`/`trendDetail` must cite a real number from the request body — never invented. */
+  /**
+   * 2-8 real metrics, most-important first. Every `metric`/`vsContext`/`trendDetail` must cite a
+   * real number from the request body — never invented. Minimum is 2 (not the prompt's own "3+"
+   * guidance) — there is no retry loop on a schema-validation failure in this codebase (a single
+   * OpenAI call, once), so a live over-strict minimum here throws away an otherwise-good real
+   * analysis just because the model returned 2 solid bullets instead of 3 for a campaign with
+   * genuinely little to report on (e.g. a brand-new, low-data campaign).
+   */
   metricBreakdown: z
     .array(
       z.object({
@@ -214,7 +221,7 @@ export const CampaignInsightLlmPayloadSchema = z.object({
         trendDetail: z.string().min(1),
       }),
     )
-    .min(3)
+    .min(2)
     .max(8),
 
   /** 2-4 sentence real narrative of what happened to this specific campaign — not bullet points. */
@@ -246,12 +253,18 @@ export const CampaignInsightLlmPayloadSchema = z.object({
     opportunityCost: z.string().min(1).optional(),
   }),
 
-  /** Exactly 2 — the recommended path and one honest alternative, per the spec's own "2 skenario" instruction. */
+  /**
+   * The prompt asks for exactly 2 (the recommended path and one honest alternative), but the
+   * schema itself only requires 1-3 — same "no retry loop, don't throw away an otherwise-good
+   * real analysis over an off-by-one array length" reasoning as `metricBreakdown`'s own doc.
+   * `CampaignInsightPanel`'s rendering only special-cases index 0 as "primary"; any length in
+   * this range renders correctly.
+   */
   scenarios: z
     .array(
       z.object({
         name: z.string().min(1),
-        /** A percentage string, e.g. "70%" — the model's own honest confidence split between the 2 scenarios (must sum to ~100% across both, enforced by prompt instruction, not schema). */
+        /** A percentage string, e.g. "70%" — the model's own honest confidence split between the scenarios (should sum to ~100%, enforced by prompt instruction, not schema). */
         probability: z.string().min(1),
         steps: z.array(z.string().min(1)).min(1).max(6),
         expectedOutcome: z.string().min(1),
@@ -259,7 +272,8 @@ export const CampaignInsightLlmPayloadSchema = z.object({
         risk: z.string().min(1).optional(),
       }),
     )
-    .length(2),
+    .min(1)
+    .max(3),
 
   /** Optional real context from CPM trend/`marketDigest` — omitted when there is honestly nothing real to say. */
   competitorContext: z.string().min(1).optional(),
