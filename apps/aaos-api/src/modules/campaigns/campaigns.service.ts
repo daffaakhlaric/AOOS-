@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { UnavailableError } from "@aos/errors";
 import {
   AdAccountId,
@@ -22,8 +24,10 @@ import type {
 } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
+import { matchActiveCampaignForListing } from "../scheduler/domain/match-campaign-for-listing.js";
 
 import { resolvePropertyTargeting } from "./domain/property-targeting.builder.js";
+import type { BackfillListingLinksResultDto } from "./dto/backfill-listing-links.dto.js";
 import type {
   CreateCampaignBodyDto,
   CreateCampaignResponseDto,
@@ -388,6 +392,81 @@ export class CampaignsService {
       await this.activityLogger.fail(activityId, error);
       throw error;
     }
+  }
+
+  /**
+   * Campaign->Listing Mapping — BACKFILL for pre-existing campaigns (053_meta_campaigns_listing_id.sql
+   * only auto-links NEW campaigns created after that migration shipped, via `createPropertyCampaign`'s
+   * own `linkCampaignListing` call above; a campaign created before that fix has no real link yet).
+   *
+   * Real, one-off maintenance action (triggered via a real superadmin endpoint, never a scheduled
+   * cron — the existing `SchedulerService.runPropertyCampaignTriggerCheck` cadence already re-derives
+   * this same match every tick for its OWN purposes, but never persists it): pulls the tenant's real,
+   * whole ad-account campaign tree ONCE, then re-uses `matchActiveCampaignForListing` (SAME real
+   * name-substring heuristic `SchedulerService` already relies on, not a second, possibly-drifting
+   * implementation) for every real tenant listing, and persists every real match via the SAME
+   * `MetaSyncRepository.linkCampaignListing` UPDATE `createPropertyCampaign` uses. Uses
+   * `campaign.metaId` (the real, synced Meta campaign id) — NOT `campaign.id.toString()` (a local
+   * `CampaignId` value-object wrapper that would never match the real `meta_campaign_id` DB column).
+   *
+   * Best-effort per campaign: one real link failure (`linkCampaignListing` throwing) is logged and
+   * skipped, never aborts the whole backfill.
+   */
+  async backfillListingLinks(tenantId: string): Promise<BackfillListingLinksResultDto> {
+    const connectorResult = await this.connectorRegistry.resolve(tenantId);
+    if (!connectorResult.ok) {
+      throw connectorResult.error;
+    }
+    const connector = connectorResult.value;
+    const rawAdAccountId = connector.adAccountIds[0];
+    if (rawAdAccountId === undefined) {
+      throw new UnavailableError(
+        `No Meta ad account is configured for tenant "${tenantId}" — cannot backfill listing links.`,
+      );
+    }
+    const adAccountIdResult = AdAccountId.create(rawAdAccountId);
+    if (!adAccountIdResult.ok) {
+      throw adAccountIdResult.error;
+    }
+
+    const pulled = await connector.pullCampaignData.execute({
+      adAccountId: adAccountIdResult.value,
+      datePreset: "today",
+      accessToken: connector.accessToken,
+      tenantId,
+      correlationId: randomUUID(),
+    });
+    if (!pulled.ok) {
+      throw pulled.error;
+    }
+    const adAccounts = [pulled.value];
+
+    const { listings } = await this.listings.list(tenantId, {});
+
+    let campaignsMatched = 0;
+    let campaignsLinked = 0;
+    for (const listing of listings) {
+      const { matchedCampaigns } = matchActiveCampaignForListing(listing, adAccounts);
+      for (const campaign of matchedCampaigns) {
+        campaignsMatched += 1;
+        try {
+          const linked = await this.metaSync.linkCampaignListing(
+            tenantId,
+            campaign.metaId,
+            listing.id,
+          );
+          if (linked) {
+            campaignsLinked += 1;
+          }
+        } catch (caught) {
+          this.logger.warn(
+            `CampaignsService.backfillListingLinks: linkCampaignListing failed for campaign ${campaign.metaId}, listing ${listing.id}: ${caught instanceof Error ? caught.message : String(caught)}`,
+          );
+        }
+      }
+    }
+
+    return { listingsChecked: listings.length, campaignsMatched, campaignsLinked };
   }
 
   /**

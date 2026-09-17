@@ -2,6 +2,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
 
@@ -23,6 +24,12 @@ import { SuperadminService } from "./superadmin.service.js";
  * second data store.
  */
 @Module({
+  imports: [
+    // Campaign->Listing Mapping backfill — real `CampaignsService.backfillListingLinks` trigger
+    // for pre-existing campaigns, exposed on this controller since it's a privileged, tenant-scoped
+    // maintenance action (same `ApiKeyGuard` perimeter every endpoint here already sits behind).
+    CampaignsModule,
+  ],
   controllers: [SuperadminController],
   providers: [
     SuperadminService,

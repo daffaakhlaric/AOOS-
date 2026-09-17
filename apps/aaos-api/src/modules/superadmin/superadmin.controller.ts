@@ -1,6 +1,12 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, UseGuards } from "@nestjs/common";
 
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
+import { CampaignsService } from "../campaigns/campaigns.service.js";
+import {
+  BackfillListingLinksBodySchema,
+  type BackfillListingLinksBodyDto,
+  type BackfillListingLinksResultDto,
+} from "../campaigns/dto/backfill-listing-links.dto.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
 import { CreateTenantBodySchema, type CreateTenantBodyDto } from "./dto/create-tenant.dto.js";
@@ -36,7 +42,10 @@ import { SuperadminService } from "./superadmin.service.js";
 @Controller("api/v1/superadmin")
 @UseGuards(ApiKeyGuard)
 export class SuperadminController {
-  constructor(private readonly service: SuperadminService) {}
+  constructor(
+    private readonly service: SuperadminService,
+    private readonly campaigns: CampaignsService,
+  ) {}
 
   @Get("tenants")
   async listTenants(): Promise<ListTenantsResponseDto> {
@@ -83,5 +92,19 @@ export class SuperadminController {
     @Body(new ZodValidationPipe(PutWebhookConfigBodySchema)) body: PutWebhookConfigBodyDto,
   ): Promise<WebhookConfigResponseDto> {
     return this.service.updateWebhookConfig(body);
+  }
+
+  /**
+   * Campaign->Listing Mapping backfill (see `CampaignsService.backfillListingLinks`'s own doc) —
+   * a real, one-off maintenance action for pre-existing campaigns created before
+   * `053_meta_campaigns_listing_id.sql` shipped. Same `ApiKeyGuard` perimeter as every other
+   * endpoint on this controller; no separate superadmin credential exists in this codebase.
+   */
+  @Post("campaigns/backfill-listing-links")
+  @HttpCode(200)
+  async backfillListingLinks(
+    @Body(new ZodValidationPipe(BackfillListingLinksBodySchema)) body: BackfillListingLinksBodyDto,
+  ): Promise<BackfillListingLinksResultDto> {
+    return this.campaigns.backfillListingLinks(body.tenantId);
   }
 }

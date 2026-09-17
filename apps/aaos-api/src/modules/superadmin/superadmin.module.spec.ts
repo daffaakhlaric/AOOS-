@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import { describe, expect, it } from "vitest";
 
+import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { WabaConfigRepository } from "../settings/infrastructure/waba-config.repository.js";
 
@@ -15,6 +16,11 @@ describe("SuperadminModule", () => {
   it("registers SuperadminController as its controller", () => {
     const metadata = Reflect.getMetadata("controllers", SuperadminModule) as unknown[];
     expect(metadata).toEqual([SuperadminController]);
+  });
+
+  it("imports CampaignsModule (Campaign->Listing Mapping backfill endpoint)", () => {
+    const metadata = Reflect.getMetadata("imports", SuperadminModule) as unknown[];
+    expect(metadata).toContain(CampaignsModule);
   });
 
   it("registers SuperadminService, ApiKeyGuard, and TenantRepository/WabaConfigRepository/SystemWebhookConfigRepository factories as providers", () => {

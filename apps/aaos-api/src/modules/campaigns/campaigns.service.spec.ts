@@ -1,6 +1,16 @@
-import { ok } from "@aos/common";
-import { NotFoundError, ValidationError } from "@aos/errors";
-import { Branch, Funnel, MetaAdsConnectorFactory } from "@aos/meta-ads-connector";
+import { ok, err } from "@aos/common";
+import { NotFoundError, UnavailableError, ValidationError } from "@aos/errors";
+import {
+  AdBuilder,
+  AdSetBuilder,
+  AdStatus,
+  Branch,
+  CampaignBuilder,
+  Funnel,
+  MetaAdsConnectorFactory,
+  Verdict,
+  type AdAccount,
+} from "@aos/meta-ads-connector";
 import { http, HttpResponse } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -18,13 +28,25 @@ import {
 } from "../../test-support/meta-api-msw.js";
 import type { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import type { StoredCreativePackage } from "../creative-packages/domain/creative-package.js";
+import type { ListingListResponseDto } from "../listings/dto/listing.dto.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type {
   LocationResolverService,
   ResolvedLocation,
 } from "../location-resolver/location-resolver.service.js";
+import type {
+  MetaAdsConnectorContext,
+  MetaAdsConnectorRegistry,
+} from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 
 import { CampaignsService } from "./campaigns.service.js";
+
+function unwrap<T>(result: { ok: boolean; value?: T; error?: unknown }): T {
+  if (!result.ok) {
+    throw new Error(`unwrap failed: ${JSON.stringify(result.error)}`);
+  }
+  return result.value as T;
+}
 
 /** Minimal `ModeGuardService` test double — always resolves LIVE (calls `executeFn`) unless `dev: true`. */
 function buildFakeModeGuard(dev = false) {
@@ -951,5 +973,173 @@ describe("CampaignsService.restructureCampaign (Samantha Andromeda-Aware Campaig
         expect.objectContaining({ status: "SUCCESS" }),
       );
     });
+  });
+});
+
+/** Real `Campaign` entity built via `CampaignBuilder`, wrapped in a minimal real-shaped `AdAccount`. */
+function buildAdAccountWithCampaign(overrides: {
+  readonly name?: string;
+  readonly status?: AdStatus;
+  readonly metaId?: string;
+}): AdAccount {
+  const ad = unwrap(new AdBuilder().withVerdict(Verdict.KEEP).build());
+  const adSet = unwrap(new AdSetBuilder().withAds([ad]).build());
+  const campaign = unwrap(
+    new CampaignBuilder()
+      .withName(overrides.name ?? "Rumah Minimalis Bintaro Promo")
+      .withStatus(overrides.status ?? AdStatus.ACTIVE)
+      .withMetaId(overrides.metaId ?? "meta-campaign-1")
+      .withAdSets([adSet])
+      .build(),
+  );
+  return {
+    id: campaign.adSets[0]?.adAccountId,
+    name: "Test Ad Account",
+    businessManagerId: "bm_1",
+    currency: "IDR",
+    timezone: "Asia/Jakarta",
+    campaigns: [campaign],
+    syncedAt: new Date("2026-08-18T00:00:00.000Z"),
+  } as unknown as AdAccount;
+}
+
+function buildFakeConnectorRegistry(
+  pulled: unknown,
+  resolveResult: "ok" | "no-connector" = "ok",
+): MetaAdsConnectorRegistry {
+  const connector = {
+    accessToken: "token",
+    adAccountIds: ["act_752604553578354"],
+    pullCampaignData: { execute: vi.fn(async () => pulled) },
+  } as unknown as MetaAdsConnectorContext;
+  return {
+    resolve: vi.fn(async () =>
+      resolveResult === "ok" ? ok(connector) : err(new UnavailableError("no connector")),
+    ),
+  } as unknown as MetaAdsConnectorRegistry;
+}
+
+function buildServiceWithConnector(
+  connectorRegistry: MetaAdsConnectorRegistry,
+  options: {
+    readonly listings?: ListingsService;
+    readonly metaSync?: ReturnType<typeof buildFakeMetaSync>;
+  } = {},
+): CampaignsService {
+  const config = buildTestConfig();
+  return new CampaignsService(
+    config,
+    connectorRegistry as never,
+    buildFakeModeGuard(false) as never,
+    buildFakeActivityLogger() as never,
+    options.listings ?? buildFakeListings(),
+    buildFakeLocationResolver(),
+    buildFakeCreativePackages(),
+    (options.metaSync ?? buildFakeMetaSync()) as never,
+  );
+}
+
+function buildFakeListingsForBackfill(
+  listings: ListingListResponseDto["listings"],
+): ListingsService {
+  return {
+    list: vi.fn(async () => ({ listings, total: listings.length })),
+  } as unknown as ListingsService;
+}
+
+describe("CampaignsService.backfillListingLinks (Campaign->Listing Mapping backfill)", () => {
+  it("matches every real tenant listing against the pulled ad account and links each real match via metaSync.linkCampaignListing, using campaign.metaId (not campaign.id)", async () => {
+    const adAccount = buildAdAccountWithCampaign({
+      name: "Rumah Minimalis Bintaro Promo",
+      metaId: "real-meta-campaign-id-1",
+    });
+    const registry = buildFakeConnectorRegistry(ok(adAccount));
+    const listings = buildFakeListingsForBackfill([
+      {
+        id: "listing-1",
+        title: "Rumah Minimalis Bintaro",
+        propertyType: "RUMAH",
+        listingStatus: "ACTIVE",
+        price: 1_500_000_000,
+      } as ListingListResponseDto["listings"][number],
+    ]);
+    const metaSync = buildFakeMetaSync({ linkCampaignListing: vi.fn(async () => true) });
+    const service = buildServiceWithConnector(registry, { listings, metaSync });
+
+    const result = await service.backfillListingLinks("dss-motor");
+
+    expect(metaSync.linkCampaignListing).toHaveBeenCalledWith(
+      "dss-motor",
+      "real-meta-campaign-id-1",
+      "listing-1",
+    );
+    expect(result).toEqual({ listingsChecked: 1, campaignsMatched: 1, campaignsLinked: 1 });
+  });
+
+  it("skips listings with no real active-campaign name match — reports 0 matched/linked for them", async () => {
+    const adAccount = buildAdAccountWithCampaign({ name: "Completely Unrelated Campaign" });
+    const registry = buildFakeConnectorRegistry(ok(adAccount));
+    const listings = buildFakeListingsForBackfill([
+      {
+        id: "listing-1",
+        title: "Rumah Minimalis Bintaro",
+        propertyType: "RUMAH",
+        listingStatus: "ACTIVE",
+        price: 1_500_000_000,
+      } as ListingListResponseDto["listings"][number],
+    ]);
+    const metaSync = buildFakeMetaSync();
+    const service = buildServiceWithConnector(registry, { listings, metaSync });
+
+    const result = await service.backfillListingLinks("dss-motor");
+
+    expect(metaSync.linkCampaignListing).not.toHaveBeenCalled();
+    expect(result).toEqual({ listingsChecked: 1, campaignsMatched: 0, campaignsLinked: 0 });
+  });
+
+  it("continues past one real linkCampaignListing failure (best-effort per campaign, never aborts the whole backfill)", async () => {
+    const adAccount = buildAdAccountWithCampaign({ name: "Rumah Minimalis Bintaro Promo" });
+    const registry = buildFakeConnectorRegistry(ok(adAccount));
+    const listings = buildFakeListingsForBackfill([
+      {
+        id: "listing-1",
+        title: "Rumah Minimalis Bintaro",
+        propertyType: "RUMAH",
+        listingStatus: "ACTIVE",
+        price: 1_500_000_000,
+      } as ListingListResponseDto["listings"][number],
+    ]);
+    const metaSync = buildFakeMetaSync({
+      linkCampaignListing: vi.fn(async () => {
+        throw new Error("db down");
+      }),
+    });
+    const service = buildServiceWithConnector(registry, { listings, metaSync });
+
+    const result = await service.backfillListingLinks("dss-motor");
+
+    expect(result).toEqual({ listingsChecked: 1, campaignsMatched: 1, campaignsLinked: 0 });
+  });
+
+  it("throws when the tenant has no configured connector", async () => {
+    const registry = buildFakeConnectorRegistry(undefined, "no-connector");
+    const service = buildServiceWithConnector(registry, {
+      listings: buildFakeListingsForBackfill([]),
+    });
+
+    await expect(service.backfillListingLinks("dss-motor")).rejects.toBeInstanceOf(
+      UnavailableError,
+    );
+  });
+
+  it("throws the raw pull error when the real Meta pull fails", async () => {
+    const registry = buildFakeConnectorRegistry(err(new UnavailableError("meta down")));
+    const service = buildServiceWithConnector(registry, {
+      listings: buildFakeListingsForBackfill([]),
+    });
+
+    await expect(service.backfillListingLinks("dss-motor")).rejects.toBeInstanceOf(
+      UnavailableError,
+    );
   });
 });

@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import { describe, expect, it, vi } from "vitest";
 
+import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
 import type { TenantResponseDto } from "./dto/tenant-response.dto.js";
@@ -44,10 +45,21 @@ function buildFakeService(): SuperadminService {
   } as unknown as SuperadminService;
 }
 
+/** Fake `CampaignsService` — only `backfillListingLinks` is relevant to this controller. */
+function buildFakeCampaignsService(): CampaignsService {
+  return {
+    backfillListingLinks: vi.fn(async () => ({
+      listingsChecked: 3,
+      campaignsMatched: 2,
+      campaignsLinked: 2,
+    })),
+  } as unknown as CampaignsService;
+}
+
 describe("SuperadminController", () => {
   it("GET /api/v1/superadmin/tenants delegates to service.list", async () => {
     const service = buildFakeService();
-    const controller = new SuperadminController(service);
+    const controller = new SuperadminController(service, buildFakeCampaignsService());
     const result = await controller.listTenants();
     expect(service.list).toHaveBeenCalled();
     expect(result.tenants).toEqual([SAMPLE]);
@@ -55,7 +67,7 @@ describe("SuperadminController", () => {
 
   it("POST /api/v1/superadmin/tenants delegates to service.create", async () => {
     const service = buildFakeService();
-    const controller = new SuperadminController(service);
+    const controller = new SuperadminController(service, buildFakeCampaignsService());
     const body = {
       name: "DSS Motor (Mobix)",
       tenantId: "dss-motor",
@@ -71,7 +83,7 @@ describe("SuperadminController", () => {
 
   it("PUT /api/v1/superadmin/tenants/:id delegates to service.update", async () => {
     const service = buildFakeService();
-    const controller = new SuperadminController(service);
+    const controller = new SuperadminController(service, buildFakeCampaignsService());
     const result = await controller.updateTenant("dss-motor", { status: "SUSPENDED" });
     expect(service.update).toHaveBeenCalledWith("dss-motor", { status: "SUSPENDED" });
     expect(result.status).toBe("SUSPENDED");
@@ -79,7 +91,7 @@ describe("SuperadminController", () => {
 
   it("POST /api/v1/superadmin/impersonate delegates to service.impersonate", async () => {
     const service = buildFakeService();
-    const controller = new SuperadminController(service);
+    const controller = new SuperadminController(service, buildFakeCampaignsService());
     const body = { tenantId: "dss-motor", actorEmail: "superadmin@aaos.id", actorId: "s-1" };
     const result = await controller.impersonate(body);
     expect(service.impersonate).toHaveBeenCalledWith(body);
@@ -88,7 +100,7 @@ describe("SuperadminController", () => {
 
   it("GET /api/v1/superadmin/webhook-config delegates to service.getWebhookConfig", async () => {
     const service = buildFakeService();
-    const controller = new SuperadminController(service);
+    const controller = new SuperadminController(service, buildFakeCampaignsService());
     const result = await controller.getWebhookConfig();
     expect(service.getWebhookConfig).toHaveBeenCalled();
     expect(result.whatsapp.verifyTokenSet).toBe(false);
@@ -96,11 +108,19 @@ describe("SuperadminController", () => {
 
   it("PUT /api/v1/superadmin/webhook-config delegates to service.updateWebhookConfig", async () => {
     const service = buildFakeService();
-    const controller = new SuperadminController(service);
+    const controller = new SuperadminController(service, buildFakeCampaignsService());
     const body = { whatsapp: { verifyToken: "new-verify-token" } };
     const result = await controller.updateWebhookConfig(body);
     expect(service.updateWebhookConfig).toHaveBeenCalledWith(body);
     expect(result.whatsapp.verifyTokenSet).toBe(true);
+  });
+
+  it("POST /api/v1/superadmin/campaigns/backfill-listing-links delegates to campaigns.backfillListingLinks", async () => {
+    const campaigns = buildFakeCampaignsService();
+    const controller = new SuperadminController(buildFakeService(), campaigns);
+    const result = await controller.backfillListingLinks({ tenantId: "dss-motor" });
+    expect(campaigns.backfillListingLinks).toHaveBeenCalledWith("dss-motor");
+    expect(result).toEqual({ listingsChecked: 3, campaignsMatched: 2, campaignsLinked: 2 });
   });
 
   it("guards the whole controller with ApiKeyGuard", () => {
