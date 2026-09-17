@@ -1731,7 +1731,23 @@ describe("LlmService", () => {
       expect(result).toEqual({ available: true, ...JSON.parse(jsonWithoutOptionals) });
     });
 
-    it("returns INVALID_RESPONSE when metricBreakdown has fewer than 2 real entries (the real, lenient minimum — no retry loop exists, so this must not be stricter than necessary)", async () => {
+    it("returns INVALID_RESPONSE when metricBreakdown is empty (the real, lenient minimum is 1 — no retry loop exists, so this must not be stricter than necessary)", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          ...JSON.parse(validCampaignInsightLlmJson),
+          metricBreakdown: [],
+        }),
+      );
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("accepts a single real metricBreakdown entry (the real, lenient minimum, even though the prompt asks for 3+)", async () => {
       registerOpenAiChatHandler(
         JSON.stringify({
           ...JSON.parse(validCampaignInsightLlmJson),
@@ -1749,11 +1765,7 @@ describe("LlmService", () => {
       );
       const service = buildService();
       const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
-      expect(result).toEqual({
-        available: false,
-        reason: "INVALID_RESPONSE",
-        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
-      });
+      expect(result).toMatchObject({ available: true });
     });
 
     it("accepts exactly 2 metricBreakdown entries (the real, lenient minimum)", async () => {

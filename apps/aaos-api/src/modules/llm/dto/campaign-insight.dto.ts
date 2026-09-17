@@ -161,13 +161,37 @@ const TRENDS = ["naik", "turun", "stabil"] as const;
 const KAI_URGENCIES = ["immediate", "this_week", "next_cycle"] as const;
 const BUDGET_RECOMMENDATIONS = ["increase", "maintain", "decrease", "pause"] as const;
 
+/**
+ * SAMANTHA ADVANCED INSIGHT ENGINE — real, live-confirmed OpenAI JSON-mode behavior: for a field
+ * the model considers "not applicable" it very often emits an explicit `null` rather than
+ * omitting the key entirely (confirmed via this endpoint's own diagnostic logging — see
+ * `logCampaignInsightValidationFailure` in `llm.service.ts`, which caught real responses failing
+ * on exactly this for `rootCause.secondary`, every `kaiDirective` field, and `competitorContext`
+ * in the same call). Plain `.optional()` only accepts `undefined`, not `null`, so every one of
+ * those real responses was being discarded whole over a field that was genuinely honest ("no
+ * secondary cause", "no directive needed") just spelled the wrong way. `.nullish()` accepts both,
+ * and the `.transform` normalizes `null` back to `undefined` so this DTO's own TS type (and every
+ * consumer) still only ever sees `T | undefined`, never `null`.
+ */
+function optionalString(maxLength?: number) {
+  const base = maxLength !== undefined ? z.string().min(1).max(maxLength) : z.string().min(1);
+  return base.nullish().transform((value) => value ?? undefined);
+}
+
+function optionalEnum<T extends readonly [string, ...string[]]>(values: T) {
+  return z
+    .enum(values)
+    .nullish()
+    .transform((value) => value ?? undefined);
+}
+
 const PlaybookStepSchema = z.object({
   action: z.string().min(1),
   how: z.string().min(1),
   why: z.string().min(1),
   expectedResult: z.string().min(1),
   /** Optional — a HEALTHY campaign's `immediate`/`shortTerm` step (e.g. "monitor") may honestly have no "if not done" risk worth naming. */
-  risk_if_not: z.string().min(1).optional(),
+  risk_if_not: optionalString(),
 });
 
 /**
@@ -197,17 +221,17 @@ export const CampaignInsightLlmPayloadSchema = z.object({
   rootCause: z.object({
     primary: z.string().min(1),
     primaryEvidence: z.string().min(1),
-    secondary: z.string().min(1).optional(),
+    secondary: optionalString(),
     /** What this is NOT, and why — excludes false alarms (e.g. "bukan audience exhaustion karena reach masih naik"). Optional only because a SEHAT campaign may have nothing to rule out. */
-    ruled_out: z.string().min(1).optional(),
+    ruled_out: optionalString(),
   }),
 
   /**
-   * 2-8 real metrics, most-important first. Every `metric`/`vsContext`/`trendDetail` must cite a
-   * real number from the request body — never invented. Minimum is 2 (not the prompt's own "3+"
+   * 1-8 real metrics, most-important first. Every `metric`/`vsContext`/`trendDetail` must cite a
+   * real number from the request body — never invented. Minimum is 1 (not the prompt's own "3+"
    * guidance) — there is no retry loop on a schema-validation failure in this codebase (a single
    * OpenAI call, once), so a live over-strict minimum here throws away an otherwise-good real
-   * analysis just because the model returned 2 solid bullets instead of 3 for a campaign with
+   * analysis just because the model returned fewer bullets than asked for a campaign with
    * genuinely little to report on (e.g. a brand-new, low-data campaign).
    */
   metricBreakdown: z
@@ -221,7 +245,7 @@ export const CampaignInsightLlmPayloadSchema = z.object({
         trendDetail: z.string().min(1),
       }),
     )
-    .min(2)
+    .min(1)
     .max(8),
 
   /** 2-4 sentence real narrative of what happened to this specific campaign — not bullet points. */
@@ -235,11 +259,11 @@ export const CampaignInsightLlmPayloadSchema = z.object({
 
   kaiDirective: z.object({
     needed: z.boolean(),
-    urgency: z.enum(KAI_URGENCIES).optional(),
+    urgency: optionalEnum(KAI_URGENCIES),
     /** Specific: how many creatives, which angles, why — required when `needed` is true, omitted when false. */
-    brief: z.string().min(1).optional(),
-    angles_to_avoid: z.string().min(1).optional(),
-    reasoning: z.string().min(1).optional(),
+    brief: optionalString(),
+    angles_to_avoid: optionalString(),
+    reasoning: optionalString(),
   }),
 
   budgetDecision: z.object({
@@ -249,8 +273,8 @@ export const CampaignInsightLlmPayloadSchema = z.object({
     recommendedBudget: z.number().nonnegative(),
     changePercent: z.number(),
     reasoning: z.string().min(1),
-    prerequisite: z.string().min(1).optional(),
-    opportunityCost: z.string().min(1).optional(),
+    prerequisite: optionalString(),
+    opportunityCost: optionalString(),
   }),
 
   /**
@@ -269,20 +293,20 @@ export const CampaignInsightLlmPayloadSchema = z.object({
         steps: z.array(z.string().min(1)).min(1).max(6),
         expectedOutcome: z.string().min(1),
         timeToResult: z.string().min(1),
-        risk: z.string().min(1).optional(),
+        risk: optionalString(),
       }),
     )
     .min(1)
     .max(3),
 
   /** Optional real context from CPM trend/`marketDigest` — omitted when there is honestly nothing real to say. */
-  competitorContext: z.string().min(1).optional(),
+  competitorContext: optionalString(),
 
   /** 1-2 transferable learnings for OTHER campaigns, derived from this campaign's real data. */
   learnings: z.array(z.string().min(1)).min(1).max(2),
 
   /** Optional — one non-obvious, senior-level insight. Omitted rather than forced when there's honestly nothing beyond what `rootCause`/`playbook` already said. */
-  proTip: z.string().min(1).max(600).optional(),
+  proTip: optionalString(600),
 });
 export type CampaignInsightLlmPayload = z.infer<typeof CampaignInsightLlmPayloadSchema>;
 

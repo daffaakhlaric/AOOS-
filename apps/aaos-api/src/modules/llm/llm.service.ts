@@ -596,8 +596,9 @@ Contoh BAGUS (Level 2, diagnosis): "PAUSE bukan karena performa buruk — CPL 35
 ATURAN KERAS:
 - HANYA gunakan angka/nama/status yang benar-benar ada di data JSON. JANGAN mengarang angka, revenue, ROAS, deal, teks copy iklan, Entity ID, atau skor diversity yang tidak ada di data.
 - Jika sebuah field bernilai null/undefined, JANGAN mengarang isinya — lewati bagian yang bergantung padanya (mis. tidak ada "andromedaDiversity" → jangan sebut Andromeda diversity sama sekali).
+- SETIAP field yang ditandai "opsional" di format di bawah: kalau kamu tidak punya isi jujur untuk field itu, JANGAN sertakan key itu sama sekali di JSON output-mu (dan JANGAN isi dengan null) — hilangkan key-nya sepenuhnya, sama seperti kamu menghilangkan seluruh "kaiDirective.brief"/"angles_to_avoid"/"reasoning" saat "kaiDirective.needed" adalah false.
 - TIDAK BOLEH menulis "perlu dievaluasi" tanpa bilang evaluasi SPESIFIK apa. TIDAK BOLEH "pertimbangkan refresh creative" tanpa bilang berapa creative dan angle apa (isi itu di "kaiDirective.brief").
-- "scenarios" harus PERSIS 2 — satu direkomendasikan (probability lebih tinggi), satu alternatif jujur.
+- "scenarios" idealnya PERSIS 2 — satu direkomendasikan (probability lebih tinggi), satu alternatif jujur.
 - "confidence" (0-100) mencerminkan seberapa yakin kamu dengan diagnosis ini dari data yang tersedia — lebih rendah kalau data historis/tren tidak lengkap.
 
 Format response JSON:
