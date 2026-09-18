@@ -3,7 +3,9 @@ import { Injectable } from "@nestjs/common";
 import type { WindowDateRange } from "../metric-snapshot/domain/metric-window.js";
 
 import { rankAnglePerformance, type PackagePerformanceInput } from "./domain/angle-performance.js";
+import { rankAssetPerformance, type AssetPerformanceInput } from "./domain/asset-performance.js";
 import type { AnglePerformanceResponseDto } from "./dto/angle-performance.dto.js";
+import type { AssetPerformanceResponseDto } from "./dto/asset-performance.dto.js";
 import { CreativeMemoryRepository } from "./infrastructure/creative-memory.repository.js";
 
 /**
@@ -41,5 +43,45 @@ export class CreativeMemoryService {
     }
 
     return { angles: rankAnglePerformance(inputs) };
+  }
+
+  /**
+   * Kai V2 Asset Analyzer (Phase 21) — the individual-asset sibling of `getAnglePerformance`. Same
+   * real orchestration shape (list published PROPERTY assets -> resolve each one's own real linked
+   * Meta ad performance -> pure domain ranking, no I/O in the domain layer), applied at
+   * one-row-per-real-generated-asset granularity instead of grouped by angle — see
+   * `domain/asset-performance.ts`'s own doc for why this is a genuinely different, additive view
+   * rather than a duplicate of `getAnglePerformance`.
+   */
+  async getAssetPerformance(
+    tenantId: string,
+    window?: WindowDateRange,
+  ): Promise<AssetPerformanceResponseDto> {
+    const assets = await this.repository.listPublishedPropertyAssets(tenantId);
+    if (assets.length === 0) {
+      return { assets: [] };
+    }
+
+    const inputs: AssetPerformanceInput[] = [];
+    for (const asset of assets) {
+      // Same accepted N+1 MVP-scale tradeoff `getAnglePerformance` above already documents.
+      const insightRows = await this.repository.getAdInsightRows(
+        tenantId,
+        asset.publishedMetaAdIds,
+        window,
+      );
+      inputs.push({
+        packageId: asset.id,
+        angle: asset.angle,
+        title: asset.title,
+        ...(asset.decidedFormat !== undefined ? { decidedFormat: asset.decidedFormat } : {}),
+        fatigueStatus: asset.fatigueStatus,
+        hasVideo: asset.hasVideo,
+        imageCount: asset.imageCount,
+        insightRows,
+      });
+    }
+
+    return { assets: rankAssetPerformance(inputs) };
   }
 }

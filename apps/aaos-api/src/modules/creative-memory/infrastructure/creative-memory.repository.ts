@@ -26,12 +26,45 @@ export interface PublishedPackageRow {
   readonly generatedAt: string | null;
 }
 
+/**
+ * Raw `creative_packages` columns Kai V2 Asset Analyzer (Phase 21) needs — a superset of
+ * `CreativePackageQueryRow` above (adds `title`/`decided_format`/`video_url`/`image_urls`, the
+ * fields that identify WHICH real generated asset a given performance row is about). A separate
+ * interface rather than widening `CreativePackageQueryRow` in place, so `listPublishedPropertyPackages`
+ * (Phase 2, already shipped) keeps selecting exactly the columns its own existing tests pin.
+ */
+interface CreativePackageAssetQueryRow {
+  readonly id: string;
+  readonly angle: string;
+  readonly title: string;
+  readonly decided_format: string | null;
+  readonly published_meta_ad_ids: readonly string[] | null;
+  readonly fatigue_status: string;
+  readonly generated_at: string | null;
+  readonly video_url: string | null;
+  readonly image_urls: readonly string[] | null;
+}
+
+export interface PublishedAssetRow {
+  readonly id: string;
+  readonly angle: string;
+  readonly title: string;
+  readonly decidedFormat?: string;
+  readonly publishedMetaAdIds: readonly string[];
+  readonly fatigueStatus: string;
+  readonly generatedAt: string | null;
+  readonly hasVideo: boolean;
+  readonly imageCount: number;
+}
+
 interface MetaAdIdRow {
   readonly id: string;
   readonly meta_ad_id: string;
 }
 
 const CREATIVE_PACKAGE_COLUMNS = "id, angle, published_meta_ad_ids, fatigue_status, generated_at";
+const CREATIVE_PACKAGE_ASSET_COLUMNS =
+  "id, angle, title, decided_format, published_meta_ad_ids, fatigue_status, generated_at, video_url, image_urls";
 const INSIGHT_COLUMNS = "date, spend, impressions, clicks, reach, leads";
 
 /**
@@ -90,6 +123,41 @@ export class CreativeMemoryRepository {
         publishedMetaAdIds: row.published_meta_ad_ids ?? [],
         fatigueStatus: row.fatigue_status,
         generatedAt: row.generated_at,
+      }));
+  }
+
+  /**
+   * Kai V2 Asset Analyzer (Phase 21) — the same real, published (non-empty `published_meta_ad_ids`)
+   * PROPERTY `creative_packages` rows `listPublishedPropertyPackages` above already reads, but with
+   * the additional real columns (`title`/`decided_format`/`video_url`/`image_urls`) needed to
+   * identify WHICH specific generated asset each row's performance belongs to — see
+   * `domain/asset-performance.ts`'s own doc for why this is a separate, asset-granularity read
+   * rather than reusing the angle-grouped one. `hasVideo`/`imageCount` are derived here (never a
+   * fabricated boolean/count) directly from the real `video_url`/`image_urls` columns.
+   */
+  async listPublishedPropertyAssets(tenantId: string): Promise<readonly PublishedAssetRow[]> {
+    const { data, error } = await this.client
+      .from<CreativePackageAssetQueryRow>(CREATIVE_PACKAGES_TABLE)
+      .select(CREATIVE_PACKAGE_ASSET_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .eq("vertical", "PROPERTY");
+    if (error !== null) {
+      throw new CreativeMemoryRepositoryError(
+        `CreativeMemoryRepository.listPublishedPropertyAssets failed: ${error.message}`,
+      );
+    }
+    return (data ?? [])
+      .filter((row) => row.published_meta_ad_ids !== null && row.published_meta_ad_ids.length > 0)
+      .map((row) => ({
+        id: row.id,
+        angle: row.angle,
+        title: row.title,
+        ...(row.decided_format !== null ? { decidedFormat: row.decided_format } : {}),
+        publishedMetaAdIds: row.published_meta_ad_ids ?? [],
+        fatigueStatus: row.fatigue_status,
+        generatedAt: row.generated_at,
+        hasVideo: row.video_url !== null,
+        imageCount: (row.image_urls ?? []).length,
       }));
   }
 

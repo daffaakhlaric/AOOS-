@@ -43,16 +43,22 @@ export interface AnglePerformanceResult {
   readonly rank?: number;
 }
 
-/** Ordinal so `"MEDIUM"`/`"HIGH"` can be compared against a `"level >= MEDIUM"` bar — `DataSufficiencyLevel` itself is a plain string union, not intrinsically ordered. */
-const LEVEL_ORDER: Readonly<Record<DataSufficiencyLevel, number>> = {
+/**
+ * Ordinal so `"MEDIUM"`/`"HIGH"` can be compared against a `"level >= MEDIUM"` bar —
+ * `DataSufficiencyLevel` itself is a plain string union, not intrinsically ordered. Exported (Kai V2
+ * Asset Analyzer, `asset-performance.ts`) so the SAME real "rankable" bar this module establishes is
+ * reused verbatim at the individual-asset granularity rather than a second copy of this table.
+ */
+export const LEVEL_ORDER: Readonly<Record<DataSufficiencyLevel, number>> = {
   INSUFFICIENT: 0,
   LOW: 1,
   MEDIUM: 2,
   HIGH: 3,
 };
-const RANKABLE_MIN_LEVEL: DataSufficiencyLevel = "MEDIUM";
+export const RANKABLE_MIN_LEVEL: DataSufficiencyLevel = "MEDIUM";
 
-function isRankable(level: DataSufficiencyLevel): boolean {
+/** Exported for the same reason `LEVEL_ORDER`/`RANKABLE_MIN_LEVEL` are — reused by `asset-performance.ts`. */
+export function isRankable(level: DataSufficiencyLevel): boolean {
   return LEVEL_ORDER[level] >= LEVEL_ORDER[RANKABLE_MIN_LEVEL];
 }
 
@@ -69,7 +75,19 @@ function isRankable(level: DataSufficiencyLevel): boolean {
  * "best" if a future threshold change, or a differently-computed sufficiency input, ever makes a
  * zero-lead-but-rankable angle possible) rather than assumed away.
  */
-export function compareRankableByCpl(a: AnglePerformanceResult, b: AnglePerformanceResult): number {
+/**
+ * The minimal structural shape `compareRankableByCpl` actually reads — widened from the original
+ * `AnglePerformanceResult` so `asset-performance.ts` (Kai V2 Asset Analyzer) can reuse this SAME
+ * comparator at individual-asset granularity without first synthesizing a full, angle-shaped object
+ * just to satisfy the old, narrower parameter type. Every existing `AnglePerformanceResult` still
+ * structurally satisfies this (it has `aggregated.cpl`), so this is a pure widening — no behavior
+ * change for `rankAnglePerformance`'s own real use of it below.
+ */
+export interface RankableByCpl {
+  readonly aggregated: Pick<AggregatedMetrics, "cpl">;
+}
+
+export function compareRankableByCpl(a: RankableByCpl, b: RankableByCpl): number {
   const cplA = a.aggregated.cpl;
   const cplB = b.aggregated.cpl;
   if (cplA === undefined && cplB === undefined) {

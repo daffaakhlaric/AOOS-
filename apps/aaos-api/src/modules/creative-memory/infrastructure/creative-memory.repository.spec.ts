@@ -18,9 +18,13 @@ function seedPackage(
     tenant_id: TENANT,
     vertical: "PROPERTY",
     angle: "URGENCY",
+    title: "Rumah Minimalis BSD",
+    decided_format: "VIDEO_AND_IMAGES",
     published_meta_ad_ids: ["meta-ad-1"],
     fatigue_status: "NORMAL",
     generated_at: "2026-01-01T00:00:00.000Z",
+    video_url: "https://storage.example/video.mp4",
+    image_urls: ["https://storage.example/1.jpg", "https://storage.example/2.jpg"],
     ...overrides,
   });
 }
@@ -112,6 +116,88 @@ describe("CreativeMemoryRepository", () => {
       client.forceErrorOnce("creative_packages", "boom");
       const repo = new CreativeMemoryRepository(client);
       await expect(repo.listPublishedPropertyPackages(TENANT)).rejects.toThrow(
+        CreativeMemoryRepositoryError,
+      );
+    });
+  });
+
+  describe("listPublishedPropertyAssets", () => {
+    it("returns [] honestly when nothing has been published for the tenant", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new CreativeMemoryRepository(client);
+      expect(await repo.listPublishedPropertyAssets(TENANT)).toEqual([]);
+    });
+
+    it("returns a published PROPERTY asset, mapped to camelCase with derived hasVideo/imageCount", async () => {
+      const client = createFakeSupabaseClient();
+      seedPackage(client);
+      const repo = new CreativeMemoryRepository(client);
+      const rows = await repo.listPublishedPropertyAssets(TENANT);
+      expect(rows).toEqual([
+        {
+          id: "pkg-1",
+          angle: "URGENCY",
+          title: "Rumah Minimalis BSD",
+          decidedFormat: "VIDEO_AND_IMAGES",
+          publishedMetaAdIds: ["meta-ad-1"],
+          fatigueStatus: "NORMAL",
+          generatedAt: "2026-01-01T00:00:00.000Z",
+          hasVideo: true,
+          imageCount: 2,
+        },
+      ]);
+    });
+
+    it("derives hasVideo: false and imageCount: 0 honestly for an IMAGES_ONLY asset with no video_url", async () => {
+      const client = createFakeSupabaseClient();
+      seedPackage(client, { video_url: null, image_urls: [], decided_format: "IMAGES_ONLY" });
+      const repo = new CreativeMemoryRepository(client);
+      const rows = await repo.listPublishedPropertyAssets(TENANT);
+      expect(rows[0]?.hasVideo).toBe(false);
+      expect(rows[0]?.imageCount).toBe(0);
+    });
+
+    it("omits decidedFormat entirely (never a fabricated value) when decided_format is null", async () => {
+      const client = createFakeSupabaseClient();
+      seedPackage(client, { decided_format: null });
+      const repo = new CreativeMemoryRepository(client);
+      const rows = await repo.listPublishedPropertyAssets(TENANT);
+      expect(rows[0]).not.toHaveProperty("decidedFormat");
+    });
+
+    it("excludes an asset whose published_meta_ad_ids is null (never published)", async () => {
+      const client = createFakeSupabaseClient();
+      seedPackage(client, { published_meta_ad_ids: null });
+      const repo = new CreativeMemoryRepository(client);
+      expect(await repo.listPublishedPropertyAssets(TENANT)).toEqual([]);
+    });
+
+    it("excludes an asset whose published_meta_ad_ids is an empty array (attempted, all failed)", async () => {
+      const client = createFakeSupabaseClient();
+      seedPackage(client, { published_meta_ad_ids: [] });
+      const repo = new CreativeMemoryRepository(client);
+      expect(await repo.listPublishedPropertyAssets(TENANT)).toEqual([]);
+    });
+
+    it("excludes a non-PROPERTY (AUTOMOTIVE) asset", async () => {
+      const client = createFakeSupabaseClient();
+      seedPackage(client, { vertical: "AUTOMOTIVE" });
+      const repo = new CreativeMemoryRepository(client);
+      expect(await repo.listPublishedPropertyAssets(TENANT)).toEqual([]);
+    });
+
+    it("is tenant-scoped — an asset under a different tenant is never returned", async () => {
+      const client = createFakeSupabaseClient();
+      seedPackage(client, { tenant_id: "other-tenant" });
+      const repo = new CreativeMemoryRepository(client);
+      expect(await repo.listPublishedPropertyAssets(TENANT)).toEqual([]);
+    });
+
+    it("throws CreativeMemoryRepositoryError when the query fails", async () => {
+      const client = createFakeSupabaseClient();
+      client.forceErrorOnce("creative_packages", "boom");
+      const repo = new CreativeMemoryRepository(client);
+      await expect(repo.listPublishedPropertyAssets(TENANT)).rejects.toThrow(
         CreativeMemoryRepositoryError,
       );
     });

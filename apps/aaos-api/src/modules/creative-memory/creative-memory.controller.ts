@@ -10,6 +10,11 @@ import {
   type AnglePerformanceQueryDto,
   type AnglePerformanceResponseDto,
 } from "./dto/angle-performance.dto.js";
+import {
+  AssetPerformanceQuerySchema,
+  type AssetPerformanceQueryDto,
+  type AssetPerformanceResponseDto,
+} from "./dto/asset-performance.dto.js";
 
 /**
  * `GET /api/v1/creative-memory/angle-performance` — `x-api-key` auth (same perimeter as every
@@ -33,5 +38,23 @@ export class CreativeMemoryController {
         ? { start: query.since, end: query.until }
         : undefined;
     return this.service.getAnglePerformance(tenantId, window);
+  }
+
+  /**
+   * Kai V2 Asset Analyzer (Phase 21) — `GET /api/v1/creative-memory/asset-performance`. Same
+   * `x-api-key` auth, same tenant scoping via `@TenantId()`, same optional `?since=&until=` window
+   * discipline as `anglePerformance` above — one `AssetPerformanceResult` per real, individually
+   * published creative asset (never grouped by angle).
+   */
+  @Get("asset-performance")
+  async assetPerformance(
+    @TenantId() tenantId: string,
+    @Query(new ZodValidationPipe(AssetPerformanceQuerySchema)) query: AssetPerformanceQueryDto,
+  ): Promise<AssetPerformanceResponseDto> {
+    const window =
+      query.since !== undefined && query.until !== undefined
+        ? { start: query.since, end: query.until }
+        : undefined;
+    return this.service.getAssetPerformance(tenantId, window);
   }
 }
