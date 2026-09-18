@@ -274,6 +274,13 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
             </span>
           ) : null}
         </div>
+        <Link
+          href="/growth-objectives"
+          data-testid="growth-objectives-link"
+          className={styles.runLoopButton}
+        >
+          🎯 Growth Objectives
+        </Link>
         <button
           type="button"
           data-testid="analisa-samantha-button"

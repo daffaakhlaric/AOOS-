@@ -377,4 +377,12 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     await userEvent.click(screen.getByTestId("analisa-samantha-button"));
     expect(screen.getByTestId("real-insight-panel")).toHaveTextContent("c1");
   });
+
+  it("renders a real, discoverable link to the new /growth-objectives page (EYVRA — SAMANTHA V2 Phase 15)", () => {
+    seedCache();
+    mockSettingsFetch();
+    render(<CampaignsHubClient />);
+    const link = screen.getByTestId("growth-objectives-link");
+    expect(link).toHaveAttribute("href", "/growth-objectives");
+  });
 });

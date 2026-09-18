@@ -1,0 +1,277 @@
+.page {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Same canonical header-action-button recipe as `ListingsClient.module.css`'s `.primaryButton`. */
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metric {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+/* Status badge palette mirrors `CampaignHealthCard.module.css`'s own real convention. */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badgeNeutral {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.badgeGood {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badgeWarn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badgeBad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badgeDone {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.target {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.dateRange {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin: 0;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.metaChip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.progressWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressTrack {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--v2-menu-campaigns, #1e6fd9);
+  border-radius: 999px;
+}
+
+.progressLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+}
+
+.noProgress {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin: 0;
+}
+
+/* Create modal — same shape as `ListingModal.module.css` (single-column form variant). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.modal {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  box-shadow: var(--shadow-md);
+}
+
+.header {
+  padding: 14px 20px;
+  border-bottom: var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: var(--white);
+  z-index: 1;
+}
+
+.headerTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--gray-400);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-600);
+}
+
+.formInput {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--gray-900);
+  width: 100%;
+}
+
+.error {
+  font-size: 12px;
+  color: var(--red);
+}
+
+.footer {
+  padding: 12px 20px;
+  border-top: var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  position: sticky;
+  bottom: 0;
+  background: var(--white);
+}
+
+.cancelButton {
+  font-size: 13px;
+  padding: 7px 14px;
+  background: var(--white);
+  color: var(--gray-600);
+  border: var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.saveButton {
+  font-size: 13px;
+  padding: 7px 14px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.saveButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
