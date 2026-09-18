@@ -16,6 +16,7 @@ import type { SettingsDto } from "@/types/tenant.types";
 
 import { accountBenchmarkCpl, accountBenchmarkCtr } from "./campaignInsightMath";
 import { AndromedaHealthCard } from "./AndromedaHealthCard";
+import { OpportunitiesCard } from "./OpportunitiesCard";
 import { BudgetTracker } from "./BudgetTracker";
 import { CampaignInsightPanel } from "./CampaignInsightPanel";
 import { ObjectiveStripCard } from "./ObjectiveStripCard";
@@ -372,6 +373,19 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
                 campaignId={selectedCampaign.metaId}
                 campaignName={selectedCampaign.name}
                 listingId={selectedListingId}
+              />
+            ) : null}
+
+            {/* EYVRA — Samantha V2 + Kai V2 Phase 13 — real per-campaign opportunity findings from
+                Phase 9's Opportunity Engine: scaling opportunities from Campaign Health's real
+                SCALE decisions, creative-winner opportunities from Creative Memory's rank-1
+                angles. Rendered only for the currently-selected campaign for the same reason
+                `AndromedaHealthCard` is — the Opportunity Engine's detectors are real per-campaign
+                data, not tenant-wide. */}
+            {selectedCampaign !== undefined ? (
+              <OpportunitiesCard
+                campaignId={selectedCampaign.metaId}
+                campaignName={selectedCampaign.name}
               />
             ) : null}
 
