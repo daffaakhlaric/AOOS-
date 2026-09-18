@@ -3113,4 +3113,90 @@ describe("SchedulerService.createDiverseCreativeBriefSet (Samantha Andromeda-Awa
     expect(creativePackagesService.triggerAutoLoopGeneration).toHaveBeenCalled();
     expect(pendingActions.enqueue).not.toHaveBeenCalled();
   });
+
+  // EYVRA — SAMANTHA V2 + KAI V2 Phase 23 — the optional 5th `samanthaContext` param must reach
+  // `LlmService.generateDiverseCreativeBriefSet`'s own request DTO unchanged.
+  it("threads the real samanthaContext through into the LLM request when the caller provides it", async () => {
+    const generateDiverseCreativeBriefSet = vi.fn(async () => ({
+      available: true as const,
+      briefs: [
+        {
+          angle: "READY_HUNI",
+          format: "IMAGES_ONLY" as const,
+          headline: "Anggrek 2 Siap Huni",
+          primaryText: "Siap huni!",
+          description: "desc",
+        },
+      ],
+    }));
+    const llmService = { generateDiverseCreativeBriefSet } as unknown as LlmService;
+    const service = buildService({
+      llmService,
+      creativePackageRepository: buildFakeCreativePackageRepository({
+        countAutoLoopSince: vi.fn(async () => 0),
+      }),
+      propertyObjectiveService: buildFakePropertyObjectiveService({
+        getAutoLoopSettingsSafe: vi.fn(async () => ({
+          maxAutoBriefsPerDay: 5,
+          autoApproveCreativeBrief: false,
+        })),
+      }),
+      listingsService: buildFakeListingsServiceWithGetById(),
+      modeGuard: buildFakeModeGuardService("DEV"),
+    });
+    const samanthaContext = {
+      rootCause: "CREATIVE_FATIGUE",
+      impact: "HIGH",
+      contributingFactors: ["Frequency sudah 5.2 — creative kemungkinan sudah jenuh."],
+      decisionReason: "Root cause CREATIVE_FATIGUE terdeteksi.",
+    };
+
+    await service.createDiverseCreativeBriefSet(
+      "dss-motor",
+      "listing-1",
+      1,
+      "camp-1",
+      samanthaContext,
+    );
+
+    expect(generateDiverseCreativeBriefSet).toHaveBeenCalledWith(
+      "dss-motor",
+      expect.objectContaining({ samanthaContext }),
+    );
+  });
+
+  it("still calls the LLM with no samanthaContext at all when the caller omits it (pre-Phase-23 client, identical to today's behavior)", async () => {
+    const generateDiverseCreativeBriefSet = vi.fn(async () => ({
+      available: true as const,
+      briefs: [
+        {
+          angle: "READY_HUNI",
+          format: "IMAGES_ONLY" as const,
+          headline: "Anggrek 2 Siap Huni",
+          primaryText: "Siap huni!",
+          description: "desc",
+        },
+      ],
+    }));
+    const llmService = { generateDiverseCreativeBriefSet } as unknown as LlmService;
+    const service = buildService({
+      llmService,
+      creativePackageRepository: buildFakeCreativePackageRepository({
+        countAutoLoopSince: vi.fn(async () => 0),
+      }),
+      propertyObjectiveService: buildFakePropertyObjectiveService({
+        getAutoLoopSettingsSafe: vi.fn(async () => ({
+          maxAutoBriefsPerDay: 5,
+          autoApproveCreativeBrief: false,
+        })),
+      }),
+      listingsService: buildFakeListingsServiceWithGetById(),
+      modeGuard: buildFakeModeGuardService("DEV"),
+    });
+
+    await service.createDiverseCreativeBriefSet("dss-motor", "listing-1", 1);
+
+    const [, calledBody] = generateDiverseCreativeBriefSet.mock.calls[0] as [string, object];
+    expect(calledBody).not.toHaveProperty("samanthaContext");
+  });
 });

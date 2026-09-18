@@ -473,8 +473,21 @@ describe("CampaignHealthCard", () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url === "/api/creative-packages/diverse-set" && init?.method === "POST") {
+        // EYVRA — SAMANTHA V2 + KAI V2 Phase 23 — the real, already-fetched diagnosis/decision from
+        // `POPULATED_RESPONSE` must now be threaded through as `samanthaContext`.
         expect(init.body).toBe(
-          JSON.stringify({ listingId: "listing-1", campaignId: "camp-1", requestedCount: 5 }),
+          JSON.stringify({
+            listingId: "listing-1",
+            campaignId: "camp-1",
+            requestedCount: 5,
+            samanthaContext: {
+              rootCause: "CREATIVE_FATIGUE",
+              impact: "HIGH",
+              contributingFactors: [],
+              decisionReason:
+                "Root cause CREATIVE_FATIGUE terdeteksi (confidence 90%) — creative existing kemungkinan sudah jenuh.",
+            },
+          }),
         );
         return new Response(
           JSON.stringify({
@@ -543,6 +556,67 @@ describe("CampaignHealthCard", () => {
     await waitFor(() => expect(screen.getByTestId("decision-brief-error")).toBeInTheDocument());
     expect(screen.getByTestId("decision-brief-error")).toHaveTextContent("boom");
     expect(screen.queryByTestId("decision-brief-result")).not.toBeInTheDocument();
+  });
+
+  // EYVRA — SAMANTHA V2 + KAI V2 Phase 23 — `diagnosis.rootCause` being genuinely absent must send
+  // `samanthaContext.rootCause: null`, never a fabricated string or a dropped field.
+  it("Brief Kai button: sends samanthaContext.rootCause as null when the real diagnosis has no dominant root cause", async () => {
+    const noRootCauseButKaiResponse = {
+      ...NO_ROOT_CAUSE_RESPONSE,
+      campaignId: "camp-4",
+      decision: {
+        ...NO_ROOT_CAUSE_RESPONSE.decision,
+        decision: "REQUEST_KAI_CREATIVE",
+      },
+    };
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/creative-packages/diverse-set" && init?.method === "POST") {
+        expect(init.body).toBe(
+          JSON.stringify({
+            listingId: "listing-1",
+            campaignId: "camp-4",
+            requestedCount: 5,
+            samanthaContext: {
+              rootCause: null,
+              impact: "UNKNOWN",
+              contributingFactors: [],
+              decisionReason: noRootCauseButKaiResponse.decision.reason,
+            },
+          }),
+        );
+        return new Response(
+          JSON.stringify({
+            requestedCount: 5,
+            allowedCount: 5,
+            cappedByDailyLimit: false,
+            createdCount: 1,
+            packages: [],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("compare-latest")) {
+        return new Response(JSON.stringify(TREND_UNAVAILABLE_RESPONSE), { status: 200 });
+      }
+      if (url === "/api/campaign-health/camp-4") {
+        return new Response(JSON.stringify(noRootCauseButKaiResponse), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }) as unknown as typeof fetch;
+
+    render(
+      <CampaignHealthCard
+        campaignId="camp-4"
+        campaignName="Cluster Anggrek Campaign"
+        listingId="listing-1"
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("decision-brief-kai-button")).not.toBeDisabled());
+
+    fireEvent.click(screen.getByTestId("decision-brief-kai-button"));
+
+    await waitFor(() => expect(screen.getByTestId("decision-brief-result")).toBeInTheDocument());
   });
 
   // Phase 20 — real "Terapkan Verdict Ini" action, gated on `decision.decision` being one of the

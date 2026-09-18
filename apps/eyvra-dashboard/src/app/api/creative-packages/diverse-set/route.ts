@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { AaosApiError, callAaosApi } from "@/lib/api";
 import { resolveRouteSession } from "@/lib/route-session";
-import type { DiverseCreativeBriefSetResultDto } from "@/types/andromeda-health.types";
+import type {
+  DiverseCreativeBriefSetResultDto,
+  SamanthaCreativeContextDto,
+} from "@/types/andromeda-health.types";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +15,13 @@ export const dynamic = "force-dynamic";
  * (`AndromedaHealthCard`) sends: `listingId` (required — `creative_packages` is listing-scoped, see
  * `SchedulerService.createDiverseCreativeBriefSet`'s own doc), `campaignId`/`requestedCount`
  * optional.
+ *
+ * EYVRA — SAMANTHA V2 + KAI V2 Phase 23 adds `samanthaContext`: `CampaignHealthCard.tsx`'s own
+ * "Brief Kai" trigger (Phase 19) can now send its real, already-fetched `CampaignDiagnosis`/
+ * `SamanthaDecision` context alongside the same body — forwarded through as-is (same shallow
+ * `typeof`-checked pass-through discipline this route already applies to every other field), never
+ * validated deeply here (the real Zod validation lives server-side on
+ * `DiverseCreativeBriefSetBodySchema`).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await resolveRouteSession(request);
@@ -22,6 +32,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     readonly listingId?: unknown;
     readonly campaignId?: unknown;
     readonly requestedCount?: unknown;
+    readonly samanthaContext?: SamanthaCreativeContextDto;
   };
   if (typeof body.listingId !== "string" || body.listingId.length === 0) {
     return NextResponse.json({ error: { message: "listingId is required" } }, { status: 400 });
@@ -38,6 +49,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           ...(typeof body.requestedCount === "number"
             ? { requestedCount: body.requestedCount }
             : {}),
+          ...(body.samanthaContext !== undefined ? { samanthaContext: body.samanthaContext } : {}),
         },
         headers: { "x-tenant-id": session.tenantId },
       },

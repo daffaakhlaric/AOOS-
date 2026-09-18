@@ -40,6 +40,7 @@ export class CreativeDiverseSetController {
       body.listingId,
       body.requestedCount,
       body.campaignId,
+      body.samanthaContext,
     );
   }
 }

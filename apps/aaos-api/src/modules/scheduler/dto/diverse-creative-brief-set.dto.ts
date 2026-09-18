@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import type { CreativePackageResponseDto } from "../../creative-packages/dto/creative-package-response.dto.js";
-import { MAX_DIVERSE_BRIEF_COUNT } from "../../llm/dto/diverse-creative-brief-set.dto.js";
+import {
+  MAX_DIVERSE_BRIEF_COUNT,
+  SamanthaCreativeContextSchema,
+} from "../../llm/dto/diverse-creative-brief-set.dto.js";
 
 /**
  * `POST /api/v1/creative-packages/diverse-set` (Samantha Andromeda-Aware Campaign System, Sprint 2)
@@ -16,6 +19,15 @@ export const DiverseCreativeBriefSetBodySchema = z.object({
   listingId: z.string().min(1),
   campaignId: z.string().optional(),
   requestedCount: z.number().int().min(1).max(MAX_DIVERSE_BRIEF_COUNT).default(5),
+  /**
+   * EYVRA — SAMANTHA V2 + KAI V2 Phase 23. Optional, real `CampaignDiagnosis`/`SamanthaDecision`
+   * context from `GET /api/campaign-health/:campaignId` — threaded straight into
+   * `LlmService.generateDiverseCreativeBriefSet`'s own request DTO (see that schema's own doc for
+   * the full "why", mirroring EYVRA — SAMANTHA V2 Phase 11's identical `samanthaDiagnosis` pattern
+   * on `campaignInsight`). `undefined` for `AndromedaHealthCard`'s own diversity-status trigger
+   * (no `CampaignDiagnosis` exists there) or a pre-Phase-23 client — never required.
+   */
+  samanthaContext: SamanthaCreativeContextSchema.optional(),
 });
 export type DiverseCreativeBriefSetBodyDto = z.infer<typeof DiverseCreativeBriefSetBodySchema>;
 

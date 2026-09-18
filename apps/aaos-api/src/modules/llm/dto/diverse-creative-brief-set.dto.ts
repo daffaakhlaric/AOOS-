@@ -52,6 +52,34 @@ export const ALL_CREATIVE_FORMAT_VALUES = ["VIDEO_AND_IMAGES", "IMAGES_ONLY"] as
 export const MAX_DIVERSE_BRIEF_COUNT = 10;
 export const MIN_DIVERSE_BRIEF_COUNT = 1;
 
+/**
+ * EYVRA — SAMANTHA V2 + KAI V2 Phase 23. Real, deterministic diagnosis from
+ * `modules/campaign-health` (Phase 3's `CampaignDiagnosis` + Phase 4's `SamanthaDecision`, computed
+ * WITHOUT any LLM call — see those files' own doc comments), threaded through from the frontend's
+ * "Brief Kai Sekarang" button (`CampaignHealthCard.tsx`) the EXACT SAME way EYVRA — SAMANTHA V2
+ * Phase 11 already threaded `CampaignDiagnosis`/`SamanthaDecision` into `campaignInsight`'s own
+ * `samanthaDiagnosis` field — one new, additive, optional field, never a new brief data model or
+ * taxonomy. Optional on `DiverseCreativeBriefSetRequestSchema` below — `undefined` for a pre-Phase-23
+ * client, a manual "Brief Kai" click with no matching campaign-health diagnosis (`AndromedaHealthCard`'s
+ * own trigger, which has no `CampaignDiagnosis` at all — diversity-status is a different, unrelated
+ * signal), or when the frontend's own best-effort `GET /api/campaign-health/:campaignId` fetch hasn't
+ * resolved yet. When present, this gives Kai's diverse-brief generation the REAL reason Samantha
+ * requested new creative in the first place, instead of only the listing's own static facts — see
+ * `DIVERSE_CREATIVE_BRIEF_SET_SYSTEM_PROMPT`'s own new bullet for exactly how the model is told to use
+ * it.
+ */
+export const SamanthaCreativeContextSchema = z.object({
+  /** Mirrors `CampaignDiagnosis.rootCause` (a `SamanthaSignalType`, e.g. "CREATIVE_FATIGUE") — `null` when the deterministic engine found no dominant root cause. */
+  rootCause: z.string().nullable(),
+  /** Mirrors `CampaignDiagnosis.impact` ("LOW"/"MEDIUM"/"HIGH"/"CRITICAL"/"UNKNOWN"). */
+  impact: z.string(),
+  /** Mirrors `CampaignDiagnosis.contributingFactors` — real, already-computed evidence strings, never fabricated by the LLM. */
+  contributingFactors: z.array(z.string()),
+  /** Mirrors `SamanthaDecision.reason` — the deterministic engine's own stated reason `decision.decision === "REQUEST_KAI_CREATIVE"` was reached, i.e. exactly why this brief is being requested. */
+  decisionReason: z.string(),
+});
+export type SamanthaCreativeContextDto = z.infer<typeof SamanthaCreativeContextSchema>;
+
 export const DiverseCreativeBriefSetRequestSchema = z.object({
   listingTitle: z.string().min(1),
   propertyType: z.string().min(1),
@@ -70,6 +98,8 @@ export const DiverseCreativeBriefSetRequestSchema = z.object({
    * establish).
    */
   existingAngles: z.array(z.enum(ALL_PROPERTY_AD_ANGLE_VALUES)).default([]),
+  /** EYVRA — SAMANTHA V2 + KAI V2 Phase 23. See `SamanthaCreativeContextSchema`'s own doc just above. `undefined` when the client's best-effort `campaign-health` fetch hasn't resolved yet or failed, when the button was triggered from `AndromedaHealthCard`'s own diversity-status path instead, or for a pre-Phase-23 client. */
+  samanthaContext: SamanthaCreativeContextSchema.optional(),
 });
 export type DiverseCreativeBriefSetRequestDto = z.infer<
   typeof DiverseCreativeBriefSetRequestSchema

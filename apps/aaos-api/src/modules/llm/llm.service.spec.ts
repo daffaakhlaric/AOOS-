@@ -2467,6 +2467,51 @@ describe("LlmService", () => {
       );
       expect(second).toEqual(first);
     });
+
+    // EYVRA — SAMANTHA V2 + KAI V2 Phase 23 — the new real `samanthaContext` (mirroring Phase 11's
+    // `samanthaDiagnosis` on `campaignInsight`) must reach the LLM's user message verbatim, proving
+    // `generateDiverseCreativeBriefSet` needs no code change: it JSON.stringify's the whole `body`,
+    // so a new optional field on the DTO automatically threads through.
+    it("threads the real samanthaContext into the actual LLM user-message payload when the caller sends it", async () => {
+      const bodyWithContext: DiverseCreativeBriefSetRequestDto = {
+        ...validDiverseBriefSetBody,
+        samanthaContext: {
+          rootCause: "CREATIVE_FATIGUE",
+          impact: "HIGH",
+          contributingFactors: ["Frequency sudah 5.2 — creative kemungkinan sudah jenuh."],
+          decisionReason:
+            "Root cause CREATIVE_FATIGUE terdeteksi (confidence 90%) — creative existing kemungkinan sudah jenuh.",
+        },
+      };
+
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            choices: [{ message: { content: validDiverseBriefSetLlmJson } }],
+          });
+        }),
+      );
+
+      const service = buildService();
+      await service.generateDiverseCreativeBriefSet(TENANT_ID, bodyWithContext);
+
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      const userMessage = messages[1]?.content ?? "";
+      expect(userMessage).toContain(JSON.stringify(bodyWithContext.samanthaContext));
+    });
+
+    it("still accepts (no fabricated narrative) a body with samanthaContext omitted entirely (pre-Phase-23 client, identical to today's behavior)", async () => {
+      registerOpenAiChatHandler(validDiverseBriefSetLlmJson);
+      const service = buildService();
+      const result = await service.generateDiverseCreativeBriefSet(
+        TENANT_ID,
+        validDiverseBriefSetBody,
+      );
+      expect(result).toEqual({ available: true, ...JSON.parse(validDiverseBriefSetLlmJson) });
+    });
   });
 
   describe("analyzePropertyPhoto (Kai Creative Engine, Sprint 1)", () => {

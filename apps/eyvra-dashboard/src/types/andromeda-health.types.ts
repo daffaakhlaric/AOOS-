@@ -23,6 +23,18 @@ export interface AndromedaHealthDto {
   };
 }
 
+/**
+ * EYVRA — SAMANTHA V2 + KAI V2 Phase 23 — mirrors `apps/aaos-api`'s `SamanthaCreativeContextDto`
+ * field-for-field. Built by `CampaignHealthCard.tsx`'s `handleBriefKai` from its own already-fetched
+ * `CampaignDiagnosisDto`/`SamanthaDecisionDto` (see that component's own doc), never a second fetch.
+ */
+export interface SamanthaCreativeContextDto {
+  readonly rootCause: string | null;
+  readonly impact: string;
+  readonly contributingFactors: readonly string[];
+  readonly decisionReason: string;
+}
+
 export interface DiverseCreativeBriefSetResultDto {
   readonly requestedCount: number;
   readonly allowedCount: number;

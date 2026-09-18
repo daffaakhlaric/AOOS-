@@ -60,6 +60,7 @@ import {
   ALL_PROPERTY_AD_ANGLE_VALUES,
   MAX_DIVERSE_BRIEF_COUNT,
   type DiverseCreativeBriefSetRequestDto,
+  type SamanthaCreativeContextDto,
 } from "../llm/dto/diverse-creative-brief-set.dto.js";
 import { LlmService } from "../llm/llm.service.js";
 import { LookalikeService } from "../lookalike/lookalike.service.js";
@@ -1826,6 +1827,12 @@ export class SchedulerService {
     listingId: string,
     requestedCount: number,
     campaignId?: string,
+    /**
+     * EYVRA — SAMANTHA V2 + KAI V2 Phase 23. Optional, real `CampaignDiagnosis`/`SamanthaDecision`
+     * context, threaded straight through into `llmRequest.samanthaContext` below — see
+     * `SamanthaCreativeContextSchema`'s own doc for the full "why".
+     */
+    samanthaContext?: SamanthaCreativeContextDto,
   ): Promise<DiverseCreativeBriefSetResultDto> {
     const listing = await this.listingsService.getById(tenantId, listingId);
 
@@ -1873,6 +1880,7 @@ export class SchedulerService {
       price: listing.price,
       ...(listing.city !== undefined ? { city: listing.city } : {}),
       ...(listing.highlights.length > 0 ? { highlights: [...listing.highlights] } : {}),
+      ...(samanthaContext !== undefined ? { samanthaContext } : {}),
     };
 
     let briefs: ReadonlyArray<{

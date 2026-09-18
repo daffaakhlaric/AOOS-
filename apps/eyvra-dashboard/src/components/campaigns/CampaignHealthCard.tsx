@@ -11,7 +11,10 @@ import type {
   HealthStatusDto,
   RootCauseTrendDto,
 } from "@/types/campaign-health.types";
-import type { DiverseCreativeBriefSetResultDto } from "@/types/andromeda-health.types";
+import type {
+  DiverseCreativeBriefSetResultDto,
+  SamanthaCreativeContextDto,
+} from "@/types/andromeda-health.types";
 
 import styles from "./CampaignHealthCard.module.css";
 
@@ -285,11 +288,17 @@ function TrendSection({
  * the user. This card reuses that exact same existing proxy route, no new backend surface.
  *
  * Phase 19 — when Samantha's own deterministic `decision.decision` is `REQUEST_KAI_CREATIVE`, this
- * card's decision section shows a real "Brief Kai Sekarang" button that triggers the EXACT SAME
- * real `POST /api/creative-packages/diverse-set` action `AndromedaHealthCard.tsx`'s own
- * `handleBriefKai` does (same body shape, same `briefing`/`briefResult`/`briefError` state
- * pattern, same honest disabled-when-`listingId===undefined` fallback) — a second, decision-driven
- * trigger for the same real backend action, not a second creative-brief mechanism.
+ * card's decision section shows a real "Brief Kai Sekarang" button that triggers the SAME real
+ * `POST /api/creative-packages/diverse-set` action `AndromedaHealthCard.tsx`'s own `handleBriefKai`
+ * does (same `briefing`/`briefResult`/`briefError` state pattern, same honest
+ * disabled-when-`listingId===undefined` fallback) — a second, decision-driven trigger for the same
+ * real backend action, not a second creative-brief mechanism.
+ *
+ * Phase 23 (deviation from Phase 19's "EXACT SAME body shape" claim above): this card's own
+ * `handleBriefKai` now ALSO sends a real `samanthaContext` field built from its own already-fetched
+ * `diagnosis`/`decision` — `AndromedaHealthCard`'s own trigger has no `CampaignDiagnosis` available
+ * (it fires from diversity-status, not from Samantha's decision engine) and legitimately still sends
+ * the Phase 19 body shape unchanged. See `handleBriefKai`'s own doc below for the full reasoning.
  *
  * PLACEMENT: rendered by `CampaignsHubClient` right BEFORE `OpportunitiesCard` — health/diagnosis
  * (what's wrong, why, what Samantha recommends) logically precedes "what opportunities exist" in
@@ -422,10 +431,31 @@ export function CampaignHealthCard({
     setBriefing(true);
     setBriefError(undefined);
     setBriefResult(undefined);
+    // EYVRA — SAMANTHA V2 + KAI V2 Phase 23 — this card already has the real, already-fetched
+    // `diagnosis`/`decision` from `data` (the exact `CampaignDiagnosis`/`SamanthaDecision` that
+    // decided `REQUEST_KAI_CREATIVE` in the first place), so it is threaded through as real
+    // `samanthaContext` instead of Kai's brief-generation getting only the listing's static facts.
+    // `data` is only possibly `undefined` in this closure's TypeScript type (captured before the
+    // render-time early returns above) — by the time this button exists and is clickable, `data` is
+    // always populated, but the guard below keeps this honest rather than a non-null assertion.
+    const samanthaContext: SamanthaCreativeContextDto | undefined =
+      data !== undefined
+        ? {
+            rootCause: data.diagnosis.rootCause ?? null,
+            impact: data.diagnosis.impact,
+            contributingFactors: [...data.diagnosis.contributingFactors],
+            decisionReason: data.decision.reason,
+          }
+        : undefined;
     fetch("/api/creative-packages/diverse-set", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ listingId, campaignId, requestedCount: 5 }),
+      body: JSON.stringify({
+        listingId,
+        campaignId,
+        requestedCount: 5,
+        ...(samanthaContext !== undefined ? { samanthaContext } : {}),
+      }),
     })
       .then(async (res) => {
         const body = (await res.json()) as
