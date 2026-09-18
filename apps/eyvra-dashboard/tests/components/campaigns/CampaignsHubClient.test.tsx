@@ -47,6 +47,13 @@ vi.mock("@/components/campaigns/OpportunitiesCard", () => ({
     </div>
   ),
 }));
+vi.mock("@/components/campaigns/CampaignHealthCard", () => ({
+  CampaignHealthCard: (props: { readonly campaignId: string; readonly campaignName: string }) => (
+    <div data-testid="real-campaign-health-card">
+      {props.campaignId} name:{props.campaignName}
+    </div>
+  ),
+}));
 vi.mock("@/components/campaigns/VerdictCards", () => ({
   VerdictCards: (props: { readonly onApply: (id: string, verdict: string) => void }) => (
     <div data-testid="real-verdict-cards">
@@ -257,6 +264,17 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
       expect(screen.getByTestId("real-andromeda-health-card")).toBeInTheDocument(),
     );
     expect(screen.getByTestId("real-andromeda-health-card")).toHaveTextContent("listingId:none");
+  });
+
+  it("EYVRA Samantha V2 Phase 14: CampaignHealthCard receives the real metaId/name when a campaign is selected", async () => {
+    seedCache();
+    mockSettingsFetch();
+    render(<CampaignsHubClient />);
+    await userEvent.click(screen.getByTestId("fake-select-c1"));
+    expect(screen.getByTestId("real-campaign-health-card")).toHaveTextContent("meta-c1");
+    expect(screen.getByTestId("real-campaign-health-card")).toHaveTextContent(
+      "name:Meta-DM-Leads-Mobix",
+    );
   });
 
   it("EYVRA Samantha V2 + Kai V2 Phase 13: OpportunitiesCard receives the real metaId/name when a campaign is selected", async () => {

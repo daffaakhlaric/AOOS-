@@ -16,6 +16,7 @@ import type { SettingsDto } from "@/types/tenant.types";
 
 import { accountBenchmarkCpl, accountBenchmarkCtr } from "./campaignInsightMath";
 import { AndromedaHealthCard } from "./AndromedaHealthCard";
+import { CampaignHealthCard } from "./CampaignHealthCard";
 import { OpportunitiesCard } from "./OpportunitiesCard";
 import { BudgetTracker } from "./BudgetTracker";
 import { CampaignInsightPanel } from "./CampaignInsightPanel";
@@ -373,6 +374,22 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
                 campaignId={selectedCampaign.metaId}
                 campaignName={selectedCampaign.name}
                 listingId={selectedListingId}
+              />
+            ) : null}
+
+            {/* EYVRA — Samantha V2 Phase 14 — surfaces Phase 3/4's real, deterministic
+                CampaignHealth/CampaignDiagnosis/SamanthaDecision VISUALLY for the first time
+                (previously computed but only silently fed into the LLM prompt via Phase 12's
+                CampaignInsightPanel wiring, GET /api/campaign-health/:campaignId — reused as-is,
+                no new backend route). Placed before OpportunitiesCard: health/diagnosis logically
+                precedes "what opportunities exist" in the narrative, and OpportunitiesCard's own
+                SCALING_OPPORTUNITY detector is itself derived from this same data. Rendered only
+                for the currently-selected campaign for the same reason AndromedaHealthCard/
+                OpportunitiesCard are — this assessment is real per-campaign data, not tenant-wide. */}
+            {selectedCampaign !== undefined ? (
+              <CampaignHealthCard
+                campaignId={selectedCampaign.metaId}
+                campaignName={selectedCampaign.name}
               />
             ) : null}
 
