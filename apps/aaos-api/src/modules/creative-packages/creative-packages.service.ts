@@ -41,6 +41,7 @@ import { LlmService } from "../llm/llm.service.js";
 import { ModeGuardService, type TenantMode } from "../mode-guard/mode-guard.service.js";
 
 import { buildCreativeBrief } from "./domain/creative-brief.factory.js";
+import { applyTypographyOverlay } from "./domain/creative-image-overlay.js";
 import type { CreativeLogJson } from "./domain/creative-log.js";
 import type {
   CreativeGenerationOutcome,
@@ -88,6 +89,24 @@ const MAX_SOURCE_PHOTOS = 2;
  * this dispatch).
  */
 const MAX_GENERATION_ATTEMPTS = 3;
+
+/**
+ * PROMPT 57 — the real, already-computed text `generateProperty` resolves ONCE (from `brief.price`
+ * and the package's own leading `copyVariants[0]`) and threads into `runGenerationProperty`/
+ * `runGenerationPropertyWithQaRetry` when `options.overlayTypography` is `true`. `undefined` fields
+ * are omitted rather than fabricated — see `buildOverlayContext`'s own doc.
+ */
+interface OverlayContext {
+  readonly priceRupiah?: number;
+  readonly headline?: string;
+  readonly ctaText?: string;
+}
+
+/** One real `applyTypographyOverlay` outcome, folded across every image buffer for one generation attempt — written into the COMPLETE log's `metadata` so a manager/QA reviewer can see exactly how many images genuinely got the real overlay vs. degraded to the un-composited original, and why. */
+interface OverlayOutcome {
+  readonly appliedCount: number;
+  readonly skippedReasons: readonly string[];
+}
 
 const propertyFormatDecider = new PropertyFormatDecider();
 const propertyPromptBuilder = new PropertyPromptBuilder();
@@ -434,6 +453,20 @@ export class CreativePackagesService {
        * keeps every existing caller's exact prior behavior — exactly 3 variants.
        */
       readonly requestedVariantCount?: number;
+      /**
+       * PROMPT 57 — GENERATIVE VISUAL + DETERMINISTIC TYPOGRAPHY (Phase 29). Explicit opt-in,
+       * defaulting to `false`/omitted so every pre-existing caller (the manual
+       * `POST .../property/:id/generate` endpoint, `create({ generate: true })`,
+       * `triggerAutoLoopGeneration`) keeps its exact prior image output — no existing behavior
+       * changes unless a caller sets this `true`. When `true`, `runGenerationProperty`/
+       * `runGenerationPropertyWithQaRetry` deterministically composite this package's REAL price
+       * (`brief.price`, via `formatIDR`) / headline / CTA (the already-computed
+       * `copyVariants[0]`) onto each generated image buffer BEFORE it is persisted — see
+       * `domain/creative-image-overlay.ts`'s own doc for the exact fixed layout and honest-degrade
+       * contract (a compositing failure never blocks generation; it just leaves that one image
+       * un-composited and logs why).
+       */
+      readonly overlayTypography?: boolean;
     },
   ): Promise<CreativePackageResponseDto> {
     const pkg = await this.findOrThrowScoped(tenantId, id);
@@ -531,6 +564,14 @@ export class CreativePackagesService {
       options?.requestedVariantCount,
     );
 
+    // PROMPT 57 — real, already-computed text fields for the optional typography-overlay step
+    // (see `options.overlayTypography`'s own doc above). `undefined` unless the caller explicitly
+    // opted in — computed once here so both `runGenerationProperty` and
+    // `runGenerationPropertyWithQaRetry` reuse the SAME real price/headline/CTA rather than each
+    // re-deriving it.
+    const overlayContext =
+      options?.overlayTypography === true ? buildOverlayContext(brief, copyVariants) : undefined;
+
     await this.appendLog({
       packageId: id,
       fromAgent: pkg.origin === "SAMANTHA" ? "SAMANTHA" : "MANAGER",
@@ -588,6 +629,7 @@ export class CreativePackagesService {
         copyVariants,
         Date.now(),
         kai,
+        overlayContext,
       );
     } else {
       void this.runGenerationProperty(
@@ -602,6 +644,7 @@ export class CreativePackagesService {
         copyVariants,
         Date.now(),
         kai,
+        overlayContext,
       );
     }
 
@@ -798,6 +841,7 @@ export class CreativePackagesService {
     copyVariants: readonly StoredCopyVariant[],
     startedAtMs: number,
     kai: KaiAgentRuntime,
+    overlayContext?: OverlayContext,
   ): Promise<void> {
     try {
       const orchestrationResult = await kai.orchestratorService.orchestrate({
@@ -812,7 +856,11 @@ export class CreativePackagesService {
         await this.recordFailure(id, orchestrationResult.error.message, tenantId);
         return;
       }
-      const generated = orchestrationResult.value;
+      const { generated, overlay } = await this.applyOverlayIfRequested(
+        id,
+        orchestrationResult.value,
+        overlayContext,
+      );
 
       const persisted = await this.persistGeneratedMedia(tenantId, id, generated);
       if (generated.imageBuffers.length > 0 && persisted.imageUrls.length === 0) {
@@ -863,6 +911,12 @@ export class CreativePackagesService {
           confidenceScore: outcome.confidenceScore ?? null,
           durationMs: outcome.generationMs ?? null,
           sourcePhotoSkippedReason: generated.sourcePhotoSkippedReason ?? null,
+          ...(overlay !== undefined
+            ? {
+                typographyOverlayApplied: overlay.appliedCount,
+                typographyOverlaySkipped: overlay.skippedReasons,
+              }
+            : {}),
         },
       });
       await this.recordAgentRun(id, tenantId);
@@ -919,6 +973,7 @@ export class CreativePackagesService {
     copyVariants: readonly StoredCopyVariant[],
     startedAtMs: number,
     kai: KaiAgentRuntime,
+    overlayContext?: OverlayContext,
   ): Promise<void> {
     const mode: TenantMode = await this.modeGuard.resolveMode(tenantId).catch((caught: unknown) => {
       this.logger.warn(
@@ -983,7 +1038,11 @@ export class CreativePackagesService {
         continue;
       }
 
-      const generated = orchestrationResult.value;
+      const { generated, overlay } = await this.applyOverlayIfRequested(
+        id,
+        orchestrationResult.value,
+        overlayContext,
+      );
       const persisted = await this.persistGeneratedMedia(tenantId, id, generated);
       if (generated.imageBuffers.length > 0 && persisted.imageUrls.length === 0) {
         attemptSummaries.push(
@@ -1071,6 +1130,12 @@ export class CreativePackagesService {
           durationMs: outcome.generationMs ?? null,
           sourcePhotoSkippedReason: generated.sourcePhotoSkippedReason ?? null,
           attempts: attempt,
+          ...(overlay !== undefined
+            ? {
+                typographyOverlayApplied: overlay.appliedCount,
+                typographyOverlaySkipped: overlay.skippedReasons,
+              }
+            : {}),
         },
       });
       await this.recordAgentRun(id, tenantId);
@@ -1143,6 +1208,64 @@ export class CreativePackagesService {
    * value for. A failed individual upload is skipped (not thrown) — `runGenerationProperty` decides
    * whether an empty result is a real failure.
    */
+  /**
+   * PROMPT 57 — GENERATIVE VISUAL + DETERMINISTIC TYPOGRAPHY (Phase 29). When `overlayContext` is
+   * `undefined` (every pre-existing caller, and any explicit `overlayTypography: false`/omitted),
+   * this returns `generated` completely untouched — zero behavior change, not even an extra
+   * async tick of real work. When `overlayContext` IS set, every real image buffer in
+   * `generated.imageBuffers` is run through `applyTypographyOverlay` (`domain/creative-image-
+   * overlay.ts`) — a per-image, independent, honest attempt: one image's compositing failure
+   * never blocks another's, and never blocks the pipeline itself. A failed image keeps its
+   * ORIGINAL un-composited buffer (never a broken/partial one) and its reason is collected into
+   * `overlay.skippedReasons` for the caller to log. The video buffer (if any) is never touched —
+   * PROMPT 57's own pipeline diagram routes video through a separate `PROMPT 60` compositor this
+   * phase does not build.
+   */
+  private async applyOverlayIfRequested(
+    id: string,
+    generated: OrchestrateGenerationOutput,
+    overlayContext: OverlayContext | undefined,
+  ): Promise<{
+    readonly generated: OrchestrateGenerationOutput;
+    readonly overlay?: OverlayOutcome;
+  }> {
+    if (overlayContext === undefined || generated.imageBuffers.length === 0) {
+      return { generated };
+    }
+
+    let appliedCount = 0;
+    const skippedReasons: string[] = [];
+    const overlaidBuffers: Buffer[] = [];
+    for (const [index, buffer] of generated.imageBuffers.entries()) {
+      const result = await applyTypographyOverlay({
+        imageBuffer: buffer,
+        ...(overlayContext.priceRupiah !== undefined
+          ? { priceRupiah: overlayContext.priceRupiah }
+          : {}),
+        ...(overlayContext.headline !== undefined ? { headline: overlayContext.headline } : {}),
+        ...(overlayContext.ctaText !== undefined ? { ctaText: overlayContext.ctaText } : {}),
+      });
+      if (result.ok) {
+        overlaidBuffers.push(result.buffer);
+        appliedCount += 1;
+      } else {
+        // Honest degrade — the original, genuinely-generated Kie AI buffer is kept as-is. This is
+        // never reported as a broken image; it is reported as "the overlay step was skipped for
+        // image[N] and here is exactly why", which is the truth.
+        this.logger.warn(
+          `CreativePackagesService.applyOverlayIfRequested(${id}): image[${String(index)}] overlay skipped: ${result.reason}`,
+        );
+        skippedReasons.push(`image[${String(index)}]: ${result.reason}`);
+        overlaidBuffers.push(buffer);
+      }
+    }
+
+    return {
+      generated: { ...generated, imageBuffers: overlaidBuffers },
+      overlay: { appliedCount, skippedReasons },
+    };
+  }
+
   private async persistGeneratedMedia(
     tenantId: string,
     id: string,
@@ -1498,6 +1621,26 @@ function briefToJson(pkg: StoredCreativePackage): CreativeLogJson {
  * documents), never an LLM-invented CTA string Meta might not support as a real
  * `call_to_action.type`.
  */
+/**
+ * PROMPT 57 — resolves the real text fields `applyTypographyOverlay` composites, from data this
+ * call ALREADY computed (never a second lookup, never an invented field): `brief.price` (the real
+ * whole-Rupiah `PropertyCreativeBrief.price`, `formatIDR`-formatted downstream in
+ * `applyTypographyOverlay` itself) and the package's leading copy variant (`copyVariants[0]` —
+ * always real, whether LLM-generated or the deterministic `PropertyCopyBuilder` fallback; see
+ * `buildPropertyCopyVariants`'s own doc for why `copyVariants` is never empty). `undefined` when
+ * `copyVariants` is genuinely empty — never a fabricated headline/CTA.
+ */
+function buildOverlayContext(
+  brief: PropertyCreativeBrief,
+  copyVariants: readonly StoredCopyVariant[],
+): OverlayContext {
+  const leading = copyVariants[0];
+  return {
+    ...(brief.price !== undefined ? { priceRupiah: brief.price } : {}),
+    ...(leading !== undefined ? { headline: leading.headline, ctaText: leading.callToAction } : {}),
+  };
+}
+
 function ctaForVariantLabel(variantLabel: string): string {
   return variantLabel === "B" ? "Pelajari Selanjutnya" : "Tanya Sekarang";
 }

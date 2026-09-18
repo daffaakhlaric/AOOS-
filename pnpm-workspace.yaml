@@ -2,3 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
   - "configs/*"
+
+# Phase 29 (PROMPT 57 — typography overlay) — `sharp` needs its native-binary postinstall script to
+# run; pnpm blocks build scripts by default (supply-chain safety), so it must be explicitly
+# allowlisted here rather than via the interactive `pnpm approve-builds` (not usable in this
+# non-interactive environment).
+onlyBuiltDependencies:
+  - sharp
