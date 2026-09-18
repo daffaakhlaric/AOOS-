@@ -1,4 +1,4 @@
-import { AspectRatio, ImageModel, VideoModel } from "@aos/creative-connector";
+import { AspectRatio, ImageModel, resolveVideoModel } from "@aos/creative-connector";
 import type { CreativeBrief } from "@aos/meta-ads-agent";
 
 import type { IFormatDecider } from "../contracts/IFormatDecider.js";
@@ -34,7 +34,7 @@ export class FormatDecider implements IFormatDecider {
       : brief.formats.includes("VIDEO_15S")
         ? VIDEO_15S_SECONDS
         : SINGLE_CLIP_SECONDS;
-    const model = brief.urgency === "HIGH" ? VideoModel.VEO3 : VideoModel.VEO3_FAST;
+    const model = resolveVideoModel(brief.urgency);
     const aspectRatio = brief.formats.includes("IMAGE_STORY")
       ? AspectRatio.VERTICAL
       : AspectRatio.WIDESCREEN;

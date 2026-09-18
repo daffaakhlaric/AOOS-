@@ -53,6 +53,17 @@ export type {
 export { TaskStatus } from "./domain/value-objects/TaskStatus.js";
 export { VideoModel } from "./domain/value-objects/VideoModel.js";
 export { ImageModel } from "./domain/value-objects/ImageModel.js";
+// Additive: PROMPT 48's minimal, honest static model registry + its video-model routing helper.
+export {
+  GENERATION_MODEL_REGISTRY,
+  resolveVideoModel,
+} from "./domain/value-objects/GenerationModel.js";
+export type {
+  GenerationModelKind,
+  GenerationModelEntry,
+  SpeedTier,
+  VideoUrgencyTier,
+} from "./domain/value-objects/GenerationModel.js";
 export { AspectRatio } from "./domain/value-objects/AspectRatio.js";
 export { GenerationType } from "./domain/value-objects/GenerationType.js";
 export type { TaskId, FileUrl, MediaUrl } from "./domain/value-objects/index.js";

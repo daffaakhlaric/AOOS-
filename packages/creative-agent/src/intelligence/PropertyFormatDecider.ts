@@ -1,4 +1,4 @@
-import { AspectRatio, ImageModel, VideoModel } from "@aos/creative-connector";
+import { AspectRatio, ImageModel, resolveVideoModel } from "@aos/creative-connector";
 
 import type { IPropertyFormatDecider } from "../contracts/IPropertyFormatDecider.js";
 import type { PropertyCreativeBrief } from "../contracts/IPropertyPromptBuilder.js";
@@ -75,7 +75,7 @@ export class PropertyFormatDecider implements IPropertyFormatDecider {
         : videoAppropriate
           ? SHORT_CLIP_SECONDS
           : IMAGES_ONLY_FALLBACK_SECONDS;
-    const model = ANGLE_URGENCY[brief.angle] === "HIGH" ? VideoModel.VEO3 : VideoModel.VEO3_FAST;
+    const model = resolveVideoModel(ANGLE_URGENCY[brief.angle]);
     // A virtual tour reads best as a vertical, mobile-scroll walkthrough (same "story-shaped"
     // reasoning `FormatDecider` applies for `IMAGE_STORY`); every other angle stays widescreen,
     // the real feed default.
