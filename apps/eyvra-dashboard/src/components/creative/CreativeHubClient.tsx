@@ -9,6 +9,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { ListingsClient } from "@/components/listings/ListingsClient";
 import { AnalyticsHeatmapClient } from "@/components/meta-ads/AnalyticsHeatmapClient";
 
+import { AnglePerformanceClient } from "./AnglePerformanceClient";
 import { CreativeClient } from "./CreativeClient";
 import styles from "./CreativeHubClient.module.css";
 
@@ -19,6 +20,7 @@ const TABS: readonly HubTab[] = [
   { key: "ab-results", label: "A/B Results" },
   { key: "listing", label: "Listing Manager" },
   { key: "review-kai", label: "Review Kai" },
+  { key: "angle-performance", label: "Angle Performance" },
 ];
 
 const VALID_TAB_KEYS = new Set(TABS.map((tab) => tab.key));
@@ -77,6 +79,7 @@ export function CreativeHubClient({ initialTab }: CreativeHubClientProps): React
         {tab === "ab-results" ? <AnalyticsHeatmapClient /> : null}
         {tab === "listing" ? <ListingsClient /> : null}
         {tab === "review-kai" ? <CreativeClient /> : null}
+        {tab === "angle-performance" ? <AnglePerformanceClient /> : null}
       </div>
     </main>
   );

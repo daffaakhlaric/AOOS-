@@ -20,6 +20,9 @@ vi.mock("@/components/listings/ListingsClient", () => ({
 vi.mock("@/components/creative/CreativeClient", () => ({
   CreativeClient: () => <div data-testid="real-creative-client" />,
 }));
+vi.mock("@/components/creative/AnglePerformanceClient", () => ({
+  AnglePerformanceClient: () => <div data-testid="real-angle-performance-client" />,
+}));
 
 import { CreativeHubClient } from "@/components/creative/CreativeHubClient";
 
@@ -47,6 +50,11 @@ describe("CreativeHubClient (EYVRA MENU RESTRUCTURE Sprint 2, /creative)", () =>
   it("deep-links to ?tab=review-kai and renders the real CreativeClient (old Creative Review, kept as an explicit tab)", () => {
     render(<CreativeHubClient initialTab="review-kai" />);
     expect(screen.getByTestId("real-creative-client")).toBeInTheDocument();
+  });
+
+  it("deep-links to ?tab=angle-performance and renders the real AnglePerformanceClient", () => {
+    render(<CreativeHubClient initialTab="angle-performance" />);
+    expect(screen.getByTestId("real-angle-performance-client")).toBeInTheDocument();
   });
 
   it("an unknown ?tab= value falls back to the default 'assets' tab", () => {
