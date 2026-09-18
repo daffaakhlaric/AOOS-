@@ -75,6 +75,7 @@ import { ActivityLogModule } from "./modules/activity-log/activity-log.module.js
 import { AssetsModule } from "./modules/assets/assets.module.js";
 import { AuditLogModule } from "./modules/audit-log/audit-log.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
+import { CampaignCreationModule } from "./modules/campaign-creation/campaign-creation.module.js";
 import { CampaignHealthModule } from "./modules/campaign-health/campaign-health.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { ClosingsModule } from "./modules/closings/closings.module.js";
@@ -502,6 +503,15 @@ export class AppModule {
         // CampaignHealthModule/CreativeMemoryModule to reuse their exported services, same pattern
         // CampaignHealthModule itself establishes for MetricSnapshotModule.
         OpportunitiesModule,
+        // EYVRA -- SAMANTHA V2 + KAI V2 Phase 25 -- Autonomous Campaign Creation foundation (PROMPT
+        // 32/33/35): real, read-only Listing Readiness / Campaign Blueprint / Campaign Preflight --
+        // deterministic planning/assessment only, zero Meta API call, zero mutation (see
+        // campaign-creation/domain/campaign-blueprint.ts's own doc). Imports ListingsModule/
+        // GrowthObjectivesModule to reuse their exported ListingsService/GrowthObjectivesService,
+        // same "reuse the real service, never a parallel repository" pattern CampaignHealthModule/
+        // OpportunitiesModule already establish above. PROMPT 36 (the real Meta-mutating campaign
+        // creation) is explicitly out of scope for this phase.
+        CampaignCreationModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

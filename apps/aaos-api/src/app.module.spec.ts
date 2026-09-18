@@ -170,7 +170,11 @@ describe("AppModule.forRoot", () => {
     // repository at all (imports CampaignHealthModule/CreativeMemoryModule to reuse their
     // already-exported services, same pattern CampaignHealthModule itself establishes for
     // MetricSnapshotModule).
-    expect(dynamicModule.imports).toHaveLength(40);
+    // EYVRA — SAMANTHA V2 + KAI V2 Phase 25: +1 import (CampaignCreationModule, the new real
+    // read-only Listing Readiness / Campaign Blueprint / Campaign Preflight HTTP surface) — no new
+    // global provider and no new repository at all (imports ListingsModule/GrowthObjectivesModule
+    // to reuse their already-exported services).
+    expect(dynamicModule.imports).toHaveLength(41);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 
