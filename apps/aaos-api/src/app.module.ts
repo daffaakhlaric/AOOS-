@@ -96,6 +96,7 @@ import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.mod
 import { MetaOAuthModule } from "./modules/meta-oauth/meta-oauth.module.js";
 import { MetricSnapshotModule } from "./modules/metric-snapshot/metric-snapshot.module.js";
 import { ObjectiveModule } from "./modules/objective/objective.module.js";
+import { OpportunitiesModule } from "./modules/opportunities/opportunities.module.js";
 import { OverviewModule } from "./modules/overview/overview.module.js";
 import { PropertyObjectiveModule } from "./modules/property-objective/property-objective.module.js";
 import { RecyclingModule } from "./modules/recycling/recycling.module.js";
@@ -494,6 +495,13 @@ export class AppModule {
         // Never calls LlmService.campaignInsight (see campaign-health/domain/diagnosis.ts's own doc
         // for why that wiring is explicitly out of scope for this phase).
         CampaignHealthModule,
+        // EYVRA -- SAMANTHA V2 Phase 9 -- Opportunity Engine: real, read-only
+        // `GET /api/v1/opportunities/:campaignId`, surfacing positive findings (SCALING_OPPORTUNITY,
+        // CREATIVE_WINNER_EXPANSION) derived purely from CampaignHealthService.assess +
+        // CreativeMemoryService.getAnglePerformance. Zero I/O/repository of its own -- imports
+        // CampaignHealthModule/CreativeMemoryModule to reuse their exported services, same pattern
+        // CampaignHealthModule itself establishes for MetricSnapshotModule.
+        OpportunitiesModule,
       ],
       providers: [
         { provide: AAOS_API_CONFIG, useValue: config },

@@ -165,7 +165,12 @@ describe("AppModule.forRoot", () => {
     // `GET /api/v1/campaign-health/:campaignId` HTTP surface) — no new global provider and no new
     // repository at all (imports MetricSnapshotModule to reuse its already-exported
     // MetricSnapshotService instead of composing its own repository, unlike every module above).
-    expect(dynamicModule.imports).toHaveLength(39);
+    // EYVRA — SAMANTHA V2 Phase 9: +1 import (OpportunitiesModule, the new real
+    // `GET /api/v1/opportunities/:campaignId` HTTP surface) — no new global provider and no new
+    // repository at all (imports CampaignHealthModule/CreativeMemoryModule to reuse their
+    // already-exported services, same pattern CampaignHealthModule itself establishes for
+    // MetricSnapshotModule).
+    expect(dynamicModule.imports).toHaveLength(40);
     expect(dynamicModule.providers).toHaveLength(24);
   });
 
