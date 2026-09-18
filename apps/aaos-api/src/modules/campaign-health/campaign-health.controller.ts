@@ -5,6 +5,7 @@ import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
 import { CampaignHealthService } from "./campaign-health.service.js";
+import type { AssessmentComparisonResponseDto } from "./dto/assessment-comparison-response.dto.js";
 import {
   CampaignAssessmentHistoryQuerySchema,
   type CampaignAssessmentHistoryQueryDto,
@@ -60,5 +61,14 @@ export class CampaignHealthController {
     query: CampaignAssessmentHistoryQueryDto,
   ): Promise<readonly StoredAssessment[]> {
     return this.service.history(tenantId, campaignId, query.limit);
+  }
+
+  /** `GET /:campaignId/compare-latest` — compares the 2 most recently recorded assessments (Phase 10). Registered after the other literal `:campaignId/*` routes, same non-ambiguous routing this controller already relies on. */
+  @Get(":campaignId/compare-latest")
+  async compareLatest(
+    @TenantId() tenantId: string,
+    @Param("campaignId") campaignId: string,
+  ): Promise<AssessmentComparisonResponseDto> {
+    return this.service.compareLatest(tenantId, campaignId);
   }
 }

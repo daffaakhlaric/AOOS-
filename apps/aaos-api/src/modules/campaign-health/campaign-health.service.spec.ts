@@ -4,7 +4,13 @@ import type { MetricSnapshotDto } from "../metric-snapshot/dto/metric-snapshot.d
 import type { MetricSnapshotService } from "../metric-snapshot/metric-snapshot.service.js";
 
 import { CampaignHealthService } from "./campaign-health.service.js";
-import type { CampaignAssessmentRepository } from "./infrastructure/campaign-assessment.repository.js";
+import type { CampaignHealth } from "./domain/campaign-health.js";
+import type { SamanthaDecision } from "./domain/decision.js";
+import type { CampaignDiagnosis } from "./domain/diagnosis.js";
+import type {
+  CampaignAssessmentRepository,
+  StoredAssessment,
+} from "./infrastructure/campaign-assessment.repository.js";
 
 const TENANT = "propertyklik-demo";
 const META_CAMPAIGN_ID = "meta-cmp-1";
@@ -60,11 +66,65 @@ function buildFakeMetricSnapshotService(snapshots: FakeSnapshots = {}): MetricSn
   } as unknown as MetricSnapshotService;
 }
 
-function buildFakeAssessmentRepository(): CampaignAssessmentRepository {
+function buildFakeAssessmentRepository(
+  history: readonly StoredAssessment[] = [],
+): CampaignAssessmentRepository {
   return {
     record: vi.fn(async () => undefined),
-    listHistory: vi.fn(async () => []),
+    listHistory: vi.fn(async () => history),
   } as unknown as CampaignAssessmentRepository;
+}
+
+const HEALTHY_DIMENSION = { status: "HEALTHY" as const, score: 100, confidence: 1, issues: [] };
+const UNKNOWN_DIMENSION = { status: "UNKNOWN" as const, confidence: 0, issues: ["no data"] };
+
+function makeHealth(overrides: Partial<CampaignHealth> = {}): CampaignHealth {
+  return {
+    delivery: HEALTHY_DIMENSION,
+    costEfficiency: HEALTHY_DIMENSION,
+    creative: HEALTHY_DIMENSION,
+    audience: UNKNOWN_DIMENSION,
+    conversion: HEALTHY_DIMENSION,
+    tracking: UNKNOWN_DIMENSION,
+    leadQuality: UNKNOWN_DIMENSION,
+    overallStatus: "HEALTHY",
+    ...overrides,
+  };
+}
+
+function makeDiagnosis(overrides: Partial<CampaignDiagnosis> = {}): CampaignDiagnosis {
+  return {
+    confidence: 0,
+    impact: "UNKNOWN",
+    evidence: [],
+    contributingFactors: [],
+    recommendedFocus: [],
+    ...overrides,
+  };
+}
+
+function makeDecision(overrides: Partial<SamanthaDecision> = {}): SamanthaDecision {
+  return {
+    decision: "NO_ACTION",
+    confidence: 1,
+    impact: "LOW",
+    reason: "reason",
+    riskOfDoingNothing: "none",
+    expectedOutcome: "stable",
+    monitoringPlan: { reviewAfterHours: 72, successConditions: [], rollbackConditions: [] },
+    ...overrides,
+  };
+}
+
+function makeStoredAssessment(overrides: Partial<StoredAssessment> = {}): StoredAssessment {
+  return {
+    id: "assess-1",
+    health: makeHealth(),
+    diagnosis: makeDiagnosis(),
+    decision: makeDecision(),
+    assessedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
 }
 
 describe("CampaignHealthService", () => {
@@ -223,6 +283,64 @@ describe("CampaignHealthService", () => {
       await service.history(TENANT, META_CAMPAIGN_ID, 20);
 
       expect(repository.listHistory).toHaveBeenCalledWith(TENANT, META_CAMPAIGN_ID, 20);
+    });
+  });
+
+  describe("compareLatest()", () => {
+    it("throws NotFoundError when there are 0 recorded assessments", async () => {
+      const metricSnapshotService = buildFakeMetricSnapshotService();
+      const repository = buildFakeAssessmentRepository([]);
+      const service = new CampaignHealthService(metricSnapshotService, repository);
+
+      await expect(service.compareLatest(TENANT, META_CAMPAIGN_ID)).rejects.toThrow(
+        /No recorded campaign-health assessments/,
+      );
+      expect(repository.listHistory).toHaveBeenCalledWith(TENANT, META_CAMPAIGN_ID, 2);
+    });
+
+    it("returns available: false (not an error) when only 1 assessment is recorded", async () => {
+      const metricSnapshotService = buildFakeMetricSnapshotService();
+      const repository = buildFakeAssessmentRepository([makeStoredAssessment()]);
+      const service = new CampaignHealthService(metricSnapshotService, repository);
+
+      const result = await service.compareLatest(TENANT, META_CAMPAIGN_ID);
+
+      expect(result.available).toBe(false);
+      if (!result.available) {
+        expect(result.reason.length).toBeGreaterThan(0);
+      }
+    });
+
+    it("compares the 2 most recent assessments, older as previous and newer as current", async () => {
+      const metricSnapshotService = buildFakeMetricSnapshotService();
+      const older = makeStoredAssessment({
+        id: "assess-older",
+        health: makeHealth({
+          overallStatus: "CRITICAL",
+          costEfficiency: { status: "CRITICAL", score: 10, confidence: 1, issues: ["bad"] },
+        }),
+        diagnosis: makeDiagnosis({ rootCause: "CPL_SPIKE" }),
+        assessedAt: "2026-01-01T00:00:00.000Z",
+      });
+      const newer = makeStoredAssessment({
+        id: "assess-newer",
+        health: makeHealth({ overallStatus: "HEALTHY" }),
+        diagnosis: makeDiagnosis({ rootCause: undefined }),
+        assessedAt: "2026-01-08T00:00:00.000Z",
+      });
+      // `listHistory` returns newest-first — mirror that ordering here.
+      const repository = buildFakeAssessmentRepository([newer, older]);
+      const service = new CampaignHealthService(metricSnapshotService, repository);
+
+      const result = await service.compareLatest(TENANT, META_CAMPAIGN_ID);
+
+      expect(result.available).toBe(true);
+      if (result.available) {
+        expect(result.previousAssessedAt).toBe("2026-01-01T00:00:00.000Z");
+        expect(result.currentAssessedAt).toBe("2026-01-08T00:00:00.000Z");
+        expect(result.comparison.overallStatusTrend).toBe("IMPROVED");
+        expect(result.comparison.rootCauseTrend).toBe("RESOLVED");
+      }
     });
   });
 });

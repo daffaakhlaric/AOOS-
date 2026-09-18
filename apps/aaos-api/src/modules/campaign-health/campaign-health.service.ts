@@ -1,15 +1,18 @@
+import { NotFoundError } from "@aos/errors";
 import { Injectable, Logger } from "@nestjs/common";
 
 import { resolveBenchmark } from "../metric-snapshot/domain/benchmark.js";
 import { detectSignals } from "../metric-snapshot/domain/signal-engine.js";
 import { MetricSnapshotService } from "../metric-snapshot/metric-snapshot.service.js";
 
+import { compareAssessments } from "./domain/assessment-comparison.js";
 import { assessCampaignHealth } from "./domain/campaign-health.js";
 import type { CampaignHealth } from "./domain/campaign-health.js";
 import { decideNextAction } from "./domain/decision.js";
 import type { SamanthaDecision } from "./domain/decision.js";
 import { diagnoseCampaign } from "./domain/diagnosis.js";
 import type { CampaignDiagnosis } from "./domain/diagnosis.js";
+import type { AssessmentComparisonResponseDto } from "./dto/assessment-comparison-response.dto.js";
 import {
   toCampaignHealthResponseDto,
   type CampaignHealthResponseDto,
@@ -89,6 +92,63 @@ export class CampaignHealthService {
     limit: number,
   ): Promise<readonly StoredAssessment[]> {
     return this.repository.listHistory(tenantId, metaCampaignId, limit);
+  }
+
+  /**
+   * EYVRA — SAMANTHA V2 Phase 10. Pulls the 2 most recent real, persisted
+   * `samantha_campaign_assessments` rows (Phase 6) and runs them through the pure
+   * `compareAssessments` (Phase 10). No new I/O beyond the SAME `listHistory` read `history()`
+   * already exposes — no new table, no Meta/creative call, no mutation.
+   *
+   * `0` rows is a real `NotFoundError` — there is genuinely nothing to compare (this campaign has
+   * never been assessed-and-recorded via `assessAndRecord`). Exactly `1` row is NOT an error — a
+   * single real checkpoint is a legitimate, expected state (e.g. the very first time this campaign
+   * was ever recorded) — it honestly returns `{ available: false, reason }` rather than throwing,
+   * same "not enough data yet is a real, first-class case" discipline `resolveBenchmark`'s own
+   * `source: "NONE"` establishes (see `AssessmentComparisonResponseDto`'s own doc).
+   */
+  async compareLatest(
+    tenantId: string,
+    metaCampaignId: string,
+  ): Promise<AssessmentComparisonResponseDto> {
+    const recent = await this.repository.listHistory(tenantId, metaCampaignId, 2);
+
+    if (recent.length === 0) {
+      throw new NotFoundError(
+        `No recorded campaign-health assessments found for campaign "${metaCampaignId}" — nothing to compare.`,
+      );
+    }
+
+    if (recent.length === 1) {
+      return {
+        available: false,
+        reason:
+          "Baru ada 1 penilaian yang tercatat untuk campaign ini — belum ada pembanding dari penilaian sebelumnya.",
+      };
+    }
+
+    // `listHistory` orders `assessed_at DESC` (newest first) — recent[0] is current, recent[1] is
+    // the older checkpoint to compare against.
+    const [current, previous] = recent;
+    // `recent.length === 2` was just established above — both are always real here.
+    const currentAssessment = current as StoredAssessment;
+    const previousAssessment = previous as StoredAssessment;
+
+    const comparison = compareAssessments({
+      previousHealth: previousAssessment.health,
+      currentHealth: currentAssessment.health,
+      previousDiagnosis: previousAssessment.diagnosis,
+      currentDiagnosis: currentAssessment.diagnosis,
+      previousDecision: previousAssessment.decision,
+      currentDecision: currentAssessment.decision,
+    });
+
+    return {
+      available: true,
+      comparison,
+      previousAssessedAt: previousAssessment.assessedAt,
+      currentAssessedAt: currentAssessment.assessedAt,
+    };
   }
 
   private async compute(tenantId: string, metaCampaignId: string): Promise<ComputedAssessment> {

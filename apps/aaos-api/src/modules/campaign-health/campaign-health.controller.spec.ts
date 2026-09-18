@@ -66,11 +66,33 @@ const HISTORY_SAMPLE: readonly StoredAssessment[] = [
   },
 ];
 
+const COMPARISON_SAMPLE = {
+  available: true as const,
+  comparison: {
+    dimensionTrends: {
+      delivery: "UNCHANGED" as const,
+      costEfficiency: "UNCHANGED" as const,
+      creative: "UNCHANGED" as const,
+      audience: "UNCHANGED" as const,
+      conversion: "UNCHANGED" as const,
+      tracking: "UNCHANGED" as const,
+      leadQuality: "UNCHANGED" as const,
+    },
+    overallStatusTrend: "UNCHANGED" as const,
+    rootCauseTrend: "NONE_EITHER_TIME" as const,
+    decisionChanged: false,
+    summary: "Tidak ada perubahan berarti dibanding penilaian sebelumnya.",
+  },
+  previousAssessedAt: "2026-01-01T00:00:00.000Z",
+  currentAssessedAt: "2026-01-08T00:00:00.000Z",
+};
+
 function buildFakeService(): CampaignHealthService {
   return {
     assess: vi.fn(async () => RESPONSE_SAMPLE),
     assessAndRecord: vi.fn(async () => RESPONSE_SAMPLE),
     history: vi.fn(async () => HISTORY_SAMPLE),
+    compareLatest: vi.fn(async () => COMPARISON_SAMPLE),
   } as unknown as CampaignHealthService;
 }
 
@@ -99,5 +121,13 @@ describe("CampaignHealthController", () => {
     const result = await controller.history(TENANT, "meta-cmp-1", { limit: 20 });
     expect(service.history).toHaveBeenCalledWith(TENANT, "meta-cmp-1", 20);
     expect(result).toEqual(HISTORY_SAMPLE);
+  });
+
+  it("compareLatest() delegates to the service with tenant id and campaignId", async () => {
+    const service = buildFakeService();
+    const controller = new CampaignHealthController(service);
+    const result = await controller.compareLatest(TENANT, "meta-cmp-1");
+    expect(service.compareLatest).toHaveBeenCalledWith(TENANT, "meta-cmp-1");
+    expect(result).toEqual(COMPARISON_SAMPLE);
   });
 });
