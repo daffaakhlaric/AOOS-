@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type {
+  AssessmentComparisonResponseDto,
   CampaignHealthResponseDto,
+  DimensionTrendDto,
   HealthDimensionDto,
   HealthStatusDto,
+  RootCauseTrendDto,
 } from "@/types/campaign-health.types";
 
 import styles from "./CampaignHealthCard.module.css";
@@ -67,6 +70,59 @@ const DECISION_LABELS: Record<string, string> = {
   PAUSE: "Hentikan (Pause)",
 };
 
+const TREND_LABELS: Record<DimensionTrendDto, string> = {
+  IMPROVED: "Membaik",
+  WORSENED: "Memburuk",
+  UNCHANGED: "Tetap",
+  NEWLY_KNOWN: "Baru Diketahui",
+  NEWLY_UNKNOWN: "Jadi Tidak Diketahui",
+};
+
+const TREND_ARROWS: Record<DimensionTrendDto, string> = {
+  IMPROVED: "↑",
+  WORSENED: "↓",
+  UNCHANGED: "→",
+  NEWLY_KNOWN: "＋",
+  NEWLY_UNKNOWN: "？",
+};
+
+const ROOT_CAUSE_TREND_LABELS: Record<RootCauseTrendDto, string> = {
+  RESOLVED: "Root Cause Teratasi",
+  PERSISTED: "Root Cause Masih Sama",
+  NEW: "Root Cause Baru",
+  NONE_EITHER_TIME: "Tidak Ada Root Cause (Sebelum & Sesudah)",
+  CHANGED: "Root Cause Berubah",
+};
+
+function trendBadgeClass(trend: DimensionTrendDto): string {
+  switch (trend) {
+    case "IMPROVED":
+      return styles.trendImproved ?? "";
+    case "WORSENED":
+      return styles.trendWorsened ?? "";
+    case "UNCHANGED":
+      return styles.trendUnchanged ?? "";
+    case "NEWLY_KNOWN":
+      return styles.trendNewlyKnown ?? "";
+    case "NEWLY_UNKNOWN":
+      return styles.trendNewlyUnknown ?? "";
+  }
+}
+
+function TrendBadge({
+  trend,
+  testId,
+}: {
+  readonly trend: DimensionTrendDto;
+  readonly testId: string;
+}): React.ReactElement {
+  return (
+    <span data-testid={testId} className={`${styles.trendBadge} ${trendBadgeClass(trend)}`}>
+      {TREND_ARROWS[trend]} {TREND_LABELS[trend]}
+    </span>
+  );
+}
+
 function StatusBadge({
   status,
   testId,
@@ -84,15 +140,20 @@ function StatusBadge({
 function DimensionRow({
   name,
   dimension,
+  trend,
 }: {
   readonly name: string;
   readonly dimension: HealthDimensionDto;
+  readonly trend?: DimensionTrendDto;
 }): React.ReactElement {
   return (
     <div data-testid="health-dimension-row" className={styles.dimensionRow}>
       <div className={styles.dimensionHeader}>
         <span className={styles.dimensionLabel}>{name}</span>
-        <StatusBadge status={dimension.status} testId="dimension-status-badge" />
+        <div className={styles.dimensionBadges}>
+          <StatusBadge status={dimension.status} testId="dimension-status-badge" />
+          {trend !== undefined ? <TrendBadge trend={trend} testId="dimension-trend-badge" /> : null}
+        </div>
       </div>
       {dimension.issues.length > 0 ? (
         <ul className={styles.issueList}>
@@ -103,6 +164,59 @@ function DimensionRow({
           ))}
         </ul>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Phase 18 — renders the real, backend-computed `AssessmentComparisonResponseDto`. `available:
+ * false` is an honest, expected state (fewer than 2 recorded assessments exist yet for this
+ * campaign) — the real `reason` string the backend wrote is shown directly, never paraphrased.
+ * `undefined` (fetch still pending, or the best-effort fetch failed) renders nothing at all —
+ * this section is purely additive and must never be mistaken for an error on the main card.
+ */
+function TrendSection({
+  trend,
+}: {
+  readonly trend: AssessmentComparisonResponseDto | undefined;
+}): React.ReactElement | null {
+  if (trend === undefined) {
+    return null;
+  }
+
+  if (!trend.available) {
+    return (
+      <div data-testid="assessment-trend-section" className={styles.trendBox}>
+        <h4 className={styles.subTitle}>Trend Assessment</h4>
+        <p data-testid="trend-unavailable-reason" className={styles.trendUnavailable}>
+          {trend.reason}
+        </p>
+      </div>
+    );
+  }
+
+  const { comparison } = trend;
+
+  return (
+    <div data-testid="assessment-trend-section" className={styles.trendBox}>
+      <h4 className={styles.subTitle}>Trend Assessment</h4>
+      <p data-testid="trend-summary" className={styles.trendSummary}>
+        {comparison.summary}
+      </p>
+      <div className={styles.trendMetaRow}>
+        <span data-testid="trend-overall-status" className={styles.trendMetaItem}>
+          <span className={styles.diagnosisLabel}>Overall Status: </span>
+          <TrendBadge trend={comparison.overallStatusTrend} testId="trend-overall-status-badge" />
+        </span>
+        <span data-testid="trend-root-cause" className={styles.trendMetaItem}>
+          <span className={styles.diagnosisLabel}>Root Cause: </span>
+          {ROOT_CAUSE_TREND_LABELS[comparison.rootCauseTrend]}
+        </span>
+        <span data-testid="trend-decision-changed" className={styles.trendMetaItem}>
+          <span className={styles.diagnosisLabel}>Rekomendasi: </span>
+          {comparison.decisionChanged ? "Rekomendasi berubah" : "Rekomendasi tidak berubah"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -127,6 +241,32 @@ export function CampaignHealthCard({
 }: CampaignHealthCardProps): React.ReactElement {
   const [data, setData] = useState<CampaignHealthResponseDto | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
+
+  // Phase 18 — real, independent best-effort fetch of the trend/comparison data (mirrors
+  // `CampaignInsightPanel.tsx`'s/`GrowthObjectiveDetailClient.tsx`'s own established
+  // "independent best-effort fetch, honest absence on failure" pattern): never blocks the
+  // health/diagnosis/decision render above, and a genuine fetch failure just leaves `trend`
+  // `undefined` (the section renders nothing rather than crashing the whole card).
+  const [trend, setTrend] = useState<AssessmentComparisonResponseDto | undefined>(undefined);
+
+  // Phase 18 — the real "Rekam Assessment Ini" action (`POST .../assess`), its own loading/error
+  // state, independent of the main `data`/`error` pair above.
+  const [assessing, setAssessing] = useState(false);
+  const [assessError, setAssessError] = useState<string | undefined>(undefined);
+
+  const loadTrend = useCallback(() => {
+    setTrend(undefined);
+    fetch(`/api/campaign-health/${encodeURIComponent(campaignId)}/compare-latest`)
+      .then((res) =>
+        res.ok ? (res.json() as Promise<AssessmentComparisonResponseDto>) : undefined,
+      )
+      .then((body) => {
+        setTrend(body);
+      })
+      .catch(() => {
+        // Best-effort only — the Trend section just shows its honest-absent state.
+      });
+  }, [campaignId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +303,32 @@ export function CampaignHealthCard({
     };
   }, [campaignId]);
 
+  useEffect(() => {
+    loadTrend();
+  }, [loadTrend]);
+
+  async function runAssess(): Promise<void> {
+    setAssessing(true);
+    setAssessError(undefined);
+    try {
+      const response = await fetch(
+        `/api/campaign-health/${encodeURIComponent(campaignId)}/assess`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        throw new Error("Gagal merekam assessment.");
+      }
+      const updated = (await response.json()) as CampaignHealthResponseDto;
+      setData(updated);
+      setError(undefined);
+      loadTrend();
+    } catch (caught) {
+      setAssessError(caught instanceof Error ? caught.message : "Gagal merekam assessment.");
+    } finally {
+      setAssessing(false);
+    }
+  }
+
   if (error !== undefined) {
     return (
       <section data-testid="campaign-health-card" className={styles.section}>
@@ -183,6 +349,7 @@ export function CampaignHealthCard({
 
   const { health, diagnosis, decision } = data;
   const decisionLabel = DECISION_LABELS[decision.decision] ?? decision.decision;
+  const dimensionTrends = trend?.available === true ? trend.comparison.dimensionTrends : undefined;
 
   return (
     <section data-testid="campaign-health-card" className={styles.section}>
@@ -193,7 +360,12 @@ export function CampaignHealthCard({
 
       <div className={styles.dimensionGrid}>
         {DIMENSION_ORDER.map((name) => (
-          <DimensionRow key={name} name={DIMENSION_LABELS[name]} dimension={health[name]} />
+          <DimensionRow
+            key={name}
+            name={DIMENSION_LABELS[name]}
+            dimension={health[name]}
+            trend={dimensionTrends?.[name]}
+          />
         ))}
       </div>
 
@@ -217,6 +389,25 @@ export function CampaignHealthCard({
         <h4 className={styles.subTitle}>Rekomendasi Samantha</h4>
         <p className={styles.decisionAction}>{decisionLabel}</p>
         <p className={styles.decisionReason}>{decision.reason}</p>
+      </div>
+
+      <TrendSection trend={trend} />
+
+      <div className={styles.assessRow}>
+        <button
+          type="button"
+          data-testid="assess-button"
+          className={styles.assessButton}
+          disabled={assessing}
+          onClick={() => void runAssess()}
+        >
+          {assessing ? "Merekam..." : "Rekam Assessment Ini"}
+        </button>
+        {assessError !== undefined ? (
+          <p data-testid="assess-error" className={styles.assessError}>
+            {assessError}
+          </p>
+        ) : null}
       </div>
     </section>
   );

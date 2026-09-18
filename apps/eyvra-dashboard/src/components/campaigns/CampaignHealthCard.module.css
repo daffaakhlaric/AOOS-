@@ -82,6 +82,47 @@
   gap: 8px;
 }
 
+.dimensionBadges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.trendBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.trendImproved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.trendWorsened {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.trendUnchanged {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.trendNewlyKnown {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.trendNewlyUnknown {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 .dimensionLabel {
   font-size: 13px;
   font-weight: 600;
@@ -133,6 +174,69 @@
 .decisionReason {
   font-size: 13px;
   color: var(--v2-text-primary, #111827);
+  margin: 0;
+}
+
+.trendBox {
+  background: #f5f3ff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.trendUnavailable {
+  font-size: 13px;
+  color: var(--v2-text-secondary, #6b7280);
+  margin: 0;
+}
+
+.trendSummary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v2-text-primary, #111827);
+  margin: 0 0 8px;
+}
+
+.trendMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.trendMetaItem {
+  font-size: 12px;
+  color: var(--v2-text-primary, #111827);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.assessRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.assessButton {
+  background: var(--v2-menu-campaigns, #1e6fd9);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.assessButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.assessError {
+  font-size: 12px;
+  color: #991b1b;
   margin: 0;
 }
 

@@ -116,6 +116,34 @@ const NO_ROOT_CAUSE_RESPONSE = {
   },
 };
 
+const TREND_UNAVAILABLE_RESPONSE = {
+  available: false,
+  reason:
+    "Baru ada 1 penilaian yang tercatat untuk campaign ini — belum ada pembanding dari penilaian sebelumnya.",
+};
+
+const TREND_AVAILABLE_RESPONSE = {
+  available: true,
+  comparison: {
+    dimensionTrends: {
+      delivery: "UNCHANGED",
+      costEfficiency: "WORSENED",
+      creative: "IMPROVED",
+      audience: "NEWLY_KNOWN",
+      conversion: "UNCHANGED",
+      tracking: "NEWLY_UNKNOWN",
+      leadQuality: "UNCHANGED",
+    },
+    overallStatusTrend: "WORSENED",
+    rootCauseTrend: "NEW",
+    decisionChanged: true,
+    summary:
+      "Root cause baru terdeteksi: CREATIVE_FATIGUE — sebelumnya belum ada root cause yang jelas.",
+  },
+  previousAssessedAt: "2026-09-10T00:00:00.000Z",
+  currentAssessedAt: "2026-09-17T00:00:00.000Z",
+};
+
 describe("CampaignHealthCard", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -123,6 +151,7 @@ describe("CampaignHealthCard", () => {
 
   it("loading state: shows a spinner before the real campaign-health fetch resolves", () => {
     mockFetch({
+      "/api/campaign-health/camp-1/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
       "/api/campaign-health/camp-1": { body: NO_ROOT_CAUSE_RESPONSE },
     });
     render(<CampaignHealthCard campaignId="camp-1" campaignName="Cluster Anggrek Campaign" />);
@@ -152,6 +181,7 @@ describe("CampaignHealthCard", () => {
 
   it("populated state: renders the overall status badge, dimension rows, diagnosis and decision content", async () => {
     mockFetch({
+      "/api/campaign-health/camp-1/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
       "/api/campaign-health/camp-1": { body: POPULATED_RESPONSE },
     });
     render(<CampaignHealthCard campaignId="camp-1" campaignName="Cluster Anggrek Campaign" />);
@@ -213,5 +243,132 @@ describe("CampaignHealthCard", () => {
     await waitFor(() =>
       expect(screen.getByTestId("overall-status-badge")).toHaveTextContent("Kritis"),
     );
+  });
+
+  it("trend section: shows the real honest reason when compare-latest returns available: false", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-1/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-1": { body: POPULATED_RESPONSE },
+    });
+    render(<CampaignHealthCard campaignId="camp-1" campaignName="Cluster Anggrek Campaign" />);
+
+    await waitFor(() => expect(screen.getByTestId("assessment-trend-section")).toBeInTheDocument());
+    expect(screen.getByTestId("trend-unavailable-reason")).toHaveTextContent(
+      "Baru ada 1 penilaian yang tercatat untuk campaign ini",
+    );
+    expect(screen.queryByTestId("trend-summary")).not.toBeInTheDocument();
+  });
+
+  it("trend section: renders summary, dimension trend badges, overallStatusTrend, rootCauseTrend and decisionChanged when compare-latest returns available: true", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-1/compare-latest": { body: TREND_AVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-1": { body: POPULATED_RESPONSE },
+    });
+    render(<CampaignHealthCard campaignId="camp-1" campaignName="Cluster Anggrek Campaign" />);
+
+    await waitFor(() => expect(screen.getByTestId("trend-summary")).toBeInTheDocument());
+    expect(screen.getByTestId("trend-summary")).toHaveTextContent(
+      "Root cause baru terdeteksi: CREATIVE_FATIGUE",
+    );
+
+    const dimensionTrendBadges = screen.getAllByTestId("dimension-trend-badge");
+    expect(dimensionTrendBadges.length).toBeGreaterThanOrEqual(3);
+    expect(dimensionTrendBadges.some((badge) => badge.textContent?.includes("Memburuk"))).toBe(
+      true,
+    );
+    expect(dimensionTrendBadges.some((badge) => badge.textContent?.includes("Membaik"))).toBe(true);
+    expect(
+      dimensionTrendBadges.some((badge) => badge.textContent?.includes("Baru Diketahui")),
+    ).toBe(true);
+
+    expect(screen.getByTestId("trend-overall-status")).toHaveTextContent("Memburuk");
+    expect(screen.getByTestId("trend-root-cause")).toHaveTextContent("Root Cause Baru");
+    expect(screen.getByTestId("trend-decision-changed")).toHaveTextContent("Rekomendasi berubah");
+  });
+
+  it("trend section: honest absence (renders nothing) when the compare-latest fetch fails entirely, never crashing the card", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-1": { body: POPULATED_RESPONSE },
+    });
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("compare-latest")) {
+        throw new Error("network down");
+      }
+      if (url === "/api/campaign-health/camp-1") {
+        return new Response(JSON.stringify(POPULATED_RESPONSE), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }) as unknown as typeof fetch;
+
+    render(<CampaignHealthCard campaignId="camp-1" campaignName="Cluster Anggrek Campaign" />);
+
+    await waitFor(() => expect(screen.getByTestId("overall-status-badge")).toBeInTheDocument());
+    expect(screen.getByTestId("campaign-health-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("assessment-trend-section")).not.toBeInTheDocument();
+  });
+
+  it("assess button: records a new assessment, updates the card and re-fetches the trend on success", async () => {
+    const routes: Record<string, { body: unknown; status?: number }> = {
+      "/api/campaign-health/camp-1/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-1/assess": { body: POPULATED_RESPONSE },
+      "/api/campaign-health/camp-1": { body: NO_ROOT_CAUSE_RESPONSE },
+    };
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/assess") && init?.method === "POST") {
+        routes["/api/campaign-health/camp-1/compare-latest"] = { body: TREND_AVAILABLE_RESPONSE };
+        return new Response(JSON.stringify(POPULATED_RESPONSE), { status: 200 });
+      }
+      const matchKey = Object.keys(routes).find((key) => url === key || url.startsWith(key));
+      const route = matchKey !== undefined ? routes[matchKey] : undefined;
+      if (route === undefined) {
+        return new Response(JSON.stringify({}), { status: 404 });
+      }
+      return new Response(JSON.stringify(route.body), { status: route.status ?? 200 });
+    }) as unknown as typeof fetch;
+
+    render(<CampaignHealthCard campaignId="camp-1" campaignName="Cluster Anggrek Campaign" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("overall-status-badge")).toHaveTextContent("Sehat"),
+    );
+
+    const button = screen.getByTestId("assess-button");
+    expect(button).toHaveTextContent("Rekam Assessment Ini");
+    button.click();
+
+    await waitFor(() => expect(button).toHaveTextContent("Merekam..."));
+    await waitFor(() =>
+      expect(screen.getByTestId("overall-status-badge")).toHaveTextContent("Kritis"),
+    );
+    await waitFor(() => expect(screen.getByTestId("trend-summary")).toBeInTheDocument());
+    expect(screen.queryByTestId("assess-error")).not.toBeInTheDocument();
+  });
+
+  it("assess button: shows an honest error when the assess POST fails, without crashing the card", async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/assess") && init?.method === "POST") {
+        return new Response(JSON.stringify({ error: { message: "boom" } }), { status: 500 });
+      }
+      if (url.includes("compare-latest")) {
+        return new Response(JSON.stringify(TREND_UNAVAILABLE_RESPONSE), { status: 200 });
+      }
+      if (url === "/api/campaign-health/camp-1") {
+        return new Response(JSON.stringify(NO_ROOT_CAUSE_RESPONSE), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }) as unknown as typeof fetch;
+
+    render(<CampaignHealthCard campaignId="camp-1" campaignName="Cluster Anggrek Campaign" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("overall-status-badge")).toHaveTextContent("Sehat"),
+    );
+
+    screen.getByTestId("assess-button").click();
+
+    await waitFor(() => expect(screen.getByTestId("assess-error")).toBeInTheDocument());
+    expect(screen.getByTestId("assess-error")).toHaveTextContent("Gagal merekam assessment.");
+    expect(screen.getByTestId("campaign-health-card")).toBeInTheDocument();
   });
 });

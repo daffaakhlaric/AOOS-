@@ -86,3 +86,43 @@ export interface CampaignHealthResponseDto {
   readonly diagnosis: CampaignDiagnosisDto;
   readonly decision: SamanthaDecisionDto;
 }
+
+/**
+ * EYVRA — SAMANTHA V2 Phase 18. Client-safe DTO shapes for
+ * `GET /api/v1/campaign-health/:campaignId/compare-latest` — mirrors `apps/aaos-api`'s
+ * `AssessmentComparisonResponseDto`/`AssessmentComparison`/`DimensionTrend`/`RootCauseTrend`
+ * field-for-field (see `domain/assessment-comparison.ts`). Hand-written, not imported from
+ * `apps/aaos-api`, same discipline the rest of this file already follows.
+ */
+export type DimensionTrendDto =
+  "IMPROVED" | "WORSENED" | "UNCHANGED" | "NEWLY_KNOWN" | "NEWLY_UNKNOWN";
+
+export type RootCauseTrendDto = "RESOLVED" | "PERSISTED" | "NEW" | "NONE_EITHER_TIME" | "CHANGED";
+
+export interface AssessmentComparisonDto {
+  readonly dimensionTrends: Record<
+    keyof Omit<CampaignHealthDto, "overallStatus">,
+    DimensionTrendDto
+  >;
+  readonly overallStatusTrend: DimensionTrendDto;
+  readonly rootCauseTrend: RootCauseTrendDto;
+  readonly decisionChanged: boolean;
+  /** Indonesian, one real sentence — the single most newsworthy change, already computed by the backend. */
+  readonly summary: string;
+}
+
+/**
+ * `GET /api/v1/campaign-health/:campaignId/compare-latest` response — a real, discriminated shape
+ * (never a thrown error) for the honest "fewer than 2 recorded assessments exist yet" state.
+ */
+export type AssessmentComparisonResponseDto =
+  | {
+      readonly available: false;
+      readonly reason: string;
+    }
+  | {
+      readonly available: true;
+      readonly comparison: AssessmentComparisonDto;
+      readonly previousAssessedAt: string;
+      readonly currentAssessedAt: string;
+    };
