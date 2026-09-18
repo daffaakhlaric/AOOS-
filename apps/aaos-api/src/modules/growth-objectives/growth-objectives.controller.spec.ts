@@ -2,7 +2,7 @@ import "reflect-metadata";
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { GrowthObjectiveResponseDto } from "./dto/growth-objective.dto.js";
+import type { GrowthObjectiveResponseDto, PacingResponseDto } from "./dto/growth-objective.dto.js";
 import { GrowthObjectivesController } from "./growth-objectives.controller.js";
 import type { GrowthObjectivesService } from "./growth-objectives.service.js";
 
@@ -25,6 +25,21 @@ const OBJECTIVE_SAMPLE: GrowthObjectiveResponseDto = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+const PACING_SAMPLE: PacingResponseDto = {
+  objectiveId: "obj-1",
+  pacing: {
+    status: "ON_PACE",
+    expectedSpendToDateIdr: 1_000_000,
+    actualSpendIdr: 950_000,
+    pacingPct: 0.95,
+    daysRemaining: 10,
+    daysElapsed: 5,
+    requiredDailyPaceIdr: 100_000,
+    projectedEndOfPeriodSpendIdr: 2_090_000,
+  },
+  spendSource: "ACCOUNT_WIDE",
+};
+
 function buildFakeService(): GrowthObjectivesService {
   return {
     list: vi.fn(async () => ({ objectives: [OBJECTIVE_SAMPLE] })),
@@ -32,6 +47,7 @@ function buildFakeService(): GrowthObjectivesService {
     getById: vi.fn(async () => OBJECTIVE_SAMPLE),
     activate: vi.fn(async () => ({ ...OBJECTIVE_SAMPLE, status: "ACTIVE" })),
     analyze: vi.fn(async () => ({ ...OBJECTIVE_SAMPLE, status: "PLANNED" })),
+    pacing: vi.fn(async () => PACING_SAMPLE),
   } as unknown as GrowthObjectivesService;
 }
 
@@ -83,5 +99,13 @@ describe("GrowthObjectivesController", () => {
     const result = await controller.analyze(TENANT, "obj-1");
     expect(service.analyze).toHaveBeenCalledWith(TENANT, "obj-1");
     expect(result.status).toBe("PLANNED");
+  });
+
+  it("pacing() delegates to the service", async () => {
+    const service = buildFakeService();
+    const controller = new GrowthObjectivesController(service);
+    const result = await controller.pacing(TENANT, "obj-1");
+    expect(service.pacing).toHaveBeenCalledWith(TENANT, "obj-1");
+    expect(result).toEqual(PACING_SAMPLE);
   });
 });

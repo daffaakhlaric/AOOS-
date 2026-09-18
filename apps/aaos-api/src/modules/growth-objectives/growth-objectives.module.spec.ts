@@ -10,6 +10,7 @@ import { GrowthObjectivesController } from "./growth-objectives.controller.js";
 import { GrowthObjectivesModule } from "./growth-objectives.module.js";
 import { GrowthObjectivesService } from "./growth-objectives.service.js";
 import { GrowthMetricsRepository } from "./infrastructure/growth-metrics.repository.js";
+import { GrowthObjectiveCampaignsRepository } from "./infrastructure/growth-objective-campaigns.repository.js";
 import { GrowthObjectiveRepository } from "./infrastructure/growth-objective.repository.js";
 
 describe("GrowthObjectivesModule", () => {
@@ -23,11 +24,11 @@ describe("GrowthObjectivesModule", () => {
     expect(metadata).toEqual([GrowthObjectivesController]);
   });
 
-  it("registers GrowthObjectivesService, ApiKeyGuard, and GrowthObjectiveRepository/GrowthMetricsRepository factories as providers", () => {
+  it("registers GrowthObjectivesService, ApiKeyGuard, and GrowthObjectiveRepository/GrowthMetricsRepository/GrowthObjectiveCampaignsRepository factories as providers", () => {
     const metadata = Reflect.getMetadata("providers", GrowthObjectivesModule) as Array<
       { provide?: unknown } | unknown
     >;
-    expect(metadata).toHaveLength(4);
+    expect(metadata).toHaveLength(5);
     expect(metadata).toContain(GrowthObjectivesService);
     expect(metadata).toContain(ApiKeyGuard);
     const repoProvider = metadata.find(
@@ -46,6 +47,14 @@ describe("GrowthObjectivesModule", () => {
         p.provide === GrowthMetricsRepository,
     );
     expect(metricsRepoProvider).toBeDefined();
+    const campaignsRepoProvider = metadata.find(
+      (p) =>
+        typeof p === "object" &&
+        p !== null &&
+        "provide" in p &&
+        p.provide === GrowthObjectiveCampaignsRepository,
+    );
+    expect(campaignsRepoProvider).toBeDefined();
   });
 
   it("exports GrowthObjectivesService", () => {

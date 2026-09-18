@@ -10,6 +10,7 @@ import type { MetricSnapshotService } from "../metric-snapshot/metric-snapshot.s
 import type { CreateGrowthObjectiveBodyDto } from "./dto/growth-objective.dto.js";
 import { GrowthObjectivesService } from "./growth-objectives.service.js";
 import type { GrowthMetricsRepository } from "./infrastructure/growth-metrics.repository.js";
+import type { GrowthObjectiveCampaignsRepository } from "./infrastructure/growth-objective-campaigns.repository.js";
 import type {
   GrowthObjectiveRepository,
   GrowthObjectiveRow,
@@ -114,11 +115,24 @@ function makeAccountSnapshot(overrides: Partial<MetricSnapshotDto> = {}): Metric
 
 function makeMetricSnapshotService(
   snapshot: MetricSnapshotDto = makeAccountSnapshot(),
+  overrides: Partial<MetricSnapshotService> = {},
 ): MetricSnapshotService {
   return {
     getAccountSnapshot: vi.fn(async () => snapshot),
     getCampaignSnapshot: vi.fn(async () => snapshot),
+    getCampaignSpendForRange: vi.fn(async () => ({ spend: 0, rowCount: 0 })),
+    getAccountSpendForRange: vi.fn(async () => ({ spend: 0, rowCount: 0 })),
+    ...overrides,
   } as unknown as MetricSnapshotService;
+}
+
+function makeGrowthObjectiveCampaignsRepository(
+  overrides: Partial<GrowthObjectiveCampaignsRepository> = {},
+): GrowthObjectiveCampaignsRepository {
+  return {
+    findCampaignIdsForListings: vi.fn(async () => []),
+    ...overrides,
+  } as unknown as GrowthObjectiveCampaignsRepository;
 }
 
 describe("GrowthObjectivesService", () => {
@@ -126,6 +140,7 @@ describe("GrowthObjectivesService", () => {
   let growthMetricsRepository: GrowthMetricsRepository;
   let hotLeadDefinitions: HotLeadDefinitionsService;
   let metricSnapshots: MetricSnapshotService;
+  let growthObjectiveCampaigns: GrowthObjectiveCampaignsRepository;
   let service: GrowthObjectivesService;
 
   beforeEach(() => {
@@ -133,11 +148,13 @@ describe("GrowthObjectivesService", () => {
     growthMetricsRepository = makeGrowthMetricsRepository();
     hotLeadDefinitions = makeHotLeadDefinitionsService();
     metricSnapshots = makeMetricSnapshotService();
+    growthObjectiveCampaigns = makeGrowthObjectiveCampaignsRepository();
     service = new GrowthObjectivesService(
       repository,
       growthMetricsRepository,
       hotLeadDefinitions,
       metricSnapshots,
+      growthObjectiveCampaigns,
     );
   });
 
@@ -251,6 +268,7 @@ describe("GrowthObjectivesService", () => {
         growthMetricsRepository,
         hotLeadDefinitions,
         metricSnapshots,
+        growthObjectiveCampaigns,
       );
 
       const dto = await service.analyze(TENANT, "obj-1");
@@ -289,6 +307,7 @@ describe("GrowthObjectivesService", () => {
         growthMetricsRepository,
         hotLeadDefinitions,
         metricSnapshots,
+        growthObjectiveCampaigns,
       );
       await expect(service.analyze(TENANT, "obj-1")).rejects.toThrow(ValidationError);
       expect(repository.update).not.toHaveBeenCalled();
@@ -339,6 +358,7 @@ describe("GrowthObjectivesService", () => {
         growthMetricsRepository,
         hotLeadDefinitions,
         metricSnapshots,
+        growthObjectiveCampaigns,
       );
 
       const dto = await service.analyze(TENANT, "obj-1");
@@ -346,6 +366,140 @@ describe("GrowthObjectivesService", () => {
       const forecast = dto.forecast!;
       expect(forecast.reverseFunnel.confidence).toBe(0);
       expect(forecast.feasibility.status).toBe("INSUFFICIENT_DATA");
+    });
+  });
+
+  describe("pacing()", () => {
+    it("throws NotFoundError for a missing objective", async () => {
+      repository.findById = vi.fn(async () => undefined);
+      await expect(service.pacing(TENANT, "missing")).rejects.toThrow(NotFoundError);
+    });
+
+    it("ACCOUNT_WIDE: empty focus_listing_ids reads real account-wide spend, spendDataAvailable true", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({ focus_listing_ids: [], max_budget_idr: 10_000_000 }),
+      );
+      metricSnapshots = makeMetricSnapshotService(undefined, {
+        getAccountSpendForRange: vi.fn(async () => ({ spend: 1_500_000, rowCount: 5 })),
+      });
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+
+      const dto = await service.pacing(TENANT, "obj-1");
+
+      expect(metricSnapshots.getAccountSpendForRange).toHaveBeenCalledWith(
+        TENANT,
+        expect.objectContaining({ start: "2026-01-01" }),
+      );
+      expect(growthObjectiveCampaigns.findCampaignIdsForListings).not.toHaveBeenCalled();
+      expect(dto.objectiveId).toBe("obj-1");
+      expect(dto.spendSource).toBe("ACCOUNT_WIDE");
+      expect(dto.pacing.actualSpendIdr).toBe(1_500_000);
+      expect(dto.pacing.status).not.toBe("UNKNOWN");
+    });
+
+    it("MATCHED_CAMPAIGNS: non-empty focus_listing_ids sums real spend across every matched campaign", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({ focus_listing_ids: ["listing-a", "listing-b"], max_budget_idr: 10_000_000 }),
+      );
+      growthObjectiveCampaigns = makeGrowthObjectiveCampaignsRepository({
+        findCampaignIdsForListings: vi.fn(async () => ["meta-1", "meta-2"]),
+      });
+      const spendByCampaign: Record<string, number> = { "meta-1": 400_000, "meta-2": 600_000 };
+      metricSnapshots = makeMetricSnapshotService(undefined, {
+        getCampaignSpendForRange: vi.fn(async (_tenantId: string, campaignId: string) => ({
+          spend: spendByCampaign[campaignId],
+          rowCount: 3,
+        })),
+      });
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+
+      const dto = await service.pacing(TENANT, "obj-1");
+
+      expect(growthObjectiveCampaigns.findCampaignIdsForListings).toHaveBeenCalledWith(TENANT, [
+        "listing-a",
+        "listing-b",
+      ]);
+      expect(metricSnapshots.getCampaignSpendForRange).toHaveBeenCalledTimes(2);
+      expect(dto.spendSource).toBe("MATCHED_CAMPAIGNS");
+      expect(dto.pacing.actualSpendIdr).toBe(1_000_000);
+      expect(dto.pacing.status).not.toBe("UNKNOWN");
+    });
+
+    it("MATCHED_CAMPAIGNS: zero matched campaigns -> honest spendDataAvailable:false (UNKNOWN), never a silent account-wide fallback", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({ focus_listing_ids: ["listing-a"], max_budget_idr: 10_000_000 }),
+      );
+      growthObjectiveCampaigns = makeGrowthObjectiveCampaignsRepository({
+        findCampaignIdsForListings: vi.fn(async () => []),
+      });
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+
+      const dto = await service.pacing(TENANT, "obj-1");
+
+      expect(metricSnapshots.getCampaignSpendForRange).not.toHaveBeenCalled();
+      expect(metricSnapshots.getAccountSpendForRange).not.toHaveBeenCalled();
+      expect(dto.spendSource).toBe("MATCHED_CAMPAIGNS");
+      expect(dto.pacing.status).toBe("UNKNOWN");
+      expect(dto.pacing.actualSpendIdr).toBe(0);
+    });
+
+    it("MATCHED_CAMPAIGNS: matched campaigns exist but every one has zero synced insight rows -> UNKNOWN", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({ focus_listing_ids: ["listing-a"], max_budget_idr: 10_000_000 }),
+      );
+      growthObjectiveCampaigns = makeGrowthObjectiveCampaignsRepository({
+        findCampaignIdsForListings: vi.fn(async () => ["meta-1"]),
+      });
+      metricSnapshots = makeMetricSnapshotService(undefined, {
+        getCampaignSpendForRange: vi.fn(async () => ({ spend: 0, rowCount: 0 })),
+      });
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+
+      const dto = await service.pacing(TENANT, "obj-1");
+      expect(dto.pacing.status).toBe("UNKNOWN");
+    });
+
+    it("GOAL_FIRST with no max_budget_idr -> UNKNOWN regardless of real spend", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({ focus_listing_ids: [], max_budget_idr: null }),
+      );
+      metricSnapshots = makeMetricSnapshotService(undefined, {
+        getAccountSpendForRange: vi.fn(async () => ({ spend: 999_999, rowCount: 3 })),
+      });
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+
+      const dto = await service.pacing(TENANT, "obj-1");
+      expect(dto.pacing.status).toBe("UNKNOWN");
     });
   });
 });

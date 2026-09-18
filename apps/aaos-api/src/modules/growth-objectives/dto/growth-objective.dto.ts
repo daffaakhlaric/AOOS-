@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { FeasibilityResult } from "../domain/feasibility.js";
+import type { PacingResult } from "../domain/pacing.js";
 import type { ReverseFunnelResult } from "../domain/reverse-funnel.js";
 
 /**
@@ -89,6 +90,20 @@ export interface GrowthObjectiveResponseDto {
 
 export interface GrowthObjectiveListResponseDto {
   readonly objectives: readonly GrowthObjectiveResponseDto[];
+}
+
+/**
+ * `GET /api/v1/growth-objectives/:id/pacing` response (EYVRA — SAMANTHA V2 Phase 7). `spendSource`
+ * makes honestly visible WHICH real spend this `pacing` was computed from — `"MATCHED_CAMPAIGNS"`
+ * when the objective's own `focusListingIds` resolved to real synced `meta_campaigns`, or
+ * `"ACCOUNT_WIDE"` when there were no focus listings to match against (an `areaStrategy:
+ * "SAMANTHA"` objective) and the coarser, unscoped account total was used instead — never silently
+ * conflated. See `GrowthObjectivesService.pacing`'s own doc for the real fallback rule.
+ */
+export interface PacingResponseDto {
+  readonly objectiveId: string;
+  readonly pacing: PacingResult;
+  readonly spendSource: "MATCHED_CAMPAIGNS" | "ACCOUNT_WIDE";
 }
 
 /** Row shape this mapper accepts — kept structurally compatible with `GrowthObjectiveRow` (avoids a direct infra-layer import into `dto/`, same layering `listing.dto.ts` keeps from `listing.repository.ts`). */

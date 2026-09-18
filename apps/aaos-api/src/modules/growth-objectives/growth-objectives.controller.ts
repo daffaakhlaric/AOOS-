@@ -9,11 +9,13 @@ import {
   type CreateGrowthObjectiveBodyDto,
   type GrowthObjectiveListResponseDto,
   type GrowthObjectiveResponseDto,
+  type PacingResponseDto,
 } from "./dto/growth-objective.dto.js";
 import { GrowthObjectivesService } from "./growth-objectives.service.js";
 
 /**
- * `GET/POST /api/v1/growth-objectives`, `GET /:id`, `POST /:id/activate`, `POST /:id/analyze` —
+ * `GET/POST /api/v1/growth-objectives`, `GET /:id`, `POST /:id/activate`, `POST /:id/analyze`,
+ * `GET /:id/pacing` —
  * `x-api-key` auth (same perimeter as every other `aaos-api` module), tenant-scoped via `@TenantId()`.
  *
  * `/replan` (a dedicated re-analysis trigger distinct from `/analyze`) and a standalone `/forecast`
@@ -64,5 +66,10 @@ export class GrowthObjectivesController {
     @Param("id") id: string,
   ): Promise<GrowthObjectiveResponseDto> {
     return this.service.analyze(tenantId, id);
+  }
+
+  @Get(":id/pacing")
+  async pacing(@TenantId() tenantId: string, @Param("id") id: string): Promise<PacingResponseDto> {
+    return this.service.pacing(tenantId, id);
   }
 }

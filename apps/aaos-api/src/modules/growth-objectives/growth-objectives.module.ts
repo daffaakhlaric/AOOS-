@@ -9,6 +9,7 @@ import { MetricSnapshotModule } from "../metric-snapshot/metric-snapshot.module.
 import { GrowthObjectivesController } from "./growth-objectives.controller.js";
 import { GrowthObjectivesService } from "./growth-objectives.service.js";
 import { GrowthMetricsRepository } from "./infrastructure/growth-metrics.repository.js";
+import { GrowthObjectiveCampaignsRepository } from "./infrastructure/growth-objective-campaigns.repository.js";
 import { GrowthObjectiveRepository } from "./infrastructure/growth-objective.repository.js";
 
 /**
@@ -22,6 +23,11 @@ import { GrowthObjectiveRepository } from "./infrastructure/growth-objective.rep
  * Checked for circularity before wiring: neither `hot-lead-definitions` nor `metric-snapshot`
  * imports anything from `growth-objectives` anywhere in their own module/service/controller files —
  * both are safe, one-directional dependencies.
+ *
+ * Phase 7's `pacing()` reuses the SAME already-imported `MetricSnapshotModule` (its two new
+ * `getCampaignSpendForRange`/`getAccountSpendForRange` methods, no new module import needed) plus a
+ * new `GrowthObjectiveCampaignsRepository`, wired via `useFactory` over the same shared
+ * `SUPABASE_CLIENT`, same pattern as `GrowthMetricsRepository` right above it.
  */
 @Module({
   imports: [HotLeadDefinitionsModule, MetricSnapshotModule],
@@ -39,6 +45,12 @@ import { GrowthObjectiveRepository } from "./infrastructure/growth-objective.rep
       provide: GrowthMetricsRepository,
       useFactory: (client: SupabaseClientLike): GrowthMetricsRepository =>
         new GrowthMetricsRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: GrowthObjectiveCampaignsRepository,
+      useFactory: (client: SupabaseClientLike): GrowthObjectiveCampaignsRepository =>
+        new GrowthObjectiveCampaignsRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

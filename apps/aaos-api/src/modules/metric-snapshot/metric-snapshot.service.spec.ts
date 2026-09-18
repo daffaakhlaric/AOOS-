@@ -143,4 +143,58 @@ describe("MetricSnapshotService", () => {
       expect(snapshot.cpl).toBeCloseTo(50_000, 10);
     });
   });
+
+  describe("getCampaignSpendForRange", () => {
+    it("passes the given custom range straight through to the repository", async () => {
+      const repository = buildFakeRepository();
+      const service = new MetricSnapshotService(repository);
+      const range = { start: "2026-01-01", end: "2026-01-15" };
+      await service.getCampaignSpendForRange(TENANT, META_CAMPAIGN_ID, range);
+      expect(repository.getCampaignInsightRows).toHaveBeenCalledWith(
+        TENANT,
+        META_CAMPAIGN_ID,
+        range,
+      );
+    });
+
+    it("sums real spend across the returned rows and reports the real row count", async () => {
+      const repository = buildFakeRepository([row({ spend: 50_000 }), row({ spend: 75_000 })]);
+      const service = new MetricSnapshotService(repository);
+      const result = await service.getCampaignSpendForRange(TENANT, META_CAMPAIGN_ID, {
+        start: "2026-01-01",
+        end: "2026-01-15",
+      });
+      expect(result).toEqual({ spend: 125_000, rowCount: 2 });
+    });
+
+    it("reports rowCount 0 (never fabricated spend) when the campaign has no synced rows in range", async () => {
+      const repository = buildFakeRepository([]);
+      const service = new MetricSnapshotService(repository);
+      const result = await service.getCampaignSpendForRange(TENANT, META_CAMPAIGN_ID, {
+        start: "2026-01-01",
+        end: "2026-01-15",
+      });
+      expect(result).toEqual({ spend: 0, rowCount: 0 });
+    });
+  });
+
+  describe("getAccountSpendForRange", () => {
+    it("passes the given custom range straight through to the repository", async () => {
+      const repository = buildFakeRepository();
+      const service = new MetricSnapshotService(repository);
+      const range = { start: "2026-01-01", end: "2026-01-15" };
+      await service.getAccountSpendForRange(TENANT, range);
+      expect(repository.getAccountInsightRows).toHaveBeenCalledWith(TENANT, range);
+    });
+
+    it("sums real account-wide spend across the returned rows", async () => {
+      const repository = buildFakeRepository([], [row({ spend: 40_000 }), row({ spend: 10_000 })]);
+      const service = new MetricSnapshotService(repository);
+      const result = await service.getAccountSpendForRange(TENANT, {
+        start: "2026-01-01",
+        end: "2026-01-15",
+      });
+      expect(result).toEqual({ spend: 50_000, rowCount: 2 });
+    });
+  });
 });

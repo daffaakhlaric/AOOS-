@@ -7,6 +7,7 @@ import { resolveBenchmark } from "../metric-snapshot/domain/benchmark.js";
 import { MetricSnapshotService } from "../metric-snapshot/metric-snapshot.service.js";
 
 import { assessFeasibility } from "./domain/feasibility.js";
+import { computeBudgetPacing } from "./domain/pacing.js";
 import { computeReverseFunnel } from "./domain/reverse-funnel.js";
 import {
   toGrowthObjectiveResponseDto,
@@ -14,8 +15,10 @@ import {
   type GrowthObjectiveForecastDto,
   type GrowthObjectiveListResponseDto,
   type GrowthObjectiveResponseDto,
+  type PacingResponseDto,
 } from "./dto/growth-objective.dto.js";
 import { GrowthMetricsRepository } from "./infrastructure/growth-metrics.repository.js";
+import { GrowthObjectiveCampaignsRepository } from "./infrastructure/growth-objective-campaigns.repository.js";
 import type {
   GrowthObjectiveInsert,
   GrowthObjectiveRow,
@@ -52,6 +55,7 @@ export class GrowthObjectivesService {
     private readonly growthMetricsRepository: GrowthMetricsRepository,
     private readonly hotLeadDefinitions: HotLeadDefinitionsService,
     private readonly metricSnapshots: MetricSnapshotService,
+    private readonly growthObjectiveCampaigns: GrowthObjectiveCampaignsRepository,
   ) {}
 
   async create(
@@ -200,5 +204,75 @@ export class GrowthObjectivesService {
       updated_at: now.toISOString(),
     });
     return toGrowthObjectiveResponseDto(updated);
+  }
+
+  /**
+   * `GET /api/v1/growth-objectives/:id/pacing`. Real budget-pacing read-model — does NOT persist
+   * anything (unlike `analyze()`, which mutates `status`/`forecast`); a pure, real-time computation
+   * over the objective's own `[start_date, end_date]` window vs its own real, already-spent budget
+   * from `start_date` through today.
+   *
+   * Real spend source, in priority order:
+   *  1. `row.focus_listing_ids` non-empty -> resolve real matched `meta_campaign_id`s via
+   *     `GrowthObjectiveCampaignsRepository` (the real Campaign->Listing Mapping,
+   *     `053_meta_campaigns_listing_id.sql`), then sum real spend across every matched campaign for
+   *     `[start_date, today]` via `MetricSnapshotService.getCampaignSpendForRange` (reuses
+   *     `aggregateInsightRows` under the hood — never a parallel aggregation path). Zero matched
+   *     campaigns -> honest `spendDataAvailable: false` (never a silent account-wide fallback); at
+   *     least one matched campaign but zero real synced insight rows across ALL of them (real
+   *     `rowCount` sum of `0`) -> also `spendDataAvailable: false`, same "0 vs UNKNOWN" honesty
+   *     `pacing.ts`'s `PacingInput` doc requires.
+   *  2. `row.focus_listing_ids` empty (tenant chose `areaStrategy: "SAMANTHA"`, no specific focus
+   *     listings) -> real ACCOUNT-WIDE spend for the same range via
+   *     `MetricSnapshotService.getAccountSpendForRange`. This is a real, coarser APPROXIMATION —
+   *     it isolates nothing to this specific objective, it is every campaign on the tenant's whole
+   *     ad account — always `spendDataAvailable: true` here (a real attempt was genuinely made; a
+   *     real account-wide `0` spend is still a real, honest `0`, not an "unavailable" state). The
+   *     response's `spendSource` field makes this distinction caller-visible rather than silently
+   *     conflating a precise, listing-matched read with this coarser one.
+   */
+  async pacing(tenantId: string, id: string): Promise<PacingResponseDto> {
+    const row = await this.requireRow(tenantId, id);
+    const now = new Date();
+    const range = { start: row.start_date, end: now.toISOString().slice(0, 10) };
+
+    let actualSpendIdr = 0;
+    let spendDataAvailable: boolean;
+    const spendSource: "MATCHED_CAMPAIGNS" | "ACCOUNT_WIDE" =
+      row.focus_listing_ids.length > 0 ? "MATCHED_CAMPAIGNS" : "ACCOUNT_WIDE";
+
+    if (spendSource === "MATCHED_CAMPAIGNS") {
+      const matchedCampaignIds = await this.growthObjectiveCampaigns.findCampaignIdsForListings(
+        tenantId,
+        row.focus_listing_ids,
+      );
+      if (matchedCampaignIds.length === 0) {
+        spendDataAvailable = false;
+      } else {
+        const results = await Promise.all(
+          matchedCampaignIds.map((campaignId) =>
+            this.metricSnapshots.getCampaignSpendForRange(tenantId, campaignId, range),
+          ),
+        );
+        actualSpendIdr = results.reduce((sum, result) => sum + result.spend, 0);
+        const totalRowCount = results.reduce((sum, result) => sum + result.rowCount, 0);
+        spendDataAvailable = totalRowCount > 0;
+      }
+    } else {
+      const accountResult = await this.metricSnapshots.getAccountSpendForRange(tenantId, range);
+      actualSpendIdr = accountResult.spend;
+      spendDataAvailable = true;
+    }
+
+    const pacing = computeBudgetPacing({
+      maxBudgetIdr: row.max_budget_idr ?? undefined,
+      startDate: row.start_date,
+      endDate: row.end_date,
+      today: now,
+      actualSpendIdr,
+      spendDataAvailable,
+    });
+
+    return { objectiveId: row.id, pacing, spendSource };
   }
 }
