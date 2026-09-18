@@ -4,6 +4,7 @@ import { CampaignCreationController } from "./campaign-creation.controller.js";
 import type { CampaignCreationService } from "./campaign-creation.service.js";
 import type {
   CampaignBlueprintResponseDto,
+  CampaignCreationResponseDto,
   CampaignPreflightResponseDto,
   ListingReadinessResponseDto,
 } from "./dto/campaign-creation.dto.js";
@@ -21,11 +22,21 @@ const READINESS_SAMPLE: ListingReadinessResponseDto = {
   },
 };
 
+const CREATION_SAMPLE: CampaignCreationResponseDto = {
+  growthObjectiveId: "objective-1",
+  listingId: "listing-1",
+  status: "CREATED",
+  message: "ok",
+  metaCampaignId: "campaign-1",
+  metaAdSetId: "adset-1",
+};
+
 function buildFakeService(): CampaignCreationService {
   return {
     getListingReadiness: vi.fn(async () => READINESS_SAMPLE),
     getBlueprint: vi.fn(async () => ({}) as CampaignBlueprintResponseDto),
     getPreflight: vi.fn(async () => ({}) as CampaignPreflightResponseDto),
+    createCampaign: vi.fn(async () => CREATION_SAMPLE),
   } as unknown as CampaignCreationService;
 }
 
@@ -50,5 +61,18 @@ describe("CampaignCreationController", () => {
     const controller = new CampaignCreationController(service);
     await controller.preflight(TENANT, "objective-1", "listing-1");
     expect(service.getPreflight).toHaveBeenCalledWith(TENANT, "objective-1", "listing-1");
+  });
+
+  it("create() delegates to service.createCampaign with a generated correlationId", async () => {
+    const service = buildFakeService();
+    const controller = new CampaignCreationController(service);
+    const result = await controller.create(TENANT, "objective-1", "listing-1");
+    expect(service.createCampaign).toHaveBeenCalledWith(
+      TENANT,
+      "objective-1",
+      "listing-1",
+      expect.any(String),
+    );
+    expect(result).toBe(CREATION_SAMPLE);
   });
 });

@@ -2,18 +2,26 @@ import "reflect-metadata";
 
 import { describe, expect, it } from "vitest";
 
+import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { GrowthObjectivesModule } from "../growth-objectives/growth-objectives.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
 import { CampaignCreationController } from "./campaign-creation.controller.js";
 import { CampaignCreationModule } from "./campaign-creation.module.js";
 import { CampaignCreationService } from "./campaign-creation.service.js";
+import { CampaignCreationRepository } from "./infrastructure/campaign-creation.repository.js";
 
 describe("CampaignCreationModule", () => {
-  it("imports ListingsModule and GrowthObjectivesModule to reuse their exported services", () => {
+  it("imports ListingsModule, GrowthObjectivesModule, ModeGuardModule, and ActivityLogModule", () => {
     const metadata = Reflect.getMetadata("imports", CampaignCreationModule) as unknown[];
-    expect(metadata).toEqual([ListingsModule, GrowthObjectivesModule]);
+    expect(metadata).toEqual([
+      ListingsModule,
+      GrowthObjectivesModule,
+      ModeGuardModule,
+      ActivityLogModule,
+    ]);
   });
 
   it("registers CampaignCreationController as its controller", () => {
@@ -21,9 +29,14 @@ describe("CampaignCreationModule", () => {
     expect(metadata).toEqual([CampaignCreationController]);
   });
 
-  it("registers CampaignCreationService and ApiKeyGuard as providers", () => {
-    const metadata = Reflect.getMetadata("providers", CampaignCreationModule) as unknown[];
-    expect(metadata).toEqual([CampaignCreationService, ApiKeyGuard]);
+  it("registers CampaignCreationService, ApiKeyGuard, and a CampaignCreationRepository provider", () => {
+    const metadata = Reflect.getMetadata("providers", CampaignCreationModule) as ReadonlyArray<
+      unknown | { readonly provide: unknown }
+    >;
+    expect(metadata).toHaveLength(3);
+    expect(metadata[0]).toBe(CampaignCreationService);
+    expect(metadata[1]).toBe(ApiKeyGuard);
+    expect((metadata[2] as { readonly provide: unknown }).provide).toBe(CampaignCreationRepository);
   });
 
   it("exports CampaignCreationService", () => {

@@ -1,4 +1,6 @@
-import { Controller, Get, Param, UseGuards } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+
+import { Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 
 import { TenantId } from "../../common/tenant-context.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
@@ -6,17 +8,21 @@ import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { CampaignCreationService } from "./campaign-creation.service.js";
 import type {
   CampaignBlueprintResponseDto,
+  CampaignCreationResponseDto,
   CampaignPreflightResponseDto,
   ListingReadinessResponseDto,
 } from "./dto/campaign-creation.dto.js";
 
 /**
- * `GET /api/v1/campaign-creation/...` — EYVRA SAMANTHA V2 Phase 25 (PROMPT 32/33/35). `x-api-key`
- * auth (same perimeter as every other `aaos-api` module), tenant-scoped via `@TenantId()`.
+ * `/api/v1/campaign-creation/...` — EYVRA SAMANTHA V2 Phase 25 (PROMPT 32/33/35) + Phase 26
+ * (PROMPT 36/37). `x-api-key` auth (same perimeter as every other `aaos-api` module),
+ * tenant-scoped via `@TenantId()`.
  *
- * All three routes are read-only planning/assessment — 100% GET, zero mutation, zero Meta API call.
- * PROMPT 36 (Safe Campaign Creation, the real Meta mutation) is explicitly out of scope for this
- * phase and would be its own `POST` route in a future, separately-reviewed phase.
+ * The three `GET` routes are read-only planning/assessment — zero mutation, zero Meta API call.
+ * `POST .../create` (Phase 26) is the first real Meta-mutating route in this module — see
+ * `CampaignCreationService.createCampaign`'s own doc for the full safety discipline. Deliberately
+ * API-surface-only this phase: no frontend trigger exists yet anywhere in this codebase for this
+ * route (out of scope — see this phase's own instructions).
  */
 @Controller("api/v1/campaign-creation")
 @UseGuards(ApiKeyGuard)
@@ -47,5 +53,22 @@ export class CampaignCreationController {
     @Param("listingId") listingId: string,
   ): Promise<CampaignPreflightResponseDto> {
     return this.service.getPreflight(tenantId, growthObjectiveId, listingId);
+  }
+
+  /**
+   * `POST /api/v1/campaign-creation/growth-objectives/:growthObjectiveId/listings/:listingId/create`
+   * — Phase 26 (PROMPT 36/37). Real Meta mutation, PAUSED-first, idempotent — see
+   * `CampaignCreationService.createCampaign`'s own doc. `correlationId` is generated per-request
+   * here (no request body/header carries one yet on this route — same "generate one at the
+   * controller boundary when none is supplied" fallback `GoLiveController`'s own real call sites
+   * use for logging/tracing).
+   */
+  @Post("growth-objectives/:growthObjectiveId/listings/:listingId/create")
+  async create(
+    @TenantId() tenantId: string,
+    @Param("growthObjectiveId") growthObjectiveId: string,
+    @Param("listingId") listingId: string,
+  ): Promise<CampaignCreationResponseDto> {
+    return this.service.createCampaign(tenantId, growthObjectiveId, listingId, randomUUID());
   }
 }

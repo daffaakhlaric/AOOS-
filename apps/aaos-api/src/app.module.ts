@@ -509,8 +509,10 @@ export class AppModule {
         // campaign-creation/domain/campaign-blueprint.ts's own doc). Imports ListingsModule/
         // GrowthObjectivesModule to reuse their exported ListingsService/GrowthObjectivesService,
         // same "reuse the real service, never a parallel repository" pattern CampaignHealthModule/
-        // OpportunitiesModule already establish above. PROMPT 36 (the real Meta-mutating campaign
-        // creation) is explicitly out of scope for this phase.
+        // OpportunitiesModule already establish above.
+        // Phase 26 (PROMPT 36 -- Safe Campaign Creation, PROMPT 37 -- Idempotency) extends this same
+        // module with the first REAL Meta-mutating route (`POST .../create`) -- PAUSED-first,
+        // idempotent, ModeGuard-gated -- see campaign-creation.service.ts's own header doc.
         CampaignCreationModule,
       ],
       providers: [
