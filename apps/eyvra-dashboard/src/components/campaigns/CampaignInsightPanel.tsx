@@ -13,6 +13,7 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { formatIdr, formatNumber, formatPercent } from "@/lib/formatters";
 import type { AndromedaHealthDto } from "@/types/andromeda-health.types";
+import type { CampaignHealthResponseDto } from "@/types/campaign-health.types";
 import type {
   CampaignHistoryPointDto,
   CampaignInsightBudgetRecommendation,
@@ -161,6 +162,10 @@ function deltaFrom(
  * `andromeda-health` endpoint `AndromedaHealthCard` uses — reused, never re-scored), and
  * `hotLeadsCount` (best-effort fetch of `/api/leads`, grouped by the real `LeadDto.campaignId`
  * field, the same real attribution `ObjectiveStripCard.tsx`'s own breakdown uses).
+ *
+ * EYVRA — SAMANTHA V2 Phase 12 adds `samanthaDiagnosis`: a real, best-effort fetch of the new
+ * `GET /api/campaign-health/:campaignId` proxy (Phase 3/4's deterministic `CampaignDiagnosis`/
+ * `SamanthaDecision`, computed without any LLM call), keyed on `campaign.metaId`.
  */
 export function CampaignInsightPanel({
   campaign,
@@ -176,6 +181,9 @@ export function CampaignInsightPanel({
   const [history, setHistory] = useState<readonly CampaignHistoryPointDto[] | undefined>(undefined);
   const [andromedaHealth, setAndromedaHealth] = useState<AndromedaHealthDto | undefined>(undefined);
   const [hotLeadsCount, setHotLeadsCount] = useState<number | undefined>(undefined);
+  const [campaignHealth, setCampaignHealth] = useState<CampaignHealthResponseDto | undefined>(
+    undefined,
+  );
 
   // SAMANTHA META ADS SETTINGS + CREATIVE COPY — deliberately lazy: only fetched once the manager
   // actually expands this section (real cost concern — a second, larger LLM call per campaign
@@ -237,6 +245,23 @@ export function CampaignInsightPanel({
         freqTrend7d: history?.map((point) => point.frequency),
         andromedaDiversity: andromedaHealth?.diversity,
         hotLeadsCount,
+        // EYVRA — SAMANTHA V2 Phase 12. Maps the real, best-effort `campaign-health` fetch below into
+        // `SamanthaDiagnosisContextSchema`'s exact shape. `evidenceReasoning` deliberately sources from
+        // `diagnosis.contributingFactors` (not `diagnosis.evidence[].reasoning`) — the schema's own doc
+        // comment on `aaos-api`'s `campaign-insight.dto.ts` states `evidenceReasoning` "Mirrors
+        // `CampaignDiagnosis.contributingFactors`" explicitly, so this stays the honest, documented
+        // source rather than a richer-looking but undocumented alternative.
+        samanthaDiagnosis:
+          campaignHealth === undefined
+            ? undefined
+            : {
+                rootCause: campaignHealth.diagnosis.rootCause ?? null,
+                confidence: campaignHealth.diagnosis.confidence,
+                impact: campaignHealth.diagnosis.impact,
+                evidenceReasoning: campaignHealth.diagnosis.contributingFactors,
+                recommendedAction: campaignHealth.decision.decision,
+                recommendedActionReason: campaignHealth.decision.reason,
+              },
       }),
     })
       .then(async (res) => {
@@ -266,9 +291,9 @@ export function CampaignInsightPanel({
       cancelled = true;
     };
     // Re-fetch only when the selected campaign genuinely changes — every other value used above
-    // (`marketDigest`/`history`/`andromedaHealth`/`hotLeadsCount`) is deliberately NOT a dependency:
-    // this uses whichever value each best-effort fetch holds right now, never re-triggering a
-    // second campaign-insight call when one of them resolves later.
+    // (`marketDigest`/`history`/`andromedaHealth`/`hotLeadsCount`/`campaignHealth`) is deliberately
+    // NOT a dependency: this uses whichever value each best-effort fetch holds right now, never
+    // re-triggering a second campaign-insight call when one of them resolves later.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign.id]);
 
@@ -366,6 +391,30 @@ export function CampaignInsightPanel({
       cancelled = true;
     };
   }, [campaign.id]);
+
+  // EYVRA — SAMANTHA V2 Phase 12. Real, best-effort fetch of the new `campaign-health` endpoint
+  // (Phase 3/4's deterministic `CampaignDiagnosis`/`SamanthaDecision`, computed without any LLM
+  // call) to feed Samantha's narrative prompt a real, grounded evidence base — never a second
+  // scoring mechanism. Keyed on `campaign.metaId` (same real, stable Meta campaign id `history`'s
+  // own effect above uses), NOT `campaign.id` — the real backend endpoint takes `meta_campaign_id`,
+  // unlike `andromeda-health`/`hotLeadsCount` which key on the internal `campaign.id`.
+  useEffect(() => {
+    let cancelled = false;
+    setCampaignHealth(undefined);
+    fetch(`/api/campaign-health/${encodeURIComponent(campaign.metaId)}`)
+      .then((res) => (res.ok ? (res.json() as Promise<CampaignHealthResponseDto>) : undefined))
+      .then((body) => {
+        if (!cancelled) {
+          setCampaignHealth(body);
+        }
+      })
+      .catch(() => {
+        // Best-effort only — `samanthaDiagnosis` just stays absent from the Samantha request.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign.metaId]);
 
   // Collapse the settings section and drop any stale recommendation whenever the selected
   // campaign changes — never show a PREVIOUS campaign's settings/copy under a NEW campaign's

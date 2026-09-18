@@ -869,6 +869,136 @@ describe("CampaignInsightPanel", () => {
     await waitFor(() => expect(screen.getByTestId("insight-verdict-oneliner")).toBeInTheDocument());
   });
 
+  // EYVRA — SAMANTHA V2 Phase 12 — real, best-effort `campaign-health` fetch, keyed by the real,
+  // stable `metaId` (never the internal `id`, since the real backend endpoint takes
+  // `meta_campaign_id`), mapped into `samanthaDiagnosis` on the /api/campaign-insight request body.
+  it("fires the real, best-effort campaign-health fetch by campaign.metaId, and maps whatever it resolves into samanthaDiagnosis on the next /api/campaign-insight request", async () => {
+    const campaignHealthFixture = {
+      campaignId: "camp-1",
+      health: { overallStatus: "WARNING" },
+      diagnosis: {
+        rootCause: "CTR_DROP",
+        confidence: 0.72,
+        impact: "HIGH",
+        evidence: [{ type: "CTR_DROP", severity: "HIGH", confidence: 0.72, reasoning: "x" }],
+        contributingFactors: ["Faktor pendukung (FREQUENCY_RISE): frequency naik."],
+        recommendedFocus: ["conversion"],
+      },
+      decision: {
+        decision: "REVIEW",
+        confidence: 0.72,
+        impact: "HIGH",
+        reason: "Root cause CTR_DROP terdeteksi.",
+        riskOfDoingNothing: "CPL berpotensi naik.",
+        expectedOutcome: "Review manusia berpotensi menemukan tindakan tepat.",
+        monitoringPlan: { reviewAfterHours: 48, successConditions: [], rollbackConditions: [] },
+      },
+    };
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (url === "/api/campaign-health/camp-1") {
+        return new Response(JSON.stringify(campaignHealthFixture), { status: 200 });
+      }
+      return new Response(JSON.stringify(validInsight()), { status: 200 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { rerender } = render(
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
+    );
+
+    // Real fetch fires by the real, stable metaId — never the internal id.
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) => String(url) === "/api/campaign-health/camp-1"),
+      ).toBe(true),
+    );
+    // Give the best-effort fetch's own microtask a chance to resolve and set `campaignHealth`
+    // before asserting on it — same "whichever value it holds right now" discipline the panel's
+    // own campaignInsight effect doc already documents for its sibling best-effort fields.
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === "/api/campaign-health/camp-1").length,
+      ).toBe(1),
+    );
+
+    // Re-fetching /api/campaign-insight only happens when `campaign.id` genuinely changes (see the
+    // panel's own dependency-array doc) — simulate that real re-selection trigger here, keeping the
+    // same real `metaId` so `campaignHealth` (already resolved above) is reused, not refetched.
+    rerender(
+      <CampaignInsightPanel
+        campaign={{ ...CAMPAIGN, id: "camp-1-refresh" }}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      const insightCalls = fetchMock.mock.calls.filter(
+        ([calledUrl]) => calledUrl === "/api/campaign-insight",
+      );
+      expect(insightCalls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    const insightCall = fetchMock.mock.calls
+      .filter(([calledUrl]) => calledUrl === "/api/campaign-insight")
+      .pop()!;
+    const body = JSON.parse(insightCall[1]!.body as string) as {
+      samanthaDiagnosis?: {
+        rootCause: string | null;
+        confidence: number;
+        impact: string;
+        evidenceReasoning: string[];
+        recommendedAction: string;
+        recommendedActionReason: string;
+      };
+    };
+    expect(body.samanthaDiagnosis).toEqual({
+      rootCause: "CTR_DROP",
+      confidence: 0.72,
+      impact: "HIGH",
+      evidenceReasoning: ["Faktor pendukung (FREQUENCY_RISE): frequency naik."],
+      recommendedAction: "REVIEW",
+      recommendedActionReason: "Root cause CTR_DROP terdeteksi.",
+    });
+    // Same real metaId -> campaignHealth is reused from state, never refetched a second time.
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url === "/api/campaign-health/camp-1").length,
+    ).toBe(1);
+  });
+
+  it("omits samanthaDiagnosis from the /api/campaign-insight request when the best-effort campaign-health fetch fails", async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (url === "/api/campaign-health/camp-1") {
+        return new Response(JSON.stringify({ error: "boom" }), { status: 500 });
+      }
+      return new Response(JSON.stringify(validInsight()), { status: 200 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <CampaignInsightPanel
+        campaign={CAMPAIGN}
+        benchmarkCplIDR={150_000}
+        benchmarkCtr={0.025}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("insight-verdict-oneliner")).toBeInTheDocument());
+
+    const insightCall = fetchMock.mock.calls
+      .filter(([calledUrl]) => calledUrl === "/api/campaign-insight")
+      .pop()!;
+    const body = JSON.parse(insightCall[1]!.body as string) as Record<string, unknown>;
+    expect(body["samanthaDiagnosis"]).toBeUndefined();
+  });
+
   // SAMANTHA META ADS SETTINGS + CREATIVE COPY — lazy-loaded accordion: only fetched once
   // expanded, never on mount alongside the diagnosis panel's own fetch.
   describe("settings recommendation accordion", () => {
