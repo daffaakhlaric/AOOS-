@@ -11,12 +11,22 @@ import type {
   HealthStatusDto,
   RootCauseTrendDto,
 } from "@/types/campaign-health.types";
+import type { DiverseCreativeBriefSetResultDto } from "@/types/andromeda-health.types";
 
 import styles from "./CampaignHealthCard.module.css";
 
 export interface CampaignHealthCardProps {
   readonly campaignId: string;
   readonly campaignName: string;
+  /**
+   * The real, tenant-scoped `listings.id` this campaign maps to, when the caller can honestly
+   * resolve one — mirrors `AndromedaHealthCard`'s own `listingId` prop doc EXACTLY:
+   * `creative_packages` (and therefore "Brief Kai Sekarang") is listing-scoped, not
+   * campaign-scoped. `undefined` for a campaign with no real Campaign->Listing Mapping link yet —
+   * the Brief Kai button below is then honestly disabled with an explanation, never hidden or
+   * fabricated as clickable.
+   */
+  readonly listingId?: string;
 }
 
 const DIMENSION_LABELS: Record<
@@ -229,6 +239,13 @@ function TrendSection({
  * (`GET /api/campaign-health/:campaignId`, already existing since Phase 12) — never rendered to
  * the user. This card reuses that exact same existing proxy route, no new backend surface.
  *
+ * Phase 19 — when Samantha's own deterministic `decision.decision` is `REQUEST_KAI_CREATIVE`, this
+ * card's decision section shows a real "Brief Kai Sekarang" button that triggers the EXACT SAME
+ * real `POST /api/creative-packages/diverse-set` action `AndromedaHealthCard.tsx`'s own
+ * `handleBriefKai` does (same body shape, same `briefing`/`briefResult`/`briefError` state
+ * pattern, same honest disabled-when-`listingId===undefined` fallback) — a second, decision-driven
+ * trigger for the same real backend action, not a second creative-brief mechanism.
+ *
  * PLACEMENT: rendered by `CampaignsHubClient` right BEFORE `OpportunitiesCard` — health/diagnosis
  * (what's wrong, why, what Samantha recommends) logically precedes "what opportunities exist" in
  * the narrative, and `OpportunitiesCard`'s own `SCALING_OPPORTUNITY` detector is itself derived
@@ -238,9 +255,20 @@ function TrendSection({
 export function CampaignHealthCard({
   campaignId,
   campaignName,
+  listingId,
 }: CampaignHealthCardProps): React.ReactElement {
   const [data, setData] = useState<CampaignHealthResponseDto | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
+
+  // Phase 19 — the real "Brief Kai Sekarang" action, triggered from Samantha's own
+  // `REQUEST_KAI_CREATIVE` decision (rather than `AndromedaHealthCard`'s diversity-status check).
+  // Same real endpoint/body shape as `AndromedaHealthCard.tsx`'s own `handleBriefKai` — reused
+  // as-is, not a second creative-brief mechanism.
+  const [briefing, setBriefing] = useState(false);
+  const [briefResult, setBriefResult] = useState<DiverseCreativeBriefSetResultDto | undefined>(
+    undefined,
+  );
+  const [briefError, setBriefError] = useState<string | undefined>(undefined);
 
   // Phase 18 — real, independent best-effort fetch of the trend/comparison data (mirrors
   // `CampaignInsightPanel.tsx`'s/`GrowthObjectiveDetailClient.tsx`'s own established
@@ -272,6 +300,8 @@ export function CampaignHealthCard({
     let cancelled = false;
     setData(undefined);
     setError(undefined);
+    setBriefResult(undefined);
+    setBriefError(undefined);
     fetch(`/api/campaign-health/${encodeURIComponent(campaignId)}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -327,6 +357,31 @@ export function CampaignHealthCard({
     } finally {
       setAssessing(false);
     }
+  }
+
+  function handleBriefKai(): void {
+    if (listingId === undefined) return;
+    setBriefing(true);
+    setBriefError(undefined);
+    setBriefResult(undefined);
+    fetch("/api/creative-packages/diverse-set", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ listingId, campaignId, requestedCount: 5 }),
+    })
+      .then(async (res) => {
+        const body = (await res.json()) as
+          DiverseCreativeBriefSetResultDto | { readonly error: { readonly message: string } };
+        if (!res.ok || "error" in body) {
+          throw new Error("error" in body ? body.error.message : "Gagal membuat brief.");
+        }
+        return body;
+      })
+      .then((body) => setBriefResult(body))
+      .catch((caught: unknown) => {
+        setBriefError(caught instanceof Error ? caught.message : "Gagal membuat brief.");
+      })
+      .finally(() => setBriefing(false));
   }
 
   if (error !== undefined) {
@@ -389,6 +444,42 @@ export function CampaignHealthCard({
         <h4 className={styles.subTitle}>Rekomendasi Samantha</h4>
         <p className={styles.decisionAction}>{decisionLabel}</p>
         <p className={styles.decisionReason}>{decision.reason}</p>
+
+        {decision.decision === "REQUEST_KAI_CREATIVE" && briefResult === undefined ? (
+          <>
+            <button
+              type="button"
+              data-testid="decision-brief-kai-button"
+              className={styles.briefButton}
+              disabled={briefing || listingId === undefined}
+              onClick={handleBriefKai}
+            >
+              {briefing ? "Membuat brief..." : "Brief Kai Sekarang"}
+            </button>
+            {listingId === undefined ? (
+              <p className={styles.decisionReason}>
+                Tidak bisa menentukan listing untuk campaign ini secara otomatis — buat brief manual
+                di halaman Listing.
+              </p>
+            ) : null}
+            {briefError !== undefined ? (
+              <p data-testid="decision-brief-error" className={styles.errorBox}>
+                {briefError}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+
+        {decision.decision === "REQUEST_KAI_CREATIVE" && briefResult !== undefined ? (
+          <div data-testid="decision-brief-result" className={styles.successBox}>
+            {briefResult.createdCount > 0
+              ? `${String(briefResult.createdCount)} brief kreatif baru dibuat dan masuk ke antrian review Creative Packages.`
+              : (briefResult.skippedReason ?? "Tidak ada brief baru yang dibuat.")}
+            {briefResult.cappedByDailyLimit
+              ? ` (Diminta ${String(briefResult.requestedCount)}, dibatasi kuota harian ke ${String(briefResult.allowedCount)}.)`
+              : ""}
+          </div>
+        ) : null}
       </div>
 
       <TrendSection trend={trend} />

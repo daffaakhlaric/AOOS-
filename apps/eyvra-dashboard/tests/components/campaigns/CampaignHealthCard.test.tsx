@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CampaignHealthCard } from "@/components/campaigns/CampaignHealthCard";
@@ -370,5 +370,133 @@ describe("CampaignHealthCard", () => {
     await waitFor(() => expect(screen.getByTestId("assess-error")).toBeInTheDocument());
     expect(screen.getByTestId("assess-error")).toHaveTextContent("Gagal merekam assessment.");
     expect(screen.getByTestId("campaign-health-card")).toBeInTheDocument();
+  });
+
+  // Phase 19 — real "Brief Kai Sekarang" action in the decision section, triggered honestly only
+  // by Samantha's own real `REQUEST_KAI_CREATIVE` decision. Mirrors `AndromedaHealthCard.tsx`'s
+  // own `handleBriefKai` exactly (same endpoint/body shape), reused with a different trigger.
+  it("Brief Kai button: renders only when decision.decision is REQUEST_KAI_CREATIVE", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-1/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-1": { body: POPULATED_RESPONSE },
+    });
+    render(
+      <CampaignHealthCard
+        campaignId="camp-1"
+        campaignName="Cluster Anggrek Campaign"
+        listingId="listing-1"
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("decision-brief-kai-button")).toBeInTheDocument(),
+    );
+  });
+
+  it("Brief Kai button: does NOT render when decision.decision is a different value (e.g. NO_ACTION)", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-2/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-2": { body: NO_ROOT_CAUSE_RESPONSE },
+    });
+    render(
+      <CampaignHealthCard
+        campaignId="camp-2"
+        campaignName="Cluster Anggrek Campaign"
+        listingId="listing-1"
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("decision-summary")).toHaveTextContent("Tidak Ada Tindakan"),
+    );
+    expect(screen.queryByTestId("decision-brief-kai-button")).not.toBeInTheDocument();
+  });
+
+  it("Brief Kai button: disabled with an honest explanation when no listingId can be resolved", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-1/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-1": { body: POPULATED_RESPONSE },
+    });
+    render(<CampaignHealthCard campaignId="camp-1" campaignName="Cluster Anggrek Campaign" />);
+    await waitFor(() => expect(screen.getByTestId("decision-brief-kai-button")).toBeDisabled());
+    expect(
+      screen.getByText(
+        "Tidak bisa menentukan listing untuk campaign ini secara otomatis — buat brief manual di halaman Listing.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("Brief Kai button: successful brief-creation flow calls the real diverse-set endpoint and renders the real result", async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/creative-packages/diverse-set" && init?.method === "POST") {
+        expect(init.body).toBe(
+          JSON.stringify({ listingId: "listing-1", campaignId: "camp-1", requestedCount: 5 }),
+        );
+        return new Response(
+          JSON.stringify({
+            requestedCount: 5,
+            allowedCount: 5,
+            cappedByDailyLimit: false,
+            createdCount: 3,
+            packages: [],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("compare-latest")) {
+        return new Response(JSON.stringify(TREND_UNAVAILABLE_RESPONSE), { status: 200 });
+      }
+      if (url === "/api/campaign-health/camp-1") {
+        return new Response(JSON.stringify(POPULATED_RESPONSE), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }) as unknown as typeof fetch;
+
+    render(
+      <CampaignHealthCard
+        campaignId="camp-1"
+        campaignName="Cluster Anggrek Campaign"
+        listingId="listing-1"
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("decision-brief-kai-button")).not.toBeDisabled());
+
+    fireEvent.click(screen.getByTestId("decision-brief-kai-button"));
+
+    await waitFor(() => expect(screen.getByTestId("decision-brief-result")).toBeInTheDocument());
+    expect(screen.getByTestId("decision-brief-result")).toHaveTextContent(
+      "3 brief kreatif baru dibuat dan masuk ke antrian review Creative Packages.",
+    );
+    expect(screen.queryByTestId("decision-brief-error")).not.toBeInTheDocument();
+  });
+
+  it("Brief Kai button: shows an honest error when the diverse-set POST fails", async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/creative-packages/diverse-set" && init?.method === "POST") {
+        return new Response(JSON.stringify({ error: { message: "boom" } }), { status: 500 });
+      }
+      if (url.includes("compare-latest")) {
+        return new Response(JSON.stringify(TREND_UNAVAILABLE_RESPONSE), { status: 200 });
+      }
+      if (url === "/api/campaign-health/camp-1") {
+        return new Response(JSON.stringify(POPULATED_RESPONSE), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }) as unknown as typeof fetch;
+
+    render(
+      <CampaignHealthCard
+        campaignId="camp-1"
+        campaignName="Cluster Anggrek Campaign"
+        listingId="listing-1"
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("decision-brief-kai-button")).not.toBeDisabled());
+
+    fireEvent.click(screen.getByTestId("decision-brief-kai-button"));
+
+    await waitFor(() => expect(screen.getByTestId("decision-brief-error")).toBeInTheDocument());
+    expect(screen.getByTestId("decision-brief-error")).toHaveTextContent("boom");
+    expect(screen.queryByTestId("decision-brief-result")).not.toBeInTheDocument();
   });
 });

@@ -397,6 +397,7 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
               <CampaignHealthCard
                 campaignId={selectedCampaign.metaId}
                 campaignName={selectedCampaign.name}
+                listingId={selectedListingId}
               />
             ) : null}
 

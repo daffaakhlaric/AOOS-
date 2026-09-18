@@ -48,9 +48,13 @@ vi.mock("@/components/campaigns/OpportunitiesCard", () => ({
   ),
 }));
 vi.mock("@/components/campaigns/CampaignHealthCard", () => ({
-  CampaignHealthCard: (props: { readonly campaignId: string; readonly campaignName: string }) => (
+  CampaignHealthCard: (props: {
+    readonly campaignId: string;
+    readonly campaignName: string;
+    readonly listingId?: string;
+  }) => (
     <div data-testid="real-campaign-health-card">
-      {props.campaignId} name:{props.campaignName}
+      {props.campaignId} name:{props.campaignName} listingId:{props.listingId ?? "none"}
     </div>
   ),
 }));
@@ -274,6 +278,34 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     expect(screen.getByTestId("real-campaign-health-card")).toHaveTextContent("meta-c1");
     expect(screen.getByTestId("real-campaign-health-card")).toHaveTextContent(
       "name:Meta-DM-Leads-Mobix",
+    );
+    expect(screen.getByTestId("real-campaign-health-card")).toHaveTextContent("listingId:none");
+  });
+
+  // Phase 19 — CampaignHealthCard now consumes the same real, best-effort Campaign->Listing
+  // Mapping lookup `AndromedaHealthCard` already receives, so its own "Brief Kai Sekarang" action
+  // can be honestly enabled/disabled too.
+  it("Phase 19: forwards the real resolved listingId to CampaignHealthCard as well as AndromedaHealthCard", async () => {
+    seedCache();
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/settings") {
+        return new Response(JSON.stringify({ tenant: { mode: "DEV" } }), { status: 200 });
+      }
+      if (url === "/api/campaigns/meta-c1/listing-id") {
+        return new Response(
+          JSON.stringify({ campaignId: "meta-c1", listingId: "listing-real-1" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    render(<CampaignsHubClient />);
+    await userEvent.click(screen.getByTestId("fake-select-c1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("real-campaign-health-card")).toHaveTextContent(
+        "listingId:listing-real-1",
+      ),
     );
   });
 
