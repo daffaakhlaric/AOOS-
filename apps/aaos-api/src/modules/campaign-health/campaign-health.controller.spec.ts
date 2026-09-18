@@ -8,6 +8,7 @@ import type { CampaignHealth } from "./domain/campaign-health.js";
 import type { SamanthaDecision } from "./domain/decision.js";
 import type { CampaignDiagnosis } from "./domain/diagnosis.js";
 import type { CampaignHealthResponseDto } from "./dto/campaign-health-response.dto.js";
+import type { StoredAssessment } from "./infrastructure/campaign-assessment.repository.js";
 
 const TENANT = "propertyklik-demo";
 
@@ -55,9 +56,21 @@ const RESPONSE_SAMPLE: CampaignHealthResponseDto = {
   decision: DECISION_SAMPLE,
 };
 
+const HISTORY_SAMPLE: readonly StoredAssessment[] = [
+  {
+    id: "assess-1",
+    health: HEALTH_SAMPLE,
+    diagnosis: DIAGNOSIS_SAMPLE,
+    decision: DECISION_SAMPLE,
+    assessedAt: "2026-01-01T00:00:00.000Z",
+  },
+];
+
 function buildFakeService(): CampaignHealthService {
   return {
     assess: vi.fn(async () => RESPONSE_SAMPLE),
+    assessAndRecord: vi.fn(async () => RESPONSE_SAMPLE),
+    history: vi.fn(async () => HISTORY_SAMPLE),
   } as unknown as CampaignHealthService;
 }
 
@@ -70,5 +83,21 @@ describe("CampaignHealthController", () => {
     expect(result.campaignId).toBe("meta-cmp-1");
     expect(result.health.overallStatus).toBe("HEALTHY");
     expect(result.decision.decision).toBe("NO_ACTION");
+  });
+
+  it("assessAndRecord() delegates to the service with tenant id and campaignId", async () => {
+    const service = buildFakeService();
+    const controller = new CampaignHealthController(service);
+    const result = await controller.assessAndRecord(TENANT, "meta-cmp-1");
+    expect(service.assessAndRecord).toHaveBeenCalledWith(TENANT, "meta-cmp-1");
+    expect(result.campaignId).toBe("meta-cmp-1");
+  });
+
+  it("history() delegates to the service with tenant id, campaignId, and the validated limit", async () => {
+    const service = buildFakeService();
+    const controller = new CampaignHealthController(service);
+    const result = await controller.history(TENANT, "meta-cmp-1", { limit: 20 });
+    expect(service.history).toHaveBeenCalledWith(TENANT, "meta-cmp-1", 20);
+    expect(result).toEqual(HISTORY_SAMPLE);
   });
 });

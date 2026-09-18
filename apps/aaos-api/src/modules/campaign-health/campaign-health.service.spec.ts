@@ -4,6 +4,7 @@ import type { MetricSnapshotDto } from "../metric-snapshot/dto/metric-snapshot.d
 import type { MetricSnapshotService } from "../metric-snapshot/metric-snapshot.service.js";
 
 import { CampaignHealthService } from "./campaign-health.service.js";
+import type { CampaignAssessmentRepository } from "./infrastructure/campaign-assessment.repository.js";
 
 const TENANT = "propertyklik-demo";
 const META_CAMPAIGN_ID = "meta-cmp-1";
@@ -59,10 +60,20 @@ function buildFakeMetricSnapshotService(snapshots: FakeSnapshots = {}): MetricSn
   } as unknown as MetricSnapshotService;
 }
 
+function buildFakeAssessmentRepository(): CampaignAssessmentRepository {
+  return {
+    record: vi.fn(async () => undefined),
+    listHistory: vi.fn(async () => []),
+  } as unknown as CampaignAssessmentRepository;
+}
+
 describe("CampaignHealthService", () => {
   it("assess() fetches 4 real snapshots (current, previous, campaign lifetime, account lifetime)", async () => {
     const metricSnapshotService = buildFakeMetricSnapshotService();
-    const service = new CampaignHealthService(metricSnapshotService);
+    const service = new CampaignHealthService(
+      metricSnapshotService,
+      buildFakeAssessmentRepository(),
+    );
     await service.assess(TENANT, META_CAMPAIGN_ID);
 
     expect(metricSnapshotService.getCampaignSnapshot).toHaveBeenCalledWith(
@@ -85,7 +96,10 @@ describe("CampaignHealthService", () => {
 
   it("returns a CampaignHealthResponseDto echoing the real campaignId with health + diagnosis", async () => {
     const metricSnapshotService = buildFakeMetricSnapshotService();
-    const service = new CampaignHealthService(metricSnapshotService);
+    const service = new CampaignHealthService(
+      metricSnapshotService,
+      buildFakeAssessmentRepository(),
+    );
     const result = await service.assess(TENANT, META_CAMPAIGN_ID);
 
     expect(result.campaignId).toBe(META_CAMPAIGN_ID);
@@ -96,7 +110,10 @@ describe("CampaignHealthService", () => {
 
   it("a healthy, stable campaign against a HIGH-confidence benchmark reports HEALTHY overallStatus", async () => {
     const metricSnapshotService = buildFakeMetricSnapshotService();
-    const service = new CampaignHealthService(metricSnapshotService);
+    const service = new CampaignHealthService(
+      metricSnapshotService,
+      buildFakeAssessmentRepository(),
+    );
     const result = await service.assess(TENANT, META_CAMPAIGN_ID);
 
     expect(result.health.overallStatus).toBe("HEALTHY");
@@ -113,7 +130,10 @@ describe("CampaignHealthService", () => {
       previous: { cpl: 50_000 },
       campaignLifetime: { cpl: 50_000 },
     });
-    const service = new CampaignHealthService(metricSnapshotService);
+    const service = new CampaignHealthService(
+      metricSnapshotService,
+      buildFakeAssessmentRepository(),
+    );
     const result = await service.assess(TENANT, META_CAMPAIGN_ID);
 
     expect(result.diagnosis.rootCause).toBe("CPL_SPIKE");
@@ -126,7 +146,10 @@ describe("CampaignHealthService", () => {
     const metricSnapshotService = buildFakeMetricSnapshotService({
       previous: { daysCovered: 0, ctr: undefined },
     });
-    const service = new CampaignHealthService(metricSnapshotService);
+    const service = new CampaignHealthService(
+      metricSnapshotService,
+      buildFakeAssessmentRepository(),
+    );
     // Should not throw despite an empty previous window, and creative should still be assessable
     // from real frequency data (frequencyDataAvailable derives from current.frequency, not the
     // ctrTrend).
@@ -138,7 +161,10 @@ describe("CampaignHealthService", () => {
     const metricSnapshotService = buildFakeMetricSnapshotService({
       current: { frequency: undefined },
     });
-    const service = new CampaignHealthService(metricSnapshotService);
+    const service = new CampaignHealthService(
+      metricSnapshotService,
+      buildFakeAssessmentRepository(),
+    );
     const result = await service.assess(TENANT, META_CAMPAIGN_ID);
     expect(result.health.creative.status).toBe("UNKNOWN");
   });
@@ -148,8 +174,55 @@ describe("CampaignHealthService", () => {
       campaignLifetime: { dataSufficiency: { level: "LOW", score: 20, reasons: ["low"] } },
       accountLifetime: { dataSufficiency: { level: "LOW", score: 20, reasons: ["low"] } },
     });
-    const service = new CampaignHealthService(metricSnapshotService);
+    const service = new CampaignHealthService(
+      metricSnapshotService,
+      buildFakeAssessmentRepository(),
+    );
     const result = await service.assess(TENANT, META_CAMPAIGN_ID);
     expect(result.health.costEfficiency.status).toBe("UNKNOWN");
+  });
+
+  describe("assessAndRecord()", () => {
+    it("returns the same shape assess() returns and persists the computed result", async () => {
+      const metricSnapshotService = buildFakeMetricSnapshotService();
+      const repository = buildFakeAssessmentRepository();
+      const service = new CampaignHealthService(metricSnapshotService, repository);
+
+      const result = await service.assessAndRecord(TENANT, META_CAMPAIGN_ID);
+
+      expect(result.campaignId).toBe(META_CAMPAIGN_ID);
+      expect(result.health.overallStatus).toBe("HEALTHY");
+      expect(repository.record).toHaveBeenCalledWith(
+        TENANT,
+        META_CAMPAIGN_ID,
+        result.health,
+        result.diagnosis,
+        result.decision,
+      );
+    });
+
+    it("still returns the computed result when repository.record() rejects (best-effort persistence)", async () => {
+      const metricSnapshotService = buildFakeMetricSnapshotService();
+      const repository = buildFakeAssessmentRepository();
+      vi.mocked(repository.record).mockRejectedValueOnce(new Error("boom"));
+      const service = new CampaignHealthService(metricSnapshotService, repository);
+
+      const result = await service.assessAndRecord(TENANT, META_CAMPAIGN_ID);
+
+      expect(result.campaignId).toBe(META_CAMPAIGN_ID);
+      expect(result.health.overallStatus).toBe("HEALTHY");
+    });
+  });
+
+  describe("history()", () => {
+    it("is a thin pass-through to repository.listHistory", async () => {
+      const metricSnapshotService = buildFakeMetricSnapshotService();
+      const repository = buildFakeAssessmentRepository();
+      const service = new CampaignHealthService(metricSnapshotService, repository);
+
+      await service.history(TENANT, META_CAMPAIGN_ID, 20);
+
+      expect(repository.listHistory).toHaveBeenCalledWith(TENANT, META_CAMPAIGN_ID, 20);
+    });
   });
 });
