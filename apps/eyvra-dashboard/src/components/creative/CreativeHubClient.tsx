@@ -10,6 +10,7 @@ import { ListingsClient } from "@/components/listings/ListingsClient";
 import { AnalyticsHeatmapClient } from "@/components/meta-ads/AnalyticsHeatmapClient";
 
 import { AnglePerformanceClient } from "./AnglePerformanceClient";
+import { AssetPerformanceClient } from "./AssetPerformanceClient";
 import { CreativeClient } from "./CreativeClient";
 import styles from "./CreativeHubClient.module.css";
 
@@ -21,6 +22,7 @@ const TABS: readonly HubTab[] = [
   { key: "listing", label: "Listing Manager" },
   { key: "review-kai", label: "Review Kai" },
   { key: "angle-performance", label: "Angle Performance" },
+  { key: "asset-performance", label: "Asset Performance" },
 ];
 
 const VALID_TAB_KEYS = new Set(TABS.map((tab) => tab.key));
@@ -80,6 +82,7 @@ export function CreativeHubClient({ initialTab }: CreativeHubClientProps): React
         {tab === "listing" ? <ListingsClient /> : null}
         {tab === "review-kai" ? <CreativeClient /> : null}
         {tab === "angle-performance" ? <AnglePerformanceClient /> : null}
+        {tab === "asset-performance" ? <AssetPerformanceClient /> : null}
       </div>
     </main>
   );
