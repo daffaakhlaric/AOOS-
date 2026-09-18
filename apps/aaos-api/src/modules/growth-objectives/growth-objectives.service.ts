@@ -2,11 +2,13 @@ import { NotFoundError, ValidationError } from "@aos/errors";
 import { Injectable } from "@nestjs/common";
 
 import { evaluateHotLead } from "../hot-lead-definitions/domain/evaluate-hot-lead.js";
+import type { HotLeadDefinitionResponseDto } from "../hot-lead-definitions/dto/hot-lead-definition.dto.js";
 import { HotLeadDefinitionsService } from "../hot-lead-definitions/hot-lead-definitions.service.js";
 import { resolveBenchmark } from "../metric-snapshot/domain/benchmark.js";
 import { MetricSnapshotService } from "../metric-snapshot/metric-snapshot.service.js";
 
 import { assessFeasibility } from "./domain/feasibility.js";
+import { computeObjectiveProgress } from "./domain/objective-progress.js";
 import { computeBudgetPacing } from "./domain/pacing.js";
 import { computeReverseFunnel } from "./domain/reverse-funnel.js";
 import {
@@ -88,6 +90,21 @@ export class GrowthObjectivesService {
     return row;
   }
 
+  /**
+   * Shared honest gate `analyze()` and `checkProgress()` both apply: never silently default a
+   * tenant's Hot Lead definition. Same `ValidationError` message both call sites need, kept in one
+   * place so the two real gates can't drift apart.
+   */
+  private async requireHotLeadDefinition(tenantId: string): Promise<HotLeadDefinitionResponseDto> {
+    const hotLeadDefinition = await this.hotLeadDefinitions.get(tenantId);
+    if (hotLeadDefinition === undefined) {
+      throw new ValidationError(
+        `Tenant "${tenantId}" belum mendefinisikan Hot Lead — definisikan Hot Lead terlebih dahulu (PUT /api/v1/hot-lead-definitions) sebelum menjalankan analisa Growth Objective ini.`,
+      );
+    }
+    return hotLeadDefinition;
+  }
+
   async getById(tenantId: string, id: string): Promise<GrowthObjectiveResponseDto> {
     return toGrowthObjectiveResponseDto(await this.requireRow(tenantId, id));
   }
@@ -142,12 +159,7 @@ export class GrowthObjectivesService {
       );
     }
 
-    const hotLeadDefinition = await this.hotLeadDefinitions.get(tenantId);
-    if (hotLeadDefinition === undefined) {
-      throw new ValidationError(
-        `Tenant "${tenantId}" belum mendefinisikan Hot Lead — definisikan Hot Lead terlebih dahulu (PUT /api/v1/hot-lead-definitions) sebelum menjalankan analisa Growth Objective ini.`,
-      );
-    }
+    const hotLeadDefinition = await this.requireHotLeadDefinition(tenantId);
 
     const now = new Date();
     const since = new Date(now.getTime());
@@ -274,5 +286,64 @@ export class GrowthObjectivesService {
     });
 
     return { objectiveId: row.id, pacing, spendSource };
+  }
+
+  /**
+   * `POST /api/v1/growth-objectives/:id/check-progress`. The RUNTIME counterpart to `analyze()`'s
+   * FORECAST — see `domain/objective-progress.ts`'s header doc for the full distinction. Real status
+   * guard: only legal from `ACTIVE`, `ON_TRACK`, `AT_RISK`, or `OFF_TRACK` (an objective already
+   * running, being re-checked) — NOT from `DRAFT`/`ANALYZING`/`PLANNED`/`REPLANNING`/`COMPLETED`/
+   * `PAUSED`. `COMPLETED` is deliberately NOT re-checkable from here — once a real goal is met, it's
+   * real (a separate future "reopen" flow, if ever needed, is out of scope for this phase).
+   *
+   * Real pipeline: loads the tenant's `HotLeadDefinition` (same honest gate `analyze()` applies, via
+   * `requireHotLeadDefinition`), fetches every real `leads` row for this tenant from the objective's
+   * OWN `start_date` through today (`GrowthMetricsRepository.listLeadsForHotEvaluation` — NOT
+   * `analyze()`'s fixed `ANALYZE_LOOKBACK_DAYS` window, which is a forecast basis before the
+   * objective starts; this is real achievement since the objective's own real start), evaluates each
+   * via `evaluateHotLead` to get a real `achievedHotLeads` count, then runs
+   * `computeObjectiveProgress` and persists the real `{status, progress, progress_checked_at}`
+   * transition (`057_growth_objective_progress.sql` — see that migration's header doc for why
+   * `progress` is a NEW column pair rather than a reuse of `forecast`/`forecast_computed_at`).
+   */
+  async checkProgress(tenantId: string, id: string): Promise<GrowthObjectiveResponseDto> {
+    const row = await this.requireRow(tenantId, id);
+    const legalStatuses = ["ACTIVE", "ON_TRACK", "AT_RISK", "OFF_TRACK"];
+    if (!legalStatuses.includes(row.status)) {
+      throw new ValidationError(
+        `Growth objective "${id}" cannot have its progress checked from status "${row.status}" — only ACTIVE/ON_TRACK/AT_RISK/OFF_TRACK -> a re-evaluated status is a legal transition`,
+      );
+    }
+
+    const hotLeadDefinition = await this.requireHotLeadDefinition(tenantId);
+
+    const now = new Date();
+    const todayIso = now.toISOString();
+    const sinceIso = new Date(`${row.start_date}T00:00:00.000Z`).toISOString();
+
+    const evaluatableLeads = await this.growthMetricsRepository.listLeadsForHotEvaluation(
+      tenantId,
+      sinceIso,
+      todayIso,
+    );
+    const achievedHotLeads = evaluatableLeads.filter((lead) =>
+      evaluateHotLead(lead, hotLeadDefinition),
+    ).length;
+
+    const progress = computeObjectiveProgress({
+      targetHotLeads: row.target_value,
+      achievedHotLeads,
+      startDate: row.start_date,
+      endDate: row.end_date,
+      today: now,
+    });
+
+    const updated = await this.repository.update(tenantId, id, {
+      status: progress.status,
+      progress,
+      progress_checked_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    });
+    return toGrowthObjectiveResponseDto(updated);
   }
 }

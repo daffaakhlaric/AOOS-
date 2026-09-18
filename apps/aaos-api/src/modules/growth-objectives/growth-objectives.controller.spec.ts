@@ -48,6 +48,7 @@ function buildFakeService(): GrowthObjectivesService {
     activate: vi.fn(async () => ({ ...OBJECTIVE_SAMPLE, status: "ACTIVE" })),
     analyze: vi.fn(async () => ({ ...OBJECTIVE_SAMPLE, status: "PLANNED" })),
     pacing: vi.fn(async () => PACING_SAMPLE),
+    checkProgress: vi.fn(async () => ({ ...OBJECTIVE_SAMPLE, status: "ON_TRACK" })),
   } as unknown as GrowthObjectivesService;
 }
 
@@ -107,5 +108,13 @@ describe("GrowthObjectivesController", () => {
     const result = await controller.pacing(TENANT, "obj-1");
     expect(service.pacing).toHaveBeenCalledWith(TENANT, "obj-1");
     expect(result).toEqual(PACING_SAMPLE);
+  });
+
+  it("checkProgress() delegates to the service", async () => {
+    const service = buildFakeService();
+    const controller = new GrowthObjectivesController(service);
+    const result = await controller.checkProgress(TENANT, "obj-1");
+    expect(service.checkProgress).toHaveBeenCalledWith(TENANT, "obj-1");
+    expect(result.status).toBe("ON_TRACK");
   });
 });

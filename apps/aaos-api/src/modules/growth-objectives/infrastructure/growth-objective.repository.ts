@@ -21,14 +21,24 @@ export interface GrowthObjectiveRow {
   readonly forecast: unknown | null;
   /** `055_growth_objective_forecast.sql` — when `forecast` was actually computed. `null` until the first `/analyze` call. */
   readonly forecast_computed_at: string | null;
+  /** `057_growth_objective_progress.sql` — the real `ObjectiveProgressResult` object `GrowthObjectivesService.checkProgress` computes (see `domain/objective-progress.ts`). `null` until `/check-progress` has actually been called at least once for this objective. */
+  readonly progress: unknown | null;
+  /** `057_growth_objective_progress.sql` — when that stored `progress` was actually computed. Also `null` until the first `/check-progress` call. */
+  readonly progress_checked_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
 
-/** `forecast`/`forecast_computed_at` are never set on create (every new objective starts `DRAFT` with no forecast yet — the DB column defaults both to `NULL`) — only `GrowthObjectivesService.analyze`'s `update()` call ever writes them. */
+/** `forecast`/`forecast_computed_at` are never set on create (every new objective starts `DRAFT` with no forecast yet — the DB column defaults both to `NULL`) — only `GrowthObjectivesService.analyze`'s `update()` call ever writes them. Same for `progress`/`progress_checked_at` — only `GrowthObjectivesService.checkProgress`'s `update()` call ever writes those. */
 export type GrowthObjectiveInsert = Omit<
   GrowthObjectiveRow,
-  "id" | "created_at" | "updated_at" | "forecast" | "forecast_computed_at"
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "forecast"
+  | "forecast_computed_at"
+  | "progress"
+  | "progress_checked_at"
 >;
 export type GrowthObjectiveUpdate = Partial<
   Omit<GrowthObjectiveRow, "id" | "tenant_id" | "created_at">

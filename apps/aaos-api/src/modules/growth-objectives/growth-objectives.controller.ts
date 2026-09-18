@@ -15,7 +15,7 @@ import { GrowthObjectivesService } from "./growth-objectives.service.js";
 
 /**
  * `GET/POST /api/v1/growth-objectives`, `GET /:id`, `POST /:id/activate`, `POST /:id/analyze`,
- * `GET /:id/pacing` —
+ * `GET /:id/pacing`, `POST /:id/check-progress` —
  * `x-api-key` auth (same perimeter as every other `aaos-api` module), tenant-scoped via `@TenantId()`.
  *
  * `/replan` (a dedicated re-analysis trigger distinct from `/analyze`) and a standalone `/forecast`
@@ -71,5 +71,14 @@ export class GrowthObjectivesController {
   @Get(":id/pacing")
   async pacing(@TenantId() tenantId: string, @Param("id") id: string): Promise<PacingResponseDto> {
     return this.service.pacing(tenantId, id);
+  }
+
+  @Post(":id/check-progress")
+  @HttpCode(200)
+  async checkProgress(
+    @TenantId() tenantId: string,
+    @Param("id") id: string,
+  ): Promise<GrowthObjectiveResponseDto> {
+    return this.service.checkProgress(tenantId, id);
   }
 }

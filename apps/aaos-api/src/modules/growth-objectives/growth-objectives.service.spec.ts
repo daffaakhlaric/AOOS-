@@ -33,6 +33,10 @@ function makeRow(overrides: Partial<GrowthObjectiveRow> = {}): GrowthObjectiveRo
     manual_areas: [],
     automation_mode: "ADVISOR",
     status: "DRAFT",
+    forecast: null,
+    forecast_computed_at: null,
+    progress: null,
+    progress_checked_at: null,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -500,6 +504,117 @@ describe("GrowthObjectivesService", () => {
 
       const dto = await service.pacing(TENANT, "obj-1");
       expect(dto.pacing.status).toBe("UNKNOWN");
+    });
+  });
+
+  describe("checkProgress()", () => {
+    it("happy path: computes real achieved Hot Leads and persists status + progress", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({
+          status: "ACTIVE",
+          target_value: 10,
+          start_date: "2026-01-01",
+          end_date: "2026-01-31",
+        }),
+      );
+      growthMetricsRepository = makeGrowthMetricsRepository({
+        listLeadsForHotEvaluation: vi.fn(async () =>
+          Array.from({ length: 20 }, (_, i) => ({
+            status: i < 12 ? "HOT" : "NEW",
+            score: i < 12 ? 90 : 10,
+            qualification: {
+              budget: false,
+              unit: false,
+              area: false,
+              payment: false,
+              timeline: false,
+              name: false,
+            },
+          })),
+        ),
+      });
+      repository.update = vi.fn(async (_tenantId, _id, values) =>
+        makeRow({ ...values } as Partial<GrowthObjectiveRow>),
+      );
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+
+      const dto = await service.checkProgress(TENANT, "obj-1");
+
+      expect(hotLeadDefinitions.get).toHaveBeenCalledWith(TENANT);
+      expect(growthMetricsRepository.listLeadsForHotEvaluation).toHaveBeenCalledWith(
+        TENANT,
+        expect.any(String),
+        expect.any(String),
+      );
+      // 12 achieved >= target 10 -> COMPLETED
+      expect(repository.update).toHaveBeenCalledWith(
+        TENANT,
+        "obj-1",
+        expect.objectContaining({
+          status: "COMPLETED",
+          progress: expect.objectContaining({ status: "COMPLETED", progressPct: 1.2 }),
+          progress_checked_at: expect.any(String),
+        }),
+      );
+      expect(dto.status).toBe("COMPLETED");
+      expect(dto.progress).toBeDefined();
+      expect(dto.progressCheckedAt).toBeDefined();
+    });
+
+    it.each(["ACTIVE", "ON_TRACK", "AT_RISK", "OFF_TRACK"] as const)(
+      "allows re-checking from %s",
+      async (status) => {
+        repository.findById = vi.fn(async () => makeRow({ status }));
+        const dto = await service.checkProgress(TENANT, "obj-1");
+        expect(dto.status).toBeDefined();
+      },
+    );
+
+    it.each(["DRAFT", "ANALYZING", "PLANNED", "REPLANNING", "COMPLETED", "PAUSED"] as const)(
+      "throws ValidationError from illegal status %s",
+      async (status) => {
+        repository.findById = vi.fn(async () => makeRow({ status }));
+        await expect(service.checkProgress(TENANT, "obj-1")).rejects.toThrow(ValidationError);
+        expect(repository.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("throws ValidationError when the tenant has no HotLeadDefinition (never silently defaults)", async () => {
+      repository.findById = vi.fn(async () => makeRow({ status: "ACTIVE" }));
+      hotLeadDefinitions = {
+        get: vi.fn(async () => undefined),
+      } as unknown as HotLeadDefinitionsService;
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+      await expect(service.checkProgress(TENANT, "obj-1")).rejects.toThrow(ValidationError);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundError for a missing objective", async () => {
+      repository.findById = vi.fn(async () => undefined);
+      await expect(service.checkProgress(TENANT, "missing")).rejects.toThrow(NotFoundError);
+    });
+
+    it("queries leads from the objective's own start_date, not a fixed lookback window", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({ status: "ACTIVE", start_date: "2025-06-15" }),
+      );
+      await service.checkProgress(TENANT, "obj-1");
+      const [, sinceArg] = (
+        growthMetricsRepository.listLeadsForHotEvaluation as ReturnType<typeof vi.fn>
+      ).mock.calls[0];
+      expect(sinceArg).toBe(new Date("2025-06-15T00:00:00.000Z").toISOString());
     });
   });
 });

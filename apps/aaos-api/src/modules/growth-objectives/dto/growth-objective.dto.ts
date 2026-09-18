@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { FeasibilityResult } from "../domain/feasibility.js";
+import type { ObjectiveProgressResult } from "../domain/objective-progress.js";
 import type { PacingResult } from "../domain/pacing.js";
 import type { ReverseFunnelResult } from "../domain/reverse-funnel.js";
 
@@ -84,6 +85,9 @@ export interface GrowthObjectiveResponseDto {
   /** `undefined` until `/analyze` has been called at least once for this objective — never a fabricated default. */
   readonly forecast?: GrowthObjectiveForecastDto;
   readonly forecastComputedAt?: string;
+  /** The real `ObjectiveProgressResult` `GrowthObjectivesService.checkProgress` last computed (`057_growth_objective_progress.sql`). `undefined` until `/check-progress` has been called at least once for this objective — never a fabricated default. */
+  readonly progress?: ObjectiveProgressResult;
+  readonly progressCheckedAt?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -123,6 +127,8 @@ export interface GrowthObjectiveRowLike {
   readonly status: string;
   readonly forecast?: unknown | null;
   readonly forecast_computed_at?: string | null;
+  readonly progress?: unknown | null;
+  readonly progress_checked_at?: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -149,6 +155,12 @@ export function toGrowthObjectiveResponseDto(
       : {}),
     ...(row.forecast_computed_at !== undefined && row.forecast_computed_at !== null
       ? { forecastComputedAt: row.forecast_computed_at }
+      : {}),
+    ...(row.progress !== undefined && row.progress !== null
+      ? { progress: row.progress as ObjectiveProgressResult }
+      : {}),
+    ...(row.progress_checked_at !== undefined && row.progress_checked_at !== null
+      ? { progressCheckedAt: row.progress_checked_at }
       : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
