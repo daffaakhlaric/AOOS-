@@ -1,22 +1,111 @@
 /**
  * Mirrors `apps/aaos-api`'s `modules/growth-objectives` DTOs field-for-field (EYVRA — SAMANTHA V2
- * Phase 15), verified directly against that module's real, currently-shipped
- * `dto/growth-objective.dto.ts` — never guessed. The wire contract between this app's
- * `/api/growth-objectives/*` route handlers and the real backend.
+ * Phase 15/16), verified directly against that module's real, currently-shipped
+ * `dto/growth-objective.dto.ts` and its real `domain/reverse-funnel.ts`/`domain/feasibility.ts`/
+ * `domain/objective-progress.ts`/`domain/pacing.ts` — never guessed. The wire contract between
+ * this app's `/api/growth-objectives/*` route handlers and the real backend.
  *
  * NOT to be confused with the older, unrelated `/objective` feature (`types` live inline in
  * `ObjectiveClient.tsx`/`ObjectiveForm.tsx` there) — that's `property_objective`/`ObjectiveDto`
  * business-context (`targetCpl`, budget suggestion), a completely different concept. This file is
  * ONLY for the new `growth_objectives` business-GOAL tracker ("get N Hot Leads by date X").
  *
- * `forecast`/`progress` (real `GrowthObjectiveForecastDto`/`ObjectiveProgressResult` shapes) are
- * intentionally typed as `unknown` here — this phase is list + create + read-only detail view
- * only; no UI in this phase renders their internal structure beyond an honest presence check
- * (`progress?.progressPct`, read narrowly where needed), so re-deriving their full real shape
- * (`ReverseFunnelResult`/`FeasibilityResult`/`ObjectiveProgressResult`, each itself a real
- * domain type in `aaos-api`) is out of scope — wiring `/analyze`/`/check-progress` triggers and a
- * real forecast/progress detail view is explicitly Phase 16.
+ * Phase 16 expands `forecast`/`progress` from Phase 15's placeholder `unknown`/narrow shapes into
+ * their real, full domain shapes below — this app's detail view now renders their internal
+ * structure (reverse funnel, feasibility, pacing), so the full shape is needed, not just an
+ * honest-presence check.
  */
+
+/** Real `EstimatedRange` (`domain/reverse-funnel.ts`). */
+export interface EstimatedRange {
+  readonly min: number;
+  readonly expected: number;
+  readonly max: number;
+}
+
+/** Real `ReverseFunnelResult` (`domain/reverse-funnel.ts`) — see that file's own doc for the honest-undefined rules on each field. */
+export interface ReverseFunnelResult {
+  readonly conversionRate?: number;
+  readonly estimatedRequiredRawLeads?: EstimatedRange;
+  readonly estimatedMediaSpendIdr?: EstimatedRange;
+  readonly confidence: number;
+}
+
+/** Real `FeasibilityStatus` (`domain/feasibility.ts`). */
+export const FEASIBILITY_STATUSES = [
+  "ACHIEVABLE",
+  "AGGRESSIVE",
+  "AT_RISK",
+  "UNLIKELY",
+  "INSUFFICIENT_DATA",
+] as const;
+export type FeasibilityStatus = (typeof FEASIBILITY_STATUSES)[number];
+
+/** Real `FeasibilityResult["options"]` element values (`domain/feasibility.ts`). */
+export const FEASIBILITY_OPTIONS = [
+  "INCREASE_BUDGET",
+  "REDUCE_TARGET",
+  "IMPROVE_CONVERSION",
+  "EXTEND_TIMELINE",
+] as const;
+export type FeasibilityOption = (typeof FEASIBILITY_OPTIONS)[number];
+
+/** Real `FeasibilityResult` (`domain/feasibility.ts`). */
+export interface FeasibilityResult {
+  readonly status: FeasibilityStatus;
+  readonly confidence: number;
+  readonly reasons: readonly string[];
+  readonly options: readonly FeasibilityOption[];
+}
+
+/** Real `GrowthObjectiveForecastDto` (`dto/growth-objective.dto.ts`) — the persisted `{reverseFunnel, feasibility}` object `/analyze` computes. */
+export interface GrowthObjectiveForecastDto {
+  readonly reverseFunnel: ReverseFunnelResult;
+  readonly feasibility: FeasibilityResult;
+}
+
+/** Real `ObjectiveProgressStatus` (`domain/objective-progress.ts`). */
+export const OBJECTIVE_PROGRESS_STATUSES = [
+  "COMPLETED",
+  "ON_TRACK",
+  "AT_RISK",
+  "OFF_TRACK",
+] as const;
+export type ObjectiveProgressStatus = (typeof OBJECTIVE_PROGRESS_STATUSES)[number];
+
+/** Real `ObjectiveProgressResult` (`domain/objective-progress.ts`) — see that file's own doc for the honest-undefined rule on `requiredDailyPace`. */
+export interface ObjectiveProgressResult {
+  readonly status: ObjectiveProgressStatus;
+  readonly progressPct: number;
+  readonly daysElapsed: number;
+  readonly daysRemaining: number;
+  readonly currentDailyPace: number;
+  readonly requiredDailyPace?: number;
+  readonly projectedFinalCount: number;
+}
+
+/** Real `PacingStatus` (`domain/pacing.ts`). */
+export const PACING_STATUSES = ["UNDER_PACING", "ON_PACE", "OVER_PACING", "UNKNOWN"] as const;
+export type PacingStatus = (typeof PACING_STATUSES)[number];
+
+/** Real `PacingResult` (`domain/pacing.ts`) — see that file's own doc for the honest-`UNKNOWN`/undefined rules on each optional field. */
+export interface PacingResult {
+  readonly status: PacingStatus;
+  readonly expectedSpendToDateIdr?: number;
+  readonly actualSpendIdr: number;
+  readonly pacingPct?: number;
+  readonly daysRemaining: number;
+  readonly daysElapsed: number;
+  readonly requiredDailyPaceIdr?: number;
+  readonly projectedEndOfPeriodSpendIdr?: number;
+}
+
+/** Real `PacingResponseDto` (`dto/growth-objective.dto.ts`) — `GET /:id/pacing`'s response. `spendSource` makes honestly visible which real spend the pacing was computed from — see that file's own doc. */
+export interface PacingResponseDto {
+  readonly objectiveId: string;
+  readonly pacing: PacingResult;
+  readonly spendSource: "MATCHED_CAMPAIGNS" | "ACCOUNT_WIDE";
+}
 
 export const GROWTH_OBJECTIVE_METRICS = ["HOT_LEADS"] as const;
 export type GrowthObjectiveMetric = (typeof GROWTH_OBJECTIVE_METRICS)[number];
@@ -59,11 +148,11 @@ export interface GrowthObjectiveResponseDto {
   readonly manualAreas: readonly string[];
   readonly automationMode: AutomationMode;
   readonly status: GrowthObjectiveStatus;
-  /** `undefined` until `/analyze` has been called at least once — never a fabricated default. */
-  readonly forecast?: unknown;
+  /** The real `GrowthObjectiveForecastDto` `/analyze` computes and persists (`055_growth_objective_forecast.sql`). `undefined` until `/analyze` has been called at least once — never a fabricated default. */
+  readonly forecast?: GrowthObjectiveForecastDto;
   readonly forecastComputedAt?: string;
-  /** The real `ObjectiveProgressResult` (`057_growth_objective_progress.sql`); `undefined` until `/check-progress` has been called at least once — never a fabricated default. This phase reads only `progressPct` off it (see `GrowthObjectivesClient.tsx`). */
-  readonly progress?: { readonly progressPct?: number };
+  /** The real `ObjectiveProgressResult` (`057_growth_objective_progress.sql`); `undefined` until `/check-progress` has been called at least once — never a fabricated default. */
+  readonly progress?: ObjectiveProgressResult;
   readonly progressCheckedAt?: string;
   readonly createdAt: string;
   readonly updatedAt: string;

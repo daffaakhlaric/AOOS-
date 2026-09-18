@@ -1,0 +1,184 @@
+.page {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.headerCard {
+  border-radius: 14px;
+  border: 1px solid var(--v2-border, #e2e8f0);
+  background: var(--v2-card-bg, var(--white));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metric {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+/* Status badge palette mirrors `GrowthObjectivesClient.module.css`'s own real convention — kept
+   in sync, never a new palette invented for this detail view. */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badgeNeutral {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.badgeGood {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badgeWarn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badgeBad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badgeDone {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.target {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.dateRange {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin: 0;
+}
+
+.actionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  background: var(--gray-900);
+  color: var(--white);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.actionButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.actionError {
+  font-size: 13px;
+  color: var(--red);
+  margin: 0;
+}
+
+.section {
+  background: var(--v2-card-bg, #fff);
+  border: 1px solid var(--v2-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--gray-900);
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.subBlock {
+  background: var(--v2-card-bg-alt, #f9fafb);
+  border: 1px solid var(--v2-border, #e5e7eb);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subTitle {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--v2-text-primary, #111827);
+}
+
+.line {
+  font-size: 13px;
+  color: var(--v2-text-primary, #111827);
+  margin: 0;
+}
+
+.list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+.listItem {
+  font-size: 12px;
+  color: var(--v2-text-secondary, #6b7280);
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.metaChip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.emptyText {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin: 0;
+}

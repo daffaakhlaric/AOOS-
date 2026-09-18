@@ -150,6 +150,18 @@
   margin: 0;
 }
 
+.detailLink {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-menu-campaigns, #1e6fd9);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.detailLink:hover {
+  text-decoration: underline;
+}
+
 /* Create modal — same shape as `ListingModal.module.css` (single-column form variant). */
 .overlay {
   position: fixed;

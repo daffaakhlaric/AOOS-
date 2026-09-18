@@ -79,6 +79,19 @@ describe("GrowthObjectivesClient", () => {
     expect(screen.getByText("42%")).toBeInTheDocument();
   });
 
+  it("links each objective card to its real detail page", async () => {
+    global.fetch = vi.fn(async () =>
+      jsonResponse({ objectives: [OBJECTIVE, OBJECTIVE_WITH_PROGRESS] }),
+    ) as unknown as typeof fetch;
+    render(<GrowthObjectivesClient />);
+    await waitFor(() => expect(screen.getByTestId("growth-objective-grid")).toBeInTheDocument());
+
+    const links = screen.getAllByTestId("objective-detail-link");
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute("href", "/growth-objectives/go-1");
+    expect(links[1]).toHaveAttribute("href", "/growth-objectives/go-2");
+  });
+
   it("opens the create modal", async () => {
     global.fetch = vi.fn(async () =>
       jsonResponse({ objectives: [OBJECTIVE] }),

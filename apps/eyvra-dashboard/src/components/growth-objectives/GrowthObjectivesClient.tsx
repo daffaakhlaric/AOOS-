@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { ErrorCard } from "@/components/ui/ErrorCard";
@@ -88,8 +89,9 @@ async function parseError(response: Response, fallback: string): Promise<string>
  * `ListingsClient.tsx`/`ListingModal.tsx`'s real list+create-modal pattern (fetch-on-mount,
  * loading/error/empty states via `LoadingSpinner`/`ErrorCard`/`EmptyState`, refetch-after-create).
  *
- * This phase is list + create + read-only detail view only — `/analyze`, `/activate`,
- * `/check-progress`, `/pacing` UI triggers are explicitly Phase 16.
+ * This phase is list + create only — each card now links to `/growth-objectives/:id` (Phase 16's
+ * `GrowthObjectiveDetailClient`), where the real `/analyze`, `/activate`, `/check-progress`,
+ * `/pacing` UI triggers live.
  */
 export function GrowthObjectivesClient(): React.ReactElement {
   const [data, setData] = useState<GrowthObjectiveListResponseDto | undefined>(undefined);
@@ -200,6 +202,13 @@ function ObjectiveCard({
       ) : (
         <p className={styles.noProgress}>Belum ada data progress</p>
       )}
+      <Link
+        href={`/growth-objectives/${objective.id}`}
+        className={styles.detailLink}
+        data-testid="objective-detail-link"
+      >
+        Lihat Detail →
+      </Link>
     </div>
   );
 }
