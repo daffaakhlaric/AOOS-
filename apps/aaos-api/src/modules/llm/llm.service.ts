@@ -93,6 +93,11 @@ import {
   type PhotoAnalysisResponseDto,
 } from "./dto/photo-analysis.dto.js";
 import {
+  PropertyCreativeIntegrityLlmPayloadSchema,
+  type PropertyCreativeIntegrityRequestDto,
+  type PropertyCreativeIntegrityResultDto,
+} from "./dto/property-creative-integrity.dto.js";
+import {
   ResolveLocationLlmPayloadSchema,
   type ResolveLocationRequestDto,
   type ResolveLocationResponseDto,
@@ -156,6 +161,8 @@ export const KNOWN_PROMPT_KEYS: readonly string[] = [
   // Samantha Andromeda-Aware Campaign System, Sprint 2 —
   // `LlmService.generateDiverseCreativeBriefSet`'s prompt key.
   "generate_diverse_creative_brief_set",
+  // EYVRA Samantha V2 + Kai V2 Phase 31 — `LlmService.assessPropertyCreativeIntegrity`'s prompt key.
+  "assess_property_creative_integrity",
 ];
 
 /**
@@ -797,6 +804,31 @@ Balas HANYA dengan JSON:
   "marketingScore": 0-100 (seberapa kuat foto ini sebagai creative iklan — daya tarik emosional, potensi jadi hero visual; bisa berbeda dari qualityScore),
   "recommendedUse": "HERO" | "SUPPORTING" | "NOT_RECOMMENDED",
   "reasoning": "alasan singkat dan jujur berdasarkan apa yang benar-benar terlihat di foto"
+}`;
+
+/**
+ * EYVRA Samantha V2 + Kai V2 Phase 31 — `LlmService.assessPropertyCreativeIntegrity`'s system
+ * prompt (PROMPT 54's semantic-QA extension — see `property-creative-integrity.dto.ts`'s own header
+ * doc for the full "why a coarse verdict, not the spec's fabricated-precision numeric scores" reasoning).
+ * Two images are sent in the SAME user message (the real generated creative, then the real listing's
+ * own source photo) — the model is told explicitly which is which, and asked to compare only
+ * architecture/structure, never asked to judge subjective creative quality (that is
+ * `analyzePropertyPhoto`'s job, a different, already-existing method).
+ */
+const PROPERTY_CREATIVE_INTEGRITY_SYSTEM_PROMPT = `Kamu adalah Kai, Creative QA AI untuk platform properti (PROPERTY) di Indonesia. Kamu diberi DUA gambar dalam pesan yang sama: GAMBAR PERTAMA adalah creative iklan yang baru saja di-generate oleh AI, GAMBAR KEDUA adalah foto ASLI properti tersebut (sumber kebenaran).
+
+TUGASMU: bandingkan HANYA aspek struktural/arsitektur — bentuk atap, jendela, pintu, balkon, garasi, fasad, proporsi bangunan, dan fitur yang terlihat (kolam, taman, dsb). JANGAN menilai kualitas visual/komposisi/estetika — itu bukan tugasmu di sini.
+
+ATURAN KERAS:
+- "verdict": "CONSISTENT" jika struktur bangunan pada gambar pertama secara jujur konsisten dengan foto asli (perbedaan kecil akibat sudut kamera/pencahayaan/gaya render TIDAK dihitung sebagai drift). "MINOR_DRIFT" jika ada perbedaan struktural kecil tapi bangunan tetap jelas dikenali sebagai properti yang sama. "MAJOR_DRIFT" jika bangunan pada gambar pertama TIDAK bisa dikenali sebagai properti yang sama dengan foto asli, atau ada fitur yang jelas dikarang (mis. kolam renang/lantai tambahan/taman yang tidak ada di foto asli).
+- "hallucinatedFeatures" HANYA isi dengan fitur yang benar-benar terlihat jelas ADA di gambar pertama tapi TIDAK ADA di foto asli — array kosong jika tidak ada yang mencolok, JANGAN mengarang fitur yang tidak benar-benar terlihat.
+- "reasoning" ditulis dalam Bahasa Indonesia, jujur berdasarkan apa yang benar-benar terlihat di KEDUA gambar, satu atau dua kalimat.
+
+Format response JSON:
+{
+  "verdict": "CONSISTENT" | "MINOR_DRIFT" | "MAJOR_DRIFT",
+  "hallucinatedFeatures": ["fitur yang dikarang, jika ada"],
+  "reasoning": "alasan singkat dan jujur"
 }`;
 
 /**
@@ -2165,6 +2197,98 @@ export class LlmService {
 
     const response: PhotoAnalysisResponseDto = { available: true, ...validated.data };
     this.cache.set("analyze-property-photo", body, response);
+    return response;
+  }
+
+  /**
+   * EYVRA Samantha V2 + Kai V2 Phase 31 — PROMPT 54's semantic-QA extension. Real vision-LLM
+   * comparison of ONE generated creative image against the real listing's own source photo, through
+   * the SAME real `OpenAiClient` gateway and the SAME cache/gate/call/validate composition every
+   * other method on this service already uses — `OpenAiClient.createChatCompletion` already accepts
+   * multiple `image_url` content parts in one message (verified directly against that file before
+   * writing this), so no client change was needed, only a second image part alongside
+   * `analyzePropertyPhoto`'s existing one.
+   *
+   * ADDITIVE, NON-BLOCKING SIGNAL — never throws, never returns a shape the caller must branch on
+   * beyond reading `.verdict`. Every real "could not honestly assess" path degrades to
+   * `verdict: "UNABLE_TO_ASSESS"` with a real `reasoning` — never a fabricated `CONSISTENT`:
+   * - `NO_API_KEY` / `RATE_LIMITED` (the same real `checkGate` every other method uses).
+   * - `PROVIDER_ERROR` — the real OpenAI call failed (network/timeout/non-2xx).
+   * - `INVALID_RESPONSE` — the real LLM response was missing/malformed JSON or failed
+   *   `PropertyCreativeIntegrityLlmPayloadSchema` validation.
+   *
+   * Not cached under the SAME namespace/body-hash convention every other method uses would still be
+   * correct (identical `(generatedImageUrl, sourcePhotoUrl)` pair really does mean an identical real
+   * comparison), so this method reuses that same `ResponseCache` rather than inventing a second
+   * caching mechanism.
+   */
+  async assessPropertyCreativeIntegrity(
+    tenantId: string,
+    body: PropertyCreativeIntegrityRequestDto,
+  ): Promise<PropertyCreativeIntegrityResultDto> {
+    const cached = this.cache.get("assess-property-creative-integrity", body) as
+      PropertyCreativeIntegrityResultDto | undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const gate = this.checkGate();
+    if (gate !== undefined) {
+      return {
+        verdict: "UNABLE_TO_ASSESS",
+        hallucinatedFeatures: [],
+        reasoning: `Vision QA tidak bisa dijalankan: ${gate.reason}.`,
+      };
+    }
+
+    const systemPrompt = await this.promptOverride.resolve(
+      tenantId,
+      SAMANTHA_AGENT,
+      "assess_property_creative_integrity",
+      PROPERTY_CREATIVE_INTEGRITY_SYSTEM_PROMPT,
+    );
+    const userMessage: OpenAiChatMessage = {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "GAMBAR PERTAMA (creative hasil generate AI):",
+        },
+        { type: "image_url", image_url: { url: body.generatedImageUrl } },
+        {
+          type: "text",
+          text: "GAMBAR KEDUA (foto asli properti, sumber kebenaran):",
+        },
+        { type: "image_url", image_url: { url: body.sourcePhotoUrl } },
+      ],
+    };
+    const completion = await this.client.createChatCompletion({
+      messages: [{ role: "system", content: systemPrompt }, userMessage],
+      jsonMode: true,
+    });
+    if (!completion.ok) {
+      return {
+        verdict: "UNABLE_TO_ASSESS",
+        hallucinatedFeatures: [],
+        reasoning: `Vision QA gagal — provider error: ${completion.error.message}`,
+      };
+    }
+
+    const parsed = safeJsonParse(completion.value);
+    const validated =
+      parsed === undefined
+        ? undefined
+        : PropertyCreativeIntegrityLlmPayloadSchema.safeParse(parsed);
+    if (validated === undefined || !validated.success) {
+      return {
+        verdict: "UNABLE_TO_ASSESS",
+        hallucinatedFeatures: [],
+        reasoning: "Vision QA gagal — respons LLM tidak valid/tidak sesuai schema yang diharapkan.",
+      };
+    }
+
+    const response: PropertyCreativeIntegrityResultDto = { ...validated.data };
+    this.cache.set("assess-property-creative-integrity", body, response);
     return response;
   }
 

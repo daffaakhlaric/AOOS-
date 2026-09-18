@@ -1124,6 +1124,17 @@ export class CreativePackagesService {
         continue;
       }
 
+      // PROMPT 54 extension (Phase 31) — real vision-LLM semantic QA, an ADDITIONAL, NON-BLOCKING
+      // signal recorded alongside the structural QA above. Never gates completion — see
+      // `runPropertyCreativeIntegrityCheck`'s own doc for why.
+      await this.runPropertyCreativeIntegrityCheck(
+        id,
+        tenantId,
+        sourcePhotoUrls,
+        persisted.imageUrls,
+        attempt,
+      );
+
       // QA lolos — Step 4f/4g: real completion, the SAME shape `runGenerationProperty` writes.
       const aiModel = describeModel(videoSpec?.model, imageSpec.model);
       const confidenceScore = ConfidenceScore.compute({
@@ -1232,6 +1243,81 @@ export class CreativePackagesService {
       reversible: false,
     });
     await this.activityLogger.fail(activityId, new Error(message));
+  }
+
+  /**
+   * EYVRA Samantha V2 + Kai V2 Phase 31 — PROMPT 54 extension ("Property Creative QA"). Real,
+   * ADDITIONAL vision-LLM semantic QA signal, layered on top of the existing real structural QA
+   * (`runQaChecks`) once that structural QA has already passed for this attempt. Compares the FIRST
+   * real persisted generated image against the FIRST real listing source photo — one real
+   * `LlmService.assessPropertyCreativeIntegrity` call, never a second parallel LLM mechanism.
+   *
+   * DELIBERATELY NON-BLOCKING for this phase (per this dispatch's own explicit instruction — LLM
+   * vision QA is inherently less reliable than the deterministic structural QA above, and has no
+   * real-world validation yet): the result is ONLY ever written into a real `creative_logs` row
+   * (`metadata.propertyCreativeIntegrity`) for a human reviewer to see — it NEVER fails the attempt,
+   * NEVER blocks `repository.complete`, and NEVER throws (any unexpected error is caught and logged
+   * as an honest `UNABLE_TO_ASSESS`, same discipline `resolveMode`'s own `.catch` uses elsewhere in
+   * this method).
+   *
+   * Skips entirely (no LLM call, no log entry) when there is genuinely nothing to compare — no real
+   * listing source photo, or no real generated image was actually persisted this attempt — an honest
+   * "nothing to assess", not a fabricated verdict.
+   */
+  private async runPropertyCreativeIntegrityCheck(
+    packageId: string,
+    tenantId: string,
+    sourcePhotoUrls: readonly string[],
+    persistedImageUrls: readonly string[],
+    attempt: number,
+  ): Promise<void> {
+    const sourcePhotoUrl = sourcePhotoUrls[0];
+    const generatedImageUrl = persistedImageUrls[0];
+    if (sourcePhotoUrl === undefined || generatedImageUrl === undefined) {
+      return;
+    }
+
+    try {
+      const result = await this.llmService.assessPropertyCreativeIntegrity(tenantId, {
+        generatedImageUrl,
+        sourcePhotoUrl,
+      });
+      await this.appendLog({
+        packageId,
+        fromAgent: "KAI",
+        toAgent: "SISTEM",
+        eventType: "COMPLETE",
+        message: `Vision QA semantik (percobaan ${String(attempt)}): verdict ${result.verdict} — ${result.reasoning}`,
+        metadata: {
+          propertyCreativeIntegrity: {
+            verdict: result.verdict,
+            hallucinatedFeatures: [...result.hallucinatedFeatures],
+            reasoning: result.reasoning,
+            blocking: false,
+          },
+        },
+      });
+    } catch (caught) {
+      const errMessage = caught instanceof Error ? caught.message : String(caught);
+      this.logger.warn(
+        `CreativePackagesService.runPropertyCreativeIntegrityCheck(${packageId}): unexpected error, degrading to UNABLE_TO_ASSESS: ${errMessage}`,
+      );
+      await this.appendLog({
+        packageId,
+        fromAgent: "KAI",
+        toAgent: "SISTEM",
+        eventType: "COMPLETE",
+        message: `Vision QA semantik (percobaan ${String(attempt)}): verdict UNABLE_TO_ASSESS — error tak terduga: ${errMessage}`,
+        metadata: {
+          propertyCreativeIntegrity: {
+            verdict: "UNABLE_TO_ASSESS",
+            hallucinatedFeatures: [],
+            reasoning: `Error tak terduga saat menjalankan vision QA: ${errMessage}`,
+            blocking: false,
+          },
+        },
+      });
+    }
   }
 
   /**

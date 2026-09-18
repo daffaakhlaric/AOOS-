@@ -33,6 +33,7 @@ import type { GenerateHashtagsRequestDto } from "./dto/generate-hashtags.dto.js"
 import type { ImprovementPlanRequestDto } from "./dto/improvement-plan.dto.js";
 import type { MetaSettingsRecommendationRequestDto } from "./dto/meta-settings-recommendation.dto.js";
 import type { PhotoAnalysisRequestDto } from "./dto/photo-analysis.dto.js";
+import type { PropertyCreativeIntegrityRequestDto } from "./dto/property-creative-integrity.dto.js";
 import type { SelectTargetingRequestDto } from "./dto/select-targeting.dto.js";
 import {
   CHAT_COMPLETIONS_PATH,
@@ -2768,5 +2769,162 @@ describe("LlmService", () => {
   it("reuses the real TokenBucketRateLimiter without throwing when constructed with the LLM capacity/window", () => {
     const limiter = new TokenBucketRateLimiter({ capacity: 10, refillWindowMs: 60_000 });
     expect(limiter.tryConsume().ok).toBe(true);
+  });
+
+  describe("assessPropertyCreativeIntegrity (EYVRA Samantha V2 + Kai V2 Phase 31, PROMPT 54 extension)", () => {
+    const validIntegrityBody: PropertyCreativeIntegrityRequestDto = {
+      generatedImageUrl: "https://storage.example.com/creative/generated-1.jpg",
+      sourcePhotoUrl: "https://storage.example.com/listings/source-1.jpg",
+    };
+
+    it("returns a real CONSISTENT verdict from a mocked OpenAI vision response", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          verdict: "CONSISTENT",
+          hallucinatedFeatures: [],
+          reasoning: "Struktur bangunan pada gambar hasil generate konsisten dengan foto asli.",
+        }),
+      );
+      const service = buildService();
+      const result = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(result).toEqual({
+        verdict: "CONSISTENT",
+        hallucinatedFeatures: [],
+        reasoning: "Struktur bangunan pada gambar hasil generate konsisten dengan foto asli.",
+      });
+    });
+
+    it("returns a real MINOR_DRIFT verdict from a mocked OpenAI vision response", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          verdict: "MINOR_DRIFT",
+          hallucinatedFeatures: [],
+          reasoning: "Ada perbedaan kecil pada warna fasad, tapi bangunan tetap dikenali sama.",
+        }),
+      );
+      const service = buildService();
+      const result = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(result.verdict).toBe("MINOR_DRIFT");
+      expect(result.hallucinatedFeatures).toEqual([]);
+    });
+
+    it("returns a real MAJOR_DRIFT verdict with real hallucinatedFeatures from a mocked OpenAI vision response", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          verdict: "MAJOR_DRIFT",
+          hallucinatedFeatures: ["kolam renang", "lantai tambahan"],
+          reasoning:
+            "Gambar hasil generate menampilkan kolam renang dan lantai tambahan yang tidak ada di foto asli.",
+        }),
+      );
+      const service = buildService();
+      const result = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(result).toEqual({
+        verdict: "MAJOR_DRIFT",
+        hallucinatedFeatures: ["kolam renang", "lantai tambahan"],
+        reasoning:
+          "Gambar hasil generate menampilkan kolam renang dan lantai tambahan yang tidak ada di foto asli.",
+      });
+    });
+
+    it("degrades to UNABLE_TO_ASSESS (never a fabricated verdict) when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(result.verdict).toBe("UNABLE_TO_ASSESS");
+      expect(result.hallucinatedFeatures).toEqual([]);
+      expect(result.reasoning.length).toBeGreaterThan(0);
+    });
+
+    it("degrades to UNABLE_TO_ASSESS (never a fabricated verdict) when the LLM response fails schema validation", async () => {
+      registerOpenAiChatHandler(JSON.stringify({ verdict: "NOT_A_REAL_VERDICT" }));
+      const service = buildService();
+      const result = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(result.verdict).toBe("UNABLE_TO_ASSESS");
+    });
+
+    it("degrades to UNABLE_TO_ASSESS (never a fabricated verdict) on a real network/provider failure", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(result.verdict).toBe("UNABLE_TO_ASSESS");
+      expect(result.reasoning).toContain("provider error");
+    });
+
+    it("degrades to UNABLE_TO_ASSESS (never a fabricated verdict) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(result).toEqual({
+        verdict: "UNABLE_TO_ASSESS",
+        hallucinatedFeatures: [],
+        reasoning: expect.stringContaining("NO_API_KEY") as unknown as string,
+      });
+    });
+
+    it("degrades to UNABLE_TO_ASSESS (never a fabricated verdict) when the local rate limiter is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(result.verdict).toBe("UNABLE_TO_ASSESS");
+      expect(result.reasoning).toContain("RATE_LIMITED");
+    });
+
+    it("sends both real images (generated first, source second) as image_url content parts in one user message", async () => {
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            id: "chatcmpl-test",
+            object: "chat.completion",
+            choices: [
+              {
+                index: 0,
+                message: {
+                  role: "assistant",
+                  content: JSON.stringify({
+                    verdict: "CONSISTENT",
+                    hallucinatedFeatures: [],
+                    reasoning: "Konsisten.",
+                  }),
+                },
+                finish_reason: "stop",
+              },
+            ],
+          });
+        }),
+      );
+      const service = buildService();
+      await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      const messages = (
+        receivedBody as {
+          messages: Array<{
+            role: string;
+            content: string | Array<{ type: string; image_url?: { url: string } }>;
+          }>;
+        }
+      ).messages;
+      const userMessage = messages[1];
+      expect(Array.isArray(userMessage?.content)).toBe(true);
+      const parts = userMessage?.content as Array<{ type: string; image_url?: { url: string } }>;
+      const imageParts = parts.filter((part) => part.type === "image_url");
+      expect(imageParts).toHaveLength(2);
+      expect(imageParts[0]?.image_url?.url).toBe(validIntegrityBody.generatedImageUrl);
+      expect(imageParts[1]?.image_url?.url).toBe(validIntegrityBody.sourcePhotoUrl);
+    });
+
+    it("caches a successful response, never re-calling OpenAI for the same image pair", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          verdict: "CONSISTENT",
+          hallucinatedFeatures: [],
+          reasoning: "Konsisten.",
+        }),
+      );
+      const service = buildService();
+      const first = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.assessPropertyCreativeIntegrity(TENANT_ID, validIntegrityBody);
+      expect(second).toEqual(first);
+    });
   });
 });
