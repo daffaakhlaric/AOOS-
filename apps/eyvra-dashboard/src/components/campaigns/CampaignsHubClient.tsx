@@ -398,6 +398,15 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
                 campaignId={selectedCampaign.metaId}
                 campaignName={selectedCampaign.name}
                 listingId={selectedListingId}
+                // Phase 20 — reuses the SAME real, already-live `handleApplyVerdict`/
+                // `POST /api/verdicts` mechanism `VerdictCards`' own "Terapkan" button already
+                // triggers. Deliberately closes over `selectedCampaign.id` (the LOCAL id), NOT
+                // `selectedCampaign.metaId` (this card's own `campaignId` prop above) — see
+                // `resolveMetaId`'s doc comment above for the real, previously-shipped id-confusion
+                // bug this distinction guards against. `CampaignHealthCard` itself never touches
+                // any campaign id at all; it only ever calls this opaque callback with a verdict
+                // string.
+                onApplyVerdict={(verdict) => handleApplyVerdict(selectedCampaign.id, verdict)}
               />
             ) : null}
 

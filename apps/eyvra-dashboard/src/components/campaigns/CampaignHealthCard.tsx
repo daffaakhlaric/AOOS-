@@ -27,6 +27,51 @@ export interface CampaignHealthCardProps {
    * fabricated as clickable.
    */
   readonly listingId?: string;
+  /**
+   * Phase 20 - real "Terapkan Verdict Ini" action, wired by `CampaignsHubClient` to the SAME real
+   * `handleApplyVerdict`/`POST /api/verdicts` mechanism `VerdictCards`' own "Terapkan" button
+   * already uses. Deliberately a PLAIN callback taking only the verdict string - this component
+   * never touches any campaign id at all. That's not an oversight: `CampaignsHubClient` passes THIS
+   * card's own `campaignId` prop as `selectedCampaign.metaId` (the real, stable Meta id), but
+   * `handleApplyVerdict(campaignId, verdict)` internally calls `resolveMetaId(campaignId)`, which
+   * expects its OWN `campaignId` argument to be the LOCAL `campaign.id` (it looks the real metaId
+   * up FROM that local id via `campaigns.find((c) => c.id === campaignId)`) - see `resolveMetaId`'s
+   * own doc comment in `CampaignsHubClient.tsx` for the real, previously-shipped id-confusion bug
+   * this distinction guards against. Passing this card's own metaId `campaignId` prop into
+   * `handleApplyVerdict` directly would look up nothing against the local `campaigns` list and
+   * silently fall through `resolveMetaId`'s `??` fallback - fragile, bug-prone behavior this
+   * component must not rely on. So this callback stays fully opaque here: `CampaignsHubClient`
+   * closes over the correct `selectedCampaign.id` (LOCAL id) itself when constructing it, and this
+   * component never needs to know the id-variant distinction exists at all.
+   *
+   * Typed `(verdict: string) => void`, matching `handleApplyVerdict`'s REAL signature - that
+   * function is fire-and-forget (`void fetch(...).then(() => pull(...)).catch(() => undefined)`,
+   * no `Promise` returned to its caller, the same real shape `VerdictCards`' own `onApply` prop
+   * already has), so this card cannot honestly await it or observe real success/failure. Rather
+   * than fake a success/failure state it cannot actually observe, clicking shows a simple "verdict
+   * dikirim" acknowledgment only - an honest "your click was registered and dispatched" signal, not
+   * a claim about the real Meta API call's outcome (that outcome surfaces the same way it already
+   * does for `VerdictCards`' own "Terapkan": via the page-wide `pull()` refresh after the POST
+   * resolves).
+   */
+  readonly onApplyVerdict?: (verdict: string) => void;
+}
+
+/**
+ * Phase 20 - the real `Verdict` enum `POST /api/verdicts`' `ExecuteVerdictBodySchema` actually
+ * accepts (`apps/aaos-api/src/modules/meta-ads/dto/execute-verdict.dto.ts`), mirrored here as a
+ * literal tuple (that DTO lives in a different app, not importable from here) so the "Terapkan
+ * Verdict Ini" button below can check `decision.decision` against the real set once, honestly,
+ * instead of an inline magic-string comparison. Exactly 6 of `RecommendedActionType`'s real values
+ * - `NO_ACTION`/`MONITOR`/`REQUEST_KAI_CREATIVE` are real decisions this codebase produces but are
+ * NOT real Meta verdicts, so the button must never render for those three.
+ */
+export const APPLICABLE_VERDICTS = ["PAUSE", "SCALE", "FIX", "REFRESH", "KEEP", "REVIEW"] as const;
+
+export type ApplicableVerdict = (typeof APPLICABLE_VERDICTS)[number];
+
+function isApplicableVerdict(decision: string): decision is ApplicableVerdict {
+  return (APPLICABLE_VERDICTS as readonly string[]).includes(decision);
 }
 
 const DIMENSION_LABELS: Record<
@@ -256,6 +301,7 @@ export function CampaignHealthCard({
   campaignId,
   campaignName,
   listingId,
+  onApplyVerdict,
 }: CampaignHealthCardProps): React.ReactElement {
   const [data, setData] = useState<CampaignHealthResponseDto | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -282,6 +328,11 @@ export function CampaignHealthCard({
   const [assessing, setAssessing] = useState(false);
   const [assessError, setAssessError] = useState<string | undefined>(undefined);
 
+  // Phase 20 - real "Terapkan Verdict Ini" acknowledgment. `onApplyVerdict` is fire-and-forget (see
+  // that prop's own doc) so this is honestly just "click registered", reset whenever the campaign
+  // changes so a stale ack from a previous campaign never lingers on a freshly-loaded card.
+  const [verdictApplied, setVerdictApplied] = useState(false);
+
   const loadTrend = useCallback(() => {
     setTrend(undefined);
     fetch(`/api/campaign-health/${encodeURIComponent(campaignId)}/compare-latest`)
@@ -302,6 +353,7 @@ export function CampaignHealthCard({
     setError(undefined);
     setBriefResult(undefined);
     setBriefError(undefined);
+    setVerdictApplied(false);
     fetch(`/api/campaign-health/${encodeURIComponent(campaignId)}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -357,6 +409,12 @@ export function CampaignHealthCard({
     } finally {
       setAssessing(false);
     }
+  }
+
+  function handleApplyVerdictClick(verdict: ApplicableVerdict): void {
+    if (onApplyVerdict === undefined) return;
+    onApplyVerdict(verdict);
+    setVerdictApplied(true);
   }
 
   function handleBriefKai(): void {
@@ -479,6 +537,27 @@ export function CampaignHealthCard({
               ? ` (Diminta ${String(briefResult.requestedCount)}, dibatasi kuota harian ke ${String(briefResult.allowedCount)}.)`
               : ""}
           </div>
+        ) : null}
+
+        {isApplicableVerdict(decision.decision) && onApplyVerdict !== undefined ? (
+          <>
+            <button
+              type="button"
+              data-testid="decision-apply-verdict-button"
+              className={styles.briefButton}
+              disabled={verdictApplied}
+              onClick={() => handleApplyVerdictClick(decision.decision as ApplicableVerdict)}
+            >
+              {verdictApplied
+                ? "Verdict dikirim"
+                : `Terapkan Verdict Ini (${DECISION_LABELS[decision.decision] ?? decision.decision})`}
+            </button>
+            {verdictApplied ? (
+              <div data-testid="decision-apply-verdict-ack" className={styles.successBox}>
+                Verdict dikirim ke Meta — hasilnya akan terlihat setelah data campaign diperbarui.
+              </div>
+            ) : null}
+          </>
         ) : null}
       </div>
 

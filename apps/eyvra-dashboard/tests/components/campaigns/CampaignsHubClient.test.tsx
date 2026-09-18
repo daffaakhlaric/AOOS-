@@ -52,9 +52,17 @@ vi.mock("@/components/campaigns/CampaignHealthCard", () => ({
     readonly campaignId: string;
     readonly campaignName: string;
     readonly listingId?: string;
+    readonly onApplyVerdict?: (verdict: string) => void;
   }) => (
     <div data-testid="real-campaign-health-card">
       {props.campaignId} name:{props.campaignName} listingId:{props.listingId ?? "none"}
+      <button
+        type="button"
+        data-testid="fake-campaign-health-apply-verdict"
+        onClick={() => props.onApplyVerdict?.("REVIEW")}
+      >
+        fake apply verdict
+      </button>
     </div>
   ),
 }));
@@ -373,6 +381,32 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({ verdict: "SCALE", targetId: "meta-c1", targetType: "campaign" }),
+        }),
+      ),
+    );
+  });
+
+  // Phase 20 — CampaignHealthCard's own `campaignId` prop is deliberately the real `metaId` (see
+  // its render below, and `CampaignHealthCard.tsx`'s own doc for why it must stay opaque about
+  // ids). This test proves the REAL id sent to Meta through its `onApplyVerdict` callback is the
+  // LOCAL `campaign.id` closed over by `CampaignsHubClient` (per `resolveMetaId`'s own doc) — same
+  // deliberately-mismatched "meta-c1" vs "c1" fixture the two tests above already use, so this
+  // test fails loudly if a future change ever threads the wrong id variant through.
+  it("CampaignHealthCard's onApplyVerdict calls the SAME real /api/verdicts mechanism with the real metaId (never the local id), targetType campaign", async () => {
+    seedCache();
+    const fetchMock = mockSettingsFetch();
+    render(<CampaignsHubClient />);
+    await userEvent.click(screen.getByTestId("fake-select-c1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("real-campaign-health-card")).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByTestId("fake-campaign-health-apply-verdict"));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/verdicts",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ verdict: "REVIEW", targetId: "meta-c1", targetType: "campaign" }),
         }),
       ),
     );

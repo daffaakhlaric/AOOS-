@@ -122,6 +122,51 @@ const TREND_UNAVAILABLE_RESPONSE = {
     "Baru ada 1 penilaian yang tercatat untuk campaign ini — belum ada pembanding dari penilaian sebelumnya.",
 };
 
+// Phase 20 — a real applicable-`Verdict` decision (`PAUSE`) fixture, distinct from
+// `POPULATED_RESPONSE`'s `REQUEST_KAI_CREATIVE` and `NO_ROOT_CAUSE_RESPONSE`'s `NO_ACTION` — the
+// "Terapkan Verdict Ini" button must render for this one and NOT for the other two.
+const PAUSE_DECISION_RESPONSE = {
+  campaignId: "camp-3",
+  health: {
+    delivery: HEALTHY_DIMENSION,
+    costEfficiency: {
+      status: "CRITICAL",
+      score: 10,
+      confidence: 0.9,
+      issues: ["CPL sangat tinggi"],
+    },
+    creative: HEALTHY_DIMENSION,
+    audience: UNKNOWN_DIMENSION,
+    conversion: HEALTHY_DIMENSION,
+    tracking: UNKNOWN_DIMENSION,
+    leadQuality: UNKNOWN_DIMENSION,
+    overallStatus: "CRITICAL",
+  },
+  diagnosis: {
+    rootCause: "SPEND_WITHOUT_RESULT",
+    confidence: 0.95,
+    impact: "CRITICAL",
+    evidence: [],
+    contributingFactors: [],
+    recommendedFocus: ["costEfficiency"],
+  },
+  decision: {
+    decision: "PAUSE",
+    primaryDiagnosis: "SPEND_WITHOUT_RESULT",
+    confidence: 0.95,
+    impact: "CRITICAL",
+    reason:
+      "Budget nyata sudah terpakai tanpa lead nyata — sinyal paling jelas untuk menghentikan spend.",
+    riskOfDoingNothing: "Budget akan terus terpakai tanpa menghasilkan lead nyata.",
+    expectedOutcome: "Menghentikan campaign berpotensi mencegah pemborosan budget lebih lanjut.",
+    monitoringPlan: {
+      reviewAfterHours: 24,
+      successConditions: ["Campaign berhenti membelanjakan budget tanpa lead nyata."],
+      rollbackConditions: [],
+    },
+  },
+};
+
 const TREND_AVAILABLE_RESPONSE = {
   available: true,
   comparison: {
@@ -498,5 +543,102 @@ describe("CampaignHealthCard", () => {
     await waitFor(() => expect(screen.getByTestId("decision-brief-error")).toBeInTheDocument());
     expect(screen.getByTestId("decision-brief-error")).toHaveTextContent("boom");
     expect(screen.queryByTestId("decision-brief-result")).not.toBeInTheDocument();
+  });
+
+  // Phase 20 — real "Terapkan Verdict Ini" action, gated on `decision.decision` being one of the
+  // 6 real `Verdict` values (`PAUSE`/`SCALE`/`FIX`/`REFRESH`/`KEEP`/`REVIEW`), reusing the SAME
+  // real `POST /api/verdicts` mechanism `VerdictCards`'/`CampaignsHubClient`'s own `handleApplyVerdict`
+  // already triggers — verified end-to-end (including which id variant reaches `targetId`) in
+  // `CampaignsHubClient.test.tsx`'s own dedicated test; this file only verifies the button's own
+  // render-gating and that it correctly invokes its `onApplyVerdict` callback.
+  it("Apply Verdict button: renders only when decision.decision is a real applicable Verdict (PAUSE)", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-3/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-3": { body: PAUSE_DECISION_RESPONSE },
+    });
+    const onApplyVerdict = vi.fn();
+    render(
+      <CampaignHealthCard
+        campaignId="camp-3"
+        campaignName="Cluster Anggrek Campaign"
+        onApplyVerdict={onApplyVerdict}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("decision-apply-verdict-button")).toBeInTheDocument(),
+    );
+  });
+
+  it("Apply Verdict button: does NOT render for a REQUEST_KAI_CREATIVE decision", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-1/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-1": { body: POPULATED_RESPONSE },
+    });
+    render(
+      <CampaignHealthCard
+        campaignId="camp-1"
+        campaignName="Cluster Anggrek Campaign"
+        listingId="listing-1"
+        onApplyVerdict={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("decision-brief-kai-button")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("decision-apply-verdict-button")).not.toBeInTheDocument();
+  });
+
+  it("Apply Verdict button: does NOT render for a NO_ACTION decision", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-2/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-2": { body: NO_ROOT_CAUSE_RESPONSE },
+    });
+    render(
+      <CampaignHealthCard
+        campaignId="camp-2"
+        campaignName="Cluster Anggrek Campaign"
+        onApplyVerdict={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("decision-summary")).toHaveTextContent("Tidak Ada Tindakan"),
+    );
+    expect(screen.queryByTestId("decision-apply-verdict-button")).not.toBeInTheDocument();
+  });
+
+  it("Apply Verdict button: does NOT render when onApplyVerdict is not provided, even for an applicable verdict", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-3/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-3": { body: PAUSE_DECISION_RESPONSE },
+    });
+    render(<CampaignHealthCard campaignId="camp-3" campaignName="Cluster Anggrek Campaign" />);
+    await waitFor(() => expect(screen.getByTestId("decision-summary")).toBeInTheDocument());
+    expect(screen.queryByTestId("decision-apply-verdict-button")).not.toBeInTheDocument();
+  });
+
+  it("Apply Verdict button: clicking it calls onApplyVerdict with the exact real verdict string and shows an honest acknowledgment", async () => {
+    mockFetch({
+      "/api/campaign-health/camp-3/compare-latest": { body: TREND_UNAVAILABLE_RESPONSE },
+      "/api/campaign-health/camp-3": { body: PAUSE_DECISION_RESPONSE },
+    });
+    const onApplyVerdict = vi.fn();
+    render(
+      <CampaignHealthCard
+        campaignId="camp-3"
+        campaignName="Cluster Anggrek Campaign"
+        onApplyVerdict={onApplyVerdict}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("decision-apply-verdict-button")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("decision-apply-verdict-button"));
+
+    expect(onApplyVerdict).toHaveBeenCalledWith("PAUSE");
+    await waitFor(() =>
+      expect(screen.getByTestId("decision-apply-verdict-ack")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("decision-apply-verdict-button")).toBeDisabled();
   });
 });
