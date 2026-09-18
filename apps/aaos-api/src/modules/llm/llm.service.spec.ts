@@ -1873,6 +1873,49 @@ describe("LlmService", () => {
       expect(userMessage).toContain("LOW_DIVERSITY");
       expect(userMessage).toContain('"hotLeadsCount":5');
     });
+
+    // EYVRA — SAMANTHA V2 Phase 11 — the new deterministic-diagnosis context must reach the LLM's
+    // user message verbatim, proving `campaignInsight` needs no code change: it JSON.stringify's the
+    // whole `body`, so a new optional field on the DTO automatically threads through.
+    it("threads the real samanthaDiagnosis into the actual LLM user-message payload when the caller sends it", async () => {
+      const bodyWithDiagnosis: CampaignInsightRequestDto = {
+        ...validCampaignInsightBody,
+        samanthaDiagnosis: {
+          rootCause: "HIGH_FREQUENCY",
+          confidence: 0.82,
+          impact: "HIGH",
+          evidenceReasoning: ["Frequency 4.2x di atas ambang 3.5x", "CTR turun 40% dalam 7 hari"],
+          recommendedAction: "REFRESH_CREATIVE",
+          recommendedActionReason:
+            "Creative fatigue terdeteksi dari kombinasi frequency + CTR turun.",
+        },
+      };
+
+      let receivedBody: unknown;
+      mswServer.use(
+        http.post(`${OPENAI_BASE_URL}${CHAT_COMPLETIONS_PATH}`, async ({ request }) => {
+          receivedBody = await request.json();
+          return HttpResponse.json({
+            choices: [{ message: { content: validCampaignInsightLlmJson } }],
+          });
+        }),
+      );
+
+      const service = buildService();
+      await service.campaignInsight(TENANT_ID, bodyWithDiagnosis);
+
+      const messages = (receivedBody as { messages: Array<{ role: string; content: string }> })
+        .messages;
+      const userMessage = messages[1]?.content ?? "";
+      expect(userMessage).toContain(JSON.stringify(bodyWithDiagnosis.samanthaDiagnosis));
+    });
+
+    it("still accepts (no fabricated narrative) a body with samanthaDiagnosis omitted entirely (pre-Phase-11 client, identical to today's behavior)", async () => {
+      registerOpenAiChatHandler(validCampaignInsightLlmJson);
+      const service = buildService();
+      const result = await service.campaignInsight(TENANT_ID, validCampaignInsightBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validCampaignInsightLlmJson) });
+    });
   });
 
   describe("metaSettingsRecommendation", () => {

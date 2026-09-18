@@ -91,6 +91,78 @@ describe("CampaignInsightRequestSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  // EYVRA — SAMANTHA V2 Phase 11 — new optional deterministic-diagnosis field, additive/backward-compatible.
+  it("accepts a body with a fully populated samanthaDiagnosis", () => {
+    const result = CampaignInsightRequestSchema.safeParse({
+      ...baseRequest,
+      samanthaDiagnosis: {
+        rootCause: "HIGH_FREQUENCY",
+        confidence: 0.82,
+        impact: "HIGH",
+        evidenceReasoning: ["Frequency 4.2x di atas ambang 3.5x", "CTR turun 40% dalam 7 hari"],
+        recommendedAction: "REFRESH_CREATIVE",
+        recommendedActionReason:
+          "Creative fatigue terdeteksi dari kombinasi frequency + CTR turun.",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a body with samanthaDiagnosis omitted entirely (pre-Phase-11 client, zero behavior change)", () => {
+    const result = CampaignInsightRequestSchema.safeParse(baseRequest);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.samanthaDiagnosis).toBeUndefined();
+    }
+  });
+
+  it("accepts samanthaDiagnosis.rootCause as null (deterministic engine found no dominant root cause)", () => {
+    const result = CampaignInsightRequestSchema.safeParse({
+      ...baseRequest,
+      samanthaDiagnosis: {
+        rootCause: null,
+        confidence: 0.4,
+        impact: "LOW",
+        evidenceReasoning: [],
+        recommendedAction: "MONITOR",
+        recommendedActionReason: "Belum ada sinyal signifikan.",
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.samanthaDiagnosis?.rootCause).toBeNull();
+    }
+  });
+
+  it("rejects samanthaDiagnosis with confidence as a string (never a coerced/fabricated shape)", () => {
+    const result = CampaignInsightRequestSchema.safeParse({
+      ...baseRequest,
+      samanthaDiagnosis: {
+        rootCause: "HIGH_FREQUENCY",
+        confidence: "0.82",
+        impact: "HIGH",
+        evidenceReasoning: [],
+        recommendedAction: "REFRESH_CREATIVE",
+        recommendedActionReason: "x",
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects samanthaDiagnosis missing a required field (evidenceReasoning)", () => {
+    const result = CampaignInsightRequestSchema.safeParse({
+      ...baseRequest,
+      samanthaDiagnosis: {
+        rootCause: "HIGH_FREQUENCY",
+        confidence: 0.82,
+        impact: "HIGH",
+        recommendedAction: "REFRESH_CREATIVE",
+        recommendedActionReason: "x",
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects an ad missing a real stableId", () => {
     const result = CampaignInsightRequestSchema.safeParse({
       ...baseRequest,

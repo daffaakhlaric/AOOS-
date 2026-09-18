@@ -63,6 +63,33 @@ export type CampaignInsightAndromedaDiversityDto = z.infer<
   typeof CampaignInsightAndromedaDiversitySchema
 >;
 
+/**
+ * EYVRA — SAMANTHA V2 Phase 11. Real, deterministic diagnosis from `modules/campaign-health`
+ * (Phase 3's `CampaignDiagnosis` + Phase 4's `SamanthaDecision`, computed WITHOUT any LLM call —
+ * see those files' own doc comments), fetched best-effort by the frontend the SAME way
+ * `andromedaDiversity`/`marketDigest`/`hotLeadsCount` already are, and passed through unchanged.
+ * Optional on `CampaignInsightRequestSchema` below — `undefined` for a pre-Phase-11 client, or when
+ * the frontend's own best-effort `GET /api/v1/campaign-health/:campaignId` fetch hasn't resolved yet
+ * or failed. When present, this gives Samantha's narrative diagnosis a real, already-computed,
+ * non-LLM evidence base to ground against — see `CAMPAIGN_INSIGHT_SYSTEM_PROMPT`'s own new bullet
+ * for exactly how the model is told to use it.
+ */
+export const SamanthaDiagnosisContextSchema = z.object({
+  /** Mirrors `CampaignDiagnosis.rootCause` (a `SamanthaSignalType`, e.g. "HIGH_FREQUENCY") — `null` when the deterministic engine found no dominant root cause. */
+  rootCause: z.string().nullable(),
+  /** Mirrors `CampaignDiagnosis.confidence` — 0-1, the deterministic engine's own confidence, never re-derived here. */
+  confidence: z.number(),
+  /** Mirrors `CampaignDiagnosis.impact` ("LOW"/"MEDIUM"/"HIGH"/"CRITICAL"/"UNKNOWN"). */
+  impact: z.string(),
+  /** Mirrors `CampaignDiagnosis.contributingFactors` — real, already-computed evidence strings, never fabricated by the LLM. */
+  evidenceReasoning: z.array(z.string()),
+  /** Mirrors `SamanthaDecision.decision` (a `RecommendedActionType`) — the deterministic engine's own recommended action. */
+  recommendedAction: z.string(),
+  /** Mirrors `SamanthaDecision.reason` — the deterministic engine's own stated reason for that recommendation. */
+  recommendedActionReason: z.string(),
+});
+export type SamanthaDiagnosisContextDto = z.infer<typeof SamanthaDiagnosisContextSchema>;
+
 export const CampaignInsightRequestSchema = z.object({
   campaignId: z.string().min(1),
   campaignName: z.string().min(1),
@@ -144,6 +171,8 @@ export const CampaignInsightRequestSchema = z.object({
    * revenue-adjacent signal available to Samantha here.
    */
   hotLeadsCount: z.number().int().nonnegative().optional(),
+  /** EYVRA — SAMANTHA V2 Phase 11. See `SamanthaDiagnosisContextSchema`'s own doc just above. `undefined` when the client's best-effort `campaign-health` fetch hasn't resolved yet or failed, or for a pre-Phase-11 client. */
+  samanthaDiagnosis: SamanthaDiagnosisContextSchema.optional(),
 });
 export type CampaignInsightRequestDto = z.infer<typeof CampaignInsightRequestSchema>;
 
