@@ -39,6 +39,14 @@ export interface TypographyOverlayInput {
   readonly headline?: string;
   /** The real, already-computed `StoredCopyVariant.callToAction` label. */
   readonly ctaText?: string;
+  /**
+   * PROMPT 46 — PROPERTY INTEGRITY MODES (Phase 30). The real disclosure text
+   * (`@aos/creative-agent`'s `ILUSTRASI_LABEL`) composited as a small top-left corner badge,
+   * independent of the bottom price/headline/CTA banner above — set ONLY when the caller has
+   * determined (via `decidePropertyIntegrityMode`) that this listing is `CONCEPTUAL` (land/an
+   * unrecognized `propertyType`), never fabricated for a real, STRICT built unit.
+   */
+  readonly label?: string;
 }
 
 export type TypographyOverlayResult =
@@ -51,6 +59,10 @@ const PRICE_FONT_FRACTION = 0.072;
 const HEADLINE_FONT_FRACTION = 0.036;
 const CTA_FONT_FRACTION = 0.032;
 const SIDE_PADDING_FRACTION = 0.045;
+/** PROMPT 46 — the ILUSTRASI corner badge's font size and padding, as fractions of real image height/width — same "fraction of the actual measured buffer" discipline every other constant here already follows, so it degrades sanely across 1:1/9:16/16:9 too. */
+const LABEL_FONT_FRACTION = 0.04;
+const LABEL_PADDING_FRACTION = 0.018;
+const LABEL_OPACITY = 0.85;
 
 /**
  * Deterministically composites the real price/headline/CTA text onto a real generated JPEG buffer at
@@ -65,7 +77,8 @@ export async function applyTypographyOverlay(
   if (
     input.priceRupiah === undefined &&
     (input.headline === undefined || input.headline.length === 0) &&
-    (input.ctaText === undefined || input.ctaText.length === 0)
+    (input.ctaText === undefined || input.ctaText.length === 0) &&
+    (input.label === undefined || input.label.length === 0)
   ) {
     return { ok: false, reason: "no_real_text_fields_provided" };
   }
@@ -95,6 +108,7 @@ export async function applyTypographyOverlay(
       priceText: input.priceRupiah !== undefined ? formatIDR(input.priceRupiah) : undefined,
       headline: nonEmpty(input.headline),
       ctaText: nonEmpty(input.ctaText),
+      label: nonEmpty(input.label),
     });
 
     const composited = await sharpFactory(input.imageBuffer)
@@ -121,6 +135,8 @@ interface OverlaySvgInput {
   readonly priceText?: string;
   readonly headline?: string;
   readonly ctaText?: string;
+  /** PROMPT 46 — the real "ILUSTRASI" disclosure text, when the caller determined this listing is `CONCEPTUAL`. */
+  readonly label?: string;
 }
 
 /**
@@ -162,11 +178,47 @@ function buildOverlaySvg(input: OverlaySvgInput): string {
     ctaFontSize,
   });
 
+  const labelGroup = buildLabelBadge(input.label, { width, height });
+
   return (
     `<svg width="${String(width)}" height="${String(height)}" xmlns="http://www.w3.org/2000/svg">` +
     `<rect x="0" y="${String(bannerY)}" width="${String(width)}" height="${String(bannerHeight)}" fill="#000000" fill-opacity="${String(BANNER_OPACITY)}" />` +
-    `${priceLine}${headlineLine}${ctaGroup}` +
+    `${priceLine}${headlineLine}${ctaGroup}${labelGroup}` +
     `</svg>`
+  );
+}
+
+/**
+ * PROMPT 46 — PROPERTY INTEGRITY MODES. A small, fixed top-left corner badge carrying the real
+ * "ILUSTRASI" disclosure text, entirely independent of the bottom price/headline/CTA banner above
+ * (a CONCEPTUAL listing may have neither price nor headline/CTA text and still needs this badge —
+ * see `buildOverlayContext`'s own doc in `creative-packages.service.ts` for how the two are kept
+ * independent). Deliberately positioned opposite the bottom banner so the two never overlap or
+ * compete for the same corner regardless of aspect ratio.
+ */
+function buildLabelBadge(
+  label: string | undefined,
+  layout: { readonly width: number; readonly height: number },
+): string {
+  if (label === undefined) {
+    return "";
+  }
+  const fontSize = Math.round(layout.height * LABEL_FONT_FRACTION);
+  const padding = Math.round(layout.height * LABEL_PADDING_FRACTION);
+  const text = truncateForSvg(label, 24);
+  const badgeWidth = Math.min(
+    layout.width - padding * 2,
+    Math.round(fontSize * text.length * 0.62) + fontSize * 2,
+  );
+  const badgeHeight = Math.round(fontSize * 1.9);
+  const badgeX = padding;
+  const badgeY = padding;
+  const textX = badgeX + badgeWidth / 2;
+  const textY = badgeY + badgeHeight / 2 + fontSize * 0.35;
+
+  return (
+    `<rect x="${String(badgeX)}" y="${String(badgeY)}" width="${String(badgeWidth)}" height="${String(badgeHeight)}" rx="${String(Math.round(badgeHeight * 0.15))}" fill="#000000" fill-opacity="${String(LABEL_OPACITY)}" />` +
+    `<text x="${String(textX)}" y="${String(textY)}" font-family="Arial, sans-serif" font-size="${String(fontSize)}" font-weight="700" fill="#FFFFFF" text-anchor="middle">${escapeXml(text)}</text>`
   );
 }
 

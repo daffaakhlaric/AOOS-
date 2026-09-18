@@ -153,4 +153,71 @@ describe("PropertyPromptBuilder", () => {
       "Using the attached reference photo",
     );
   });
+
+  // PROMPT 46 — PROPERTY INTEGRITY MODES. A `TANAH` (land) listing is the spec's own CONCEPTUAL
+  // example — it must never get the same "photoreal advertisement of an existing unit" prompting a
+  // real built unit (STRICT) gets, since no finished building exists yet.
+  describe("CONCEPTUAL mode (propertyType=TANAH)", () => {
+    it("video prompt never claims to be a photo of an existing finished building", () => {
+      const brief = buildBrief({ propertyType: "TANAH", listingTitle: "Tanah Kavling Sentul" });
+      const prompt = builder.buildVideoPrompt(brief, true);
+      expect(prompt).not.toContain("Professional real estate advertisement video");
+      expect(prompt).toContain("Conceptual architectural visualization video");
+      expect(prompt).toContain("NOT a video of an existing finished building");
+    });
+
+    it("image prompt never claims to be a photo of an existing finished building", () => {
+      const brief = buildBrief({ propertyType: "TANAH", listingTitle: "Tanah Kavling Sentul" });
+      const prompt = builder.buildImagePrompt(brief, 0, true);
+      expect(prompt).not.toContain("Professional real estate photography");
+      expect(prompt).toContain("Conceptual architectural illustration");
+      expect(prompt).toContain("NOT a photograph of an existing finished building");
+    });
+
+    it("source photo anchor clause (when attached) frames it as land/site context, never a finished unit", () => {
+      const brief = buildBrief({ propertyType: "TANAH" });
+      const prompt = builder.buildImagePrompt(brief, 0, true);
+      expect(prompt).toContain("the real land plot/site context only");
+    });
+
+    it("an unrecognized propertyType also degrades to CONCEPTUAL phrasing (never assumed a real ready unit)", () => {
+      const brief = buildBrief({ propertyType: "SOMETHING_NEW" });
+      expect(builder.buildImagePrompt(brief, 0, true)).toContain(
+        "Conceptual architectural illustration",
+      );
+    });
+
+    it("still preserves the angle style/highlights/angleReasoning clauses in CONCEPTUAL mode", () => {
+      const brief = buildBrief({
+        propertyType: "TANAH",
+        angle: PropertyAdAngle.DP_RINGAN,
+        highlights: ["Bebas banjir"],
+      });
+      const prompt = builder.buildVideoPrompt(brief, true);
+      expect(prompt).toContain("affordable down payment");
+      expect(prompt).toContain("emphasizing verified quality and buyer confidence");
+    });
+  });
+
+  describe("STRICT mode (built-unit propertyType) keeps the pre-existing prompts unchanged", () => {
+    it.each(["RUMAH", "APARTEMEN", "RUKO", "VILLA"])(
+      "%s -> video prompt still uses the real-photo advertisement framing",
+      (propertyType) => {
+        const brief = buildBrief({ propertyType });
+        expect(builder.buildVideoPrompt(brief, true)).toContain(
+          "Professional real estate advertisement video",
+        );
+      },
+    );
+
+    it.each(["RUMAH", "APARTEMEN", "RUKO", "VILLA"])(
+      "%s -> image prompt still uses the real-photo photography framing",
+      (propertyType) => {
+        const brief = buildBrief({ propertyType });
+        expect(builder.buildImagePrompt(brief, 0, true)).toContain(
+          "Professional real estate photography",
+        );
+      },
+    );
+  });
 });

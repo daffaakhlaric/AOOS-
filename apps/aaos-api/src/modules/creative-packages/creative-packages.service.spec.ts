@@ -314,6 +314,27 @@ async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/**
+ * PROMPT 46 — real `sharp` compositing (unlike every fake-buffer test elsewhere in this file) does
+ * genuinely async native I/O, so a fixed 2-tick `settle()` is not always enough real wall-clock
+ * time for the detached pipeline to reach a terminal `creative_logs` row. Polls up to 2s.
+ */
+async function waitForLog(harness: Harness, eventType: string): Promise<Record<string, unknown>> {
+  const deadline = Date.now() + 2000;
+  for (;;) {
+    const row = harness.client
+      .rows("creative_logs")
+      .find((candidate) => candidate["event_type"] === eventType);
+    if (row !== undefined) {
+      return row;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`waitForLog: no "${eventType}" creative_logs row appeared within 2s`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 describe("CreativePackagesService.create", () => {
   it("persists a DRAFT and calls NOTHING — no Kie AI spend without an explicit generate", async () => {
     const harness = buildHarness();
@@ -844,6 +865,123 @@ describe("CreativePackagesService.generateProperty (K2)", () => {
       "https://gcs/listing-1/foto-1.jpg",
       "https://gcs/listing-1/foto-2.jpg",
     ]);
+  });
+
+  // PROMPT 46 — PROPERTY INTEGRITY MODES (Phase 30). A `TANAH` (land) listing's real `propertyType`
+  // must honestly drive both the prompt-builder branch AND a mandatory ILUSTRASI disclosure —
+  // never guessed from title text, never gated behind the unrelated `overlayTypography` opt-in.
+  describe("PROMPT 46 — Property Integrity Modes", () => {
+    it("a TANAH (land) listing gets the CONCEPTUAL prompt branch, never the real-photo framing", async () => {
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Kavling Siap Bangun Sentul",
+          propertyType: "TANAH",
+        },
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      await settle();
+
+      const call = harness.orchestrate.mock.calls[0]?.[0] as { imagePrompts: readonly string[] };
+      expect(call.imagePrompts[0]).toContain("Conceptual architectural illustration");
+      expect(call.imagePrompts[0]).not.toContain("Professional real estate photography");
+    });
+
+    it("a real, built-unit listing (RUMAH, the harness default) still gets the pre-existing STRICT prompt framing", async () => {
+      const harness = buildHarness({
+        listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      await settle();
+
+      const call = harness.orchestrate.mock.calls[0]?.[0] as { imagePrompts: readonly string[] };
+      expect(call.imagePrompts[0]).toContain("Professional real estate photography");
+    });
+
+    it("writes the real, honest propertyIntegrityMode onto the BRIEF_SENT audit log row", async () => {
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Kavling Siap Bangun Sentul",
+          propertyType: "TANAH",
+        },
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      await settle();
+
+      const briefSent = harness.client
+        .rows("creative_logs")
+        .find((row) => row["event_type"] === "BRIEF_SENT");
+      expect(
+        (briefSent?.["brief"] as { propertyIntegrityMode?: string } | undefined)?.[
+          "propertyIntegrityMode"
+        ],
+      ).toBe("CONCEPTUAL");
+    });
+
+    it("a TANAH listing gets a real ILUSTRASI overlay composited onto its generated image, even though overlayTypography was never requested by the caller", async () => {
+      const sharp = (await import("sharp")).default;
+      const realJpeg = await sharp({
+        create: { width: 1080, height: 1080, channels: 3, background: { r: 100, g: 110, b: 120 } },
+      })
+        .jpeg()
+        .toBuffer();
+
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Kavling Siap Bangun Sentul",
+          propertyType: "TANAH",
+        },
+        orchestrateResult: ok({
+          imageBuffers: [realJpeg],
+          imageSpecs: [],
+          videoDelivered: false,
+        }),
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      // The manual generateProperty endpoint never sets `overlayTypography: true` — this call
+      // mirrors that exact real, pre-existing caller shape.
+      await harness.service.generateProperty(TENANT_A, created.id);
+      // Real `sharp` JPEG encode/composite work is genuinely async native I/O, unlike every other
+      // test in this file (which feeds `applyTypographyOverlay` a non-decodable fake buffer that
+      // fails fast, synchronously within `settle()`'s 2 ticks) — poll for the terminal log row
+      // instead of assuming 2 ticks is always enough real wall-clock time.
+      const complete = await waitForLog(harness, "COMPLETE");
+      const metadata = complete["metadata"] as
+        | { typographyOverlayApplied?: number; typographyOverlaySkipped?: readonly string[] }
+        | undefined;
+      expect(metadata?.typographyOverlayApplied).toBe(1);
+    });
+
+    it("a real, built-unit (STRICT) listing gets NO overlay attempt at all when overlayTypography was never requested", async () => {
+      const sharp = (await import("sharp")).default;
+      const realJpeg = await sharp({
+        create: { width: 1080, height: 1080, channels: 3, background: { r: 100, g: 110, b: 120 } },
+      })
+        .jpeg()
+        .toBuffer();
+
+      const harness = buildHarness({
+        listing: { id: "listing-1", tenantId: TENANT_A, title: "Rumah Minimalis BSD" },
+        orchestrateResult: ok({
+          imageBuffers: [realJpeg],
+          imageSpecs: [],
+          videoDelivered: false,
+        }),
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      const complete = await waitForLog(harness, "COMPLETE");
+      const metadata = complete["metadata"] as { typographyOverlayApplied?: number } | undefined;
+      expect(metadata?.typographyOverlayApplied).toBeUndefined();
+    });
   });
 
   // Kai Creative Engine Sprint 3 — real angle-strength reasoning (scorePropertyAdAngleStrength)

@@ -2,6 +2,10 @@ import type {
   IPropertyPromptBuilder,
   PropertyCreativeBrief,
 } from "../contracts/IPropertyPromptBuilder.js";
+import {
+  decidePropertyIntegrityMode,
+  PropertyIntegrityMode,
+} from "../domain/value-objects/PropertyIntegrityMode.js";
 
 import { PropertyAngleToPromptMapper } from "./PropertyAngleToPromptMapper.js";
 
@@ -23,6 +27,26 @@ export class PropertyPromptBuilder implements IPropertyPromptBuilder {
       : "";
     const sourceClause = sourcePhotoAvailable ? "" : ", generated from text description only";
 
+    // PROMPT 46 — PROPERTY INTEGRITY MODES. A CONCEPTUAL listing (real, honest `TANAH`/land
+    // `propertyType`, or an unrecognized one — see `decidePropertyIntegrityMode`'s own doc) must
+    // never be prompted the same "photoreal advertisement of an existing, ready unit" way a real
+    // built unit (STRICT) is — that would generate a finished-looking building for land that does
+    // not exist yet, misleading a prospective buyer. This branch swaps the entire scene description
+    // for an explicitly conceptual/illustrative one; the model is told in plain words this is NOT a
+    // photograph of an existing finished building.
+    if (decidePropertyIntegrityMode(brief.propertyType) === PropertyIntegrityMode.CONCEPTUAL) {
+      const anchorClause = sourcePhotoAvailable
+        ? "Using the attached reference photo as the real land plot/site context only (do not depict a different location), "
+        : "";
+      return (
+        `${anchorClause}Conceptual architectural visualization video of a future property ` +
+        `development on this land — explicitly a non-photographic, illustrative rendering, NOT a ` +
+        `video of an existing finished building, ${describeProperty(brief)}, ` +
+        `${style}${highlightsClause}${angleReasoningClause}, clean architectural visualization ` +
+        `style, natural soft lighting, smooth camera movement, 4K quality, no text overlay${sourceClause}`
+      );
+    }
+
     return (
       `Professional real estate advertisement video, ${describeProperty(brief)}, ` +
       `${style}${highlightsClause}${angleReasoningClause}, natural soft lighting, ` +
@@ -42,6 +66,27 @@ export class PropertyPromptBuilder implements IPropertyPromptBuilder {
     const angleReasoningClause = hasAngleReasoning(brief)
       ? ", grounded in a specific, data-backed property strength"
       : "";
+
+    // PROMPT 46 — PROPERTY INTEGRITY MODES (see `buildVideoPrompt`'s own doc for the full
+    // reasoning). CONCEPTUAL never gets the "Professional real estate photography" framing STRICT
+    // gets below — that phrasing asks the model for a photoreal picture of a real, existing unit,
+    // which land/an unrecognized listing genuinely is not. The generated image ALSO carries a real
+    // "ILUSTRASI" disclosure label composited on top downstream (`creative-image-overlay.ts`) —
+    // this prompt-level change and that compositing-level label are deliberately independent, each
+    // honest on its own even if the other step were ever skipped.
+    if (decidePropertyIntegrityMode(brief.propertyType) === PropertyIntegrityMode.CONCEPTUAL) {
+      const anchorClause = sourcePhotoAvailable
+        ? "Using the attached reference photo as the real land plot/site context only (same location — do not depict a different one), "
+        : "";
+      return (
+        `${anchorClause}Conceptual architectural illustration of a future property development ` +
+        `on this land — explicitly a non-photographic, illustrative rendering, NOT a photograph of ` +
+        `an existing finished building, ${describeProperty(brief)}, ` +
+        `${style}${highlightsClause}${angleReasoningClause}, variant ${variantIndex + 1}, ` +
+        `clean architectural visualization style, bright and inviting composition, no watermark`
+      );
+    }
+
     // REAL BUG FIX (live-confirmed, 2026-09-15): the real reference photo (`image_input`) WAS
     // reaching Kie AI's nano-banana-pro endpoint (the earlier field-name bug, fixed separately),
     // but the prompt text never told the model to actually BASE its output on that photo — a

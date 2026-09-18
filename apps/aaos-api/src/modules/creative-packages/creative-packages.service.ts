@@ -6,8 +6,11 @@ import { BranchId } from "@aos/branch-manager";
 import {
   ConfidenceScore,
   CreativeFormat,
+  decidePropertyIntegrityMode,
+  ILUSTRASI_LABEL,
   PropertyCopyBuilder,
   PropertyFormatDecider,
+  PropertyIntegrityMode,
   PropertyPromptBuilder,
   scorePropertyAdAngleStrength,
 } from "@aos/creative-agent";
@@ -100,6 +103,13 @@ interface OverlayContext {
   readonly priceRupiah?: number;
   readonly headline?: string;
   readonly ctaText?: string;
+  /**
+   * PROMPT 46 — PROPERTY INTEGRITY MODES (Phase 30). The real "ILUSTRASI" disclosure text, set
+   * whenever `decidePropertyIntegrityMode(listing.propertyType)` returns `CONCEPTUAL` — see
+   * `buildOverlayContext`'s own doc for why this is computed and threaded INDEPENDENTLY of
+   * `options.overlayTypography`'s price/headline/CTA opt-in.
+   */
+  readonly label?: string;
 }
 
 /** One real `applyTypographyOverlay` outcome, folded across every image buffer for one generation attempt — written into the COMPLETE log's `metadata` so a manager/QA reviewer can see exactly how many images genuinely got the real overlay vs. degraded to the un-composited original, and why. */
@@ -457,14 +467,23 @@ export class CreativePackagesService {
        * PROMPT 57 — GENERATIVE VISUAL + DETERMINISTIC TYPOGRAPHY (Phase 29). Explicit opt-in,
        * defaulting to `false`/omitted so every pre-existing caller (the manual
        * `POST .../property/:id/generate` endpoint, `create({ generate: true })`,
-       * `triggerAutoLoopGeneration`) keeps its exact prior image output — no existing behavior
-       * changes unless a caller sets this `true`. When `true`, `runGenerationProperty`/
-       * `runGenerationPropertyWithQaRetry` deterministically composite this package's REAL price
-       * (`brief.price`, via `formatIDR`) / headline / CTA (the already-computed
+       * `triggerAutoLoopGeneration`) keeps its exact prior PRICE/HEADLINE/CTA image output — no
+       * existing behavior changes for that part unless a caller sets this `true`. When `true`,
+       * `runGenerationProperty`/`runGenerationPropertyWithQaRetry` deterministically composite this
+       * package's REAL price (`brief.price`, via `formatIDR`) / headline / CTA (the already-computed
        * `copyVariants[0]`) onto each generated image buffer BEFORE it is persisted — see
        * `domain/creative-image-overlay.ts`'s own doc for the exact fixed layout and honest-degrade
        * contract (a compositing failure never blocks generation; it just leaves that one image
        * un-composited and logs why).
+       *
+       * PROMPT 46 — PROPERTY INTEGRITY MODES (Phase 30) carve-out, DELIBERATE behavior change: the
+       * real "ILUSTRASI" disclosure badge (see `buildOverlayContext`'s own doc) is composited
+       * regardless of this flag whenever `decidePropertyIntegrityMode(listing.propertyType)`
+       * resolves `CONCEPTUAL` (land / an unrecognized `propertyType`) — every pre-existing caller,
+       * omitting this flag, now gets a real ILUSTRASI badge on a CONCEPTUAL listing's generated
+       * images where it previously got none. This is intentional: the disclosure is a compliance-
+       * meaningful requirement, not an optional typography preference a caller should be able to
+       * silently skip. A STRICT (built-unit) listing's output is completely unaffected either way.
        */
       readonly overlayTypography?: boolean;
     },
@@ -564,13 +583,25 @@ export class CreativePackagesService {
       options?.requestedVariantCount,
     );
 
-    // PROMPT 57 — real, already-computed text fields for the optional typography-overlay step
-    // (see `options.overlayTypography`'s own doc above). `undefined` unless the caller explicitly
-    // opted in — computed once here so both `runGenerationProperty` and
-    // `runGenerationPropertyWithQaRetry` reuse the SAME real price/headline/CTA rather than each
-    // re-deriving it.
-    const overlayContext =
-      options?.overlayTypography === true ? buildOverlayContext(brief, copyVariants) : undefined;
+    // PROMPT 46 — PROPERTY INTEGRITY MODES (Phase 30). Deterministic, honest mode derived from the
+    // real `listing.propertyType` — see `decidePropertyIntegrityMode`'s own doc (`@aos/creative-
+    // agent`) for exactly which real values map to `CONCEPTUAL` vs `STRICT`. Computed once here so
+    // it can drive BOTH the prompt-builder branch above (`propertyPromptBuilder.build*Prompt`
+    // already re-derives it internally from `brief.propertyType`, so no signature change was
+    // needed there) and this overlay context below.
+    const integrityMode = decidePropertyIntegrityMode(listing.propertyType);
+
+    // PROMPT 57 / PROMPT 46 — real, already-computed overlay fields (see `buildOverlayContext`'s
+    // own doc for exactly which fields are gated behind `options.overlayTypography` and which
+    // — the ILUSTRASI label — are not). Computed once here so both `runGenerationProperty` and
+    // `runGenerationPropertyWithQaRetry` reuse the SAME real price/headline/CTA/label rather than
+    // each re-deriving it.
+    const overlayContext = buildOverlayContext(
+      brief,
+      copyVariants,
+      integrityMode,
+      options?.overlayTypography === true,
+    );
 
     await this.appendLog({
       packageId: id,
@@ -589,6 +620,10 @@ export class CreativePackagesService {
         urgency: pkg.urgency,
         reason: pkg.reason,
         origin: pkg.origin,
+        // PROMPT 46 — PROPERTY INTEGRITY MODES (Phase 30). Real, honest audit trail of which mode
+        // this generation ran under, so a manager/QA reviewer scanning the "Log Samantha × Kai" tab
+        // can see exactly why a listing's prompt/overlay was CONCEPTUAL vs STRICT.
+        propertyIntegrityMode: integrityMode,
       },
     });
     await this.appendLog({
@@ -1244,6 +1279,7 @@ export class CreativePackagesService {
           : {}),
         ...(overlayContext.headline !== undefined ? { headline: overlayContext.headline } : {}),
         ...(overlayContext.ctaText !== undefined ? { ctaText: overlayContext.ctaText } : {}),
+        ...(overlayContext.label !== undefined ? { label: overlayContext.label } : {}),
       });
       if (result.ok) {
         overlaidBuffers.push(result.buffer);
@@ -1622,22 +1658,50 @@ function briefToJson(pkg: StoredCreativePackage): CreativeLogJson {
  * `call_to_action.type`.
  */
 /**
- * PROMPT 57 — resolves the real text fields `applyTypographyOverlay` composites, from data this
- * call ALREADY computed (never a second lookup, never an invented field): `brief.price` (the real
- * whole-Rupiah `PropertyCreativeBrief.price`, `formatIDR`-formatted downstream in
- * `applyTypographyOverlay` itself) and the package's leading copy variant (`copyVariants[0]` —
- * always real, whether LLM-generated or the deterministic `PropertyCopyBuilder` fallback; see
- * `buildPropertyCopyVariants`'s own doc for why `copyVariants` is never empty). `undefined` when
- * `copyVariants` is genuinely empty — never a fabricated headline/CTA.
+ * PROMPT 57 / PROMPT 46 — resolves the real overlay fields `applyTypographyOverlay` composites,
+ * from data this call ALREADY computed (never a second lookup, never an invented field):
+ * `brief.price` (the real whole-Rupiah `PropertyCreativeBrief.price`, `formatIDR`-formatted
+ * downstream in `applyTypographyOverlay` itself), the package's leading copy variant
+ * (`copyVariants[0]` — always real, whether LLM-generated or the deterministic
+ * `PropertyCopyBuilder` fallback; see `buildPropertyCopyVariants`'s own doc for why `copyVariants`
+ * is never empty), and the real "ILUSTRASI" disclosure label.
+ *
+ * The price/headline/CTA fields are gated behind `includeTypography` (`options.overlayTypography
+ * === true`, the pre-existing PROMPT 57 opt-in — unchanged default behavior for every existing
+ * caller). The `label` field is DELIBERATELY NOT gated behind that same opt-in: PROMPT 46's
+ * ILUSTRASI disclosure is a compliance-meaningful signal for a CONCEPTUAL listing, not a decorative
+ * typography feature a caller might reasonably skip — it must reach the output whenever a real
+ * CONCEPTUAL listing is generated, independent of whether the caller also wants the price banner.
+ *
+ * Returns `undefined` only when there is genuinely nothing to composite at all (typography opted
+ * out AND the listing is STRICT, i.e. no label either) — never a fabricated empty-string field.
  */
 function buildOverlayContext(
   brief: PropertyCreativeBrief,
   copyVariants: readonly StoredCopyVariant[],
-): OverlayContext {
+  integrityMode: PropertyIntegrityMode,
+  includeTypography: boolean,
+): OverlayContext | undefined {
   const leading = copyVariants[0];
+  const priceRupiah = includeTypography ? brief.price : undefined;
+  const headline = includeTypography ? leading?.headline : undefined;
+  const ctaText = includeTypography ? leading?.callToAction : undefined;
+  const label = integrityMode === PropertyIntegrityMode.CONCEPTUAL ? ILUSTRASI_LABEL : undefined;
+
+  if (
+    priceRupiah === undefined &&
+    headline === undefined &&
+    ctaText === undefined &&
+    label === undefined
+  ) {
+    return undefined;
+  }
+
   return {
-    ...(brief.price !== undefined ? { priceRupiah: brief.price } : {}),
-    ...(leading !== undefined ? { headline: leading.headline, ctaText: leading.callToAction } : {}),
+    ...(priceRupiah !== undefined ? { priceRupiah } : {}),
+    ...(headline !== undefined ? { headline } : {}),
+    ...(ctaText !== undefined ? { ctaText } : {}),
+    ...(label !== undefined ? { label } : {}),
   };
 }
 

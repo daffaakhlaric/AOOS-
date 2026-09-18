@@ -115,6 +115,52 @@ describe("applyTypographyOverlay", () => {
     expect(result.reason.length).toBeGreaterThan(0);
   });
 
+  // PROMPT 46 — PROPERTY INTEGRITY MODES (Phase 30). The real "ILUSTRASI" disclosure badge reuses
+  // this exact compositing mechanism rather than a second, parallel one.
+  it("composites when only label is real (no price/headline/CTA) — the ILUSTRASI badge stands alone for a CONCEPTUAL listing with no other overlay text", async () => {
+    const image = await buildRealJpeg(1080, 1080);
+    const result = await applyTypographyOverlay({ imageBuffer: image, label: "ILUSTRASI" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    const metadata = await sharp(result.buffer).metadata();
+    expect(metadata.width).toBe(1080);
+    expect(metadata.height).toBe(1080);
+    expect(metadata.format).toBe("jpeg");
+  });
+
+  it("composites the label badge alongside real price/headline/CTA in the same pass", async () => {
+    const image = await buildRealJpeg(1080, 1080);
+    const result = await applyTypographyOverlay({
+      imageBuffer: image,
+      priceRupiah: 450_000_000,
+      headline: "Kavling Siap Bangun di Sentul",
+      ctaText: "Tanya Sekarang",
+      label: "ILUSTRASI",
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("still degrades honestly (no_real_text_fields_provided) when label is an empty string and every other field is absent", async () => {
+    const image = await buildRealJpeg(600, 600);
+    const result = await applyTypographyOverlay({ imageBuffer: image, label: "" });
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.reason).toBe("no_real_text_fields_provided");
+  });
+
+  it("XML-escapes untrusted label text rather than letting it break the SVG markup", async () => {
+    const image = await buildRealJpeg(700, 700);
+    const result = await applyTypographyOverlay({
+      imageBuffer: image,
+      label: `ILUSTRASI <script>"'`,
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it("truncates a very long headline rather than overflowing the fixed banner layout", async () => {
     const image = await buildRealJpeg(1080, 1080);
     const longHeadline =

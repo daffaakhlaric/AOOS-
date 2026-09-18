@@ -69,6 +69,13 @@ export { AngleToPromptMapper } from "./intelligence/AngleToPromptMapper.js";
 export { PropertyPromptBuilder } from "./intelligence/PropertyPromptBuilder.js";
 export { PropertyAngleToPromptMapper } from "./intelligence/PropertyAngleToPromptMapper.js";
 export { PropertyAdAngle, ALL_PROPERTY_AD_ANGLES } from "./domain/value-objects/PropertyAdAngle.js";
+// PROMPT 46 — PROPERTY INTEGRITY MODES: the STRICT/CONCEPTUAL value object + its deterministic,
+// honest `propertyType`-driven mapper (see that file's own doc for why only a 2-way split is real).
+export {
+  PropertyIntegrityMode,
+  ILUSTRASI_LABEL,
+  decidePropertyIntegrityMode,
+} from "./domain/value-objects/PropertyIntegrityMode.js";
 // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 6 — the PROPERTY-vertical `FormatDecider`/`CopyBuilder`
 // siblings, unblocking a real PROPERTY Kai-prompt preview (Simulasi Step 3).
 export { PropertyFormatDecider } from "./intelligence/PropertyFormatDecider.js";
