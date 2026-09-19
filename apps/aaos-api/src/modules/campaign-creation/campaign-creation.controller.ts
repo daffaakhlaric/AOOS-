@@ -11,6 +11,7 @@ import type {
   CampaignCreationResponseDto,
   CampaignPreflightResponseDto,
   ListingReadinessResponseDto,
+  PortfolioPlanResponseDto,
 } from "./dto/campaign-creation.dto.js";
 
 /**
@@ -53,6 +54,18 @@ export class CampaignCreationController {
     @Param("listingId") listingId: string,
   ): Promise<CampaignPreflightResponseDto> {
     return this.service.getPreflight(tenantId, growthObjectiveId, listingId);
+  }
+
+  /**
+   * `GET /api/v1/campaign-creation/growth-objectives/:growthObjectiveId/portfolio-plan` — EYVRA
+   * SAMANTHA V2 Phase 32. Read-only, same as `blueprint`/`preflight` above.
+   */
+  @Get("growth-objectives/:growthObjectiveId/portfolio-plan")
+  async portfolioPlan(
+    @TenantId() tenantId: string,
+    @Param("growthObjectiveId") growthObjectiveId: string,
+  ): Promise<PortfolioPlanResponseDto> {
+    return this.service.getPortfolioPlan(tenantId, growthObjectiveId);
   }
 
   /**

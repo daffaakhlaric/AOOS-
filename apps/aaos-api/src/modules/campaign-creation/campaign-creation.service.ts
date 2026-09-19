@@ -6,6 +6,8 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { GrowthObjectivesService } from "../growth-objectives/growth-objectives.service.js";
+import { GrowthObjectiveCampaignsRepository } from "../growth-objectives/infrastructure/growth-objective-campaigns.repository.js";
+import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
 import { ListingsService } from "../listings/listings.service.js";
 import type {
   MetaAdsConnectorContext,
@@ -17,11 +19,13 @@ import { buildCampaignBlueprint } from "./domain/campaign-blueprint.js";
 import type { CampaignBlueprint } from "./domain/campaign-blueprint.js";
 import { assessCampaignPreflight } from "./domain/campaign-preflight.js";
 import { assessListingReadiness } from "./domain/listing-readiness.js";
+import { planPortfolioAllocation } from "./domain/portfolio-plan.js";
 import type {
   CampaignBlueprintResponseDto,
   CampaignCreationResponseDto,
   CampaignPreflightResponseDto,
   ListingReadinessResponseDto,
+  PortfolioPlanResponseDto,
 } from "./dto/campaign-creation.dto.js";
 import { CampaignCreationRepository } from "./infrastructure/campaign-creation.repository.js";
 import type { StoredCampaignCreationRequest } from "./infrastructure/campaign-creation.repository.js";
@@ -92,6 +96,7 @@ export class CampaignCreationService {
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
     private readonly modeGuard: ModeGuardService,
     private readonly activityLogger: ActivityLogger,
+    private readonly growthObjectiveCampaigns: GrowthObjectiveCampaignsRepository,
   ) {}
 
   async getListingReadiness(
@@ -126,6 +131,105 @@ export class CampaignCreationService {
       listingId,
     );
     return { growthObjectiveId, listingId, preflight };
+  }
+
+  /**
+   * `GET /api/v1/campaign-creation/growth-objectives/:growthObjectiveId/portfolio-plan` — EYVRA
+   * SAMANTHA V2 Phase 32 (raw spec's Portfolio Planner / Listing Allocation Engine). 100% read-only
+   * — zero mutation, zero Meta API call, same discipline this module's other three `GET` routes
+   * already establish.
+   *
+   * REAL CANDIDATE RESOLUTION, same real signal `GrowthObjectivesService.pacing` already keys off
+   * for its own `MATCHED_CAMPAIGNS`-vs-`ACCOUNT_WIDE` split:
+   *  - `growthObjective.focusListingIds` non-empty -> candidates are exactly those listings (a
+   *    tenant's explicit, real choice) that still exist. A `focusListingId` that no longer resolves
+   *    to a real listing (deleted since the objective was created) is silently excluded from the
+   *    candidate set and surfaced honestly via `warnings` — never thrown, never fabricated.
+   *  - `focusListingIds` empty (`areaStrategy: "SAMANTHA"`, no specific focus) -> EVERY real listing
+   *    this tenant has is a candidate; `assessListingReadiness` (reused, not reimplemented) is what
+   *    actually filters out the ones that aren't ready to advertise.
+   *
+   * For each real candidate, resolves real existing-campaign linkage via
+   * `GrowthObjectiveCampaignsRepository.findCampaignIdsForListings` (REUSED, one real call per
+   * candidate listing — same public method `pacing()` already calls, just scoped to one listing at
+   * a time here since that repository's return shape has no per-listing breakdown to reuse in bulk;
+   * see that repository's own doc for why no `.in()` bulk path exists on the shared Supabase port).
+   * The pure allocation math itself lives entirely in `planPortfolioAllocation` — this method only
+   * does the real I/O and hands it already-fetched real data.
+   */
+  async getPortfolioPlan(
+    tenantId: string,
+    growthObjectiveId: string,
+  ): Promise<PortfolioPlanResponseDto> {
+    const growthObjective = await this.growthObjectives.getById(tenantId, growthObjectiveId);
+    const { candidateListings, warnings: candidacyWarnings } = await this.resolveCandidateListings(
+      tenantId,
+      growthObjective.focusListingIds,
+    );
+
+    const matchedCampaignIdsByListingId = new Map<string, readonly string[]>();
+    await Promise.all(
+      candidateListings.map(async (listing) => {
+        const matchedCampaignIds = await this.growthObjectiveCampaigns.findCampaignIdsForListings(
+          tenantId,
+          [listing.id],
+        );
+        matchedCampaignIdsByListingId.set(listing.id, matchedCampaignIds);
+      }),
+    );
+
+    // Stable, reproducible order for `planPortfolioAllocation`'s remainder distribution — see that
+    // function's own doc.
+    const sortedCandidates = [...candidateListings].sort((a, b) => a.id.localeCompare(b.id));
+
+    const plan = planPortfolioAllocation({
+      growthObjective,
+      candidateListings: sortedCandidates,
+      matchedCampaignIdsByListingId,
+    });
+
+    return {
+      growthObjectiveId,
+      plan: { ...plan, warnings: [...candidacyWarnings, ...plan.warnings] },
+    };
+  }
+
+  /**
+   * Real candidate-listing resolution shared doc — see `getPortfolioPlan`'s own header comment for
+   * the full rule. `focusListingIds` non-empty resolves each id against the tenant's REAL listings
+   * (never assumes an id is still valid); empty resolves to every real listing this tenant has.
+   */
+  private async resolveCandidateListings(
+    tenantId: string,
+    focusListingIds: readonly string[],
+  ): Promise<{
+    readonly candidateListings: readonly ListingResponseDto[];
+    readonly warnings: readonly string[];
+  }> {
+    const allListings = (await this.listings.list(tenantId, {})).listings;
+    if (focusListingIds.length === 0) {
+      return { candidateListings: allListings, warnings: [] };
+    }
+
+    const byId = new Map(allListings.map((listing) => [listing.id, listing] as const));
+    const candidateListings: ListingResponseDto[] = [];
+    const missingIds: string[] = [];
+    for (const id of focusListingIds) {
+      const listing = byId.get(id);
+      if (listing === undefined) {
+        missingIds.push(id);
+      } else {
+        candidateListings.push(listing);
+      }
+    }
+
+    const warnings =
+      missingIds.length > 0
+        ? [
+            `${String(missingIds.length)} focus listing pada growth objective ini sudah tidak ditemukan (kemungkinan terhapus): ${missingIds.join(", ")}.`,
+          ]
+        : [];
+    return { candidateListings, warnings };
   }
 
   /**

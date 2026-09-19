@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { GrowthObjectivesModule } from "../growth-objectives/growth-objectives.module.js";
+import { GrowthObjectiveCampaignsRepository } from "../growth-objectives/infrastructure/growth-objective-campaigns.repository.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
@@ -39,6 +40,12 @@ import { CampaignCreationRepository } from "./infrastructure/campaign-creation.r
       provide: CampaignCreationRepository,
       useFactory: (client: SupabaseClientLike): CampaignCreationRepository =>
         new CampaignCreationRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: GrowthObjectiveCampaignsRepository,
+      useFactory: (client: SupabaseClientLike): GrowthObjectiveCampaignsRepository =>
+        new GrowthObjectiveCampaignsRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

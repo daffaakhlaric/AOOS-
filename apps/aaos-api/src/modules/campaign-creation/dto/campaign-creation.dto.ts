@@ -1,6 +1,7 @@
 import type { CampaignBlueprint } from "../domain/campaign-blueprint.js";
 import type { CampaignPreflightResult } from "../domain/campaign-preflight.js";
 import type { ListingReadinessResult } from "../domain/listing-readiness.js";
+import type { PortfolioPlanResult } from "../domain/portfolio-plan.js";
 
 /**
  * `GET /api/v1/campaign-creation/listings/:listingId/readiness` response — PROMPT 33. Thin wrapper
@@ -24,6 +25,17 @@ export interface CampaignPreflightResponseDto {
   readonly growthObjectiveId: string;
   readonly listingId: string;
   readonly preflight: CampaignPreflightResult;
+}
+
+/**
+ * `GET /api/v1/campaign-creation/growth-objectives/:growthObjectiveId/portfolio-plan` response —
+ * EYVRA SAMANTHA V2 Phase 32 (Portfolio Planner / Listing Allocation Engine). Thin wrapper around
+ * the real `PortfolioPlanResult`, same "domain result IS the response shape" pattern
+ * `ListingReadinessResponseDto`/`CampaignBlueprintResponseDto` already establish for this module.
+ */
+export interface PortfolioPlanResponseDto {
+  readonly growthObjectiveId: string;
+  readonly plan: PortfolioPlanResult;
 }
 
 /**

@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import type { GrowthObjectiveResponseDto } from "../growth-objectives/dto/growth-objective.dto.js";
 import type { GrowthObjectivesService } from "../growth-objectives/growth-objectives.service.js";
-import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
+import type { GrowthObjectiveCampaignsRepository } from "../growth-objectives/infrastructure/growth-objective-campaigns.repository.js";
+import type { ListingListResponseDto, ListingResponseDto } from "../listings/dto/listing.dto.js";
 import type { ListingsService } from "../listings/listings.service.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
@@ -175,6 +176,7 @@ interface Harness {
   readonly modeGuard: ModeGuardService;
   readonly activityLogger: ActivityLogger;
   readonly connector: MetaAdsConnector;
+  readonly growthObjectiveCampaigns: GrowthObjectiveCampaignsRepository;
 }
 
 function buildHarness(
@@ -184,11 +186,22 @@ function buildHarness(
     readonly repositoryOverrides?: Partial<Record<keyof CampaignCreationRepository, unknown>>;
     readonly connectorOverrides?: Record<string, unknown>;
     readonly dev?: boolean;
+    /** Phase 32 — real tenant listings `ListingsService.list` returns; defaults to `[makeListing()]`. */
+    readonly allListings?: readonly ListingResponseDto[];
+    /** Phase 32 — real matched `meta_campaign_id`s `GrowthObjectiveCampaignsRepository.findCampaignIdsForListings` returns, keyed by the SAME listing id passed in (mirrors the real one-listing-per-call usage `getPortfolioPlan` makes). Defaults to always-empty (no existing campaign). */
+    readonly matchedCampaignIdsByListingId?: ReadonlyMap<string, readonly string[]>;
   } = {},
 ): Harness {
   const listing = makeListing(options.listingOverrides);
   const growthObjective = makeGrowthObjective(options.objectiveOverrides);
-  const listings = { getById: vi.fn(async () => listing) } as unknown as ListingsService;
+  const allListings = options.allListings ?? [listing];
+  const listings = {
+    getById: vi.fn(async () => listing),
+    list: vi.fn(async (): Promise<ListingListResponseDto> => ({
+      listings: allListings,
+      total: allListings.length,
+    })),
+  } as unknown as ListingsService;
   const growthObjectives = {
     getById: vi.fn(async () => growthObjective),
   } as unknown as GrowthObjectivesService;
@@ -197,6 +210,13 @@ function buildHarness(
   const connectorRegistry = buildFakeConnectorRegistry(connector);
   const modeGuard = buildFakeModeGuard(options.dev ?? false);
   const activityLogger = buildFakeActivityLogger();
+  const matchedMap = options.matchedCampaignIdsByListingId ?? new Map<string, readonly string[]>();
+  const growthObjectiveCampaigns = {
+    findCampaignIdsForListings: vi.fn(
+      async (_tenantId: string, listingIds: readonly string[]) =>
+        matchedMap.get(listingIds[0] ?? "") ?? [],
+    ),
+  } as unknown as GrowthObjectiveCampaignsRepository;
 
   const service = new CampaignCreationService(
     listings,
@@ -205,6 +225,7 @@ function buildHarness(
     connectorRegistry,
     modeGuard,
     activityLogger,
+    growthObjectiveCampaigns,
   );
 
   return {
@@ -216,6 +237,7 @@ function buildHarness(
     modeGuard,
     activityLogger,
     connector,
+    growthObjectiveCampaigns,
   };
 }
 
@@ -410,5 +432,158 @@ describe("CampaignCreationService.createCampaign (Phase 26 — PROMPT 36/37)", (
     expect(result.status).toBe("CONFLICT");
     expect(connector.client.createCampaign).not.toHaveBeenCalled();
     expect(repository.findByKey).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("CampaignCreationService.getPortfolioPlan (Phase 32 — Portfolio Planner / Listing Allocation Engine)", () => {
+  it("empty focusListingIds -> candidates are every real tenant listing ListingsService.list returns", async () => {
+    const listingA = makeListing({ id: "listing-a" });
+    const listingB = makeListing({ id: "listing-b" });
+    const { service, listings, growthObjectives } = buildHarness({
+      objectiveOverrides: { focusListingIds: [] },
+      allListings: [listingA, listingB],
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    expect(growthObjectives.getById).toHaveBeenCalledWith(TENANT, OBJECTIVE_ID);
+    expect(listings.list).toHaveBeenCalledTimes(1);
+    expect(result.plan.candidates).toHaveLength(2);
+    expect(result.plan.candidates.map((c) => c.listingId).sort()).toEqual([
+      "listing-a",
+      "listing-b",
+    ]);
+  });
+
+  it("non-empty focusListingIds -> candidates are exactly those real listings, in stable listingId order", async () => {
+    const listingA = makeListing({ id: "listing-a" });
+    const listingB = makeListing({ id: "listing-b" });
+    const listingC = makeListing({ id: "listing-c" });
+    const { service } = buildHarness({
+      objectiveOverrides: { focusListingIds: ["listing-c", "listing-a"] },
+      allListings: [listingA, listingB, listingC],
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    expect(result.plan.candidates.map((c) => c.listingId)).toEqual(["listing-a", "listing-c"]);
+  });
+
+  it("a focusListingId that no longer resolves to a real listing is honestly excluded and surfaced in warnings, never fabricated", async () => {
+    const listingA = makeListing({ id: "listing-a" });
+    const { service } = buildHarness({
+      objectiveOverrides: { focusListingIds: ["listing-a", "listing-deleted"] },
+      allListings: [listingA],
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    expect(result.plan.candidates).toHaveLength(1);
+    expect(result.plan.candidates[0]?.listingId).toBe("listing-a");
+    expect(result.plan.warnings.some((w) => w.includes("listing-deleted"))).toBe(true);
+  });
+
+  it("a listing with a real matched meta_campaign_id is alreadyCampaigned and excluded from allocation", async () => {
+    const listingA = makeListing({ id: "listing-a" });
+    const listingB = makeListing({ id: "listing-b" });
+    const { service } = buildHarness({
+      objectiveOverrides: { focusListingIds: [], forecast: READY_FORECAST },
+      allListings: [listingA, listingB],
+      matchedCampaignIdsByListingId: new Map([["listing-a", ["campaign-existing"]]]),
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    const a = result.plan.candidates.find((c) => c.listingId === "listing-a");
+    const b = result.plan.candidates.find((c) => c.listingId === "listing-b");
+    expect(a?.alreadyCampaigned).toBe(true);
+    expect(a?.eligibleForAllocation).toBe(false);
+    expect(a?.matchedCampaignIds).toEqual(["campaign-existing"]);
+    expect(b?.alreadyCampaigned).toBe(false);
+    expect(b?.eligibleForAllocation).toBe(true);
+    expect(result.plan.eligibleCount).toBe(1);
+  });
+
+  it("a blocked (not-ready) listing is excluded from allocation with its real blockingIssues intact", async () => {
+    const readyListing = makeListing({ id: "listing-ready" });
+    const blockedListing = makeListing({ id: "listing-blocked", waNumber: undefined });
+    const { service } = buildHarness({
+      objectiveOverrides: { focusListingIds: [], forecast: READY_FORECAST },
+      allListings: [readyListing, blockedListing],
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    const blocked = result.plan.candidates.find((c) => c.listingId === "listing-blocked");
+    expect(blocked?.eligibleForAllocation).toBe(false);
+    expect(blocked?.readiness.ready).toBe(false);
+    expect(blocked?.readiness.blockingIssues.length).toBeGreaterThan(0);
+    expect(result.plan.eligibleCount).toBe(1);
+  });
+
+  it("no forecast yet -> budget allocation is honestly omitted, target-lead allocation still happens, real warning explains why", async () => {
+    const { service } = buildHarness({
+      objectiveOverrides: { focusListingIds: [], targetValue: 40, forecast: undefined },
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    expect(result.plan.totalEstimatedMediaSpendIdr).toBeUndefined();
+    expect(result.plan.candidates[0]?.allocation?.targetHotLeads).toBe(40);
+    expect(result.plan.candidates[0]?.allocation?.budgetIdr).toBeUndefined();
+    expect(result.plan.warnings.some((w) => w.includes("belum dianalisa"))).toBe(true);
+  });
+
+  it("with a real forecast, target leads AND budget are both allocated across every eligible listing, summing exactly to the real total", async () => {
+    const listingA = makeListing({ id: "listing-a" });
+    const listingB = makeListing({ id: "listing-b" });
+    const listingC = makeListing({ id: "listing-c" });
+    const { service } = buildHarness({
+      objectiveOverrides: { focusListingIds: [], targetValue: 50, forecast: READY_FORECAST },
+      allListings: [listingA, listingB, listingC],
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    const totalLeads = result.plan.candidates.reduce(
+      (sum, c) => sum + (c.allocation?.targetHotLeads ?? 0),
+      0,
+    );
+    const totalBudget = result.plan.candidates.reduce(
+      (sum, c) => sum + (c.allocation?.budgetIdr ?? 0),
+      0,
+    );
+    expect(totalLeads).toBe(50);
+    expect(totalBudget).toBe(READY_FORECAST.reverseFunnel.estimatedMediaSpendIdr.expected);
+    expect(result.plan.allocationModel).toBe("EVEN_SPLIT");
+  });
+
+  it("zero candidate listings -> honest empty plan, real warning explains why, never a fabricated candidate", async () => {
+    const { service } = buildHarness({
+      objectiveOverrides: { focusListingIds: [] },
+      allListings: [],
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    expect(result.plan.candidates).toEqual([]);
+    expect(result.plan.eligibleCount).toBe(0);
+    expect(result.plan.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("all candidates blocked or already-campaigned -> zero eligible, honest warning, no fabricated allocation", async () => {
+    const listingA = makeListing({ id: "listing-a" });
+    const listingB = makeListing({ id: "listing-b", waNumber: undefined });
+    const { service } = buildHarness({
+      objectiveOverrides: { focusListingIds: [] },
+      allListings: [listingA, listingB],
+      matchedCampaignIdsByListingId: new Map([["listing-a", ["campaign-existing"]]]),
+    });
+
+    const result = await service.getPortfolioPlan(TENANT, OBJECTIVE_ID);
+
+    expect(result.plan.eligibleCount).toBe(0);
+    expect(result.plan.candidates.every((c) => c.allocation === undefined)).toBe(true);
+    expect(result.plan.warnings.length).toBeGreaterThan(0);
   });
 });
