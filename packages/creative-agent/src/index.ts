@@ -88,6 +88,11 @@ export type {
   PropertyListingAngleSignals,
   PropertyAngleStrength,
 } from "./intelligence/PropertyAngleStrengthScorer.js";
+// PROMPT 44 — KAI CONCEPT ENGINE: the real spec's 20-member concept-family taxonomy + the
+// deterministic `PropertyAdAngle` -> `ConceptFamily[]` mapper (see each file's own doc for the
+// verbatim spec text and mapping justification).
+export { ConceptFamily, ALL_CONCEPT_FAMILIES } from "./domain/value-objects/ConceptFamily.js";
+export { PropertyAngleToConceptFamilyMapper } from "./intelligence/PropertyAngleToConceptFamilyMapper.js";
 
 // Additive: the contracts (ports) every intelligence/service class above implements.
 export type { ICreativeAgent } from "./contracts/ICreativeAgent.js";
