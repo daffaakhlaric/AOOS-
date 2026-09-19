@@ -24,7 +24,13 @@ import type { CalendarEventResult } from "../scheduler/domain/calendar-event.js"
 
 import type { AbTestStatus, StoredAbTest, StoredAbTestVariant } from "./domain/ab-test.js";
 import { angleSetKey, selectUnusedAngleSet, variantLabelForIndex } from "./domain/angle-pairs.js";
-import { decideWinner, isThresholdMet, type VariantInsight } from "./domain/winner-decision.js";
+import {
+  assessVariantSufficiency,
+  decideWinner,
+  isExperimentReadyToDecide,
+  isThresholdMet,
+  type VariantInsight,
+} from "./domain/winner-decision.js";
 import type { AbTestVariantMedia } from "./dto/ab-test-response.dto.js";
 import type { CreateAbTestBodyDto } from "./dto/create-ab-test.dto.js";
 import { AbTestVariantRepository } from "./infrastructure/ab-test-variant.repository.js";
@@ -358,7 +364,7 @@ export class AbTestingService {
           ctr,
           lastSyncedAtIso: nowIso,
         });
-        insights.push({ variantId: variant.id, spend, leads, rphLead });
+        insights.push({ variantId: variant.id, spend, impressions, clicks, leads, rphLead });
       }
 
       if (insights.length < 2 || test.startedAt === undefined) {
@@ -369,6 +375,14 @@ export class AbTestingService {
         (this.now().getTime() - new Date(test.startedAt).getTime()) / MS_PER_DAY,
       );
       if (!isThresholdMet(totalSpend, test.thresholdSpend, daysRunning, test.thresholdDays)) {
+        continue;
+      }
+      // PROMPT 27 "Experiment Engine" (Phase 35): combined `isThresholdMet` above does not catch a
+      // single variant still resting on a too-thin real sample (see `winner-decision.ts`'s own doc)
+      // — check every variant's OWN sufficiency before even attempting `decideWinner`. A real
+      // "keep testing" state, same as `decideWinner` returning `undefined`, never a forced decision.
+      const sufficiencies = assessVariantSufficiency(insights, daysRunning);
+      if (!isExperimentReadyToDecide(sufficiencies)) {
         continue;
       }
       const decision = decideWinner(insights, test.minMarginPct);
