@@ -7,6 +7,7 @@ import type {
   CampaignCreationResponseDto,
   CampaignPreflightResponseDto,
   ListingReadinessResponseDto,
+  StrategyMemoryResponseDto,
 } from "./dto/campaign-creation.dto.js";
 
 const TENANT = "dss-motor";
@@ -31,12 +32,19 @@ const CREATION_SAMPLE: CampaignCreationResponseDto = {
   metaAdSetId: "adset-1",
 };
 
+const STRATEGY_MEMORY_SAMPLE: StrategyMemoryResponseDto = {
+  growthObjectiveId: "objective-1",
+  listingId: "listing-1",
+  memory: { available: false, matchedCount: 0, reason: "test" },
+};
+
 function buildFakeService(): CampaignCreationService {
   return {
     getListingReadiness: vi.fn(async () => READINESS_SAMPLE),
     getBlueprint: vi.fn(async () => ({}) as CampaignBlueprintResponseDto),
     getPreflight: vi.fn(async () => ({}) as CampaignPreflightResponseDto),
     createCampaign: vi.fn(async () => CREATION_SAMPLE),
+    getStrategyMemory: vi.fn(async () => STRATEGY_MEMORY_SAMPLE),
   } as unknown as CampaignCreationService;
 }
 
@@ -61,6 +69,14 @@ describe("CampaignCreationController", () => {
     const controller = new CampaignCreationController(service);
     await controller.preflight(TENANT, "objective-1", "listing-1");
     expect(service.getPreflight).toHaveBeenCalledWith(TENANT, "objective-1", "listing-1");
+  });
+
+  it("strategyMemory() delegates to the service with the tenant id, growthObjectiveId, and listingId", async () => {
+    const service = buildFakeService();
+    const controller = new CampaignCreationController(service);
+    const result = await controller.strategyMemory(TENANT, "objective-1", "listing-1");
+    expect(service.getStrategyMemory).toHaveBeenCalledWith(TENANT, "objective-1", "listing-1");
+    expect(result).toBe(STRATEGY_MEMORY_SAMPLE);
   });
 
   it("create() delegates to service.createCampaign with a generated correlationId", async () => {

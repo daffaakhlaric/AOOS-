@@ -5,6 +5,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { CampaignAssessmentRepository } from "../campaign-health/infrastructure/campaign-assessment.repository.js";
 import { GrowthObjectivesService } from "../growth-objectives/growth-objectives.service.js";
 import { GrowthObjectiveCampaignsRepository } from "../growth-objectives/infrastructure/growth-objective-campaigns.repository.js";
 import type { ListingResponseDto } from "../listings/dto/listing.dto.js";
@@ -20,12 +21,15 @@ import type { CampaignBlueprint } from "./domain/campaign-blueprint.js";
 import { assessCampaignPreflight } from "./domain/campaign-preflight.js";
 import { assessListingReadiness } from "./domain/listing-readiness.js";
 import { planPortfolioAllocation } from "./domain/portfolio-plan.js";
+import { summarizeStrategyMemory } from "./domain/strategy-memory.js";
+import type { StrategyMemoryCandidate, StrategyMemoryResult } from "./domain/strategy-memory.js";
 import type {
   CampaignBlueprintResponseDto,
   CampaignCreationResponseDto,
   CampaignPreflightResponseDto,
   ListingReadinessResponseDto,
   PortfolioPlanResponseDto,
+  StrategyMemoryResponseDto,
 } from "./dto/campaign-creation.dto.js";
 import { CampaignCreationRepository } from "./infrastructure/campaign-creation.repository.js";
 import type { StoredCampaignCreationRequest } from "./infrastructure/campaign-creation.repository.js";
@@ -97,6 +101,7 @@ export class CampaignCreationService {
     private readonly modeGuard: ModeGuardService,
     private readonly activityLogger: ActivityLogger,
     private readonly growthObjectiveCampaigns: GrowthObjectiveCampaignsRepository,
+    private readonly campaignAssessments: CampaignAssessmentRepository,
   ) {}
 
   async getListingReadiness(
@@ -230,6 +235,101 @@ export class CampaignCreationService {
           ]
         : [];
     return { candidateListings, warnings };
+  }
+
+  /**
+   * `GET /api/v1/campaign-creation/growth-objectives/:growthObjectiveId/listings/:listingId/strategy-memory`
+   * — EYVRA SAMANTHA V2 Phase 33 (PROMPT 34 — Historical Strategy Memory). 100% read-only — zero
+   * mutation, zero Meta API call. See `domain/strategy-memory.ts`'s own header doc for the full
+   * honest audit/scope of what this does and does not answer.
+   *
+   * Real I/O, all bounded to this one tenant (never a cross-tenant query):
+   *  1. The target listing + growth objective (already-real `getById` calls this class already
+   *     makes elsewhere).
+   *  2. Every real `campaign_creation_requests` row for this tenant that resulted in a real Meta
+   *     object (`CampaignCreationRepository.listCreatedForTenant` — Phase 33 addition).
+   *  3. Every one of THIS tenant's real listings (`ListingsService.list`, already-reused pattern
+   *     from `resolveCandidateListings`) — to resolve each historical request's real
+   *     propertyType/price/area at the time of THIS query (not a fabricated snapshot from when the
+   *     campaign was created).
+   *  4. Every one of this tenant's real growth objectives (`GrowthObjectivesService.list`) — to
+   *     resolve each historical request's real objective `metric`.
+   *  5. The LATEST real, persisted assessment per `meta_campaign_id`
+   *     (`CampaignAssessmentRepository.listLatestPerCampaign` — Phase 33 addition) — the real
+   *     outcome signal.
+   *
+   * A historical request whose listing was since deleted, whose growth objective was since
+   * deleted, or that has never once been assessed-and-recorded (`POST
+   * /campaign-health/:campaignId/assess`) is honestly EXCLUDED from the candidate set — never
+   * fabricated. All pure matching/aggregation happens in `summarizeStrategyMemory`.
+   */
+  async getStrategyMemory(
+    tenantId: string,
+    growthObjectiveId: string,
+    listingId: string,
+  ): Promise<StrategyMemoryResponseDto> {
+    const [
+      growthObjective,
+      listing,
+      historicalRequests,
+      allListings,
+      allObjectives,
+      latestAssessments,
+    ] = await Promise.all([
+      this.growthObjectives.getById(tenantId, growthObjectiveId),
+      this.listings.getById(tenantId, listingId),
+      this.repository.listCreatedForTenant(tenantId),
+      this.listings.list(tenantId, {}),
+      this.growthObjectives.list(tenantId),
+      this.campaignAssessments.listLatestPerCampaign(tenantId),
+    ]);
+
+    const listingsById = new Map(allListings.listings.map((l) => [l.id, l] as const));
+    const objectiveMetricById = new Map(
+      allObjectives.objectives.map((o) => [o.id, o.metric as string] as const),
+    );
+
+    const candidates: StrategyMemoryCandidate[] = [];
+    for (const request of historicalRequests) {
+      if (request.metaCampaignId === undefined) {
+        continue;
+      }
+      const candidateListing = listingsById.get(request.listingId);
+      const objectiveMetric = objectiveMetricById.get(request.growthObjectiveId);
+      const assessment = latestAssessments.get(request.metaCampaignId);
+      if (
+        candidateListing === undefined ||
+        objectiveMetric === undefined ||
+        assessment === undefined
+      ) {
+        continue;
+      }
+      candidates.push({
+        listingId: candidateListing.id,
+        metaCampaignId: request.metaCampaignId,
+        propertyType: candidateListing.propertyType,
+        price: candidateListing.price,
+        city: candidateListing.city,
+        province: candidateListing.province,
+        objectiveMetric,
+        overallStatus: assessment.health.overallStatus,
+        costEfficiencyScore: assessment.health.costEfficiency.score,
+        assessedAt: assessment.assessedAt,
+      });
+    }
+
+    const memory: StrategyMemoryResult = summarizeStrategyMemory(
+      {
+        propertyType: listing.propertyType,
+        price: listing.price,
+        city: listing.city,
+        province: listing.province,
+        objectiveMetric: growthObjective.metric,
+      },
+      candidates,
+    );
+
+    return { growthObjectiveId, listingId, memory };
   }
 
   /**

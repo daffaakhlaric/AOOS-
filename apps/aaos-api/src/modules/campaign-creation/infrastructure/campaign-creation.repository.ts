@@ -253,4 +253,33 @@ export class CampaignCreationRepository {
       );
     }
   }
+
+  /**
+   * EYVRA — SAMANTHA V2 Phase 33 (PROMPT 34 — Historical Strategy Memory). Every real request for
+   * this tenant that resulted in a real Meta object existing — `CREATED` (full success) or
+   * `PARTIAL_FAILURE` (a real, inert PAUSED campaign exists even though its ad set failed) — i.e.
+   * every row with a real `metaCampaignId` worth looking up in `samantha_campaign_assessments`.
+   * `PENDING`/`FAILED`/`SIMULATED` never had (or no longer have, after a reclaim) a real
+   * `meta_campaign_id` and are excluded.
+   *
+   * No `.in()` on the shared `SupabaseClientLike` port — same real gap
+   * `GrowthObjectiveCampaignsRepository.findCampaignIdsForListings`'s own doc already establishes.
+   * Same established fix: select the whole tenant's real `campaign_creation_requests` rows
+   * (bounded by one tenant's real campaign-creation volume, never unbounded) and filter in-memory.
+   */
+  async listCreatedForTenant(tenantId: string): Promise<readonly StoredCampaignCreationRequest[]> {
+    const { data, error } = await this.client
+      .from<CampaignCreationRequestRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId);
+    if (error !== null) {
+      throw new CampaignCreationRepositoryError(
+        `CampaignCreationRepository.listCreatedForTenant failed: ${error.message}`,
+      );
+    }
+    return (data ?? [])
+      .filter((row) => row.status === "CREATED" || row.status === "PARTIAL_FAILURE")
+      .map(toDomain)
+      .filter((row) => row.metaCampaignId !== undefined);
+  }
 }

@@ -12,6 +12,7 @@ import type {
   CampaignPreflightResponseDto,
   ListingReadinessResponseDto,
   PortfolioPlanResponseDto,
+  StrategyMemoryResponseDto,
 } from "./dto/campaign-creation.dto.js";
 
 /**
@@ -66,6 +67,20 @@ export class CampaignCreationController {
     @Param("growthObjectiveId") growthObjectiveId: string,
   ): Promise<PortfolioPlanResponseDto> {
     return this.service.getPortfolioPlan(tenantId, growthObjectiveId);
+  }
+
+  /**
+   * `GET /api/v1/campaign-creation/growth-objectives/:growthObjectiveId/listings/:listingId/strategy-memory`
+   * — EYVRA SAMANTHA V2 Phase 33 (PROMPT 34). Read-only, same as `blueprint`/`preflight`/
+   * `portfolioPlan` above.
+   */
+  @Get("growth-objectives/:growthObjectiveId/listings/:listingId/strategy-memory")
+  async strategyMemory(
+    @TenantId() tenantId: string,
+    @Param("growthObjectiveId") growthObjectiveId: string,
+    @Param("listingId") listingId: string,
+  ): Promise<StrategyMemoryResponseDto> {
+    return this.service.getStrategyMemory(tenantId, growthObjectiveId, listingId);
   }
 
   /**

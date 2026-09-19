@@ -3,7 +3,14 @@ import { AdStatus, type MetaAdsConnector } from "@aos/meta-ads-connector";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ActivityLogger } from "../activity-log/activity-logger.service.js";
-import type { GrowthObjectiveResponseDto } from "../growth-objectives/dto/growth-objective.dto.js";
+import type {
+  CampaignAssessmentRepository,
+  StoredAssessment,
+} from "../campaign-health/infrastructure/campaign-assessment.repository.js";
+import type {
+  GrowthObjectiveListResponseDto,
+  GrowthObjectiveResponseDto,
+} from "../growth-objectives/dto/growth-objective.dto.js";
 import type { GrowthObjectivesService } from "../growth-objectives/growth-objectives.service.js";
 import type { GrowthObjectiveCampaignsRepository } from "../growth-objectives/infrastructure/growth-objective-campaigns.repository.js";
 import type { ListingListResponseDto, ListingResponseDto } from "../listings/dto/listing.dto.js";
@@ -163,6 +170,7 @@ function buildFakeRepository(
     markPartialFailure: vi.fn(async () => undefined),
     markFailed: vi.fn(async () => undefined),
     markSimulated: vi.fn(async () => undefined),
+    listCreatedForTenant: vi.fn(async () => []),
     ...overrides,
   } as unknown as CampaignCreationRepository;
 }
@@ -177,6 +185,7 @@ interface Harness {
   readonly activityLogger: ActivityLogger;
   readonly connector: MetaAdsConnector;
   readonly growthObjectiveCampaigns: GrowthObjectiveCampaignsRepository;
+  readonly campaignAssessments: CampaignAssessmentRepository;
 }
 
 function buildHarness(
@@ -190,11 +199,18 @@ function buildHarness(
     readonly allListings?: readonly ListingResponseDto[];
     /** Phase 32 — real matched `meta_campaign_id`s `GrowthObjectiveCampaignsRepository.findCampaignIdsForListings` returns, keyed by the SAME listing id passed in (mirrors the real one-listing-per-call usage `getPortfolioPlan` makes). Defaults to always-empty (no existing campaign). */
     readonly matchedCampaignIdsByListingId?: ReadonlyMap<string, readonly string[]>;
+    /** Phase 33 — real tenant growth objectives `GrowthObjectivesService.list` returns; defaults to `[makeGrowthObjective()]`. */
+    readonly allObjectives?: readonly GrowthObjectiveResponseDto[];
+    /** Phase 33 — real `campaign_creation_requests` rows `CampaignCreationRepository.listCreatedForTenant` returns; defaults to `[]`. */
+    readonly historicalRequests?: readonly StoredCampaignCreationRequest[];
+    /** Phase 33 — real latest-per-campaign assessments `CampaignAssessmentRepository.listLatestPerCampaign` returns; defaults to an empty map. */
+    readonly latestAssessments?: ReadonlyMap<string, StoredAssessment>;
   } = {},
 ): Harness {
   const listing = makeListing(options.listingOverrides);
   const growthObjective = makeGrowthObjective(options.objectiveOverrides);
   const allListings = options.allListings ?? [listing];
+  const allObjectives = options.allObjectives ?? [growthObjective];
   const listings = {
     getById: vi.fn(async () => listing),
     list: vi.fn(async (): Promise<ListingListResponseDto> => ({
@@ -204,8 +220,14 @@ function buildHarness(
   } as unknown as ListingsService;
   const growthObjectives = {
     getById: vi.fn(async () => growthObjective),
+    list: vi.fn(async (): Promise<GrowthObjectiveListResponseDto> => ({
+      objectives: allObjectives,
+    })),
   } as unknown as GrowthObjectivesService;
-  const repository = buildFakeRepository(options.repositoryOverrides);
+  const repository = buildFakeRepository({
+    listCreatedForTenant: vi.fn(async () => options.historicalRequests ?? []),
+    ...options.repositoryOverrides,
+  });
   const connector = buildFakeConnector(options.connectorOverrides);
   const connectorRegistry = buildFakeConnectorRegistry(connector);
   const modeGuard = buildFakeModeGuard(options.dev ?? false);
@@ -217,6 +239,11 @@ function buildHarness(
         matchedMap.get(listingIds[0] ?? "") ?? [],
     ),
   } as unknown as GrowthObjectiveCampaignsRepository;
+  const campaignAssessments = {
+    listLatestPerCampaign: vi.fn(
+      async () => options.latestAssessments ?? new Map<string, StoredAssessment>(),
+    ),
+  } as unknown as CampaignAssessmentRepository;
 
   const service = new CampaignCreationService(
     listings,
@@ -226,6 +253,7 @@ function buildHarness(
     modeGuard,
     activityLogger,
     growthObjectiveCampaigns,
+    campaignAssessments,
   );
 
   return {
@@ -238,6 +266,7 @@ function buildHarness(
     activityLogger,
     connector,
     growthObjectiveCampaigns,
+    campaignAssessments,
   };
 }
 
@@ -585,5 +614,206 @@ describe("CampaignCreationService.getPortfolioPlan (Phase 32 — Portfolio Plann
     expect(result.plan.eligibleCount).toBe(0);
     expect(result.plan.candidates.every((c) => c.allocation === undefined)).toBe(true);
     expect(result.plan.warnings.length).toBeGreaterThan(0);
+  });
+});
+
+describe("CampaignCreationService.getStrategyMemory (Phase 33 — PROMPT 34 — Historical Strategy Memory)", () => {
+  function healthyDimension(score: number): StoredAssessment["health"]["delivery"] {
+    return { status: "HEALTHY", score, confidence: 1, issues: [] };
+  }
+
+  function makeAssessment(
+    overallStatus: StoredAssessment["health"]["overallStatus"],
+    costEfficiencyScore?: number,
+  ): StoredAssessment {
+    return {
+      id: `assess-${overallStatus}`,
+      health: {
+        delivery: healthyDimension(90),
+        costEfficiency:
+          costEfficiencyScore === undefined
+            ? { status: "UNKNOWN", confidence: 0, issues: ["no benchmark"] }
+            : healthyDimension(costEfficiencyScore),
+        creative: healthyDimension(90),
+        audience: { status: "UNKNOWN", confidence: 0, issues: [] },
+        conversion: healthyDimension(90),
+        tracking: { status: "UNKNOWN", confidence: 0, issues: [] },
+        leadQuality: { status: "UNKNOWN", confidence: 0, issues: [] },
+        overallStatus,
+      },
+      diagnosis: {
+        confidence: 0,
+        impact: "UNKNOWN",
+        evidence: [],
+        contributingFactors: [],
+        recommendedFocus: [],
+      },
+      decision: {
+        decision: "NO_ACTION",
+        confidence: 1,
+        impact: "LOW",
+        reason: "test",
+        riskOfDoingNothing: "test",
+        expectedOutcome: "test",
+        monitoringPlan: { reviewAfterHours: 72, successConditions: [], rollbackConditions: [] },
+      },
+      assessedAt: "2026-01-05T00:00:00.000Z",
+    };
+  }
+
+  function makeRequest(
+    index: number,
+    overrides: Partial<StoredCampaignCreationRequest> = {},
+  ): StoredCampaignCreationRequest {
+    return makeStoredRequest({
+      id: `hist-request-${String(index)}`,
+      growthObjectiveId: `hist-objective-${String(index)}`,
+      listingId: `hist-listing-${String(index)}`,
+      status: "CREATED",
+      metaCampaignId: `hist-campaign-${String(index)}`,
+      metaAdSetId: `hist-adset-${String(index)}`,
+      ...overrides,
+    });
+  }
+
+  /** The TARGET listing (`makeListing`'s own default: RUMAH, 1.5M IDR — `"1M_TO_2M"` segment, Tangerang Selatan/Banten) — every "matching" historical fixture below shares these same real attributes. */
+  function matchingHistoricalListing(id: string): ListingResponseDto {
+    return makeListing({ id, waNumber: "628" });
+  }
+
+  function matchingHistoricalObjective(id: string): GrowthObjectiveResponseDto {
+    return makeGrowthObjective({ id, metric: "HOT_LEADS" });
+  }
+
+  it("below MIN_HISTORICAL_SAMPLE_SIZE real matched candidates -> honest available:false, never a fabricated average", async () => {
+    const histListingA = matchingHistoricalListing("hist-listing-0");
+    const histObjectiveA = matchingHistoricalObjective("hist-objective-0");
+    const { service } = buildHarness({
+      historicalRequests: [makeRequest(0)],
+      allListings: [makeListing(), histListingA],
+      allObjectives: [makeGrowthObjective(), histObjectiveA],
+      latestAssessments: new Map([["hist-campaign-0", makeAssessment("HEALTHY", 80)]]),
+    });
+
+    const result = await service.getStrategyMemory(TENANT, OBJECTIVE_ID, LISTING_ID);
+
+    expect(result.memory.available).toBe(false);
+    if (!result.memory.available) {
+      expect(result.memory.matchedCount).toBe(1);
+    }
+  });
+
+  it("zero historical requests at all -> honest available:false, matchedCount 0", async () => {
+    const { service } = buildHarness({ historicalRequests: [] });
+    const result = await service.getStrategyMemory(TENANT, OBJECTIVE_ID, LISTING_ID);
+    expect(result.memory).toEqual({
+      available: false,
+      matchedCount: 0,
+      reason: expect.stringContaining("Belum ada campaign historis"),
+    });
+  });
+
+  it("enough real matching historical campaigns -> a real, honestly-computed aggregate", async () => {
+    const histListings = [0, 1, 2].map((i) =>
+      matchingHistoricalListing(`hist-listing-${String(i)}`),
+    );
+    const histObjectives = [0, 1, 2].map((i) =>
+      matchingHistoricalObjective(`hist-objective-${String(i)}`),
+    );
+    const requests = [makeRequest(0), makeRequest(1), makeRequest(2)];
+    const assessments = new Map<string, StoredAssessment>([
+      ["hist-campaign-0", makeAssessment("HEALTHY", 90)],
+      ["hist-campaign-1", makeAssessment("WATCH", 70)],
+      ["hist-campaign-2", makeAssessment("CRITICAL", 20)],
+    ]);
+
+    const { service } = buildHarness({
+      historicalRequests: requests,
+      allListings: [makeListing(), ...histListings],
+      allObjectives: [makeGrowthObjective(), ...histObjectives],
+      latestAssessments: assessments,
+    });
+
+    const result = await service.getStrategyMemory(TENANT, OBJECTIVE_ID, LISTING_ID);
+
+    expect(result.memory.available).toBe(true);
+    if (result.memory.available) {
+      expect(result.memory.matchedCount).toBe(3);
+      expect(result.memory.statusCounts).toEqual({
+        HEALTHY: 1,
+        WATCH: 1,
+        WARNING: 0,
+        CRITICAL: 1,
+        UNKNOWN: 0,
+      });
+      expect(result.memory.favorableStatusRatio).toBeCloseTo(2 / 3);
+      expect(result.memory.averageCostEfficiencyScore).toBeCloseTo((90 + 70 + 20) / 3);
+      expect(result.memory.costEfficiencySampleSize).toBe(3);
+    }
+  });
+
+  it("a historical request with a different propertyType is honestly excluded from matching", async () => {
+    const histListings = [0, 1, 2].map((i) =>
+      matchingHistoricalListing(`hist-listing-${String(i)}`),
+    );
+    const mismatchedListing = makeListing({ id: "hist-listing-3", propertyType: "APARTEMEN" });
+    const histObjectives = [0, 1, 2, 3].map((i) =>
+      matchingHistoricalObjective(`hist-objective-${String(i)}`),
+    );
+    const requests = [makeRequest(0), makeRequest(1), makeRequest(2), makeRequest(3)];
+    const assessments = new Map<string, StoredAssessment>([
+      ["hist-campaign-0", makeAssessment("HEALTHY", 90)],
+      ["hist-campaign-1", makeAssessment("HEALTHY", 90)],
+      ["hist-campaign-2", makeAssessment("HEALTHY", 90)],
+      ["hist-campaign-3", makeAssessment("HEALTHY", 90)],
+    ]);
+
+    const { service } = buildHarness({
+      historicalRequests: requests,
+      allListings: [makeListing(), ...histListings, mismatchedListing],
+      allObjectives: [makeGrowthObjective(), ...histObjectives],
+      latestAssessments: assessments,
+    });
+
+    const result = await service.getStrategyMemory(TENANT, OBJECTIVE_ID, LISTING_ID);
+
+    expect(result.memory.available).toBe(true);
+    if (result.memory.available) {
+      // hist-listing-3 (APARTEMEN) never matches the target's RUMAH — excluded.
+      expect(result.memory.matchedCount).toBe(3);
+    }
+  });
+
+  it("a historical request whose listing was since deleted is honestly excluded, never fabricated", async () => {
+    const requests = [makeRequest(0)];
+    const { service } = buildHarness({
+      historicalRequests: requests,
+      allListings: [makeListing()], // hist-listing-0 is NOT in the real tenant listing set anymore
+      allObjectives: [makeGrowthObjective(), matchingHistoricalObjective("hist-objective-0")],
+      latestAssessments: new Map([["hist-campaign-0", makeAssessment("HEALTHY", 90)]]),
+    });
+
+    const result = await service.getStrategyMemory(TENANT, OBJECTIVE_ID, LISTING_ID);
+    expect(result.memory).toEqual({
+      available: false,
+      matchedCount: 0,
+      reason: expect.stringContaining("Belum ada campaign historis"),
+    });
+  });
+
+  it("a historical request that was never assessed-and-recorded is honestly excluded, never fabricated", async () => {
+    const requests = [makeRequest(0)];
+    const { service } = buildHarness({
+      historicalRequests: requests,
+      allListings: [makeListing(), matchingHistoricalListing("hist-listing-0")],
+      allObjectives: [makeGrowthObjective(), matchingHistoricalObjective("hist-objective-0")],
+      latestAssessments: new Map(), // no real assessment recorded for hist-campaign-0
+    });
+
+    const result = await service.getStrategyMemory(TENANT, OBJECTIVE_ID, LISTING_ID);
+    expect(result.memory.available).toBe(false);
+    if (!result.memory.available) {
+      expect(result.memory.matchedCount).toBe(0);
+    }
   });
 });

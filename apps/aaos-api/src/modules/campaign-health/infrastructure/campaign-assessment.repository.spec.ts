@@ -132,4 +132,67 @@ describe("CampaignAssessmentRepository", () => {
       CampaignAssessmentRepositoryError,
     );
   });
+
+  describe("listLatestPerCampaign", () => {
+    it("returns the LATEST real row per meta_campaign_id, keyed by campaign id", async () => {
+      const client = createFakeSupabaseClient();
+      client.seed(
+        "samantha_campaign_assessments",
+        seedRow({
+          id: "a1-old",
+          meta_campaign_id: "campaign-a",
+          assessed_at: "2026-01-01T00:00:00.000Z",
+        }),
+      );
+      client.seed(
+        "samantha_campaign_assessments",
+        seedRow({
+          id: "a1-new",
+          meta_campaign_id: "campaign-a",
+          assessed_at: "2026-01-03T00:00:00.000Z",
+        }),
+      );
+      client.seed(
+        "samantha_campaign_assessments",
+        seedRow({
+          id: "b1",
+          meta_campaign_id: "campaign-b",
+          assessed_at: "2026-01-02T00:00:00.000Z",
+        }),
+      );
+      const repo = new CampaignAssessmentRepository(client);
+      const latest = await repo.listLatestPerCampaign(TENANT);
+
+      expect(latest.size).toBe(2);
+      expect(latest.get("campaign-a")?.id).toBe("a1-new");
+      expect(latest.get("campaign-b")?.id).toBe("b1");
+    });
+
+    it("is tenant-scoped — a different tenant's rows never leak into the result", async () => {
+      const client = createFakeSupabaseClient();
+      client.seed(
+        "samantha_campaign_assessments",
+        seedRow({ id: "other", tenant_id: "other-tenant", meta_campaign_id: "campaign-a" }),
+      );
+      const repo = new CampaignAssessmentRepository(client);
+      const latest = await repo.listLatestPerCampaign(TENANT);
+      expect(latest.size).toBe(0);
+    });
+
+    it("returns an honest empty map when the tenant has never recorded any real assessment", async () => {
+      const client = createFakeSupabaseClient();
+      const repo = new CampaignAssessmentRepository(client);
+      const latest = await repo.listLatestPerCampaign(TENANT);
+      expect(latest.size).toBe(0);
+    });
+
+    it("throws CampaignAssessmentRepositoryError on a forced Supabase error", async () => {
+      const client = createFakeSupabaseClient();
+      client.forceErrorOnce("samantha_campaign_assessments", "boom");
+      const repo = new CampaignAssessmentRepository(client);
+      await expect(repo.listLatestPerCampaign(TENANT)).rejects.toThrow(
+        CampaignAssessmentRepositoryError,
+      );
+    });
+  });
 });

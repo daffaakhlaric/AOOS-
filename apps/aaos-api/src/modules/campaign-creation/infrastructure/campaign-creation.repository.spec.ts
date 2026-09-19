@@ -1,6 +1,8 @@
 import type { SupabaseClientLike } from "@aos/lead-store";
 import { describe, expect, it } from "vitest";
 
+import { createFakeSupabaseClient as createGenericFakeSupabaseClient } from "../../../test-support/fake-supabase-client.js";
+
 import {
   CampaignCreationRepository,
   CampaignCreationRepositoryError,
@@ -282,5 +284,98 @@ describe("CampaignCreationRepository", () => {
     await repo.markSimulated(id);
     found = await repo.findByKey(KEY.tenantId, KEY.growthObjectiveId, KEY.listingId);
     expect(found?.status).toBe("SIMULATED");
+  });
+});
+
+/**
+ * `listCreatedForTenant` (Phase 33 — PROMPT 34 — Historical Strategy Memory) uses a plain
+ * `.select().eq()` (no `.maybeSingle()`) — the hand-rolled fake above only ever implements the
+ * narrower `.select().eq().eq().eq().maybeSingle()` shape this repository's OTHER methods use, so
+ * these tests use the shared, more general `test-support/fake-supabase-client.ts` fake instead
+ * (same fake `campaign-assessment.repository.spec.ts`/`growth-objective-campaigns.repository.spec.ts`
+ * already use for this exact query shape).
+ */
+describe("CampaignCreationRepository.listCreatedForTenant", () => {
+  function seedRequest(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      id: "row-1",
+      tenant_id: KEY.tenantId,
+      growth_objective_id: KEY.growthObjectiveId,
+      listing_id: KEY.listingId,
+      creation_request_id: "req-1",
+      blueprint_id: "bp-1",
+      status: "CREATED",
+      meta_campaign_id: "campaign-1",
+      meta_ad_set_id: "adset-1",
+      error_message: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("returns CREATED and PARTIAL_FAILURE rows — both have a real meta_campaign_id worth looking up", async () => {
+    const client = createGenericFakeSupabaseClient();
+    client.seed(
+      "campaign_creation_requests",
+      seedRequest({ id: "row-created", status: "CREATED", meta_campaign_id: "campaign-created" }),
+    );
+    client.seed(
+      "campaign_creation_requests",
+      seedRequest({
+        id: "row-partial",
+        status: "PARTIAL_FAILURE",
+        meta_campaign_id: "campaign-partial",
+        meta_ad_set_id: null,
+      }),
+    );
+    const repo = new CampaignCreationRepository(client);
+    const rows = await repo.listCreatedForTenant(KEY.tenantId);
+    expect(rows.map((r) => r.metaCampaignId).sort()).toEqual([
+      "campaign-created",
+      "campaign-partial",
+    ]);
+  });
+
+  it("excludes PENDING/FAILED/SIMULATED rows — none of them have a real Meta object", async () => {
+    const client = createGenericFakeSupabaseClient();
+    client.seed(
+      "campaign_creation_requests",
+      seedRequest({ id: "row-pending", status: "PENDING", meta_campaign_id: null }),
+    );
+    client.seed(
+      "campaign_creation_requests",
+      seedRequest({ id: "row-failed", status: "FAILED", meta_campaign_id: null }),
+    );
+    client.seed(
+      "campaign_creation_requests",
+      seedRequest({ id: "row-simulated", status: "SIMULATED", meta_campaign_id: null }),
+    );
+    const repo = new CampaignCreationRepository(client);
+    const rows = await repo.listCreatedForTenant(KEY.tenantId);
+    expect(rows).toEqual([]);
+  });
+
+  it("is tenant-scoped — a different tenant's real rows never leak into the result", async () => {
+    const client = createGenericFakeSupabaseClient();
+    client.seed("campaign_creation_requests", seedRequest({ tenant_id: "other-tenant" }));
+    const repo = new CampaignCreationRepository(client);
+    const rows = await repo.listCreatedForTenant(KEY.tenantId);
+    expect(rows).toEqual([]);
+  });
+
+  it("returns an honest empty array when the tenant has never created a real campaign", async () => {
+    const client = createGenericFakeSupabaseClient();
+    const repo = new CampaignCreationRepository(client);
+    expect(await repo.listCreatedForTenant(KEY.tenantId)).toEqual([]);
+  });
+
+  it("throws CampaignCreationRepositoryError on a forced Supabase error", async () => {
+    const client = createGenericFakeSupabaseClient();
+    client.forceErrorOnce("campaign_creation_requests", "boom");
+    const repo = new CampaignCreationRepository(client);
+    await expect(repo.listCreatedForTenant(KEY.tenantId)).rejects.toThrow(
+      CampaignCreationRepositoryError,
+    );
   });
 });

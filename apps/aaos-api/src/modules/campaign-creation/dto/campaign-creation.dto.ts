@@ -2,6 +2,7 @@ import type { CampaignBlueprint } from "../domain/campaign-blueprint.js";
 import type { CampaignPreflightResult } from "../domain/campaign-preflight.js";
 import type { ListingReadinessResult } from "../domain/listing-readiness.js";
 import type { PortfolioPlanResult } from "../domain/portfolio-plan.js";
+import type { StrategyMemoryResult } from "../domain/strategy-memory.js";
 
 /**
  * `GET /api/v1/campaign-creation/listings/:listingId/readiness` response — PROMPT 33. Thin wrapper
@@ -36,6 +37,18 @@ export interface CampaignPreflightResponseDto {
 export interface PortfolioPlanResponseDto {
   readonly growthObjectiveId: string;
   readonly plan: PortfolioPlanResult;
+}
+
+/**
+ * `GET /api/v1/campaign-creation/growth-objectives/:growthObjectiveId/listings/:listingId/strategy-memory`
+ * response — EYVRA SAMANTHA V2 Phase 33 (PROMPT 34 — Historical Strategy Memory). Thin wrapper
+ * around the real `StrategyMemoryResult`, same "domain result IS the response shape" pattern this
+ * module already establishes.
+ */
+export interface StrategyMemoryResponseDto {
+  readonly growthObjectiveId: string;
+  readonly listingId: string;
+  readonly memory: StrategyMemoryResult;
 }
 
 /**

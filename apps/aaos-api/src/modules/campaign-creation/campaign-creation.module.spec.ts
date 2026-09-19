@@ -3,6 +3,7 @@ import "reflect-metadata";
 import { describe, expect, it } from "vitest";
 
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
+import { CampaignAssessmentRepository } from "../campaign-health/infrastructure/campaign-assessment.repository.js";
 import { GrowthObjectivesModule } from "../growth-objectives/growth-objectives.module.js";
 import { GrowthObjectiveCampaignsRepository } from "../growth-objectives/infrastructure/growth-objective-campaigns.repository.js";
 import { ListingsModule } from "../listings/listings.module.js";
@@ -30,16 +31,19 @@ describe("CampaignCreationModule", () => {
     expect(metadata).toEqual([CampaignCreationController]);
   });
 
-  it("registers CampaignCreationService, ApiKeyGuard, a CampaignCreationRepository provider, and a GrowthObjectiveCampaignsRepository provider", () => {
+  it("registers CampaignCreationService, ApiKeyGuard, a CampaignCreationRepository provider, a GrowthObjectiveCampaignsRepository provider, and a CampaignAssessmentRepository provider", () => {
     const metadata = Reflect.getMetadata("providers", CampaignCreationModule) as ReadonlyArray<
       unknown | { readonly provide: unknown }
     >;
-    expect(metadata).toHaveLength(4);
+    expect(metadata).toHaveLength(5);
     expect(metadata[0]).toBe(CampaignCreationService);
     expect(metadata[1]).toBe(ApiKeyGuard);
     expect((metadata[2] as { readonly provide: unknown }).provide).toBe(CampaignCreationRepository);
     expect((metadata[3] as { readonly provide: unknown }).provide).toBe(
       GrowthObjectiveCampaignsRepository,
+    );
+    expect((metadata[4] as { readonly provide: unknown }).provide).toBe(
+      CampaignAssessmentRepository,
     );
   });
 

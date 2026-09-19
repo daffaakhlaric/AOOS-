@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
+import { CampaignAssessmentRepository } from "../campaign-health/infrastructure/campaign-assessment.repository.js";
 import { GrowthObjectivesModule } from "../growth-objectives/growth-objectives.module.js";
 import { GrowthObjectiveCampaignsRepository } from "../growth-objectives/infrastructure/growth-objective-campaigns.repository.js";
 import { ListingsModule } from "../listings/listings.module.js";
@@ -29,6 +30,14 @@ import { CampaignCreationRepository } from "./infrastructure/campaign-creation.r
  * `AppModule.forRoot`'s global provider set, same as `GoLiveModule`/`CampaignsModule`. Checked for
  * circularity before wiring: neither `listings`/`growth-objectives`/`mode-guard`/`activity-log`
  * imports anything from this module.
+ *
+ * Phase 33 addition (PROMPT 34 — Historical Strategy Memory): `CampaignAssessmentRepository` is
+ * built here directly from `SUPABASE_CLIENT` (same `useFactory` pattern as
+ * `GrowthObjectiveCampaignsRepository` above) rather than importing `CampaignHealthModule` — that
+ * module exports only `CampaignHealthService`, not its repository, and this module's real need is
+ * read-only access to `samantha_campaign_assessments`, not the health-computation orchestration
+ * `CampaignHealthService` wraps around it. No circularity: `campaign-health` imports only
+ * `metric-snapshot`.
  */
 @Module({
   imports: [ListingsModule, GrowthObjectivesModule, ModeGuardModule, ActivityLogModule],
@@ -46,6 +55,12 @@ import { CampaignCreationRepository } from "./infrastructure/campaign-creation.r
       provide: GrowthObjectiveCampaignsRepository,
       useFactory: (client: SupabaseClientLike): GrowthObjectiveCampaignsRepository =>
         new GrowthObjectiveCampaignsRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: CampaignAssessmentRepository,
+      useFactory: (client: SupabaseClientLike): CampaignAssessmentRepository =>
+        new CampaignAssessmentRepository(client),
       inject: [SUPABASE_CLIENT],
     },
   ],

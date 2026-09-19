@@ -94,4 +94,35 @@ export class CampaignAssessmentRepository {
     }
     return (data ?? []).map(toStoredAssessment);
   }
+
+  /**
+   * EYVRA — SAMANTHA V2 Phase 33 (PROMPT 34 — Historical Strategy Memory). The LATEST real,
+   * persisted assessment per `meta_campaign_id`, for every campaign this tenant has ever recorded
+   * one for — the real "what actually happened" signal `strategy-memory.ts`'s aggregation is built
+   * on. No `.in()`/`GROUP BY` on the shared `SupabaseClientLike` port — same real gap
+   * `GrowthObjectiveCampaignsRepository.findCampaignIdsForListings`'s own doc already establishes.
+   * Same established fix: fetch the WHOLE tenant's real assessment history (bounded by one
+   * tenant's real assessment volume, never unbounded), ordered `assessed_at DESC`, and reduce
+   * in-memory — the FIRST row encountered per `meta_campaign_id` is, by that ordering, the latest
+   * one for that campaign.
+   */
+  async listLatestPerCampaign(tenantId: string): Promise<ReadonlyMap<string, StoredAssessment>> {
+    const { data, error } = await this.client
+      .from<CampaignAssessmentRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("assessed_at", { ascending: false });
+    if (error !== null) {
+      throw new CampaignAssessmentRepositoryError(
+        `CampaignAssessmentRepository.listLatestPerCampaign failed: ${error.message}`,
+      );
+    }
+    const latestByCampaign = new Map<string, StoredAssessment>();
+    for (const row of data ?? []) {
+      if (!latestByCampaign.has(row.meta_campaign_id)) {
+        latestByCampaign.set(row.meta_campaign_id, toStoredAssessment(row));
+      }
+    }
+    return latestByCampaign;
+  }
 }
