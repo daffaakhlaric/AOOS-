@@ -75,20 +75,22 @@ import styles from "./Sidebar.module.css";
  *    re-points there. `/creative`'s own 6-tab hub is untouched and still reachable via its own
  *    existing links (e.g. Listing Manager's "Brief Kai" button). Reuses `--v2-menu-creative`'s
  *    existing color/🎨 icon (same real Kai-creative concept).
- *  - `Experiments` is a new thin real redirect page (`/experiments`, same established
- *    `redirect()`-only pattern this file's own history already used for the old `/meta-ads/
- *    abtesting` retirement) to `/campaigns?view=ab-testing` — the real, already-shipped
- *    `AbTestingClient` (RUNNING/COMPLETE/DRAFT test lifecycle). New `🧪` icon (no existing glyph
- *    fit "experiments"); reuses the `--v2-menu-analytics` token, which was already sitting unused in
- *    `globals.css` — pre-provisioned, evidently, for exactly this kind of later addition (same
- *    precedent this file's own history notes for `-activity`/`-improve` before Sprint 1).
- *  - `Automation` is a new thin real redirect page (`/automation`) to `/settings?tab=agen` — the
- *    real, already-shipped "Agen" tab (agent identity/role grid; this codebase has NO real
- *    autopilot/guardrail mode-selector backing the mockup's Advisor/Copilot/Guarded Autopilot/
- *    Autonomous selector yet — an honest future-phase gap, not fabricated here). New `🤖` icon;
- *    reuses `--v2-menu-improve`'s existing color (was "AI Improve" — Automation is a close
- *    conceptual successor to that slot, and the old `/self-improve` page/route is untouched,
- *    just no longer linked from this rail).
+ *  - `Experiments` (`/experiments`) started as a thin real redirect page (Phase 50) and became a
+ *    real, dedicated page as of Phase 53 (PROMPT 84) — reuses `AbTestingClient` wholesale (RUNNING/
+ *    COMPLETE/DRAFT test lifecycle). New `🧪` icon (no existing glyph fit "experiments"); reuses the
+ *    `--v2-menu-analytics` token, which was already sitting unused in `globals.css` — pre-provisioned,
+ *    evidently, for exactly this kind of later addition (same precedent this file's own history notes
+ *    for `-activity`/`-improve` before Sprint 1).
+ *  - `Automation` (`/automation`) started as a thin real redirect page (Phase 50, later corrected in
+ *    Phase 54 to point at `/settings` instead of the unrelated "Agen" tab) and became a real,
+ *    dedicated READ/DISPLAY-ONLY hub page in a later phase — 3 real sections (tenant DEV/LIVE mode,
+ *    the PROPERTY-only auto-publish guardrail, and a real aggregate of `automationMode` across every
+ *    Growth Objective), plus a visible, honest notice that the real `evaluateAutomationPolicy`
+ *    decision engine (Advisor/Copilot/Guarded Autopilot/Autonomous) is NOT wired into any automatic
+ *    execution yet — see `AutomationHubClient.tsx`'s own doc. New `🤖` icon; reuses
+ *    `--v2-menu-improve`'s existing color (was "AI Improve" — Automation is a close conceptual
+ *    successor to that slot, and the old `/self-improve` page/route is untouched, just no longer
+ *    linked from this rail).
  *  - `Activity`/`Settings` are the exact same real `/activity`/`/settings` routes, colors, and icons
  *    as before, unchanged (only `Aktivitas`'s label switched to the mockup's own English "Activity").
  */

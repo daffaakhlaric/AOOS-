@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { LineChart } from "@tremor/react";
 
 import { aggregateCampaign, computeCpl } from "@/components/campaigns/campaignInsightMath";
 import { aggregateVerdict } from "@/components/meta-ads/CampaignTree";
@@ -15,12 +16,13 @@ import { ErrorCard } from "@/components/ui/ErrorCard";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { stripAdNameSuffix } from "@/lib/adName";
-import { formatIdr, formatIdrCompact, formatNumber } from "@/lib/formatters";
+import { formatDateId, formatIdr, formatIdrCompact, formatNumber } from "@/lib/formatters";
 import type {
   AbTestDto,
   CampaignSummaryDto,
   CreativePackageDto,
   OverviewResponseDto,
+  OverviewTimeseriesPointDto,
 } from "@/types/dashboard.types";
 
 import styles from "./CommandCenterClient.module.css";
@@ -303,6 +305,92 @@ function KaiProductionSummaryCard(): React.ReactElement {
 }
 
 /**
+ * Real "Performance Overview" line chart (Spend + Leads over time) — EYVRA SAMANTHA V2 + KAI V2
+ * Phase 56 correction. The class doc below previously documented this as HONESTLY OMITTED entirely
+ * (no `Card` at all) because this codebase had never stored a daily spend/leads snapshot, only
+ * live on-demand Meta pulls. That gap is now closed: `GET /api/overview/timeseries` (proxying
+ * `aaos-api`'s new `GET /api/v1/overview/timeseries`) returns real, already-persisted
+ * `overview_daily_snapshots` rows, written once daily by `OverviewSnapshotCronService` from the
+ * SAME real `MetaAdsService`/`LeadsService` methods `OverviewService`'s own KPI-strip computation
+ * already reuses — never a second, fabricated data source.
+ *
+ * Independent, best-effort fetch (never blocks the rest of this page — same discipline
+ * `ActiveExperimentsCard`/`KaiProductionSummaryCard` above already establish): a genuine failure
+ * just leaves this card in its own honest "belum bisa dimuat" state. Honest-degrade rule: fewer
+ * than 2 real data points renders an honest `EmptyState` (a single point, or zero points, cannot
+ * draw a real trend line) — NEVER a fabricated single-point/flat line. `totalSpend`/`totalLeads`
+ * are plotted as two real series on one Tremor `LineChart` — no invented third "CPQL" series (this
+ * codebase has no real backing data for that, per this file's own KPI-strip doc above).
+ */
+function PerformanceOverviewChart(): React.ReactElement {
+  const [points, setPoints] = useState<readonly OverviewTimeseriesPointDto[] | undefined>(
+    undefined,
+  );
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/overview/timeseries?days=30")
+      .then((res) =>
+        res.ok ? (res.json() as Promise<{ points: readonly OverviewTimeseriesPointDto[] }>) : null,
+      )
+      .then((body) => {
+        if (!cancelled) {
+          if (body === null) {
+            setFailed(true);
+          } else {
+            setPoints(body.points);
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (failed) {
+    return (
+      <EmptyState
+        title="Data performa belum bisa dimuat"
+        description="Coba lagi beberapa saat lagi."
+      />
+    );
+  }
+
+  if (points === undefined) {
+    return <LoadingSpinner />;
+  }
+
+  if (points.length < 2) {
+    return (
+      <EmptyState
+        title="Belum cukup data historis"
+        description="Akan terisi seiring waktu berjalan — data harian mulai tercatat sejak hari ini."
+      />
+    );
+  }
+
+  return (
+    <div data-testid="cc-performance-overview">
+      <LineChart
+        data={points.map((point) => ({
+          tanggal: formatDateId(point.date),
+          Spend: point.totalSpend,
+          Leads: point.totalLeads,
+        }))}
+        index="tanggal"
+        categories={["Spend", "Leads"]}
+        colors={["blue", "emerald"]}
+        className={styles.chart}
+      />
+    </div>
+  );
+}
+
+/**
  * `/command-center` — EYVRA SAMANTHA V2 + KAI V2 Phase 50 (PROMPT 68), the first real page for the
  * new 8-item nav's `Command Center` item. Builds the REAL, data-backed subset of the user's own
  * reference-screenshot mockup this codebase can honestly support today:
@@ -331,9 +419,13 @@ function KaiProductionSummaryCard(): React.ReactElement {
  *    `GET /api/creative?limit=200` list `KaiStudioClient.tsx` already uses (see
  *    `KaiProductionSummaryCard` above) — corrected in Phase 55 from an honestly-omitted empty state
  *    once the audit found this account-wide list already exists.
- *  - "Performance Overview" line chart (Spend/Leads/CPQL over time): HONESTLY OMITTED entirely (no
- *    Card at all, not even an empty one) — this codebase has no real account-wide daily
- *    spend/leads/CPQL time-series endpoint to plot; a real future backend gap.
+ *  - "Performance Overview" line chart (Spend/Leads over time): Phase 56 correction — real as of
+ *    this phase. `GET /api/overview/timeseries` (`PerformanceOverviewChart` above) plots real,
+ *    already-persisted `overview_daily_snapshots` rows, written once daily by the new
+ *    `OverviewSnapshotCronService` from the SAME real spend/lead computations this page's own KPI
+ *    strip already uses. The mockup's "CPQL" series stays deliberately omitted — same "qualified"
+ *    has-no-real-backing-data finding as the KPI strip's own CPQL omission above. Fewer than 2 real
+ *    snapshot days renders an honest empty state, never a fabricated single point.
  *
  * Data source: the SAME real `GET /api/overview` proxy `OverviewMonitorClient.tsx` already
  * established (`resolveRouteSession`+`callAaosApi` convention, see that route's own doc) — no new
@@ -418,6 +510,10 @@ export function CommandCenterClient(): React.ReactElement {
 
       <Card title="Your AI Team is Working" accentColor="var(--v2-samantha)">
         <AgentStatusRow agentStatus={data.agentStatus} />
+      </Card>
+
+      <Card title="Performance Overview" accentColor="var(--v2-samantha)">
+        <PerformanceOverviewChart />
       </Card>
 
       {verdictRows !== undefined ? (

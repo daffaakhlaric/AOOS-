@@ -128,23 +128,13 @@ describe("EYVRA MENU RESTRUCTURE Sprint 1 — real redirect stubs (PROMPT 9)", (
   });
 });
 
-/**
- * EYVRA SAMANTHA V2 + KAI V2 Phase 50 (PROMPT 68) — the 2 new real redirect stubs the 8-item
- * Command Center-era `Sidebar` nav's `Experiments`/`Automation` items point at (see `Sidebar.tsx`'s
- * own class doc for the full real-destination rationale). Same `expectRedirect` harness as the
- * Sprint 1 stubs above.
- */
-describe("EYVRA SAMANTHA V2 Phase 50 — new Command Center-era redirect stubs (PROMPT 68)", () => {
-  // `/experiments` is no longer a redirect stub as of Phase 53 (PROMPT 84) — it's a real
-  // dedicated page now (see `tests/app/(app)/experiments/page.test.tsx`).
-
-  // Phase 54 correction: retargeted from `?tab=agen` (agent identity grid — not an automation
-  // control) to bare `/settings`, which lands on the hub's own default "objective" tab — the real
-  // "Automasi Campaign" auto-publish guardrail card.
-  it("/automation -> /settings", async () => {
-    await expectRedirect(() => import("@/app/(app)/automation/page"), "/settings");
-  });
-});
+// EYVRA SAMANTHA V2 + KAI V2 Phase 50 (PROMPT 68) originally added 2 new real redirect stubs here
+// for the 8-item Command Center-era `Sidebar` nav's `Experiments`/`Automation` items. Neither is a
+// redirect stub anymore: `/experiments` became a real dedicated page as of Phase 53 (PROMPT 84,
+// see `tests/app/(app)/experiments/page.test.tsx`), and `/automation` became a real, dedicated
+// READ/DISPLAY-ONLY Automation hub page in this phase (see
+// `tests/components/automation/AutomationHubClient.test.tsx`) — Vitest errors on a `describe` with
+// zero `it`s inside, so the block itself is removed rather than left empty.
 
 /**
  * EYVRA MENU RESTRUCTURE Sprint 4 (PROMPT 10) — integration-style walk of every real redirect

@@ -1100,6 +1100,26 @@ export interface OverviewResponseDto {
 }
 
 /**
+ * Client-safe mirror of `aaos-api`'s `OverviewTimeseriesPointDto`/`OverviewTimeseriesResponseDto`
+ * (`GET /api/v1/overview/timeseries`, proxied via this app's own `/api/overview/timeseries` route
+ * — EYVRA SAMANTHA V2 + KAI V2 Phase 56, Command Center "Performance Overview" chart). Hand-written
+ * per this file's own top docstring — never imports the backend DTO file directly. `totalSpend`/
+ * `totalLeads` are the SAME real definitions `OverviewCampaignsSummaryDto.totalSpend`/Command
+ * Center's own `totalLeads` (`hot + warm + cold`) already use elsewhere on this page.
+ */
+export interface OverviewTimeseriesPointDto {
+  readonly date: string;
+  readonly totalSpend: number;
+  readonly totalLeads: number;
+}
+
+export interface OverviewTimeseriesResponseDto {
+  readonly tenantId: string;
+  /** Ordered oldest-to-newest. An empty (or fewer-than-2-point) array is a real, honest result — never fabricated — for a tenant `OverviewSnapshotCronService` hasn't swept enough real days for yet. */
+  readonly points: readonly OverviewTimeseriesPointDto[];
+}
+
+/**
  * Client-safe mirror of `aaos-api`'s `ClosingResponseDto` (`GET /api/v1/closings`, proxied via
  * this app's own `/api/closings` route) — one test-drive/SPK/cancellation record from the real
  * `closings` Supabase table (`@aos/lead-store`'s `Closing` entity). Powers the Overview page's

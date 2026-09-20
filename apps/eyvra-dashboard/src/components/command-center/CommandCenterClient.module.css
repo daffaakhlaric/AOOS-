@@ -144,3 +144,10 @@
   font-size: 12px;
   color: var(--gray-500);
 }
+
+/* EYVRA SAMANTHA V2 + KAI V2 Phase 56 — `PerformanceOverviewChart`'s Tremor `LineChart`, same fixed
+   height `LearningMonitorClient.module.css`'s own `.chart` already establishes for a Tremor chart
+   inside a `Card`. */
+.chart {
+  height: 220px;
+}

@@ -1,22 +1,15 @@
-import { redirect } from "next/navigation";
+import { AutomationHubClient } from "@/components/automation/AutomationHubClient";
 
 /**
- * EYVRA SAMANTHA V2 + KAI V2 Phase 50 (PROMPT 68) — `Automation` sidebar item's real destination.
- * This codebase has NO real Advisor/Copilot/Guarded Autopilot/Autonomous mode selector or per-action
- * permission table anywhere (investigated — no operating-mode-per-agent backing beyond the real
- * DEV/LIVE tenant `mode` toggle) — the mockup's full Automation page is real future work.
+ * `/automation` — EYVRA SAMANTHA V2 + KAI V2 (this phase). Replaces Phase 50/54's `redirect()`
+ * stub (which pointed here at `/settings`, since this codebase had no real Automation page yet)
+ * with a real, dedicated READ/DISPLAY-ONLY hub — see `AutomationHubClient.tsx`'s own doc for the
+ * 3 real sections it surfaces (Mode Operasi DEV/LIVE, Automasi Campaign auto-publish guardrail,
+ * Automation Mode per Growth Objective) and the honest "not yet wired to execution" notice.
  *
- * Phase 54 correction: this used to redirect to `?tab=agen` (agent identity/role grid — not an
- * automation control at all). The actual closest real automation guardrail is `ObjectiveClient`'s
- * "Automasi Campaign" card (`PropertyObjectiveForm`'s real `autoPublishCampaign` /
- * `maxBudgetIncreasePct` fields, PATCHed via `/api/property-objective/auto-publish-settings`) —
- * it literally controls whether Samantha auto-publishes campaigns and how much budget she may move
- * without approval. That card lives on `SettingsHubClient`'s "objective" tab, which is already this
- * hub's own `DEFAULT_TAB`, so this redirects to bare `/settings`. The other real automation-adjacent
- * control — the DEV/LIVE `mode` toggle — lives one tab away on "koneksi" and stays reachable from
- * there; it isn't the redirect target because it gates ALL Meta-mutating actions tenant-wide, not
- * campaign automation specifically.
+ * Same "page.tsx renders a client component" convention every other hub page in this app already
+ * uses (`/leads`, `/experiments`, `/kai-studio`).
  */
-export default function AutomationPage(): never {
-  redirect("/settings");
+export default function AutomationPage(): React.ReactElement {
+  return <AutomationHubClient />;
 }

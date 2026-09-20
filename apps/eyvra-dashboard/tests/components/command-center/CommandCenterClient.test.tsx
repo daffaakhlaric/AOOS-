@@ -9,6 +9,7 @@ import type {
   CampaignSummaryDto,
   CreativePackageDto,
   OverviewResponseDto,
+  OverviewTimeseriesPointDto,
 } from "@/types/dashboard.types";
 
 function metrics(overrides: Partial<AdMetricsDto> = {}): AdMetricsDto {
@@ -146,11 +147,21 @@ function mockFetchOnce(
   overview: OverviewResponseDto,
   tests: readonly AbTestDto[] = [],
   packages: readonly CreativePackageDto[] = [],
+  timeseriesPoints: readonly OverviewTimeseriesPointDto[] = [],
 ): void {
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
+      // Checked BEFORE the generic `/api/overview` prefix below — `/api/overview/timeseries` also
+      // starts with that prefix.
+      if (url.startsWith("/api/overview/timeseries")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ tenantId: "tenant-1", points: timeseriesPoints }), {
+            status: 200,
+          }),
+        );
+      }
       if (url.startsWith("/api/overview")) {
         return Promise.resolve(new Response(JSON.stringify(overview), { status: 200 }));
       }
@@ -388,5 +399,70 @@ describe("CommandCenterClient", () => {
     );
     render(<CommandCenterClient />);
     await waitFor(() => expect(screen.getByTestId("error-card")).toBeInTheDocument());
+  });
+
+  it("renders the real Performance Overview chart from GET /api/overview/timeseries when 2+ real snapshot points exist", async () => {
+    mockFetchOnce(
+      baseOverview(),
+      [],
+      [],
+      [
+        { date: "2026-09-18", totalSpend: 500_000, totalLeads: 3 },
+        { date: "2026-09-19", totalSpend: 750_000, totalLeads: 5 },
+      ],
+    );
+    render(<CommandCenterClient />);
+    await waitFor(() => expect(screen.getByTestId("cc-performance-overview")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText("Belum cukup data historis")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows an honest empty state for Performance Overview when fewer than 2 real snapshot points exist, never a fabricated single point", async () => {
+    mockFetchOnce(
+      baseOverview(),
+      [],
+      [],
+      [{ date: "2026-09-19", totalSpend: 750_000, totalLeads: 5 }],
+    );
+    render(<CommandCenterClient />);
+    await waitFor(() => expect(screen.getByText("Belum cukup data historis")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId("cc-performance-overview")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows an honest empty state for Performance Overview when zero real snapshot points exist", async () => {
+    mockFetchOnce(baseOverview(), [], [], []);
+    render(<CommandCenterClient />);
+    await waitFor(() => expect(screen.getByText("Belum cukup data historis")).toBeInTheDocument());
+  });
+
+  it("shows an honest 'belum bisa dimuat' state for Performance Overview when GET /api/overview/timeseries fails — never blocks the rest of the page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/overview/timeseries")) {
+          return Promise.resolve(new Response(JSON.stringify({}), { status: 500 }));
+        }
+        if (url.startsWith("/api/overview")) {
+          return Promise.resolve(new Response(JSON.stringify(baseOverview()), { status: 200 }));
+        }
+        if (url.startsWith("/api/abtesting")) {
+          return Promise.resolve(new Response(JSON.stringify({ tests: [] }), { status: 200 }));
+        }
+        if (url.startsWith("/api/creative")) {
+          return Promise.resolve(new Response(JSON.stringify({ packages: [] }), { status: 200 }));
+        }
+        return Promise.resolve(new Response(JSON.stringify({}), { status: 404 }));
+      }),
+    );
+    render(<CommandCenterClient />);
+    // The rest of the page still renders — this card's own independent fetch failure never blocks it.
+    await waitFor(() => expect(screen.getByTestId("command-center")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Data performa belum bisa dimuat")).toBeInTheDocument(),
+    );
   });
 });

@@ -20,6 +20,8 @@ import type {
   OverviewLeadsSummaryDto,
   OverviewResponseDto,
 } from "./dto/overview-response.dto.js";
+import type { OverviewTimeseriesResponseDto } from "./dto/overview-timeseries.dto.js";
+import { OverviewSnapshotRepository } from "./infrastructure/overview-snapshot.repository.js";
 
 const JUDGEABLE_AGENTS = ["SAMANTHA", "KAI", "CLARA"] as const;
 
@@ -61,6 +63,7 @@ export class OverviewService {
     private readonly recyclingService: RecyclingService,
     private readonly activityRepository: ActivityRepository,
     private readonly llmService: LlmService,
+    private readonly overviewSnapshotRepository: OverviewSnapshotRepository,
   ) {}
 
   async getOverview(tenantId: string, correlationId: string): Promise<OverviewResponseDto> {
@@ -333,6 +336,20 @@ export class OverviewService {
               onCooldown: recycling.onCooldown,
             },
     });
+  }
+
+  /**
+   * `GET /api/v1/overview/timeseries` — Command Center "Performance Overview" chart (EYVRA
+   * SAMANTHA V2 + KAI V2 Phase 56). Real, already-persisted `overview_daily_snapshots` rows for this
+   * tenant, written once daily by `OverviewSnapshotCronService` — a genuinely different real source
+   * from every other method on this class (those all pull live from Meta/lead-store on every
+   * request; this one reads a durable history table `OverviewSnapshotRepository.listRecent` already
+   * owns). An empty/short array is a real, honest result (never fabricated) for a tenant the cron
+   * hasn't swept enough real days for yet.
+   */
+  async getTimeseries(tenantId: string, days: number): Promise<OverviewTimeseriesResponseDto> {
+    const points = await this.overviewSnapshotRepository.listRecent(tenantId, days);
+    return { tenantId, points };
   }
 
   /** Shared "run this real fetch, catch any real failure, record it honestly" wrapper — the ONE place `getOverview`'s partial-failure degrade discipline is implemented, so every section follows it identically. Returns `undefined` (never a fabricated placeholder) on failure. */

@@ -13,6 +13,7 @@ import type { ObjectiveResponseDto } from "../objective/dto/objective-response.d
 import type { ObjectiveService } from "../objective/objective.service.js";
 import type { RecyclingService, RecyclingTodaySummary } from "../recycling/recycling.service.js";
 
+import type { OverviewSnapshotRepository } from "./infrastructure/overview-snapshot.repository.js";
 import { OverviewService } from "./overview.service.js";
 
 const TENANT_ID = "dss-motor";
@@ -87,6 +88,7 @@ function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
   readonly service: OverviewService;
   readonly llmService: LlmService & { readonly generateDailyInsightSpy: ReturnType<typeof vi.fn> };
   readonly metaAdsService: MetaAdsService;
+  readonly overviewSnapshotRepository: OverviewSnapshotRepository;
 } {
   const getLeadsByBranch = vi.fn(async () => options.leadsPerBranch ?? []);
   const leadsService = { getLeadsByBranch } as unknown as LeadsService;
@@ -136,6 +138,11 @@ function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
 
   const activityRepository = { list: vi.fn(async () => []) } as unknown as ActivityRepository;
 
+  const overviewSnapshotRepository = {
+    listRecent: vi.fn(async () => []),
+    upsert: vi.fn(async () => undefined),
+  } as unknown as OverviewSnapshotRepository;
+
   const generateDailyInsightSpy = vi.fn(async (): Promise<DailyInsightResponseDto> => REAL_INSIGHT);
   const llmService = {
     generateDailyInsight: generateDailyInsightSpy,
@@ -150,9 +157,10 @@ function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
     recyclingService,
     activityRepository,
     llmService,
+    overviewSnapshotRepository,
   );
 
-  return { service, llmService, metaAdsService };
+  return { service, llmService, metaAdsService, overviewSnapshotRepository };
 }
 
 describe("OverviewService.getOverview", () => {
@@ -339,7 +347,35 @@ describe("OverviewService.getOverview", () => {
     // counts below are per-branch-call multiples — this test only asserts the real classification
     // logic (temperature bucketing + becameHotAt-day bucketing), not branch fan-out arithmetic.
     expect(result.leads?.hot).toBeGreaterThan(0);
+
     expect(result.leads?.warm).toBeGreaterThan(0);
     expect(result.leads?.cold).toBeGreaterThan(0);
+  });
+});
+
+describe("OverviewService.getTimeseries", () => {
+  it("returns the real, already-persisted snapshot rows for this tenant, ascending by date", async () => {
+    const { service, overviewSnapshotRepository } = buildOverviewService();
+    (overviewSnapshotRepository.listRecent as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { date: "2026-01-14", totalSpend: 500_000, totalLeads: 3 },
+      { date: "2026-01-15", totalSpend: 750_000, totalLeads: 5 },
+    ]);
+
+    const result = await service.getTimeseries(TENANT_ID, 30);
+
+    expect(result.tenantId).toBe(TENANT_ID);
+    expect(result.points).toEqual([
+      { date: "2026-01-14", totalSpend: 500_000, totalLeads: 3 },
+      { date: "2026-01-15", totalSpend: 750_000, totalLeads: 5 },
+    ]);
+    expect(overviewSnapshotRepository.listRecent).toHaveBeenCalledWith(TENANT_ID, 30);
+  });
+
+  it("returns a real, honest empty array (never fabricated points) for a tenant the cron hasn't swept yet", async () => {
+    const { service } = buildOverviewService();
+
+    const result = await service.getTimeseries(TENANT_ID, 30);
+
+    expect(result.points).toEqual([]);
   });
 });
