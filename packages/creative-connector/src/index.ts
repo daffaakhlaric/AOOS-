@@ -54,8 +54,12 @@ export { TaskStatus } from "./domain/value-objects/TaskStatus.js";
 export { VideoModel } from "./domain/value-objects/VideoModel.js";
 export { ImageModel } from "./domain/value-objects/ImageModel.js";
 // Additive: PROMPT 48's minimal, honest static model registry + its video-model routing helper.
+// PROMPT 50 (Phase 36) adds `GenerationQualityTier`, an opt-in tier-to-model mapping over the
+// same registry — see GenerationModel.ts's own docstrings for the honest scope (video-only, not
+// tenant-plan-gated: no real tenant-plan concept exists in this codebase).
 export {
   GENERATION_MODEL_REGISTRY,
+  GenerationQualityTier,
   resolveVideoModel,
 } from "./domain/value-objects/GenerationModel.js";
 export type {
