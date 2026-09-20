@@ -16,7 +16,12 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { stripAdNameSuffix } from "@/lib/adName";
 import { formatIdr, formatIdrCompact, formatNumber } from "@/lib/formatters";
-import type { AbTestDto, CampaignSummaryDto, OverviewResponseDto } from "@/types/dashboard.types";
+import type {
+  AbTestDto,
+  CampaignSummaryDto,
+  CreativePackageDto,
+  OverviewResponseDto,
+} from "@/types/dashboard.types";
 
 import styles from "./CommandCenterClient.module.css";
 
@@ -221,6 +226,83 @@ function ActiveExperimentsCard(): React.ReactElement {
 }
 
 /**
+ * Real "Kai Creative Production" — EYVRA SAMANTHA V2 + KAI V2 Phase 55 correction. Phase 50's own
+ * doc claimed no real account-wide creative-package aggregate endpoint exists; that was wrong —
+ * `GET /api/creative?limit=200` (no server-side `listingId` filter) already returns every package
+ * account-wide, the SAME real proxy route `KaiStudioClient.tsx`'s "Concepts grid" column already
+ * calls with the same real 200-item cap. This card just counts the real
+ * `CreativePackageStatusDto` values that list already carries (`GENERATING`/`PENDING`/`APPROVED`) —
+ * no new backend surface, no fabricated confidence/ETA, and the same honest 200-item cap Kai
+ * Studio itself already lives with (not a true unbounded account total).
+ */
+function KaiProductionSummaryCard(): React.ReactElement {
+  const [packages, setPackages] = useState<readonly CreativePackageDto[] | undefined>(undefined);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/creative?limit=200")
+      .then((res) =>
+        res.ok ? (res.json() as Promise<{ packages: readonly CreativePackageDto[] }>) : null,
+      )
+      .then((body) => {
+        if (!cancelled) {
+          if (body === null) {
+            setFailed(true);
+          } else {
+            setPackages(body.packages);
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (failed) {
+    return (
+      <EmptyState
+        title="Data produksi Kai belum bisa dimuat"
+        description="Coba lagi lewat halaman Kai Studio."
+      />
+    );
+  }
+
+  if (packages === undefined) {
+    return <LoadingSpinner />;
+  }
+
+  if (packages.length === 0) {
+    return (
+      <EmptyState
+        title="Belum ada creative package"
+        description="Belum ada brief yang dikirim ke Kai."
+      />
+    );
+  }
+
+  const generating = packages.filter((pkg) => pkg.status === "GENERATING").length;
+  const pending = packages.filter((pkg) => pkg.status === "PENDING").length;
+  const approved = packages.filter((pkg) => pkg.status === "APPROVED").length;
+
+  return (
+    <div data-testid="cc-kai-production">
+      <div className={styles.kpiStrip}>
+        <MetricCard label="Sedang Digenerate" value={formatNumber(generating)} />
+        <MetricCard label="Menunggu Review" value={formatNumber(pending)} />
+        <MetricCard label="Disetujui" value={formatNumber(approved)} />
+      </div>
+      <Link href="/kai-studio" className={styles.viewAllLink}>
+        Lihat Kai Studio →
+      </Link>
+    </div>
+  );
+}
+
+/**
  * `/command-center` — EYVRA SAMANTHA V2 + KAI V2 Phase 50 (PROMPT 68), the first real page for the
  * new 8-item nav's `Command Center` item. Builds the REAL, data-backed subset of the user's own
  * reference-screenshot mockup this codebase can honestly support today:
@@ -245,10 +327,10 @@ function ActiveExperimentsCard(): React.ReactElement {
  *  - Active Experiments: real `GET /api/abtesting?status=RUNNING` list (`ActiveExperimentsCard`).
  *  - Agent Activity: reuses `ActivityFeedSection` over O1's real `activities` field verbatim (the
  *    same real feed `/activity`'s `ActivityHubClient` and `OverviewMonitorClient` both already show).
- *  - "Kai Creative Production": HONESTLY OMITTED as an empty/unavailable state below — no real
- *    account-wide "pending Kai creative production" aggregate endpoint exists in this codebase today
- *    (creative-packages endpoints are per-listing/per-diverse-set-request, not a queue-depth
- *    aggregate); a real future backend gap, not fabricated here.
+ *  - "Kai Creative Production": real GENERATING/PENDING/APPROVED counts from the SAME real
+ *    `GET /api/creative?limit=200` list `KaiStudioClient.tsx` already uses (see
+ *    `KaiProductionSummaryCard` above) — corrected in Phase 55 from an honestly-omitted empty state
+ *    once the audit found this account-wide list already exists.
  *  - "Performance Overview" line chart (Spend/Leads/CPQL over time): HONESTLY OMITTED entirely (no
  *    Card at all, not even an empty one) — this codebase has no real account-wide daily
  *    spend/leads/CPQL time-series endpoint to plot; a real future backend gap.
@@ -374,10 +456,7 @@ export function CommandCenterClient(): React.ReactElement {
           <ActiveExperimentsCard />
         </Card>
         <Card title="Kai Creative Production" accentColor="var(--v2-kai)">
-          <EmptyState
-            title="Belum tersedia"
-            description="Belum ada agregat real-time untuk antrian produksi creative Kai di seluruh akun — lihat Kai Studio untuk status per-listing."
-          />
+          <KaiProductionSummaryCard />
         </Card>
       </div>
 

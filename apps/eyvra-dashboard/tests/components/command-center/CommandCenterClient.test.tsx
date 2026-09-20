@@ -7,6 +7,7 @@ import type {
   AdMetricsDto,
   AdSummaryDto,
   CampaignSummaryDto,
+  CreativePackageDto,
   OverviewResponseDto,
 } from "@/types/dashboard.types";
 
@@ -114,7 +115,38 @@ function baseOverview(overrides: Partial<OverviewResponseDto> = {}): OverviewRes
   };
 }
 
-function mockFetchOnce(overview: OverviewResponseDto, tests: readonly AbTestDto[] = []): void {
+function creativePackage(overrides: Partial<CreativePackageDto> = {}): CreativePackageDto {
+  return {
+    id: "pkg-1",
+    briefId: "brief-1",
+    vertical: "PROPERTY",
+    listingId: "listing-serpong",
+    title: "Rumah Serpong Selatan · DP_RINGAN",
+    angle: "DP_RINGAN",
+    reason: "Brief manual.",
+    requestedFormat: "IMAGES_ONLY",
+    primaryMessage: "DP mulai 29 juta",
+    urgency: "HIGH",
+    aiRecommended: false,
+    fatigueStatus: "NORMAL",
+    origin: "MANUAL",
+    status: "PENDING",
+    sourcePhotoUrls: [],
+    imageUrls: ["https://gcs/a.jpg"],
+    copyVariants: [
+      { id: "v-a", variantLabel: "A", primaryText: "Copy A", headline: "H", callToAction: "CTA" },
+    ],
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function mockFetchOnce(
+  overview: OverviewResponseDto,
+  tests: readonly AbTestDto[] = [],
+  packages: readonly CreativePackageDto[] = [],
+): void {
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL) => {
@@ -124,6 +156,9 @@ function mockFetchOnce(overview: OverviewResponseDto, tests: readonly AbTestDto[
       }
       if (url.startsWith("/api/abtesting")) {
         return Promise.resolve(new Response(JSON.stringify({ tests }), { status: 200 }));
+      }
+      if (url.startsWith("/api/creative")) {
+        return Promise.resolve(new Response(JSON.stringify({ packages }), { status: 200 }));
       }
       return Promise.resolve(new Response(JSON.stringify({}), { status: 404 }));
     }),
@@ -289,14 +324,61 @@ describe("CommandCenterClient", () => {
     expect(screen.getByText("Hook A vs Hook B")).toBeInTheDocument();
   });
 
-  it("shows an honest 'belum tersedia' state for Kai Creative Production, never a fabricated number", async () => {
-    mockFetchOnce(baseOverview());
+  it("counts real GENERATING/PENDING/APPROVED packages for Kai Creative Production from GET /api/creative", async () => {
+    mockFetchOnce(
+      baseOverview(),
+      [],
+      [
+        creativePackage({ id: "pkg-1", status: "GENERATING" }),
+        creativePackage({ id: "pkg-2", status: "PENDING" }),
+        creativePackage({ id: "pkg-3", status: "PENDING" }),
+        creativePackage({ id: "pkg-4", status: "APPROVED" }),
+        creativePackage({ id: "pkg-5", status: "APPROVED" }),
+        creativePackage({ id: "pkg-6", status: "APPROVED" }),
+        creativePackage({ id: "pkg-7", status: "REJECTED" }),
+      ],
+    );
+    render(<CommandCenterClient />);
+    await waitFor(() => expect(screen.getByTestId("cc-kai-production")).toBeInTheDocument());
+
+    const kaiCard = screen.getByTestId("cc-kai-production");
+    expect(within(kaiCard).getByText("Sedang Digenerate")).toBeInTheDocument();
+    expect(within(kaiCard).getByText("1")).toBeInTheDocument();
+    expect(within(kaiCard).getByText("Menunggu Review")).toBeInTheDocument();
+    expect(within(kaiCard).getByText("2")).toBeInTheDocument();
+    expect(within(kaiCard).getByText("Disetujui")).toBeInTheDocument();
+    expect(within(kaiCard).getByText("3")).toBeInTheDocument();
+  });
+
+  it("shows an honest empty state for Kai Creative Production when no package exists, never a fabricated number", async () => {
+    mockFetchOnce(baseOverview(), [], []);
     render(<CommandCenterClient />);
     await waitFor(() => expect(screen.getByTestId("command-center")).toBeInTheDocument());
     expect(screen.getByText("Kai Creative Production")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Belum ada agregat real-time untuk antrian produksi creative Kai/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Belum ada creative package")).toBeInTheDocument());
+  });
+
+  it("shows an honest 'belum bisa dimuat' state for Kai Creative Production when GET /api/creative fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/overview")) {
+          return Promise.resolve(new Response(JSON.stringify(baseOverview()), { status: 200 }));
+        }
+        if (url.startsWith("/api/abtesting")) {
+          return Promise.resolve(new Response(JSON.stringify({ tests: [] }), { status: 200 }));
+        }
+        if (url.startsWith("/api/creative")) {
+          return Promise.resolve(new Response(JSON.stringify({}), { status: 500 }));
+        }
+        return Promise.resolve(new Response(JSON.stringify({}), { status: 404 }));
+      }),
+    );
+    render(<CommandCenterClient />);
+    await waitFor(() =>
+      expect(screen.getByText("Data produksi Kai belum bisa dimuat")).toBeInTheDocument(),
+    );
   });
 
   it("shows an honest error state when /api/overview itself fails", async () => {
