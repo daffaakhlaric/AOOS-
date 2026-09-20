@@ -140,6 +140,33 @@
   color: var(--gray-500);
 }
 
+/* Real progress toward `isThresholdMet`'s spend/days gate — panel 6 "progress bar" (PROMPT 84). */
+.progressRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--gray-100, #f1f5f9);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--v2-menu-analytics, #ec4899);
+}
+
+.progressLabel {
+  font-size: 11px;
+  color: var(--gray-500, #6b7280);
+}
+
 .variantGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

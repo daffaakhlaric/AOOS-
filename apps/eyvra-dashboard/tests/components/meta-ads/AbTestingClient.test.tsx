@@ -241,6 +241,25 @@ describe("AbTestingClient", () => {
     expect(within(metrics).getByText("12.400")).toBeInTheDocument();
   });
 
+  it("shows the real threshold progress bar for a RUNNING test (real combined spend vs. thresholdSpend/thresholdDays, never a fabricated confidence%)", async () => {
+    mockFetchRouter();
+    render(<AbTestingClient />);
+    await waitFor(() => expect(screen.getByTestId("abtesting-card-list")).toBeInTheDocument());
+
+    // RUNNING_TEST: thresholdSpend 100_000, variants spend 52_000 + 48_000 = 100_000 -> 100%.
+    const progress = screen.getByTestId("abtesting-progress");
+    expect(progress).toHaveTextContent("100% menuju threshold");
+  });
+
+  it("shows no progress bar for a DRAFT test (no real startedAt to compute progress from)", async () => {
+    mockFetchRouter();
+    render(<AbTestingClient />);
+    await waitFor(() => expect(screen.getByTestId("abtesting-card-list")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: /Draft/ }));
+    await screen.findByText(/Ertiga Bandung — DP vs QnA/);
+    expect(screen.queryByTestId("abtesting-progress")).not.toBeInTheDocument();
+  });
+
   it("closing the detail view returns to the card grid", async () => {
     mockFetchRouter();
     render(<AbTestingClient />);

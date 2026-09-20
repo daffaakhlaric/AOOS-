@@ -135,12 +135,8 @@ describe("EYVRA MENU RESTRUCTURE Sprint 1 — real redirect stubs (PROMPT 9)", (
  * Sprint 1 stubs above.
  */
 describe("EYVRA SAMANTHA V2 Phase 50 — new Command Center-era redirect stubs (PROMPT 68)", () => {
-  it("/experiments -> /campaigns?view=ab-testing", async () => {
-    await expectRedirect(
-      () => import("@/app/(app)/experiments/page"),
-      "/campaigns?view=ab-testing",
-    );
-  });
+  // `/experiments` is no longer a redirect stub as of Phase 53 (PROMPT 84) — it's a real
+  // dedicated page now (see `tests/app/(app)/experiments/page.test.tsx`).
 
   it("/automation -> /settings?tab=agen", async () => {
     await expectRedirect(() => import("@/app/(app)/automation/page"), "/settings?tab=agen");

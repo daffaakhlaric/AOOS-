@@ -36,9 +36,16 @@ vi.mock("@/components/settings/SettingsHubClient", () => ({
     <div data-testid="settings-hub-client">{initialTab ?? "undefined"}</div>
   ),
 }));
+// EYVRA SAMANTHA V2 + KAI V2 Phase 53 (PROMPT 84) — real dedicated `/experiments` page, reusing
+// `AbTestingClient` wholesale (no props — mocked here purely to isolate this page-shell test from
+// that component's own real data-fetching, already covered by `AbTestingClient.test.tsx`).
+vi.mock("@/components/meta-ads/AbTestingClient", () => ({
+  AbTestingClient: () => <div data-testid="abtesting-client" />,
+}));
 
 import CampaignsPage from "@/app/(app)/campaigns/page";
 import CreativePage from "@/app/(app)/creative/page";
+import ExperimentsPage from "@/app/(app)/experiments/page";
 import LeadsPage from "@/app/(app)/leads/page";
 import SettingsPage from "@/app/(app)/settings/page";
 
@@ -81,5 +88,11 @@ describe("Sprint 2 real hub pages — searchParams threading", () => {
   it("/settings with no tab passes undefined (defaults inside the client)", () => {
     render(<SettingsPage searchParams={{}} />);
     expect(screen.getByTestId("settings-hub-client")).toHaveTextContent("undefined");
+  });
+
+  it("/experiments renders a real TopBar + the real AbTestingClient (Phase 53, PROMPT 84 — no longer a redirect)", () => {
+    render(<ExperimentsPage />);
+    expect(screen.getByRole("heading", { name: "Experiments" })).toBeInTheDocument();
+    expect(screen.getByTestId("abtesting-client")).toBeInTheDocument();
   });
 });

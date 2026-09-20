@@ -53,6 +53,25 @@ function bestVariant(variants: readonly AbTestVariantDto[]): AbTestVariantDto | 
 }
 
 /**
+ * Real progress toward `isThresholdMet`'s own real gate (`aaos-api`'s
+ * `domain/winner-decision.ts`) — combined spend across every real variant vs. `thresholdSpend`,
+ * OR real days elapsed since `startedAt` vs. `thresholdDays`, whichever is closer to done. Mirrors
+ * the backend's exact `OR` semantics rather than inventing a separate "confidence%" this app has
+ * no real backing data for. `undefined` for a test with no `startedAt` yet (DRAFT) — never a
+ * fabricated 0%.
+ */
+function thresholdProgressPct(test: AbTestDto): number | undefined {
+  if (test.startedAt === undefined) {
+    return undefined;
+  }
+  const totalSpend = test.variants.reduce((sum, variant) => sum + variant.spend, 0);
+  const daysElapsed = (Date.now() - new Date(test.startedAt).getTime()) / 86_400_000;
+  const spendProgress = test.thresholdSpend > 0 ? totalSpend / test.thresholdSpend : 0;
+  const daysProgress = test.thresholdDays > 0 ? daysElapsed / test.thresholdDays : 0;
+  return Math.min(100, Math.round(Math.max(spendProgress, daysProgress, 0) * 100));
+}
+
+/**
  * `/meta-ads/abtesting` (AAOS-ABTESTING-LOOKALIKE) — Samantha's auto A/B test creative page. 3 tabs
  * (Aktif/Selesai/Draft) + a real KPI strip + "+ Buat A/B Test Baru" modal, all backed by
  * `aaos-api`'s real `abtesting` module via this app's own `/api/abtesting/*` proxy routes.
@@ -195,6 +214,7 @@ export function AbTestingClient(): React.ReactElement {
               test.winnerVariantId !== undefined
                 ? test.variants.find((v) => v.id === test.winnerVariantId)
                 : bestVariant(test.variants);
+            const progressPct = test.status === "RUNNING" ? thresholdProgressPct(test) : undefined;
             return (
               <div key={test.id} className={styles.card} data-testid="abtesting-card">
                 <div className={styles.cardHeader}>
@@ -211,6 +231,21 @@ export function AbTestingClient(): React.ReactElement {
                           : "📝 DRAFT"}
                   </span>
                 </div>
+
+                {progressPct !== undefined ? (
+                  <div className={styles.progressRow} data-testid="abtesting-progress">
+                    <div className={styles.progressTrack}>
+                      <div
+                        className={styles.progressFill}
+                        style={{ width: `${String(progressPct)}%` }}
+                      />
+                    </div>
+                    <span className={styles.progressLabel}>
+                      {progressPct}% menuju threshold ({formatIdr(test.thresholdSpend)} /{" "}
+                      {test.thresholdDays} hari)
+                    </span>
+                  </div>
+                ) : null}
 
                 <div className={styles.variantGrid}>
                   {test.variants.map((variant) => (
