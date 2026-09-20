@@ -98,6 +98,21 @@ export { PropertyAngleToConceptFamilyMapper } from "./intelligence/PropertyAngle
 // spec text and the real 3-name vocabulary overlap with `ConceptFamily`).
 export { LayoutFamily, ALL_LAYOUT_FAMILIES } from "./domain/value-objects/LayoutFamily.js";
 export { ConceptFamilyToLayoutFamilyMapper } from "./intelligence/ConceptFamilyToLayoutFamilyMapper.js";
+// PROMPT 61 — VIDEO STORYBOARD: the real spec's 5-beat (Hook/Property reveal/Benefit/Proof/CTA)
+// planning structure + the deterministic builder that time-boxes a real decided video duration into
+// those beats and serializes the result into ONE real Kie AI prompt string (see each file's own doc
+// for the honest-degrade reasoning — Kie AI's real API accepts only a single prompt string, no
+// multi-scene generation). Opt-in and additive: `PropertyPromptBuilder.buildVideoPrompt` is
+// completely untouched by this.
+export {
+  VideoStoryboardBeatName,
+  ALL_VIDEO_STORYBOARD_BEATS,
+} from "./domain/value-objects/VideoStoryboard.js";
+export type {
+  VideoStoryboard,
+  VideoStoryboardScene,
+} from "./domain/value-objects/VideoStoryboard.js";
+export { PropertyVideoStoryboardBuilder } from "./intelligence/PropertyVideoStoryboardBuilder.js";
 
 // Additive: the contracts (ports) every intelligence/service class above implements.
 export type { ICreativeAgent } from "./contracts/ICreativeAgent.js";
