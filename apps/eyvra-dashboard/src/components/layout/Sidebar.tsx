@@ -68,11 +68,13 @@ import styles from "./Sidebar.module.css";
  *  - `Campaigns`/`Leads` are the exact same real `/campaigns`/`/leads` routes, unchanged (spec's own
  *    reference screenshot literally names them "Campaigns"/"Leads" — only `Campaign`'s label
  *    pluralized to match, its route/color/icon untouched).
- *  - `Kai Studio` points at the real, already-shipped `/creative` hub (Kai's own creative-production
- *    surface) — the mockup's dedicated 3-column Brief/Concepts/Inspector Kai Studio page is real
- *    future work (explicitly out of THIS foundation phase's scope), so this item honestly links to
- *    the closest existing real destination rather than a dead link or an empty placeholder page.
- *    Reuses `--v2-menu-creative`'s existing color/🎨 icon (same real Kai-creative concept).
+ *  - `Kai Studio` originally pointed at the already-shipped `/creative` hub as an honest
+ *    placeholder (this bullet's own prior text) until EYVRA SAMANTHA V2 + KAI V2 Phase 52
+ *    (PROMPT 85-89) built the real, dedicated `/kai-studio` page (`KaiStudioClient.tsx` — real
+ *    campaign-scoped Samantha Brief / Creative Concepts grid / Inspector columns) — this item now
+ *    re-points there. `/creative`'s own 6-tab hub is untouched and still reachable via its own
+ *    existing links (e.g. Listing Manager's "Brief Kai" button). Reuses `--v2-menu-creative`'s
+ *    existing color/🎨 icon (same real Kai-creative concept).
  *  - `Experiments` is a new thin real redirect page (`/experiments`, same established
  *    `redirect()`-only pattern this file's own history already used for the old `/meta-ads/
  *    abtesting` retirement) to `/campaigns?view=ab-testing` — the real, already-shipped
@@ -118,7 +120,7 @@ export const MENU: readonly MenuItem[] = [
   { key: "leads", href: "/leads", label: "Leads", icon: "🔥", colorVar: "--v2-menu-leads" },
   {
     key: "kai-studio",
-    href: "/creative",
+    href: "/kai-studio",
     label: "Kai Studio",
     icon: "🎨",
     colorVar: "--v2-menu-creative",

@@ -18,7 +18,7 @@ describe("Sidebar", () => {
     ["Command Center", "/command-center"],
     ["Campaigns", "/campaigns"],
     ["Leads", "/leads"],
-    ["Kai Studio", "/creative"],
+    ["Kai Studio", "/kai-studio"],
     ["Experiments", "/experiments"],
     ["Automation", "/automation"],
     ["Activity", "/activity"],

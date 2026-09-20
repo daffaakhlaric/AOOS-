@@ -1,0 +1,161 @@
+/* No `max-width` cap on `.page` — same established convention `CreativeClient.module.css` documents:
+   the dashboard's content fills the available width rather than being pinned to a fixed column. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+}
+
+.campaignPicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.campaignPickerLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-500);
+}
+
+.campaignSelect {
+  appearance: none;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--gray-900);
+  min-width: 240px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.columnTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.conceptGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.conceptCard {
+  appearance: none;
+  border: var(--border);
+  border-radius: 14px;
+  background: var(--white);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.conceptCardSelected {
+  border-color: var(--v2-kai, #7c3aed);
+  box-shadow: 0 0 0 2px var(--v2-kai, #7c3aed);
+}
+
+.conceptThumb {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+}
+
+.conceptThumbEmpty {
+  width: 100%;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: var(--gray-50, #f9fafb);
+}
+
+.conceptBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 10px;
+}
+
+.conceptTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-900);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.conceptAngle {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.stepperStep {
+  border-radius: 999px;
+  border: var(--border);
+  background: var(--gray-50, #f9fafb);
+  color: var(--gray-500);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 10px;
+}
+
+.stepperStepDone {
+  background: var(--gray-100, #f3f4f6);
+  color: var(--gray-700, #374151);
+}
+
+.stepperStepCurrent {
+  background: var(--v2-kai, #7c3aed);
+  border-color: var(--v2-kai, #7c3aed);
+  color: var(--white);
+}
+
+.stepperOffPath {
+  border-radius: 999px;
+  border: 1px solid var(--red, #dc2626);
+  background: var(--red-light, #fee2e2);
+  color: var(--red, #dc2626);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+}
