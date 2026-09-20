@@ -49,6 +49,7 @@ import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import { AuditLogService } from "../audit-log/audit-log.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
+import { dedupeFacadeCollisions } from "../creative-packages/domain/creative-diversity-score.js";
 import type { StoredCreativePackage } from "../creative-packages/domain/creative-package.js";
 import { toCreativePackageResponseDto } from "../creative-packages/dto/creative-package-response.dto.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
@@ -1906,6 +1907,24 @@ export class SchedulerService {
       );
       briefs = deterministicDiverseBriefFallback(listing, existingAngles, effectiveTarget);
     }
+
+    // EYVRA Samantha V2 + Kai V2 Phase 44 (PROMPT 45 — Creative Diversity Engine) — real, additive,
+    // STRICTLY MORE CONSERVATIVE tightening of the diversity guarantee above: `briefs` at this point
+    // is already angle-unique (both the LLM path's own server-side filter and
+    // `deterministicDiverseBriefFallback`'s unused-angle pick already guarantee that), but two
+    // DIFFERENT angles can still resolve to the same real concept-family+layout-family facade
+    // (`PropertyAngleToConceptFamilyMapper` legitimately maps more than one angle to overlapping
+    // families) — exactly the spec's own named failure mode ("8 creatives, same facade, same
+    // layout, different headline") that angle-uniqueness alone does not catch. `dedupeFacadeCollisions`
+    // only ever REMOVES briefs (keeps the first of each facade group), never adds or reorders — see
+    // that function's own doc.
+    const facadeDeduped = dedupeFacadeCollisions(briefs);
+    if (facadeDeduped.length < briefs.length) {
+      this.logger.log(
+        `SchedulerService.createDiverseCreativeBriefSet(${listingId}): dropped ${String(briefs.length - facadeDeduped.length)} brief(s) sharing an already-used concept-family+layout-family facade (PROMPT 45 diversity check) — angles kept: ${facadeDeduped.map((brief) => brief.angle).join(", ")}.`,
+      );
+    }
+    briefs = facadeDeduped;
 
     if (briefs.length === 0) {
       return {
