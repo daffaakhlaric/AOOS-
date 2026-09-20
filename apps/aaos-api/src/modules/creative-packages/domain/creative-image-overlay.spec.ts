@@ -1,3 +1,4 @@
+import { LayoutFamily } from "@aos/creative-agent";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
@@ -171,5 +172,145 @@ describe("applyTypographyOverlay", () => {
       ctaText: "Hubungi kami sekarang juga untuk info lebih lanjut",
     });
     expect(result.ok).toBe(true);
+  });
+});
+
+// PROMPT 58 — DYNAMIC LAYOUT ENGINE (Phase 37). `layoutFamily` is additive and opt-in: omitting it
+// (every Phase 29/30 caller) must produce byte-for-byte the same output as always; requesting the
+// second genuinely implemented family (`HERO_FULL_BLEED`) must produce a real, distinct, correctly
+// decodable JPEG; requesting any of the 9 real spec families with no bespoke positioning logic yet
+// must honestly fall back to the exact same output as omitting `layoutFamily` entirely.
+describe("applyTypographyOverlay — PROMPT 58 layoutFamily", () => {
+  const fields = {
+    priceRupiah: 850_000_000,
+    headline: "Rumah Baru Siap Huni di Bekasi",
+    ctaText: "Tanya Sekarang",
+  };
+
+  it("produces the exact same buffer whether layoutFamily is omitted or explicitly BOTTOM_INFO_BAR (zero behavior change for existing callers)", async () => {
+    const image = await buildRealJpeg(1080, 1080);
+    const withoutLayout = await applyTypographyOverlay({ imageBuffer: image, ...fields });
+    const withDefaultLayout = await applyTypographyOverlay({
+      imageBuffer: image,
+      ...fields,
+      layoutFamily: LayoutFamily.BOTTOM_INFO_BAR,
+    });
+    expect(withoutLayout.ok).toBe(true);
+    expect(withDefaultLayout.ok).toBe(true);
+    if (!withoutLayout.ok || !withDefaultLayout.ok) {
+      return;
+    }
+    expect(withDefaultLayout.buffer.equals(withoutLayout.buffer)).toBe(true);
+  });
+
+  it("honestly falls back to the default BOTTOM_INFO_BAR output for every real spec family without bespoke positioning logic yet", async () => {
+    const image = await buildRealJpeg(1080, 1080);
+    const deferredFamilies = [
+      LayoutFamily.ASYMMETRIC_EDITORIAL,
+      LayoutFamily.PRICE_DOMINANT,
+      LayoutFamily.FLOATING_CARD,
+      LayoutFamily.SPLIT_SCREEN,
+      LayoutFamily.MAP_HYBRID,
+      LayoutFamily.EDITORIAL_LUXURY,
+      LayoutFamily.SPEC_GRID,
+      LayoutFamily.MORTGAGE_CARD,
+      LayoutFamily.PROPERTY_DISCOVERY,
+    ];
+    const baseline = await applyTypographyOverlay({ imageBuffer: image, ...fields });
+    expect(baseline.ok).toBe(true);
+    if (!baseline.ok) {
+      return;
+    }
+    for (const layoutFamily of deferredFamilies) {
+      const result = await applyTypographyOverlay({ imageBuffer: image, ...fields, layoutFamily });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        continue;
+      }
+      expect(result.buffer.equals(baseline.buffer)).toBe(true);
+    }
+  });
+
+  it("HERO_FULL_BLEED composites a real, distinct, correctly decodable JPEG (genuinely different pixels from the default layout)", async () => {
+    const image = await buildRealJpeg(1080, 1080);
+    const baseline = await applyTypographyOverlay({ imageBuffer: image, ...fields });
+    const hero = await applyTypographyOverlay({
+      imageBuffer: image,
+      ...fields,
+      layoutFamily: LayoutFamily.HERO_FULL_BLEED,
+    });
+    expect(baseline.ok).toBe(true);
+    expect(hero.ok).toBe(true);
+    if (!baseline.ok || !hero.ok) {
+      return;
+    }
+    // Real JPEG signature and unchanged dimensions, same as every other layout.
+    expect(hero.buffer[0]).toBe(0xff);
+    expect(hero.buffer[1]).toBe(0xd8);
+    expect(hero.buffer[2]).toBe(0xff);
+    const metadata = await sharp(hero.buffer).metadata();
+    expect(metadata.width).toBe(1080);
+    expect(metadata.height).toBe(1080);
+    expect(metadata.format).toBe("jpeg");
+    // A genuinely different layout must not produce identical bytes to the default banner layout.
+    expect(hero.buffer.equals(baseline.buffer)).toBe(false);
+  });
+
+  it("HERO_FULL_BLEED composites on a real 9:16 vertical JPEG without throwing", async () => {
+    const image = await buildRealJpeg(1080, 1920);
+    const result = await applyTypographyOverlay({
+      imageBuffer: image,
+      ...fields,
+      layoutFamily: LayoutFamily.HERO_FULL_BLEED,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    const metadata = await sharp(result.buffer).metadata();
+    expect(metadata.width).toBe(1080);
+    expect(metadata.height).toBe(1920);
+  });
+
+  it("HERO_FULL_BLEED still composites successfully when only price is real (headline/CTA absent) without fabricating text", async () => {
+    const image = await buildRealJpeg(800, 800);
+    const result = await applyTypographyOverlay({
+      imageBuffer: image,
+      priceRupiah: 500_000_000,
+      layoutFamily: LayoutFamily.HERO_FULL_BLEED,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("HERO_FULL_BLEED composites the ILUSTRASI label badge alongside price/headline/CTA without the two corner elements colliding", async () => {
+    const image = await buildRealJpeg(1080, 1080);
+    const result = await applyTypographyOverlay({
+      imageBuffer: image,
+      ...fields,
+      label: "ILUSTRASI",
+      layoutFamily: LayoutFamily.HERO_FULL_BLEED,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("HERO_FULL_BLEED XML-escapes untrusted headline text rather than letting it break the SVG markup", async () => {
+    const image = await buildRealJpeg(700, 700);
+    const result = await applyTypographyOverlay({
+      imageBuffer: image,
+      headline: `<script>alert("x")</script> & "quoted" 'text'`,
+      ctaText: "Tanya Sekarang",
+      layoutFamily: LayoutFamily.HERO_FULL_BLEED,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("degrades honestly (never throws) on a genuinely corrupt buffer regardless of requested layoutFamily", async () => {
+    const corrupt = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04]);
+    const result = await applyTypographyOverlay({
+      imageBuffer: corrupt,
+      priceRupiah: 100_000_000,
+      layoutFamily: LayoutFamily.HERO_FULL_BLEED,
+    });
+    expect(result.ok).toBe(false);
   });
 });

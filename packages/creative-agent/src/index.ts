@@ -93,6 +93,11 @@ export type {
 // verbatim spec text and mapping justification).
 export { ConceptFamily, ALL_CONCEPT_FAMILIES } from "./domain/value-objects/ConceptFamily.js";
 export { PropertyAngleToConceptFamilyMapper } from "./intelligence/PropertyAngleToConceptFamilyMapper.js";
+// PROMPT 58 — DYNAMIC LAYOUT ENGINE: the real spec's 11-member layout-family taxonomy + the
+// deterministic `ConceptFamily` -> `LayoutFamily` mapper (see each file's own doc for the verbatim
+// spec text and the real 3-name vocabulary overlap with `ConceptFamily`).
+export { LayoutFamily, ALL_LAYOUT_FAMILIES } from "./domain/value-objects/LayoutFamily.js";
+export { ConceptFamilyToLayoutFamilyMapper } from "./intelligence/ConceptFamilyToLayoutFamilyMapper.js";
 
 // Additive: the contracts (ports) every intelligence/service class above implements.
 export type { ICreativeAgent } from "./contracts/ICreativeAgent.js";

@@ -1,3 +1,4 @@
+import { LayoutFamily } from "@aos/creative-agent";
 import { formatIDR } from "@aos/meta-ads-connector";
 import type sharpDefault from "sharp";
 
@@ -17,10 +18,9 @@ import type sharpDefault from "sharp";
  *
  * SCOPE (deliberately, per this dispatch's own boundary): ONE fixed layout — a semi-transparent
  * bottom banner, price large/bold, headline smaller beneath it, CTA as a small pill on the right.
- * NOT a dynamic layout engine (`PROMPT 58`, a future phase) — no layout-family selection, no
- * per-angle/per-format recomposition. `imageAspectRatio`-aware positioning is intentionally NOT
- * attempted here; the banner is sized as a fraction of the actual image height/width sharp reports
- * for THIS buffer, so it degrades sanely across 1:1/9:16/16:9 without a second code path per ratio.
+ * `imageAspectRatio`-aware positioning is intentionally NOT attempted here; the banner is sized as a
+ * fraction of the actual image height/width sharp reports for THIS buffer, so it degrades sanely
+ * across 1:1/9:16/16:9 without a second code path per ratio.
  *
  * HONEST DEGRADE: every failure mode (sharp not resolving image dimensions, a corrupt buffer, an
  * SVG/library exception) returns `{ ok: false, reason }` — it NEVER throws, and NEVER returns a
@@ -28,6 +28,23 @@ import type sharpDefault from "sharp";
  * responsible for falling back to the original, un-composited buffer and logging the honest reason;
  * this module has no opinion on what "good enough" means for the pipeline, only on whether ITS OWN
  * compositing genuinely succeeded.
+ *
+ * PROMPT 58 — DYNAMIC LAYOUT ENGINE (Phase 37). This module's original ONE-fixed-layout scope above
+ * is now the honest DEFAULT of a small, ADDITIVE, OPT-IN extension: `TypographyOverlayInput.layoutFamily`
+ * lets a caller request one of the spec's real 11 `LayoutFamily` names (`@aos/creative-agent`'s
+ * `LayoutFamily.ts`). Exactly 2 are genuinely implemented with distinct pixel-positioning logic —
+ * `IMPLEMENTED_LAYOUT_FAMILIES` below is the honest, single source of truth for which:
+ *   - `BOTTOM_INFO_BAR` — the ORIGINAL fixed layout described above, byte-for-byte unchanged.
+ *   - `HERO_FULL_BLEED` — a genuinely different treatment: no full-width banner rect at all: a small
+ *     price badge top-right, a thin bottom caption strip (headline only, far shorter than the
+ *     default banner) and a compact CTA pill inside it, so the generated image itself stays visually
+ *     dominant. See `buildHeroFullBleedSvg`.
+ * Every OTHER `LayoutFamily` (the remaining 9 real spec names — `ASYMMETRIC_EDITORIAL`,
+ * `PRICE_DOMINANT`, `FLOATING_CARD`, `SPLIT_SCREEN`, `MAP_HYBRID`, `EDITORIAL_LUXURY`, `SPEC_GRID`,
+ * `MORTGAGE_CARD`, `PROPERTY_DISCOVERY`) has no bespoke positioning logic yet and honestly falls
+ * back to `BOTTOM_INFO_BAR`'s exact compositing — never a silently broken/overlapping layout. A
+ * caller that omits `layoutFamily` entirely gets `BOTTOM_INFO_BAR` too: ZERO behavior change for
+ * every existing caller (`CreativePackagesService`, Phase 29/30) that doesn't opt in.
  */
 
 export interface TypographyOverlayInput {
@@ -47,6 +64,13 @@ export interface TypographyOverlayInput {
    * unrecognized `propertyType`), never fabricated for a real, STRICT built unit.
    */
   readonly label?: string;
+  /**
+   * PROMPT 58 — DYNAMIC LAYOUT ENGINE (Phase 37). Optional, additive: which of the spec's real
+   * `LayoutFamily` names to arrange this text in. Omitted (the exact existing behavior of every
+   * Phase 29/30 caller) or any family not in `IMPLEMENTED_LAYOUT_FAMILIES` honestly falls back to
+   * the original `BOTTOM_INFO_BAR` bottom-banner layout — see this file's own module doc.
+   */
+  readonly layoutFamily?: LayoutFamily;
 }
 
 export type TypographyOverlayResult =
@@ -63,6 +87,38 @@ const SIDE_PADDING_FRACTION = 0.045;
 const LABEL_FONT_FRACTION = 0.04;
 const LABEL_PADDING_FRACTION = 0.018;
 const LABEL_OPACITY = 0.85;
+
+/**
+ * PROMPT 58 — the only `LayoutFamily` members with real, bespoke pixel-positioning logic today.
+ * Single source of truth for `resolveImplementedLayout` below — any `LayoutFamily` NOT in this set
+ * (9 of the real 11 spec names) honestly degrades to `LayoutFamily.BOTTOM_INFO_BAR`.
+ */
+const IMPLEMENTED_LAYOUT_FAMILIES: ReadonlySet<LayoutFamily> = new Set([
+  LayoutFamily.BOTTOM_INFO_BAR,
+  LayoutFamily.HERO_FULL_BLEED,
+]);
+
+/** `HERO_FULL_BLEED`'s own fraction-of-real-image-dimensions constants — genuinely distinct from the `BOTTOM_INFO_BAR` constants above, never reused, so the two layouts can never accidentally collapse into the same output. */
+const HERO_PRICE_FONT_FRACTION = 0.06;
+const HERO_PRICE_BADGE_OPACITY = 0.75;
+const HERO_PRICE_BADGE_PADDING_FRACTION = 0.022;
+const HERO_CAPTION_HEIGHT_FRACTION = 0.1;
+const HERO_CAPTION_OPACITY = 0.6;
+const HERO_HEADLINE_FONT_FRACTION = 0.03;
+const HERO_CTA_FONT_FRACTION = 0.028;
+const HERO_SIDE_PADDING_FRACTION = 0.045;
+
+/**
+ * Resolves a caller's optional `layoutFamily` request to the one `LayoutFamily` this module will
+ * actually render — `undefined` and every unimplemented family both honestly resolve to
+ * `BOTTOM_INFO_BAR`, the original Phase 29/30 default. Never throws, never returns a family absent
+ * from `IMPLEMENTED_LAYOUT_FAMILIES`.
+ */
+function resolveImplementedLayout(requested: LayoutFamily | undefined): LayoutFamily {
+  return requested !== undefined && IMPLEMENTED_LAYOUT_FAMILIES.has(requested)
+    ? requested
+    : LayoutFamily.BOTTOM_INFO_BAR;
+}
 
 /**
  * Deterministically composites the real price/headline/CTA text onto a real generated JPEG buffer at
@@ -109,6 +165,7 @@ export async function applyTypographyOverlay(
       headline: nonEmpty(input.headline),
       ctaText: nonEmpty(input.ctaText),
       label: nonEmpty(input.label),
+      layoutFamily: resolveImplementedLayout(input.layoutFamily),
     });
 
     const composited = await sharpFactory(input.imageBuffer)
@@ -137,6 +194,8 @@ interface OverlaySvgInput {
   readonly ctaText?: string;
   /** PROMPT 46 — the real "ILUSTRASI" disclosure text, when the caller determined this listing is `CONCEPTUAL`. */
   readonly label?: string;
+  /** PROMPT 58 — already resolved to an `IMPLEMENTED_LAYOUT_FAMILIES` member by `resolveImplementedLayout`; never the raw, possibly-unimplemented caller request. */
+  readonly layoutFamily: LayoutFamily;
 }
 
 /**
@@ -150,6 +209,18 @@ interface OverlaySvgInput {
  * genuinely untrusted text (an LLM-generated headline, a listing's own price) rendered into markup.
  */
 function buildOverlaySvg(input: OverlaySvgInput): string {
+  if (input.layoutFamily === LayoutFamily.HERO_FULL_BLEED) {
+    return buildHeroFullBleedSvg(input);
+  }
+  return buildBottomInfoBarSvg(input);
+}
+
+/**
+ * The original, unchanged (Phase 29/30) `BOTTOM_INFO_BAR` layout: a semi-transparent bottom banner,
+ * price top-left, headline beneath it, CTA pill bottom-right. This is `resolveImplementedLayout`'s
+ * default AND every unimplemented `LayoutFamily`'s honest fallback.
+ */
+function buildBottomInfoBarSvg(input: OverlaySvgInput): string {
   const { width, height } = input;
   const bannerHeight = Math.round(height * BANNER_HEIGHT_FRACTION);
   const bannerY = height - bannerHeight;
@@ -185,6 +256,90 @@ function buildOverlaySvg(input: OverlaySvgInput): string {
     `<rect x="0" y="${String(bannerY)}" width="${String(width)}" height="${String(bannerHeight)}" fill="#000000" fill-opacity="${String(BANNER_OPACITY)}" />` +
     `${priceLine}${headlineLine}${ctaGroup}${labelGroup}` +
     `</svg>`
+  );
+}
+
+/**
+ * PROMPT 58 — `LayoutFamily.HERO_FULL_BLEED`. Genuinely different pixel-positioning from
+ * `buildBottomInfoBarSvg`: NO full-width banner rectangle at all — the real generated image stays
+ * visually dominant. Instead: a compact semi-transparent price badge in the TOP-RIGHT corner (the
+ * `buildLabelBadge` ILUSTRASI badge already independently owns the top-left corner — see that
+ * function's own doc — so this never competes with it for the same space regardless of which
+ * fields a given call provides), a thin bottom caption strip (`HERO_CAPTION_HEIGHT_FRACTION`, far
+ * shorter than `BANNER_HEIGHT_FRACTION`) carrying only the headline, and a compact CTA pill inside
+ * that same strip. Every value is a fraction of the ACTUAL measured `width`/`height`, same
+ * discipline as the default layout, so it degrades sanely across 1:1/9:16/16:9 too.
+ */
+function buildHeroFullBleedSvg(input: OverlaySvgInput): string {
+  const { width, height } = input;
+  const sidePadding = Math.round(width * HERO_SIDE_PADDING_FRACTION);
+  const priceFontSize = Math.round(height * HERO_PRICE_FONT_FRACTION);
+  const headlineFontSize = Math.round(height * HERO_HEADLINE_FONT_FRACTION);
+  const ctaFontSize = Math.round(height * HERO_CTA_FONT_FRACTION);
+  const badgePadding = Math.round(height * HERO_PRICE_BADGE_PADDING_FRACTION);
+
+  const priceGroup = buildHeroPriceBadge(input.priceText, {
+    width,
+    priceFontSize,
+    badgePadding,
+  });
+
+  const captionHeight = Math.round(height * HERO_CAPTION_HEIGHT_FRACTION);
+  const captionY = height - captionHeight;
+  const headlineY = captionY + Math.round(captionHeight * 0.62);
+
+  const headlineLine =
+    input.headline !== undefined
+      ? `<text x="${String(sidePadding)}" y="${String(headlineY)}" font-family="Arial, sans-serif" font-size="${String(headlineFontSize)}" font-weight="400" fill="#F5F5F5">${escapeXml(truncateForSvg(input.headline, 48))}</text>`
+      : "";
+
+  const ctaGroup = buildCtaPill(input.ctaText, {
+    width,
+    bannerY: captionY,
+    bannerHeight: captionHeight,
+    sidePadding,
+    ctaFontSize,
+  });
+
+  const captionRect =
+    input.headline !== undefined || input.ctaText !== undefined
+      ? `<rect x="0" y="${String(captionY)}" width="${String(width)}" height="${String(captionHeight)}" fill="#000000" fill-opacity="${String(HERO_CAPTION_OPACITY)}" />`
+      : "";
+
+  const labelGroup = buildLabelBadge(input.label, { width, height });
+
+  return (
+    `<svg width="${String(width)}" height="${String(height)}" xmlns="http://www.w3.org/2000/svg">` +
+    `${captionRect}${priceGroup}${headlineLine}${ctaGroup}${labelGroup}` +
+    `</svg>`
+  );
+}
+
+/**
+ * `HERO_FULL_BLEED`'s own compact price badge — deliberately TOP-RIGHT (never top-left, which
+ * `buildLabelBadge`'s ILUSTRASI disclosure already independently owns) and visually distinct from
+ * `buildBottomInfoBarSvg`'s plain top-left price text: a real rounded, semi-transparent badge, not
+ * a full-width banner line.
+ */
+function buildHeroPriceBadge(
+  priceText: string | undefined,
+  layout: { readonly width: number; readonly priceFontSize: number; readonly badgePadding: number },
+): string {
+  if (priceText === undefined) {
+    return "";
+  }
+  const text = truncateForSvg(priceText, 20);
+  const badgeWidth =
+    Math.round(layout.priceFontSize * text.length * 0.62) + layout.priceFontSize * 2;
+  const badgeHeight = Math.round(layout.priceFontSize * 1.9);
+  const badgeX = layout.width - layout.badgePadding - badgeWidth;
+  const badgeY = layout.badgePadding;
+  const textX = badgeX + badgeWidth / 2;
+  const textY = badgeY + badgeHeight / 2 + layout.priceFontSize * 0.35;
+
+  return (
+    `<rect x="${String(badgeX)}" y="${String(badgeY)}" width="${String(badgeWidth)}" height="${String(badgeHeight)}" rx="${String(Math.round(badgeHeight * 0.2))}" fill="#000000" fill-opacity="${String(HERO_PRICE_BADGE_OPACITY)}" />` +
+    `<text x="${String(textX)}" y="${String(textY)}" font-family="Arial, sans-serif" font-size="${String(layout.priceFontSize)}" font-weight="700" fill="#FFFFFF" text-anchor="middle">${escapeXml(text)}</text>`
   );
 }
 
