@@ -1,4 +1,5 @@
 import { err, ok } from "@aos/common";
+import type { IPublisher, PublishInput } from "@aos/event-bus";
 import { AdStatus, type MetaAdsConnector } from "@aos/meta-ads-connector";
 import { describe, expect, it, vi } from "vitest";
 
@@ -105,6 +106,23 @@ function buildFakeActivityLogger(): ActivityLogger {
   } as unknown as ActivityLogger;
 }
 
+/** Phase 47 (PROMPT 39 — Events) — same fake-publisher shape `MetaAdsConnectorEvents.spec.ts`'s own tests already establish for `IPublisher`, recording every real `publish()` call for assertions. */
+function buildFakePublisher(): IPublisher & { readonly published: PublishInput[] } {
+  const published: PublishInput[] = [];
+  return {
+    published,
+    publish: vi.fn(async (input: PublishInput) => {
+      published.push(input);
+      return { ...input } as unknown as Awaited<ReturnType<IPublisher["publish"]>>;
+    }),
+    publishAsync: vi.fn(async (input: PublishInput) => {
+      published.push(input);
+      return { ...input } as unknown as Awaited<ReturnType<IPublisher["publishAsync"]>>;
+    }),
+    publishBatch: vi.fn(async () => []),
+  } as unknown as IPublisher & { readonly published: PublishInput[] };
+}
+
 /** Same fake-connector shape `go-live.service.spec.ts`'s own `buildFakeConnector` establishes — `client.createCampaign`/`.createAdSet` mocked directly, matching this service's own real call path. */
 function buildFakeConnector(overrides: Record<string, unknown> = {}): MetaAdsConnector {
   return {
@@ -186,6 +204,7 @@ interface Harness {
   readonly connector: MetaAdsConnector;
   readonly growthObjectiveCampaigns: GrowthObjectiveCampaignsRepository;
   readonly campaignAssessments: CampaignAssessmentRepository;
+  readonly publisher: IPublisher & { readonly published: PublishInput[] };
 }
 
 function buildHarness(
@@ -244,6 +263,7 @@ function buildHarness(
       async () => options.latestAssessments ?? new Map<string, StoredAssessment>(),
     ),
   } as unknown as CampaignAssessmentRepository;
+  const publisher = buildFakePublisher();
 
   const service = new CampaignCreationService(
     listings,
@@ -254,6 +274,7 @@ function buildHarness(
     activityLogger,
     growthObjectiveCampaigns,
     campaignAssessments,
+    publisher,
   );
 
   return {
@@ -267,6 +288,7 @@ function buildHarness(
     connector,
     growthObjectiveCampaigns,
     campaignAssessments,
+    publisher,
   };
 }
 
@@ -461,6 +483,66 @@ describe("CampaignCreationService.createCampaign (Phase 26 — PROMPT 36/37)", (
     expect(result.status).toBe("CONFLICT");
     expect(connector.client.createCampaign).not.toHaveBeenCalled();
     expect(repository.findByKey).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("CampaignCreationService.createCampaign events (Phase 47 — PROMPT 39 — Events)", () => {
+  it("CREATED: publishes requested -> blueprint.created -> preflight.passed -> campaign.created, in order, via the real IPublisher", async () => {
+    const { service, publisher } = buildHarness({
+      objectiveOverrides: { forecast: READY_FORECAST },
+    });
+    await service.createCampaign(TENANT, OBJECTIVE_ID, LISTING_ID, CORRELATION_ID);
+
+    const types = publisher.published.map((p) => p.type);
+    expect(types).toEqual([
+      "aaos.campaign.creation.requested",
+      "aaos.campaign.blueprint.created",
+      "aaos.campaign.preflight.passed",
+      "aaos.campaign.created",
+    ]);
+    for (const event of publisher.published) {
+      expect(event.tenantId).toBe(TENANT);
+      expect(event.correlationId).toBe(CORRELATION_ID);
+    }
+    const createdEvent = publisher.published[3] as PublishInput<{
+      readonly metaCampaignId: string;
+      readonly metaAdSetId: string;
+    }>;
+    expect(createdEvent.payload.metaCampaignId).toBe("campaign-1");
+    expect(createdEvent.payload.metaAdSetId).toBe("adset-1");
+  });
+
+  it("BLOCKED: publishes requested -> blueprint.created -> preflight.failed with the real blockingErrors — never campaign.created", async () => {
+    const { service, publisher } = buildHarness();
+    await service.createCampaign(TENANT, OBJECTIVE_ID, LISTING_ID, CORRELATION_ID);
+
+    const types = publisher.published.map((p) => p.type);
+    expect(types).toEqual([
+      "aaos.campaign.creation.requested",
+      "aaos.campaign.blueprint.created",
+      "aaos.campaign.preflight.failed",
+    ]);
+    const failedEvent = publisher.published[2] as PublishInput<{
+      readonly blockingErrors: readonly string[];
+    }>;
+    expect(failedEvent.payload.blockingErrors.length).toBeGreaterThan(0);
+  });
+
+  it("SIMULATED/PARTIAL_FAILURE/FAILED/DUPLICATE/CONFLICT never publish campaign.created", async () => {
+    const { service: simulated, publisher: simulatedPublisher } = buildHarness({
+      objectiveOverrides: { forecast: READY_FORECAST },
+      dev: true,
+    });
+    await simulated.createCampaign(TENANT, OBJECTIVE_ID, LISTING_ID, CORRELATION_ID);
+    expect(simulatedPublisher.published.map((p) => p.type)).not.toContain("aaos.campaign.created");
+
+    const existing = makeStoredRequest({ status: "CREATED", metaCampaignId: "campaign-existing" });
+    const { service: duplicate, publisher: duplicatePublisher } = buildHarness({
+      objectiveOverrides: { forecast: READY_FORECAST },
+      repositoryOverrides: { findByKey: vi.fn(async () => existing) },
+    });
+    await duplicate.createCampaign(TENANT, OBJECTIVE_ID, LISTING_ID, CORRELATION_ID);
+    expect(duplicatePublisher.published.map((p) => p.type)).not.toContain("aaos.campaign.created");
   });
 });
 

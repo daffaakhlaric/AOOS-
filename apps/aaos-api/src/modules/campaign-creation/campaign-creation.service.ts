@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 
+import type { IPublisher } from "@aos/event-bus";
 import { AdAccountId, AdDestinationType, AdStatus, rupiahToCents } from "@aos/meta-ads-connector";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
-import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
+import { EVENT_PUBLISHER, META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
 import { CampaignAssessmentRepository } from "../campaign-health/infrastructure/campaign-assessment.repository.js";
 import { GrowthObjectivesService } from "../growth-objectives/growth-objectives.service.js";
@@ -18,6 +19,7 @@ import { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 
 import { buildCampaignBlueprint } from "./domain/campaign-blueprint.js";
 import type { CampaignBlueprint } from "./domain/campaign-blueprint.js";
+import { CampaignCreationEvents } from "./domain/campaign-creation-events.js";
 import { assessCampaignPreflight } from "./domain/campaign-preflight.js";
 import { assessListingReadiness } from "./domain/listing-readiness.js";
 import { planPortfolioAllocation } from "./domain/portfolio-plan.js";
@@ -87,10 +89,17 @@ type MetaCreationOutcome =
  * `connector.client.createCampaign`/`.createAdSet` directly rather than going through the
  * `CreateCampaign` use case — this method mirrors that established, audited pattern exactly (same
  * client, same low-level methods, only `status: PAUSED` instead of `GoLiveService`'s `ACTIVE`).
+ *
+ * Phase 47 (PROMPT 39 — Events) addition: `createCampaign` also publishes `aaos.campaign.*` domain
+ * events via `CampaignCreationEvents` at each of its own real decision points — see that class's own
+ * doc for the full naming/scope rationale. Purely additive, zero effect on any existing return value
+ * or on the three read-only `GET` routes above.
  */
 @Injectable()
 export class CampaignCreationService {
   private readonly logger = new Logger(CampaignCreationService.name);
+  /** EYVRA SAMANTHA V2 Phase 47 (PROMPT 39 — Events) — see `CampaignCreationEvents`'s own doc for scope/naming. */
+  private readonly events: CampaignCreationEvents;
 
   constructor(
     private readonly listings: ListingsService,
@@ -102,7 +111,10 @@ export class CampaignCreationService {
     private readonly activityLogger: ActivityLogger,
     private readonly growthObjectiveCampaigns: GrowthObjectiveCampaignsRepository,
     private readonly campaignAssessments: CampaignAssessmentRepository,
-  ) {}
+    @Inject(EVENT_PUBLISHER) eventPublisher: IPublisher,
+  ) {
+    this.events = new CampaignCreationEvents(eventPublisher);
+  }
 
   async getListingReadiness(
     tenantId: string,
@@ -354,13 +366,28 @@ export class CampaignCreationService {
     listingId: string,
     correlationId: string,
   ): Promise<CampaignCreationResponseDto> {
+    const eventBase = {
+      tenantId,
+      correlationId,
+      growthObjectiveId,
+      listingId,
+      occurredAt: new Date(),
+      version: "1.0" as const,
+    };
+    await this.events.publishCreationRequested(eventBase);
+
     const { blueprint, preflight } = await this.buildBlueprintAndPreflight(
       tenantId,
       growthObjectiveId,
       listingId,
     );
+    await this.events.publishBlueprintCreated(eventBase);
 
     if (!preflight.ready) {
+      await this.events.publishPreflightFailed({
+        ...eventBase,
+        blockingErrors: preflight.blockingErrors,
+      });
       return {
         growthObjectiveId,
         listingId,
@@ -369,6 +396,7 @@ export class CampaignCreationService {
         preflight,
       };
     }
+    await this.events.publishPreflightPassed(eventBase);
 
     const existing = await this.repository.findByKey(tenantId, growthObjectiveId, listingId);
     const dedup = evaluateExisting(existing, growthObjectiveId, listingId);
@@ -502,6 +530,18 @@ export class CampaignCreationService {
         await this.activityLogger.complete(activityId, {
           status: "SUCCESS",
           output: { campaignId: outcome.campaignId, adSetId: outcome.adSetId },
+        });
+        await this.events.publishCampaignCreated({
+          tenantId,
+          correlationId,
+          growthObjectiveId,
+          listingId,
+          occurredAt: new Date(),
+          version: "1.0",
+          creationRequestId,
+          blueprintId,
+          metaCampaignId: outcome.campaignId,
+          metaAdSetId: outcome.adSetId,
         });
         return {
           growthObjectiveId,
