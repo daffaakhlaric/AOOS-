@@ -33,6 +33,11 @@ vi.mock("@/components/campaigns/CampaignInsightPanel", () => ({
     <div data-testid="real-insight-panel">{props.campaign.id}</div>
   ),
 }));
+// EYVRA Samantha V2 + Kai V2 Phase 51 — these three real cards now render INSIDE the real
+// `CampaignDetailTabs` (Overview/Creative Health tabs) instead of directly under
+// `CampaignsHubClient`. `vi.mock` intercepts by module path regardless of which file does the
+// importing, so these mocks stay valid unchanged — only the render-tree assertions below now go
+// through the real (unmocked) `CampaignDetailTabs`, clicking its real tab buttons where needed.
 vi.mock("@/components/campaigns/AndromedaHealthCard", () => ({
   AndromedaHealthCard: (props: { readonly campaignId: string; readonly listingId?: string }) => (
     <div data-testid="real-andromeda-health-card">
@@ -63,6 +68,15 @@ vi.mock("@/components/campaigns/CampaignHealthCard", () => ({
       >
         fake apply verdict
       </button>
+    </div>
+  ),
+}));
+// AutomationPanel (Phase 51, PROMPT 79) — new side panel rendered next to CampaignHealthCard in
+// the Overview tab. Mocked to a marker for the same reason the cards above are.
+vi.mock("@/components/campaigns/AutomationPanel", () => ({
+  AutomationPanel: (props: { readonly campaignId: string; readonly campaignName: string }) => (
+    <div data-testid="real-automation-panel">
+      {props.campaignId} name:{props.campaignName}
     </div>
   ),
 }));
@@ -235,6 +249,9 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     mockSettingsFetch();
     render(<CampaignsHubClient />);
     await userEvent.click(screen.getByTestId("fake-select-c1"));
+    // Phase 51 — AndromedaHealthCard now renders inside CampaignDetailTabs' real "Creative
+    // Health" tab, not immediately visible on the default "Overview" tab.
+    await userEvent.click(screen.getByTestId("campaign-detail-tab-creative-health"));
     expect(screen.getByTestId("real-andromeda-health-card")).toHaveTextContent("meta-c1");
   });
 
@@ -260,6 +277,9 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith("/api/campaigns/meta-c1/listing-id"),
     );
+    // Phase 51 — AndromedaHealthCard now renders inside CampaignDetailTabs' real "Creative
+    // Health" tab, not immediately visible on the default "Overview" tab.
+    await userEvent.click(screen.getByTestId("campaign-detail-tab-creative-health"));
     await waitFor(() =>
       expect(screen.getByTestId("real-andromeda-health-card")).toHaveTextContent(
         "listingId:listing-real-1",
@@ -272,6 +292,7 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     mockSettingsFetch();
     render(<CampaignsHubClient />);
     await userEvent.click(screen.getByTestId("fake-select-c1"));
+    await userEvent.click(screen.getByTestId("campaign-detail-tab-creative-health"));
     await waitFor(() =>
       expect(screen.getByTestId("real-andromeda-health-card")).toBeInTheDocument(),
     );
@@ -322,10 +343,33 @@ describe("CampaignsHubClient (AAOS-CAMPAIGNS-UNIFIED-PAGE, /campaigns)", () => {
     mockSettingsFetch();
     render(<CampaignsHubClient />);
     await userEvent.click(screen.getByTestId("fake-select-c1"));
+    // Phase 51 — OpportunitiesCard now renders inside CampaignDetailTabs' real "Creative Health"
+    // tab, not immediately visible on the default "Overview" tab.
+    await userEvent.click(screen.getByTestId("campaign-detail-tab-creative-health"));
     expect(screen.getByTestId("real-opportunities-card")).toHaveTextContent("meta-c1");
     expect(screen.getByTestId("real-opportunities-card")).toHaveTextContent(
       "name:Meta-DM-Leads-Mobix",
     );
+  });
+
+  it("EYVRA Samantha V2 + Kai V2 Phase 51: AutomationPanel (Overview tab) receives the real metaId/name when a campaign is selected", async () => {
+    seedCache();
+    mockSettingsFetch();
+    render(<CampaignsHubClient />);
+    await userEvent.click(screen.getByTestId("fake-select-c1"));
+    expect(screen.getByTestId("real-automation-panel")).toHaveTextContent("meta-c1");
+    expect(screen.getByTestId("real-automation-panel")).toHaveTextContent(
+      "name:Meta-DM-Leads-Mobix",
+    );
+  });
+
+  it("EYVRA Samantha V2 + Kai V2 Phase 51: the Anggaran tab renders the real BudgetTracker scoped to just the selected campaign", async () => {
+    seedCache();
+    mockSettingsFetch();
+    render(<CampaignsHubClient />);
+    await userEvent.click(screen.getByTestId("fake-select-c1"));
+    await userEvent.click(screen.getByTestId("campaign-detail-tab-budget"));
+    expect(screen.getByTestId("campaign-detail-panel-budget")).toBeInTheDocument();
   });
 
   it("clicking a row opens the real CampaignInsightPanel for that campaign", async () => {

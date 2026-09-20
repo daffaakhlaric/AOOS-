@@ -15,9 +15,7 @@ import { useCampaignsSnapshot } from "@/lib/useCampaignsSnapshot";
 import type { SettingsDto } from "@/types/tenant.types";
 
 import { accountBenchmarkCpl, accountBenchmarkCtr } from "./campaignInsightMath";
-import { AndromedaHealthCard } from "./AndromedaHealthCard";
-import { CampaignHealthCard } from "./CampaignHealthCard";
-import { OpportunitiesCard } from "./OpportunitiesCard";
+import { CampaignDetailTabs } from "./CampaignDetailTabs";
 import { BudgetTracker } from "./BudgetTracker";
 import { CampaignInsightPanel } from "./CampaignInsightPanel";
 import { ObjectiveStripCard } from "./ObjectiveStripCard";
@@ -364,62 +362,22 @@ export function CampaignsHubClient({ initialView }: CampaignsHubClientProps): Re
               />
             ) : null}
 
-            {/* Samantha Andromeda-Aware Campaign System, Sprint 2 — "after the campaign table,
-                before Verdict cards" (the pasted spec's own placement instruction), rendered only
-                for the currently-selected campaign since Sprint 1's diversity scoring is real
-                per-campaign, not per-tenant (see `AndromedaHealthCard`'s own doc). `listingId` is
-                the real Campaign->Listing Mapping lookup above (053_meta_campaigns_listing_id.sql)
-                — `undefined` (never fabricated) for the honest common case of a campaign with no
-                real link yet, in which case the card itself degrades "Brief Kai sekarang" to its
-                existing disabled, explained state. */}
+            {/* EYVRA Samantha V2 + Kai V2 Phase 51 (PROMPT 77/78/79/80, Campaign Detail redesign)
+                — replaces the previous flat AndromedaHealthCard/CampaignHealthCard/
+                OpportunitiesCard stack with the mockup's real tab bar (Overview/Creative Health/
+                Anggaran — the subset of the mockup's 7 named tabs this codebase has real
+                per-campaign data for; see `CampaignDetailTabs.tsx`'s own doc for the full honest-
+                omission rationale on Performance/Lead Quality/Experiments/History). Rendered only
+                for the currently-selected campaign, same reason every card it wraps already was.
+                `onApplyVerdict` reuses the SAME real, already-live `handleApplyVerdict`/
+                `POST /api/verdicts` mechanism `VerdictCards`' own "Terapkan" button already
+                triggers — deliberately closes over `selectedCampaign.id` (the LOCAL id), NOT
+                `selectedCampaign.metaId`, per `resolveMetaId`'s doc comment above. */}
             {selectedCampaign !== undefined ? (
-              <AndromedaHealthCard
-                // Real bug fix (live-confirmed 404): `getAndromedaHealth` does its OWN fresh live
-                // pull and looks this campaign back up by its real, stable `metaId` — `id` is a
-                // local id re-generated randomly on every pull, so it can never match across two
-                // separate requests. See `CampaignSummaryDto.metaId`'s own doc.
-                campaignId={selectedCampaign.metaId}
-                campaignName={selectedCampaign.name}
+              <CampaignDetailTabs
+                campaign={selectedCampaign}
                 listingId={selectedListingId}
-              />
-            ) : null}
-
-            {/* EYVRA — Samantha V2 Phase 14 — surfaces Phase 3/4's real, deterministic
-                CampaignHealth/CampaignDiagnosis/SamanthaDecision VISUALLY for the first time
-                (previously computed but only silently fed into the LLM prompt via Phase 12's
-                CampaignInsightPanel wiring, GET /api/campaign-health/:campaignId — reused as-is,
-                no new backend route). Placed before OpportunitiesCard: health/diagnosis logically
-                precedes "what opportunities exist" in the narrative, and OpportunitiesCard's own
-                SCALING_OPPORTUNITY detector is itself derived from this same data. Rendered only
-                for the currently-selected campaign for the same reason AndromedaHealthCard/
-                OpportunitiesCard are — this assessment is real per-campaign data, not tenant-wide. */}
-            {selectedCampaign !== undefined ? (
-              <CampaignHealthCard
-                campaignId={selectedCampaign.metaId}
-                campaignName={selectedCampaign.name}
-                listingId={selectedListingId}
-                // Phase 20 — reuses the SAME real, already-live `handleApplyVerdict`/
-                // `POST /api/verdicts` mechanism `VerdictCards`' own "Terapkan" button already
-                // triggers. Deliberately closes over `selectedCampaign.id` (the LOCAL id), NOT
-                // `selectedCampaign.metaId` (this card's own `campaignId` prop above) — see
-                // `resolveMetaId`'s doc comment above for the real, previously-shipped id-confusion
-                // bug this distinction guards against. `CampaignHealthCard` itself never touches
-                // any campaign id at all; it only ever calls this opaque callback with a verdict
-                // string.
                 onApplyVerdict={(verdict) => handleApplyVerdict(selectedCampaign.id, verdict)}
-              />
-            ) : null}
-
-            {/* EYVRA — Samantha V2 + Kai V2 Phase 13 — real per-campaign opportunity findings from
-                Phase 9's Opportunity Engine: scaling opportunities from Campaign Health's real
-                SCALE decisions, creative-winner opportunities from Creative Memory's rank-1
-                angles. Rendered only for the currently-selected campaign for the same reason
-                `AndromedaHealthCard` is — the Opportunity Engine's detectors are real per-campaign
-                data, not tenant-wide. */}
-            {selectedCampaign !== undefined ? (
-              <OpportunitiesCard
-                campaignId={selectedCampaign.metaId}
-                campaignName={selectedCampaign.name}
               />
             ) : null}
 
