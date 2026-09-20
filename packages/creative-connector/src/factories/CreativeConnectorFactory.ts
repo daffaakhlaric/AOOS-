@@ -17,6 +17,8 @@ import { CreativeConnectorEvents } from "../domain/events/CreativeConnectorEvent
 import { KieAiFileUploadClient } from "../infrastructure/kie-api/KieAiFileUploadClient.js";
 import { KieAiGenerationClient } from "../infrastructure/kie-api/KieAiGenerationClient.js";
 import { TaskPoller } from "../infrastructure/polling/TaskPoller.js";
+import type { ITaskWakeRegistry } from "../infrastructure/polling/TaskWakeRegistry.js";
+import { TaskWakeRegistry } from "../infrastructure/polling/TaskWakeRegistry.js";
 import { TokenBucketRateLimiter } from "../infrastructure/rate-limiter/TokenBucketRateLimiter.js";
 
 export interface CreativeConnectorFactoryOptions {
@@ -41,6 +43,13 @@ export interface CreativeConnectorBundle {
   readonly fileUploadService: FileUploadService;
   readonly videoGenerationService: VideoGenerationService;
   readonly imageGenerationService: ImageGenerationService;
+  /**
+   * PROMPT 53 — KIE WEBHOOK (Phase 41). The SAME `ITaskWakeRegistry` instance the `TaskPoller`
+   * above was composed with — exposed here so `apps/aaos-api`'s inbound Kie AI webhook handler can
+   * wake an in-flight poll early on a real callback, without a second registry instance existing
+   * anywhere. See `TaskWakeRegistry.ts`'s own doc for the full design/honesty notes.
+   */
+  readonly taskWakeRegistry: ITaskWakeRegistry;
 }
 
 /**
@@ -74,10 +83,12 @@ export class CreativeConnectorFactory {
       sleep: options.sleep,
     });
 
+    const taskWakeRegistry = new TaskWakeRegistry();
     const poller = new TaskPoller(generationClient, {
       sleep: options.sleep,
       now,
       defaultTimeoutMs: options.config.maxPollDurationMs,
+      wakeRegistry: taskWakeRegistry,
     });
     const pollingService = new TaskPollingService(poller);
 
@@ -119,6 +130,7 @@ export class CreativeConnectorFactory {
       fileUploadService,
       videoGenerationService,
       imageGenerationService,
+      taskWakeRegistry,
     };
   }
 }

@@ -3,7 +3,7 @@ import type { BranchManager } from "@aos/branch-manager";
 import { BranchManagerFactory } from "@aos/branch-manager";
 import { CapiConnectorFactory, type CapiConnector } from "@aos/capi-connector";
 import { KaiAgentFactory, type KaiAgentRuntime } from "@aos/creative-agent";
-import { CreativeConnectorFactory } from "@aos/creative-connector";
+import { CreativeConnectorFactory, type ITaskWakeRegistry } from "@aos/creative-connector";
 import { EventBroker, type IEventBroker, type IPublisher } from "@aos/event-bus";
 import {
   ClosingRepository,
@@ -63,6 +63,7 @@ import {
   OBJECTIVE_ENGINE,
   SUPABASE_AUTH_ADMIN,
   SUPABASE_CLIENT,
+  TASK_WAKE_REGISTRY,
   WEBHOOK_SECRETS_SERVICE,
   WHATSAPP_CONNECTOR,
   WHATSAPP_CONNECTOR_REGISTRY,
@@ -304,6 +305,11 @@ export class AppModule {
     //
     // Shares the same real `IPublisher` as every other composed package.
     let kaiRuntime: KaiAgentRuntime | undefined;
+    // PROMPT 53 — KIE WEBHOOK (Phase 41). The SAME `TaskWakeRegistry` instance
+    // `CreativeConnectorFactory.create` composed `TaskPoller` with — see `di-tokens.ts`'s
+    // `TASK_WAKE_REGISTRY` doc for why this needs its own token (`KaiAgentRuntime` has no concept
+    // of it). `undefined` under the exact same condition `kaiRuntime` stays `undefined`.
+    let taskWakeRegistry: ITaskWakeRegistry | undefined;
     if (assetLibrary !== undefined && isCreativePipelineConfigured(config, true)) {
       const creativeConnectorConfigResult = toCreativeConnectorConfig(config);
       if (!creativeConnectorConfigResult.ok) {
@@ -327,6 +333,7 @@ export class AppModule {
         throw kaiResult.error;
       }
       kaiRuntime = kaiResult.value;
+      taskWakeRegistry = creativeConnector.taskWakeRegistry;
     }
 
     const mobixScraper: MobixScraperService = MobixScraperFactory.create({
@@ -546,6 +553,10 @@ export class AppModule {
         // above — an injectable token that resolves to `undefined` on a deployment with no Kie AI
         // key, rather than a missing provider that would fail Nest's resolution at boot.
         { provide: KAI_AGENT_RUNTIME, useValue: kaiRuntime },
+        // PROMPT 53 — KIE WEBHOOK (Phase 41). `useValue: undefined` is intentional and
+        // load-bearing, same rationale as `KAI_AGENT_RUNTIME` immediately above — an injectable
+        // token that resolves to `undefined` on a deployment with no Kai/Kie AI pipeline composed.
+        { provide: TASK_WAKE_REGISTRY, useValue: taskWakeRegistry },
         // `useValue: undefined` is intentional and load-bearing, same rationale as `ASSET_LIBRARY`/
         // `KAI_AGENT_RUNTIME` above — an injectable token that resolves to `undefined` on a
         // deployment with no CAPI pixel/token configured, rather than a missing provider that
@@ -576,6 +587,7 @@ export class AppModule {
         ASSET_LIBRARY,
         MOBIX_SCRAPER_SERVICE,
         KAI_AGENT_RUNTIME,
+        TASK_WAKE_REGISTRY,
         CAPI_CONNECTOR,
       ],
     };

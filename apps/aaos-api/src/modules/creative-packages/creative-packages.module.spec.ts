@@ -9,6 +9,7 @@ import { CreativePackagesController } from "./creative-packages.controller.js";
 import { CreativePackagesModule } from "./creative-packages.module.js";
 import { CreativeLogRepository } from "./infrastructure/creative-log.repository.js";
 import { CreativePackageRepository } from "./infrastructure/creative-package.repository.js";
+import { KieWebhookController } from "./kie-webhook.controller.js";
 
 interface FactoryProvider {
   readonly provide?: unknown;
@@ -21,9 +22,9 @@ function providers(): readonly FactoryProvider[] {
 }
 
 describe("CreativePackagesModule", () => {
-  it("registers CreativePackagesController as its controller", () => {
+  it("registers CreativePackagesController and KieWebhookController (PROMPT 53 — Phase 41) as its controllers", () => {
     const metadata = Reflect.getMetadata("controllers", CreativePackagesModule) as unknown[];
-    expect(metadata).toEqual([CreativePackagesController]);
+    expect(metadata).toEqual([CreativePackagesController, KieWebhookController]);
   });
 
   it("builds both repositories from the SHARED SUPABASE_CLIENT (not a second connection)", () => {

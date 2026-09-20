@@ -42,6 +42,10 @@ export { ImageGenerationService } from "./application/services/ImageGenerationSe
 export { FileUploadService } from "./application/services/FileUploadService.js";
 // Additive: the application-layer poll wrapper every "GenerateX" use case is composed with.
 export { TaskPollingService } from "./application/services/TaskPollingService.js";
+// Additive: PROMPT 53 (Phase 41) — lets a real inbound Kie AI webhook callback wake an in-flight
+// TaskPoller early. See TaskWakeRegistry.ts's own doc for the full design.
+export { TaskWakeRegistry } from "./infrastructure/polling/TaskWakeRegistry.js";
+export type { ITaskWakeRegistry } from "./infrastructure/polling/TaskWakeRegistry.js";
 
 export type {
   GenerationTask,

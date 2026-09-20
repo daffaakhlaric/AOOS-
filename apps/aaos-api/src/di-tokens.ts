@@ -29,6 +29,18 @@ export const BRANCH_MANAGER = Symbol("BRANCH_MANAGER");
  */
 export const KAI_AGENT_RUNTIME = Symbol("KAI_AGENT_RUNTIME");
 /**
+ * PROMPT 53 — KIE WEBHOOK (Phase 41). The SAME `ITaskWakeRegistry` instance
+ * `CreativeConnectorFactory.create` composed `TaskPoller` with (`creativeConnector.taskWakeRegistry`
+ * — see that factory's own doc), exposed as its own token so `KieWebhookService`
+ * (`modules/creative-packages`) can inject it without reaching into `KAI_AGENT_RUNTIME`'s internals
+ * (which does not expose it — `KaiAgentRuntime` has no concept of the underlying poller). Provided
+ * as `ITaskWakeRegistry | undefined`, same graceful-degradation discipline as `KAI_AGENT_RUNTIME`
+ * itself: `undefined` on any deployment where the Kai/Kie AI pipeline isn't composed at all, in
+ * which case `KieWebhookService` honestly logs and drops any callback that somehow still reaches it
+ * rather than crashing.
+ */
+export const TASK_WAKE_REGISTRY = Symbol("TASK_WAKE_REGISTRY");
+/**
  * AAOS-W4B additions — the raw `@aos/lead-store` `MessageRepository`/`ClosingRepository` infra
  * classes, composed in `app.module.ts` against the SAME Supabase client `LeadStoreFactory` uses
  * (shared, not a second connection). Needed because the composed `LeadStore` exposes no use case

@@ -10,6 +10,8 @@ import { MediaUrl } from "../../domain/value-objects/MediaUrl.js";
 import { SuccessFlag, parseSuccessFlag } from "../../domain/value-objects/SuccessFlag.js";
 import type { TaskId } from "../../domain/value-objects/TaskId.js";
 
+import type { ITaskWakeRegistry } from "./TaskWakeRegistry.js";
+
 /** Poll backoff schedule (Part "Task Polling Service" of the spec): 5s → 10s → 15s → 20s → 30s, then holds at 30s. */
 export const BACKOFF_SCHEDULE_MS: readonly number[] = [5_000, 10_000, 15_000, 20_000, 30_000];
 export const DEFAULT_TIMEOUT_MS = 300_000;
@@ -39,6 +41,15 @@ export interface TaskPollerOptions {
   readonly now?: () => Date;
   /** Default `timeoutMs` used when `pollUntilComplete()` is called without one — e.g. wired from `CreativeConnectorConfig.maxPollDurationMs` by the factory. Defaults to `DEFAULT_TIMEOUT_MS`. */
   readonly defaultTimeoutMs?: number;
+  /**
+   * PROMPT 53 — KIE WEBHOOK (Phase 41). Optional. When provided, each backoff wait races the real
+   * `sleep` against `wakeRegistry.waitForWake(taskId)`, so a real inbound Kie AI webhook callback
+   * (`KieWebhookService`, `apps/aaos-api`) can cut a long wait short — the very next status check
+   * still goes through the normal, trusted `getTaskStatus` GET (see `TaskWakeRegistry.ts`'s own
+   * doc for why the webhook body itself is never trusted as completion data). Omitted (the default)
+   * preserves the exact pre-existing poll-only behavior — every existing caller/test is unaffected.
+   */
+  readonly wakeRegistry?: ITaskWakeRegistry;
 }
 
 function realSleep(ms: number): Promise<void> {
@@ -59,12 +70,14 @@ export class TaskPoller implements ITaskPoller {
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => Date;
   private readonly defaultTimeoutMs: number;
+  private readonly wakeRegistry: ITaskWakeRegistry | undefined;
 
   constructor(client: ICreativeClient, options: TaskPollerOptions = {}) {
     this.client = client;
     this.sleep = options.sleep ?? realSleep;
     this.now = options.now ?? ((): Date => new Date());
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.wakeRegistry = options.wakeRegistry;
   }
 
   async pollUntilComplete(
@@ -123,7 +136,27 @@ export class TaskPoller implements ITaskPoller {
       const intervalMs =
         BACKOFF_SCHEDULE_MS[Math.min(backoffIndex, BACKOFF_SCHEDULE_MS.length - 1)]!;
       backoffIndex += 1;
+      await this.waitForNextPoll(taskId, intervalMs);
+    }
+  }
+
+  /**
+   * PROMPT 53 — KIE WEBHOOK. Without `wakeRegistry` configured, this is exactly the pre-existing
+   * `await this.sleep(intervalMs)`. With it, the same real sleep races against a real inbound
+   * webhook waking this specific `taskId` early — whichever settles first ends the wait, and the
+   * waiter is always cancelled afterward so a long poll never accumulates stale entries in the
+   * registry.
+   */
+  private async waitForNextPoll(taskId: TaskId, intervalMs: number): Promise<void> {
+    if (this.wakeRegistry === undefined) {
       await this.sleep(intervalMs);
+      return;
+    }
+    const waiter = this.wakeRegistry.waitForWake(taskId.toString());
+    try {
+      await Promise.race([this.sleep(intervalMs), waiter.promise]);
+    } finally {
+      waiter.cancel();
     }
   }
 

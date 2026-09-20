@@ -17,6 +17,7 @@ import {
   NOT_YET_INDEXED_GRACE_MS,
   TaskPoller,
 } from "../../../src/infrastructure/polling/TaskPoller.js";
+import { TaskWakeRegistry } from "../../../src/infrastructure/polling/TaskWakeRegistry.js";
 import { unwrap, unwrapErr } from "../../helpers/result.js";
 
 function fakeClient(getTaskStatus: ICreativeClient["getTaskStatus"]): ICreativeClient {
@@ -303,5 +304,94 @@ describe("TaskPoller", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // PROMPT 53 — KIE WEBHOOK (Phase 41). `wakeRegistry` is the mechanism a real inbound Kie AI
+  // webhook callback uses to cut a poll's backoff wait short — see `TaskWakeRegistry.ts`'s own doc.
+  describe("wakeRegistry (PROMPT 53 — Kie webhook early-wake)", () => {
+    it("a wake short-circuits the backoff sleep and the poller re-polls immediately", async () => {
+      let callCount = 0;
+      const client = fakeClient(async () => {
+        callCount += 1;
+        if (callCount === 1) {
+          return ok({ taskId: "task_1", successFlag: 0 });
+        }
+        return ok({ taskId: "task_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v.mp4" });
+      });
+      // Deliberately never resolves — if the poll only ever completed via this sleep, the test
+      // itself would hang/time out. Completing proves progression happened via the wake instead.
+      const neverResolvingSleep = vi.fn(() => new Promise<void>(() => undefined));
+      const wakeRegistry = new TaskWakeRegistry();
+      const poller = new TaskPoller(client, { sleep: neverResolvingSleep, wakeRegistry });
+
+      const pending = poller.pollUntilComplete(taskId(), "video");
+
+      // Give the in-flight poll a macrotask tick to reach its `waitForNextPoll` wait (the first
+      // `getTaskStatus` call and everything after it is otherwise synchronous/microtask-only).
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+      expect(wakeRegistry.wake("task_1")).toBe(true);
+
+      const result = unwrap(await pending);
+      expect(result.kind).toBe("video");
+      expect(callCount).toBe(2);
+      expect(neverResolvingSleep).toHaveBeenCalledTimes(1);
+    });
+
+    it("with no wake, the poll still completes normally via the real sleep (webhook is an optimization, never a requirement)", async () => {
+      let callCount = 0;
+      const client = fakeClient(async () => {
+        callCount += 1;
+        if (callCount < 2) {
+          return ok({ taskId: "task_1", successFlag: 0 });
+        }
+        return ok({ taskId: "task_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v.mp4" });
+      });
+      const sleep = vi.fn(async () => undefined);
+      const wakeRegistry = new TaskWakeRegistry();
+      const poller = new TaskPoller(client, { sleep, wakeRegistry });
+      const result = unwrap(await poller.pollUntilComplete(taskId(), "video"));
+      expect(callCount).toBe(2);
+      expect(result.kind).toBe("video");
+    });
+
+    it("a wake for an unrelated taskId never affects this poll", async () => {
+      let callCount = 0;
+      const client = fakeClient(async () => {
+        callCount += 1;
+        if (callCount < 2) {
+          return ok({ taskId: "task_1", successFlag: 0 });
+        }
+        return ok({ taskId: "task_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v.mp4" });
+      });
+      const sleep = vi.fn(async () => undefined);
+      const wakeRegistry = new TaskWakeRegistry();
+      const poller = new TaskPoller(client, { sleep, wakeRegistry });
+      const pending = poller.pollUntilComplete(taskId(), "video");
+      expect(wakeRegistry.wake("some_other_task")).toBe(false);
+      const result = unwrap(await pending);
+      expect(result.kind).toBe("video");
+      expect(callCount).toBe(2);
+    });
+
+    it("cancels its waiter once the sleep branch wins, so the registry never accumulates stale waiters across a long poll", async () => {
+      let callCount = 0;
+      const client = fakeClient(async () => {
+        callCount += 1;
+        if (callCount < 3) {
+          return ok({ taskId: "task_1", successFlag: 0 });
+        }
+        return ok({ taskId: "task_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v.mp4" });
+      });
+      const sleep = vi.fn(async () => undefined);
+      const wakeRegistry = new TaskWakeRegistry();
+      const poller = new TaskPoller(client, { sleep, wakeRegistry });
+      const result = unwrap(await poller.pollUntilComplete(taskId(), "video"));
+      expect(result.kind).toBe("video");
+      // Every wait was won by the real (immediately-resolving) sleep — nothing should be left
+      // registered for this taskId afterward.
+      expect(wakeRegistry.wake("task_1")).toBe(false);
+    });
   });
 });

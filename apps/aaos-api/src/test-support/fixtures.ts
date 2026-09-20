@@ -54,6 +54,10 @@ export function buildTestConfig(overrides: Partial<AaosApiConfig> = {}): AaosApi
     // making a real, billable Kie AI call. Tests that need the "Kai configured" branch pass
     // `KIE_AI_API_KEY` explicitly (and still only reach the composition code, never the network).
     KIE_AI_API_KEY: "",
+    // PROMPT 53 — KIE WEBHOOK (Phase 41) — empty by default, same rationale as `KIE_AI_API_KEY`:
+    // most tests exercise the "no real callbackUrl wired" path. Tests needing a composed
+    // `callbackUrl` pass this AND `AAOS_API_BASE_URL` explicitly.
+    KIE_WEBHOOK_SECRET: "",
     // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY — empty by default so most tests exercise the
     // "no redirectTo" impersonation path. Tests needing a specific redirect target pass this
     // explicitly.

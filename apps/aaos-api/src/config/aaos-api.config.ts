@@ -103,6 +103,26 @@ export interface AaosApiConfig {
   readonly KIE_AI_API_KEY: string;
 
   /**
+   * PROMPT 53 — KIE WEBHOOK (Phase 41). A shared secret embedded as a query parameter on the
+   * `callBackUrl` this app hands Kie AI (`to-creative-connector-config.ts`'s
+   * `toCreativeConnectorConfig`), and checked back by `KieWebhookController`/`KieWebhookService` on
+   * every inbound callback. This is the ONLY real authenticity check available: Kie AI's own real
+   * API (confirmed directly against this codebase's `KieApiResponseMapper`/`KieAiGenerationClient`
+   * — a plain `{code, msg, data}` JSON body, no HMAC/signature header anywhere) has no documented
+   * signing scheme for its outbound callback, unlike Meta's `x-hub-signature-256` this app's
+   * existing `webhooks/meta`/`whatsapp-webhook` endpoints verify. A shared-secret query param is
+   * the standard, honest substitute when a provider doesn't sign its callbacks.
+   *
+   * Deliberately allowed to be an empty string, same graceful-degradation discipline as
+   * `KIE_AI_API_KEY` above: `toCreativeConnectorConfig` only ever sets a real `callbackUrl` (i.e.
+   * only ever turns the webhook path ON at all) when BOTH this AND `AAOS_API_BASE_URL` are
+   * non-empty — see that file's own doc. Unset, Kie AI is never told about the webhook endpoint at
+   * all, and this app relies purely on the pre-existing, unaffected `TaskPoller` polling loop, same
+   * as before this phase.
+   */
+  readonly KIE_WEBHOOK_SECRET: string;
+
+  /**
    * AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY — base URL of the real, already-deployed
    * `apps/aaos-dashboard` app, used ONLY to build the `redirectTo` for
    * `supabase.auth.admin.generateLink({ type: 'magiclink', ... })`'s real impersonation flow
@@ -289,6 +309,10 @@ export const AaosApiConfigSchema = z.object({
 
   // AAOS-CREATIVE-REVIEW. Intentionally NOT `.min(1, ...)` — see the `KIE_AI_API_KEY` doc comment.
   KIE_AI_API_KEY: z.string().default(""),
+
+  // PROMPT 53 — KIE WEBHOOK (Phase 41). Intentionally NOT `.min(1, ...)` — see the
+  // `AaosApiConfig.KIE_WEBHOOK_SECRET` doc comment.
+  KIE_WEBHOOK_SECRET: z.string().default(""),
 
   // AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY. Intentionally NOT `.min(1, ...)`/`.url(...)` — see the
   // `AaosApiConfig.AAOS_DASHBOARD_BASE_URL` doc comment.

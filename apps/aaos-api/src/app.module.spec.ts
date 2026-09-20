@@ -21,6 +21,7 @@ import {
   OBJECTIVE_ENGINE,
   SUPABASE_AUTH_ADMIN,
   SUPABASE_CLIENT,
+  TASK_WAKE_REGISTRY,
   WEBHOOK_SECRETS_SERVICE,
   WHATSAPP_CONNECTOR,
   WHATSAPP_CONNECTOR_REGISTRY,
@@ -174,8 +175,11 @@ describe("AppModule.forRoot", () => {
     // read-only Listing Readiness / Campaign Blueprint / Campaign Preflight HTTP surface) — no new
     // global provider and no new repository at all (imports ListingsModule/GrowthObjectivesModule
     // to reuse their already-exported services).
+    // PROMPT 53 — KIE WEBHOOK (Phase 41): +1 provider (TASK_WAKE_REGISTRY, see di-tokens.ts's own
+    // doc) — no new import (composed from the SAME `creativeConnector` bundle KAI_AGENT_RUNTIME
+    // already comes from, not a second composition).
     expect(dynamicModule.imports).toHaveLength(41);
-    expect(dynamicModule.providers).toHaveLength(24);
+    expect(dynamicModule.providers).toHaveLength(25);
   });
 
   it("provides KAI_AGENT_RUNTIME as undefined when no Kie AI key / asset library is configured, so the app still boots", () => {
@@ -237,7 +241,7 @@ describe("AppModule.forRoot", () => {
     );
   });
 
-  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/META_ADS_CONNECTOR_REGISTRY/WHATSAPP_CONNECTOR/WHATSAPP_CONNECTOR_REGISTRY/WEBHOOK_SECRETS_SERVICE/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN/CAPI_CONNECTOR tokens", () => {
+  it("exports exactly the AAOS_API_CONFIG/EVENT_PUBLISHER/EVENT_BROKER/META_ADS_CONNECTOR/META_ADS_CONNECTOR_REGISTRY/WHATSAPP_CONNECTOR/WHATSAPP_CONNECTOR_REGISTRY/WEBHOOK_SECRETS_SERVICE/LEAD_STORE/OBJECTIVE_ENGINE/BRANCH_MANAGER/LEAD_STORE_MESSAGE_REPOSITORY/LEAD_STORE_CLOSING_REPOSITORY/LEAD_STORE_SCORING_REPOSITORY/LEAD_STORE_LEAD_REPOSITORY/SUPABASE_CLIENT/SUPABASE_AUTH_ADMIN/TASK_WAKE_REGISTRY/CAPI_CONNECTOR tokens", () => {
     const dynamicModule = AppModule.forRoot(buildTestConfig());
     expect(dynamicModule.exports).toEqual([
       AAOS_API_CONFIG,
@@ -260,8 +264,28 @@ describe("AppModule.forRoot", () => {
       ASSET_LIBRARY,
       MOBIX_SCRAPER_SERVICE,
       KAI_AGENT_RUNTIME,
+      TASK_WAKE_REGISTRY,
       CAPI_CONNECTOR,
     ]);
+  });
+
+  it("provides TASK_WAKE_REGISTRY as undefined when no Kie AI key / asset library is configured, so the app still boots (PROMPT 53 — Phase 41)", () => {
+    const dynamicModule = AppModule.forRoot(buildTestConfig());
+    const provider = findValueProvider(dynamicModule.providers, TASK_WAKE_REGISTRY);
+    expect(provider).toBeDefined();
+    expect(provider?.useValue).toBeUndefined();
+  });
+
+  it("provides a real TASK_WAKE_REGISTRY (the SAME instance TaskPoller was composed with) when the Kai/Kie AI pipeline is configured (PROMPT 53 — Phase 41)", () => {
+    const dynamicModule = AppModule.forRoot(
+      buildTestConfig({
+        KIE_AI_API_KEY: "kie-real-key",
+        GCS_PROJECT_ID: "test-gcs-project",
+        GCS_CREDENTIALS: '{"type":"service_account"}',
+      }),
+    );
+    const provider = findValueProvider(dynamicModule.providers, TASK_WAKE_REGISTRY);
+    expect(provider?.useValue).toBeDefined();
   });
 
   it("provides CAPI_CONNECTOR as undefined when no CAPI pixel/token is configured, so the app still boots", () => {

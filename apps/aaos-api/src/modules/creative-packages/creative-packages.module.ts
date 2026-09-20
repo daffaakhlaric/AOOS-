@@ -13,8 +13,11 @@ import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
 import { CreativePackagesController } from "./creative-packages.controller.js";
 import { CreativePackagesService } from "./creative-packages.service.js";
+import { KieWebhookSecretGuard } from "./guards/kie-webhook-secret.guard.js";
 import { CreativeLogRepository } from "./infrastructure/creative-log.repository.js";
 import { CreativePackageRepository } from "./infrastructure/creative-package.repository.js";
+import { KieWebhookController } from "./kie-webhook.controller.js";
+import { KieWebhookService } from "./kie-webhook.service.js";
 
 /**
  * `modules/creative-packages` (AAOS-CREATIVE-REVIEW) — mirrors `ScraperModule`'s wiring exactly.
@@ -55,10 +58,15 @@ import { CreativePackageRepository } from "./infrastructure/creative-package.rep
     // real LLM call in this app already goes through (never a second, bespoke LLM composition).
     LlmModule,
   ],
-  controllers: [CreativePackagesController],
+  controllers: [CreativePackagesController, KieWebhookController],
   providers: [
     CreativePackagesService,
     ApiKeyGuard,
+    // PROMPT 53 — KIE WEBHOOK (Phase 41). `KieWebhookService` injects `TASK_WAKE_REGISTRY` — a
+    // global provider from `AppModule.forRoot`, needing no explicit import here, same as
+    // `KAI_AGENT_RUNTIME`/`ASSET_LIBRARY`/`AAOS_API_CONFIG` above.
+    KieWebhookService,
+    KieWebhookSecretGuard,
     {
       provide: CreativePackageRepository,
       useFactory: (client: SupabaseClientLike): CreativePackageRepository =>
