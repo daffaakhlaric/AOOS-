@@ -94,6 +94,20 @@ const MAX_SOURCE_PHOTOS = 2;
 const MAX_GENERATION_ATTEMPTS = 3;
 
 /**
+ * Phase 46 audit (PROMPT 60 — Property Video Pipeline) — an honest, METADATA-only addition. No new
+ * video-processing dependency is added this phase (same restriction as Phase 45's Video QA audit);
+ * this only makes an ALREADY-TRUE fact visible on the persisted `creative_logs.metadata` row instead
+ * of leaving it as a code comment only a future engineer would ever read (see
+ * `applyOverlayIfRequested`'s own doc, which has said this since PROMPT 57/60 were first audited): a
+ * delivered video buffer is uploaded to storage exactly as Kie AI returned it — no text/brand/CTA
+ * compositor is ever applied to it, unlike images (which get `creative-image-overlay.ts`'s real
+ * `sharp`-based typography overlay). Written ONLY when a video was actually delivered
+ * (`outcome.videoUrl !== undefined`) — never a fabricated claim about a package that has no video.
+ */
+const VIDEO_COMPOSITOR_NOT_BUILT_REASON =
+  "video compositor (text/brand/CTA overlay, PROMPT 60) not implemented — video buffer persisted as-is from Kie AI; only images receive typography overlay (creative-image-overlay.ts, sharp-based)";
+
+/**
  * PROMPT 57 — the real, already-computed text `generateProperty` resolves ONCE (from `brief.price`
  * and the package's own leading `copyVariants[0]`) and threads into `runGenerationProperty`/
  * `runGenerationPropertyWithQaRetry` when `options.overlayTypography` is `true`. `undefined` fields
@@ -952,6 +966,12 @@ export class CreativePackagesService {
                 typographyOverlaySkipped: overlay.skippedReasons,
               }
             : {}),
+          ...(outcome.videoUrl !== undefined
+            ? {
+                videoTextBrandCtaOverlayApplied: false,
+                videoTextBrandCtaOverlaySkippedReason: VIDEO_COMPOSITOR_NOT_BUILT_REASON,
+              }
+            : {}),
         },
       });
       await this.recordAgentRun(id, tenantId);
@@ -1180,6 +1200,12 @@ export class CreativePackagesService {
             ? {
                 typographyOverlayApplied: overlay.appliedCount,
                 typographyOverlaySkipped: overlay.skippedReasons,
+              }
+            : {}),
+          ...(outcome.videoUrl !== undefined
+            ? {
+                videoTextBrandCtaOverlayApplied: false,
+                videoTextBrandCtaOverlaySkippedReason: VIDEO_COMPOSITOR_NOT_BUILT_REASON,
               }
             : {}),
         },

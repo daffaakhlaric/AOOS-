@@ -984,6 +984,104 @@ describe("CreativePackagesService.generateProperty (K2)", () => {
     });
   });
 
+  // Phase 46 audit (PROMPT 60 — Property Video Pipeline) — an honest METADATA-only addition. No
+  // video compositor is built (still needs new video-processing tooling this phase correctly
+  // declines to add); this only makes the already-true "video was persisted as-is, no text/brand/
+  // CTA overlay applied" fact visible on the persisted `creative_logs.metadata` COMPLETE row.
+  describe("PROMPT 60 — Property Video Pipeline (video compositor honesty)", () => {
+    it("a delivered video gets an honest videoTextBrandCtaOverlayApplied: false on the COMPLETE log row", async () => {
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Rumah Minimalis BSD",
+          photos: ["https://gcs/listing-1/foto-1.jpg"],
+        },
+        orchestrateResult: ok({
+          imageBuffers: [Buffer.from("fake-image-bytes")],
+          imageSpecs: [],
+          videoBuffer: buildQaPassingVideo(),
+          videoDelivered: true,
+        }),
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      const complete = await waitForLog(harness, "COMPLETE");
+
+      const metadata = complete["metadata"] as
+        | {
+            videoTextBrandCtaOverlayApplied?: boolean;
+            videoTextBrandCtaOverlaySkippedReason?: string;
+          }
+        | undefined;
+      expect(metadata?.videoTextBrandCtaOverlayApplied).toBe(false);
+      expect(metadata?.videoTextBrandCtaOverlaySkippedReason).toContain("video compositor");
+      expect((complete["result"] as { videoUrl?: string } | undefined)?.videoUrl).toBeTruthy();
+    });
+
+    it("a package with no delivered video never fabricates the video overlay field", async () => {
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Rumah Minimalis BSD",
+        },
+        orchestrateResult: ok({
+          imageBuffers: [Buffer.from("fake-image-bytes")],
+          imageSpecs: [],
+          videoDelivered: false,
+        }),
+      });
+      const created = await harness.service.createProperty(TENANT_A, PROPERTY_BODY);
+      await harness.service.generateProperty(TENANT_A, created.id);
+      const complete = await waitForLog(harness, "COMPLETE");
+
+      const metadata = complete["metadata"] as
+        { videoTextBrandCtaOverlayApplied?: boolean } | undefined;
+      expect(metadata?.videoTextBrandCtaOverlayApplied).toBeUndefined();
+    });
+
+    it("the real auto-loop QA/retry path ALSO writes the same honest video-overlay metadata on its COMPLETE log row", async () => {
+      const harness = buildHarness({
+        listing: {
+          id: "listing-1",
+          tenantId: TENANT_A,
+          title: "Rumah Minimalis BSD",
+          photos: ["https://gcs/listing-1/foto-1.jpg"],
+        },
+        orchestrateResult: {
+          ok: true,
+          value: {
+            imageBuffers: [buildQaPassingImage()],
+            imageSpecs: [],
+            videoBuffer: buildQaPassingVideo(),
+            videoDelivered: true,
+          },
+        },
+      });
+      seedAutoLoopPackage(harness.client);
+
+      await harness.service.triggerAutoLoopGeneration(TENANT_A, "cp-auto-1");
+      await settle();
+
+      // NOTE: the QA/retry loop appends TWO "COMPLETE" rows per successful attempt — the per-attempt
+      // QA-passed row (`qaPassed`/`qaChecks` metadata only) AND the real final "Selesai" row this
+      // dispatch's new field is written onto. Filter to the real final one by its own message prefix.
+      const complete = harness.client
+        .rows("creative_logs")
+        .filter((row) => row["event_type"] === "COMPLETE")
+        .find((row) => (row["message"] as string).startsWith("Selesai"));
+      const metadata = complete?.["metadata"] as
+        | {
+            videoTextBrandCtaOverlayApplied?: boolean;
+            videoTextBrandCtaOverlaySkippedReason?: string;
+          }
+        | undefined;
+      expect(metadata?.videoTextBrandCtaOverlayApplied).toBe(false);
+      expect(metadata?.videoTextBrandCtaOverlaySkippedReason).toContain("video compositor");
+    });
+  });
+
   // Kai Creative Engine Sprint 3 — real angle-strength reasoning (scorePropertyAdAngleStrength)
   // threaded into the real Kie AI image prompt via PropertyPromptBuilder.
   it("real, honest angle-strength reasoning (price present -> DP_RINGAN always scorable) flows into the actual Kie AI image prompt", async () => {
@@ -1393,6 +1491,17 @@ function buildQaPassingImage(): Buffer {
 /** A real, undersized (300x300) JPEG — fails `runQaChecks`' real Meta-minimum-resolution floor. */
 function buildQaFailingImage(): Buffer {
   return buildJpegBuffer(300, 300);
+}
+
+/** A real, minimal ISO-BMFF ("ftyp") MP4 signature buffer — passes `runQaChecks`' real `checkVideoBuffer` (size floor + `ftyp` box), same real bytes `domain/creative-qa.spec.ts` builds. */
+function buildQaPassingVideo(totalSize = 60_000): Buffer {
+  const sizeField = Buffer.alloc(4);
+  sizeField.writeUInt32BE(20, 0);
+  const ftyp = Buffer.from([0x66, 0x74, 0x79, 0x70]); // "ftyp"
+  const brand = Buffer.from([0x69, 0x73, 0x6f, 0x6d]); // "isom"
+  const header = Buffer.concat([sizeField, ftyp, brand]);
+  const padding = Buffer.alloc(Math.max(0, totalSize - header.length), 0x00);
+  return Buffer.concat([header, padding]);
 }
 
 /** Seeds a real raw `creative_packages` row (snake_case, column-for-column with `CreativePackageRow`) — the exact shape `SchedulerService.runNeedCreativeCheck`'s real `source: 'auto_loop'` insert produces, bypassing the DTO-level `createProperty` (which has no `source` field — only the real scheduler writer does). */
