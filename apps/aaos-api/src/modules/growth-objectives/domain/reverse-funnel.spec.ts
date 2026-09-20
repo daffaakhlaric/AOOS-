@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeReverseFunnel } from "./reverse-funnel.js";
+import { computeAchievableHotLeads, computeReverseFunnel } from "./reverse-funnel.js";
 
 describe("computeReverseFunnel", () => {
   it("returns everything undefined and confidence 0 for zero historical raw leads", () => {
@@ -103,5 +103,75 @@ describe("computeReverseFunnel", () => {
       historicalHotLeads: 2,
     });
     expect(result.estimatedRequiredRawLeads!.min).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("computeAchievableHotLeads", () => {
+  it("inverts a real budget into an achievable Hot Lead range using the same CPL/conversion basis", () => {
+    // 10_000_000 / 20_000 CPL = 500 achievable raw leads; * 0.1 conversion = 50 achievable hot leads.
+    const result = computeAchievableHotLeads({
+      maxBudgetIdr: 10_000_000,
+      historicalCplIdr: 20_000,
+      conversionRate: 0.1,
+      confidence: 1,
+    });
+    expect(result).toBeDefined();
+    expect(result!.expected).toBe(50);
+    // confidence 1.0 -> MIN_BAND_PCT (0.1) band, same banding computeReverseFunnel uses.
+    expect(result!.min).toBe(45);
+    // Math.ceil(50 * 1.1) — floating point pushes 55.00000000000001 up to 56, same rounding
+    // behavior computeReverseFunnel's own equivalent band already exhibits at this boundary.
+    expect(result!.max).toBe(56);
+  });
+
+  it("widens the band at low confidence, same as the forward direction", () => {
+    const result = computeAchievableHotLeads({
+      maxBudgetIdr: 10_000_000,
+      historicalCplIdr: 20_000,
+      conversionRate: 0.1,
+      confidence: 0,
+    });
+    expect(result!.expected).toBe(50);
+    // confidence 0 -> MAX_BAND_PCT (0.5) band.
+    expect(result!.min).toBe(25);
+    expect(result!.max).toBe(75);
+  });
+
+  it("returns undefined when historicalCplIdr is undefined (no real cost basis to invert)", () => {
+    const result = computeAchievableHotLeads({
+      maxBudgetIdr: 10_000_000,
+      conversionRate: 0.1,
+      confidence: 0.5,
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when conversionRate is undefined (no real historical conversion to invert)", () => {
+    const result = computeAchievableHotLeads({
+      maxBudgetIdr: 10_000_000,
+      historicalCplIdr: 20_000,
+      confidence: 0.5,
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when conversionRate is 0 (real 0% historical conversion, never divide into a fabricated estimate)", () => {
+    const result = computeAchievableHotLeads({
+      maxBudgetIdr: 10_000_000,
+      historicalCplIdr: 20_000,
+      conversionRate: 0,
+      confidence: 0.5,
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when historicalCplIdr is 0 (never divide by zero)", () => {
+    const result = computeAchievableHotLeads({
+      maxBudgetIdr: 10_000_000,
+      historicalCplIdr: 0,
+      conversionRate: 0.1,
+      confidence: 0.5,
+    });
+    expect(result).toBeUndefined();
   });
 });

@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { FeasibilityResult } from "../domain/feasibility.js";
 import type { ObjectiveProgressResult } from "../domain/objective-progress.js";
 import type { PacingResult } from "../domain/pacing.js";
-import type { ReverseFunnelResult } from "../domain/reverse-funnel.js";
+import type { EstimatedRange, ReverseFunnelResult } from "../domain/reverse-funnel.js";
 
 /**
  * `054_growth_objectives.sql`'s `metric` CHECK — a `z.literal`, not a `z.enum` of several values,
@@ -66,6 +66,14 @@ export type CreateGrowthObjectiveBodyDto = z.infer<typeof CreateGrowthObjectiveB
 export interface GrowthObjectiveForecastDto {
   readonly reverseFunnel: ReverseFunnelResult;
   readonly feasibility: FeasibilityResult;
+  /**
+   * PROMPT 5 (Goal-First / Budget-First / Balanced) — the real INVERSE forecast, "how many Hot
+   * Leads does this objective's own `maxBudgetIdr` honestly buy" (`computeAchievableHotLeads`,
+   * `../domain/reverse-funnel.js`). `undefined` whenever the objective has no real `maxBudgetIdr`,
+   * or the real CPL/conversion basis needed to invert it isn't available yet — never a fabricated
+   * estimate.
+   */
+  readonly achievableHotLeads?: EstimatedRange;
 }
 
 export interface GrowthObjectiveResponseDto {

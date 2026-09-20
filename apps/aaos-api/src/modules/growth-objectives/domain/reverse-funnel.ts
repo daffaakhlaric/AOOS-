@@ -111,6 +111,48 @@ function computeRange(expected: number, confidence: number): EstimatedRange {
   };
 }
 
+/**
+ * EYVRA — SAMANTHA V2 Phase 48 (PROMPT 5 — Goal-First / Budget-First / Balanced). The genuinely
+ * missing INVERSE direction of `computeReverseFunnel`: given a real max budget (rather than a real
+ * target Hot Lead count), how many Hot Leads does that budget honestly buy at the SAME real
+ * `historicalCplIdr`/`conversionRate` this objective's own `computeReverseFunnel` call already
+ * derived? This is a pure algebraic inversion of that same real math
+ * (`achievableRawLeads = maxBudgetIdr / historicalCplIdr`, `achievableHotLeads = achievableRawLeads *
+ * conversionRate`) — no new data source, no fabricated relationship, reuses this file's own
+ * `computeRange`/`bandPct` banding so the uncertainty band around this estimate widens/narrows with
+ * the exact same `confidence` the forward direction already earned honestly.
+ *
+ * `GrowthObjectivesService.analyze()` calls this whenever the objective has a real `maxBudgetIdr` —
+ * regardless of the stored `budgetMode` label — because the question "what could this budget buy"
+ * is honestly answerable and useful for `BUDGET_FIRST` AND `BALANCED` objectives alike; `GOAL_FIRST`
+ * objectives simply won't have a `maxBudgetIdr` to trigger this in practice (schema-optional, never
+ * required). `undefined` whenever `historicalCplIdr`/`conversionRate` aren't real positive numbers
+ * yet — never a fabricated estimate from an incomplete basis.
+ */
+export interface AchievableHotLeadsInput {
+  readonly maxBudgetIdr: number;
+  readonly historicalCplIdr?: number;
+  readonly conversionRate?: number;
+  readonly confidence: number;
+}
+
+export function computeAchievableHotLeads(
+  input: AchievableHotLeadsInput,
+): EstimatedRange | undefined {
+  const { maxBudgetIdr, historicalCplIdr, conversionRate, confidence } = input;
+  if (
+    historicalCplIdr === undefined ||
+    historicalCplIdr <= 0 ||
+    conversionRate === undefined ||
+    conversionRate <= 0
+  ) {
+    return undefined;
+  }
+  const achievableRawLeads = maxBudgetIdr / historicalCplIdr;
+  const achievableHotLeads = achievableRawLeads * conversionRate;
+  return computeRange(achievableHotLeads, confidence);
+}
+
 export function computeReverseFunnel(input: ReverseFunnelInput): ReverseFunnelResult {
   const { targetHotLeads, historicalRawLeads, historicalHotLeads, historicalCplIdr } = input;
 

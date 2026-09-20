@@ -10,7 +10,7 @@ import { MetricSnapshotService } from "../metric-snapshot/metric-snapshot.servic
 import { assessFeasibility } from "./domain/feasibility.js";
 import { computeObjectiveProgress } from "./domain/objective-progress.js";
 import { computeBudgetPacing } from "./domain/pacing.js";
-import { computeReverseFunnel } from "./domain/reverse-funnel.js";
+import { computeAchievableHotLeads, computeReverseFunnel } from "./domain/reverse-funnel.js";
 import {
   toGrowthObjectiveResponseDto,
   type CreateGrowthObjectiveBodyDto,
@@ -208,7 +208,25 @@ export class GrowthObjectivesService {
       currentDailySpendCapacityIdr,
     });
 
-    const forecast: GrowthObjectiveForecastDto = { reverseFunnel, feasibility };
+    // PROMPT 5 (Goal-First / Budget-First / Balanced) — the real inverse forecast, computed
+    // whenever this objective has a real max budget to invert against (BUDGET_FIRST and BALANCED
+    // objectives both set one; GOAL_FIRST objectives typically don't). See
+    // `computeAchievableHotLeads`'s own doc for why this doesn't branch on `budget_mode` itself.
+    const achievableHotLeads =
+      row.max_budget_idr !== null
+        ? computeAchievableHotLeads({
+            maxBudgetIdr: row.max_budget_idr,
+            historicalCplIdr,
+            conversionRate: reverseFunnel.conversionRate,
+            confidence: reverseFunnel.confidence,
+          })
+        : undefined;
+
+    const forecast: GrowthObjectiveForecastDto = {
+      reverseFunnel,
+      feasibility,
+      ...(achievableHotLeads !== undefined ? { achievableHotLeads } : {}),
+    };
     const updated = await this.repository.update(tenantId, id, {
       forecast,
       forecast_computed_at: now.toISOString(),

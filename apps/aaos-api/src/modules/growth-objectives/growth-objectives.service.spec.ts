@@ -371,6 +371,89 @@ describe("GrowthObjectivesService", () => {
       expect(forecast.reverseFunnel.confidence).toBe(0);
       expect(forecast.feasibility.status).toBe("INSUFFICIENT_DATA");
     });
+
+    it("PROMPT 5 (Budget-First/Balanced): populates achievableHotLeads from the objective's own real max_budget_idr + historical CPL/conversion", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({
+          status: "DRAFT",
+          target_value: 20,
+          end_date: "2099-01-31",
+          max_budget_idr: 10_000_000,
+        }),
+      );
+      growthMetricsRepository = makeGrowthMetricsRepository({
+        countRawLeads: vi.fn(async () => 100),
+        listLeadsForHotEvaluation: vi.fn(async () =>
+          Array.from({ length: 100 }, (_, i) => ({
+            status: i < 15 ? "HOT" : "NEW",
+            score: i < 15 ? 90 : 10,
+            qualification: {
+              budget: false,
+              unit: false,
+              area: false,
+              payment: false,
+              timeline: false,
+              name: false,
+            },
+          })),
+        ),
+      });
+      // makeAccountSnapshot() default has cpl: 50_000, dataSufficiency HIGH -> resolveBenchmark
+      // confidence HIGH -> historicalCplIdr real 50_000.
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+
+      const dto = await service.analyze(TENANT, "obj-1");
+      const forecast = dto.forecast!;
+      // conversionRate = 15/100 = 0.15; achievableRawLeads = 10_000_000/50_000 = 200;
+      // achievableHotLeads = 200 * 0.15 = 30.
+      expect(forecast.reverseFunnel.conversionRate).toBeCloseTo(0.15);
+      expect(forecast.achievableHotLeads).toBeDefined();
+      expect(forecast.achievableHotLeads!.expected).toBe(30);
+    });
+
+    it("PROMPT 5 (Goal-First): leaves achievableHotLeads undefined when the objective has no real max_budget_idr", async () => {
+      repository.findById = vi.fn(async () =>
+        makeRow({
+          status: "DRAFT",
+          target_value: 20,
+          end_date: "2099-01-31",
+          max_budget_idr: null,
+        }),
+      );
+      growthMetricsRepository = makeGrowthMetricsRepository({
+        countRawLeads: vi.fn(async () => 100),
+        listLeadsForHotEvaluation: vi.fn(async () =>
+          Array.from({ length: 100 }, (_, i) => ({
+            status: i < 15 ? "HOT" : "NEW",
+            score: i < 15 ? 90 : 10,
+            qualification: {
+              budget: false,
+              unit: false,
+              area: false,
+              payment: false,
+              timeline: false,
+              name: false,
+            },
+          })),
+        ),
+      });
+      service = new GrowthObjectivesService(
+        repository,
+        growthMetricsRepository,
+        hotLeadDefinitions,
+        metricSnapshots,
+        growthObjectiveCampaigns,
+      );
+
+      const dto = await service.analyze(TENANT, "obj-1");
+      expect(dto.forecast!.achievableHotLeads).toBeUndefined();
+    });
   });
 
   describe("pacing()", () => {
