@@ -129,6 +129,25 @@ describe("EYVRA MENU RESTRUCTURE Sprint 1 — real redirect stubs (PROMPT 9)", (
 });
 
 /**
+ * EYVRA SAMANTHA V2 + KAI V2 Phase 50 (PROMPT 68) — the 2 new real redirect stubs the 8-item
+ * Command Center-era `Sidebar` nav's `Experiments`/`Automation` items point at (see `Sidebar.tsx`'s
+ * own class doc for the full real-destination rationale). Same `expectRedirect` harness as the
+ * Sprint 1 stubs above.
+ */
+describe("EYVRA SAMANTHA V2 Phase 50 — new Command Center-era redirect stubs (PROMPT 68)", () => {
+  it("/experiments -> /campaigns?view=ab-testing", async () => {
+    await expectRedirect(
+      () => import("@/app/(app)/experiments/page"),
+      "/campaigns?view=ab-testing",
+    );
+  });
+
+  it("/automation -> /settings?tab=agen", async () => {
+    await expectRedirect(() => import("@/app/(app)/automation/page"), "/settings?tab=agen");
+  });
+});
+
+/**
  * EYVRA MENU RESTRUCTURE Sprint 4 (PROMPT 10) — integration-style walk of every real redirect
  * stub's OWN target, asserting each one lands directly on a real, non-redirecting hub route (never
  * on another stub's own path), so no stub can silently double-hop or loop. Built from the exact

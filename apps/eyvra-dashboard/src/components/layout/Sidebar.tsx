@@ -51,6 +51,44 @@ import styles from "./Sidebar.module.css";
  *    `Setting` keeps the real, already-shipped `/settings` route (this sprint's task explicitly
  *    defers the real Settings rebuild to a later sprint — Prompt 8 — so it's touched minimally
  *    here, just re-pointed at by the new sidebar).
+ *
+ * EYVRA SAMANTHA V2 + KAI V2 Phase 50 (PROMPT 68 — first frontend phase) — this MENU restructure
+ * evolves the 7-item Sprint-1 rail above into the 8-item nav from the user's own real reference
+ * screenshots (see `eyvra-v2-ui-design-reference` memory): Command Center, Campaigns, Leads, Kai
+ * Studio, Experiments, Automation, Activity, Settings. "Samantha" is deliberately NOT a menu item —
+ * the reference screenshots confirm she's the intelligence layer surfaced ACROSS pages (Command
+ * Center's panels, Campaign Health cards, …), not a destination of her own, matching this
+ * codebase's own PROMPT 68 finding already recorded in that memory.
+ *
+ *  - `Command Center` replaces `Overview`'s slot — real new `/command-center` page (this phase's
+ *    main build), NOT a repoint of the existing `/dashboard` (which stays untouched, serving both
+ *    AUTOMOTIVE's `AutomotiveOverview` and PROPERTY's `OverviewMonitorClient` exactly as before —
+ *    changing what `/dashboard` renders was out of scope and risked the ~1300-test suite). Reuses
+ *    `--v2-menu-overview`'s existing color/🎯 icon — same conceptual slot, new real destination.
+ *  - `Campaigns`/`Leads` are the exact same real `/campaigns`/`/leads` routes, unchanged (spec's own
+ *    reference screenshot literally names them "Campaigns"/"Leads" — only `Campaign`'s label
+ *    pluralized to match, its route/color/icon untouched).
+ *  - `Kai Studio` points at the real, already-shipped `/creative` hub (Kai's own creative-production
+ *    surface) — the mockup's dedicated 3-column Brief/Concepts/Inspector Kai Studio page is real
+ *    future work (explicitly out of THIS foundation phase's scope), so this item honestly links to
+ *    the closest existing real destination rather than a dead link or an empty placeholder page.
+ *    Reuses `--v2-menu-creative`'s existing color/🎨 icon (same real Kai-creative concept).
+ *  - `Experiments` is a new thin real redirect page (`/experiments`, same established
+ *    `redirect()`-only pattern this file's own history already used for the old `/meta-ads/
+ *    abtesting` retirement) to `/campaigns?view=ab-testing` — the real, already-shipped
+ *    `AbTestingClient` (RUNNING/COMPLETE/DRAFT test lifecycle). New `🧪` icon (no existing glyph
+ *    fit "experiments"); reuses the `--v2-menu-analytics` token, which was already sitting unused in
+ *    `globals.css` — pre-provisioned, evidently, for exactly this kind of later addition (same
+ *    precedent this file's own history notes for `-activity`/`-improve` before Sprint 1).
+ *  - `Automation` is a new thin real redirect page (`/automation`) to `/settings?tab=agen` — the
+ *    real, already-shipped "Agen" tab (agent identity/role grid; this codebase has NO real
+ *    autopilot/guardrail mode-selector backing the mockup's Advisor/Copilot/Guarded Autopilot/
+ *    Autonomous selector yet — an honest future-phase gap, not fabricated here). New `🤖` icon;
+ *    reuses `--v2-menu-improve`'s existing color (was "AI Improve" — Automation is a close
+ *    conceptual successor to that slot, and the old `/self-improve` page/route is untouched,
+ *    just no longer linked from this rail).
+ *  - `Activity`/`Settings` are the exact same real `/activity`/`/settings` routes, colors, and icons
+ *    as before, unchanged (only `Aktivitas`'s label switched to the mockup's own English "Activity").
  */
 export interface MenuItem {
   readonly href: string;
@@ -64,41 +102,48 @@ export interface MenuItem {
 
 export const MENU: readonly MenuItem[] = [
   {
-    key: "overview",
-    href: "/dashboard",
-    label: "Overview",
+    key: "command-center",
+    href: "/command-center",
+    label: "Command Center",
     icon: "🎯",
     colorVar: "--v2-menu-overview",
   },
   {
-    key: "campaign",
+    key: "campaigns",
     href: "/campaigns",
-    label: "Campaign",
+    label: "Campaigns",
     icon: "📣",
     colorVar: "--v2-menu-campaigns",
   },
   { key: "leads", href: "/leads", label: "Leads", icon: "🔥", colorVar: "--v2-menu-leads" },
   {
-    key: "creative",
+    key: "kai-studio",
     href: "/creative",
-    label: "Creative",
+    label: "Kai Studio",
     icon: "🎨",
     colorVar: "--v2-menu-creative",
   },
   // divider
   {
-    key: "activity",
-    href: "/activity",
-    label: "Aktivitas",
-    icon: "🪵",
-    colorVar: "--v2-menu-activity",
+    key: "experiments",
+    href: "/experiments",
+    label: "Experiments",
+    icon: "🧪",
+    colorVar: "--v2-menu-analytics",
   },
   {
-    key: "improve",
-    href: "/self-improve",
-    label: "AI Improve",
-    icon: "🧠",
+    key: "automation",
+    href: "/automation",
+    label: "Automation",
+    icon: "🤖",
     colorVar: "--v2-menu-improve",
+  },
+  {
+    key: "activity",
+    href: "/activity",
+    label: "Activity",
+    icon: "🪵",
+    colorVar: "--v2-menu-activity",
   },
 ] as const satisfies readonly MenuItem[];
 

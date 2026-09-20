@@ -1,0 +1,146 @@
+/* EYVRA SAMANTHA V2 + KAI V2 Phase 50 (PROMPT 68) — mirrors `OverviewMonitorClient.module.css`'s
+   own real `.page`/`.twoCol` shell conventions (32px page padding, 10px section gap, 2fr/1fr
+   two-column grid collapsing to one column below 900px) rather than inventing a parallel layout
+   system for this new page. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 32px;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .twoCol {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.verdictPanel {
+  border-radius: var(--radius-lg);
+  border: var(--border);
+  background: var(--white);
+  padding: 16px 20px;
+}
+
+.panelAttention {
+  border-left: 3px solid var(--red, #ef4444);
+}
+
+.panelOpportunity {
+  border-left: 3px solid var(--green, #10b981);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.panelTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.panelCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.panelList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.panelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panelRowName {
+  font-size: 13px;
+  color: var(--black);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queueTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.queueTable th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.queueTable td {
+  padding: 8px;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--black);
+}
+
+.viewAllLink {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--v2-samantha, #1e6fd9);
+}
+
+.experimentList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.experimentRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.experimentName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.experimentMeta {
+  font-size: 12px;
+  color: var(--gray-500);
+}
