@@ -138,8 +138,11 @@ describe("EYVRA SAMANTHA V2 Phase 50 — new Command Center-era redirect stubs (
   // `/experiments` is no longer a redirect stub as of Phase 53 (PROMPT 84) — it's a real
   // dedicated page now (see `tests/app/(app)/experiments/page.test.tsx`).
 
-  it("/automation -> /settings?tab=agen", async () => {
-    await expectRedirect(() => import("@/app/(app)/automation/page"), "/settings?tab=agen");
+  // Phase 54 correction: retargeted from `?tab=agen` (agent identity grid — not an automation
+  // control) to bare `/settings`, which lands on the hub's own default "objective" tab — the real
+  // "Automasi Campaign" auto-publish guardrail card.
+  it("/automation -> /settings", async () => {
+    await expectRedirect(() => import("@/app/(app)/automation/page"), "/settings");
   });
 });
 
