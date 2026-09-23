@@ -11,6 +11,7 @@ import type { LeadResponseDto } from "../leads/dto/lead-response.dto.js";
 import { LeadsService } from "../leads/leads.service.js";
 import { LlmService } from "../llm/llm.service.js";
 import { MetaAdsService } from "../meta-ads/meta-ads.service.js";
+import { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import { ObjectiveService } from "../objective/objective.service.js";
 import { RecyclingService } from "../recycling/recycling.service.js";
 
@@ -64,6 +65,8 @@ export class OverviewService {
     private readonly activityRepository: ActivityRepository,
     private readonly llmService: LlmService,
     private readonly overviewSnapshotRepository: OverviewSnapshotRepository,
+    /** Real `meta_insights_daily` account-wide daily aggregate — see `getTimeseries`'s own doc. */
+    private readonly metaSyncService: MetaSyncService,
   ) {}
 
   async getOverview(tenantId: string, correlationId: string): Promise<OverviewResponseDto> {
@@ -339,15 +342,43 @@ export class OverviewService {
   }
 
   /**
-   * `GET /api/v1/overview/timeseries` — Command Center "Performance Overview" chart (EYVRA
-   * SAMANTHA V2 + KAI V2 Phase 56). Real, already-persisted `overview_daily_snapshots` rows for this
-   * tenant, written once daily by `OverviewSnapshotCronService` — a genuinely different real source
-   * from every other method on this class (those all pull live from Meta/lead-store on every
-   * request; this one reads a durable history table `OverviewSnapshotRepository.listRecent` already
-   * owns). An empty/short array is a real, honest result (never fabricated) for a tenant the cron
-   * hasn't swept enough real days for yet.
+   * `GET /api/v1/overview/timeseries` — Command Center "Performance Overview" chart + the KPI
+   * strip's sparklines.
+   *
+   * REAL BUG FIX (observed live, 2026-09-21): this read ONLY `overview_daily_snapshots`
+   * (`OverviewSnapshotCronService`'s daily writer), which had produced ZERO rows for the real
+   * tenant — so every trend surface was stuck on its honest "not enough history" state even though
+   * `meta_insights_daily` already held real per-day rows (verified live: 2026-09-15 onward).
+   *
+   * Now prefers the real `meta_insights_daily` account-wide aggregate
+   * (`MetaSyncService.getAccountDailyHistory`, summed per date over `level = 'campaign'` rows only)
+   * and falls back to `overview_daily_snapshots` when that genuinely has no rows — so a tenant whose
+   * Meta sync hasn't run but whose snapshot cron HAS still gets its real history, and neither source
+   * silently masks the other being empty.
+   *
+   * HONEST SEMANTIC NOTE on `totalLeads`: the `meta_insights_daily` path reports Meta's own
+   * ad-conversion lead count, which is exactly what the KPI strip's own "Raw Leads" figure already
+   * shows (summed `ad.metrics.totalLead`), so the sparkline is consistent with the number it sits
+   * under. It is NOT this app's CRM lead count (`overview_daily_snapshots.total_leads`, which is
+   * `hot + warm + cold` from the lead store) — the two are deliberately different figures, per
+   * `059_overview_daily_snapshots.sql`'s own header. The CRM-backed "Hot Leads" KPI deliberately
+   * gets NO sparkline for that reason.
+   *
+   * An empty array remains a real, honest result (never fabricated) when neither source has rows.
    */
   async getTimeseries(tenantId: string, days: number): Promise<OverviewTimeseriesResponseDto> {
+    const daily = await this.metaSyncService.getAccountDailyHistory(tenantId, days);
+    if (daily.length > 0) {
+      return {
+        tenantId,
+        points: daily.map((row) => ({
+          date: row.date,
+          totalSpend: row.spend,
+          totalLeads: row.leads,
+        })),
+      };
+    }
+
     const points = await this.overviewSnapshotRepository.listRecent(tenantId, days);
     return { tenantId, points };
   }

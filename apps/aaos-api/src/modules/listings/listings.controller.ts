@@ -22,6 +22,8 @@ import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
 import {
   CreateListingBodySchema,
+  DraftListingBodySchema,
+  type DraftListingBodyDto,
   GetListingsQuerySchema,
   ReorderPhotosBodySchema,
   UpdateListingBodySchema,
@@ -58,6 +60,35 @@ export class ListingsController {
     return this.service.list(tenantId, query);
   }
 
+  @Get("lead-destinations")
+  leadDestinations(@TenantId() tenantId: string) {
+    return this.service.leadDestinations(tenantId);
+  }
+
+  @Get("advertising-inventory")
+  async advertisingInventory(@TenantId() tenantId: string) {
+    return this.service.advertisingInventory(tenantId);
+  }
+
+  @Post("drafts")
+  draft(
+    @TenantId() t: string,
+    @Body(new ZodValidationPipe(DraftListingBodySchema)) body: DraftListingBodyDto,
+  ) {
+    return this.service.create(t, { ...body, listingStatus: "DRAFT" });
+  }
+  @Put(":id/draft")
+  saveDraft(
+    @TenantId() t: string,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(DraftListingBodySchema)) body: DraftListingBodyDto,
+  ) {
+    return this.service.saveDraft(t, id, body);
+  }
+  @Post(":id/finish")
+  finish(@TenantId() t: string, @Param("id") id: string) {
+    return this.service.finish(t, id);
+  }
   @Post()
   async create(
     @TenantId() tenantId: string,

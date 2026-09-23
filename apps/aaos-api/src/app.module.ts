@@ -80,6 +80,7 @@ import { CampaignCreationModule } from "./modules/campaign-creation/campaign-cre
 import { CampaignHealthModule } from "./modules/campaign-health/campaign-health.module.js";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { ClosingsModule } from "./modules/closings/closings.module.js";
+import { CommandCenterModule } from "./modules/command-center/command-center.module.js";
 import { CreativeMemoryModule } from "./modules/creative-memory/creative-memory.module.js";
 import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
 import { GoLiveModule } from "./modules/go-live/go-live.module.js";
@@ -88,6 +89,7 @@ import { HealthModule } from "./modules/health/health.module.js";
 import { HotLeadDefinitionsModule } from "./modules/hot-lead-definitions/hot-lead-definitions.module.js";
 import { IntelligenceModule } from "./modules/intelligence/intelligence.module.js";
 import { LeadsModule } from "./modules/leads/leads.module.js";
+import { ListingKnowledgeModule } from "./modules/listing-knowledge/listing-knowledge.module.js";
 import { ListingsModule } from "./modules/listings/listings.module.js";
 import { LlmModule } from "./modules/llm/llm.module.js";
 import { LookalikeModule } from "./modules/lookalike/lookalike.module.js";
@@ -371,6 +373,7 @@ export class AppModule {
       module: AppModule,
       global: true,
       imports: [
+        ListingKnowledgeModule,
         // AAOS-KALENDER-AKTIVITAS: registers `@nestjs/schedule`'s cron registry ONCE, at the
         // composition root every feature module (including `SchedulerModule`, the only `@Cron`
         // user today) ultimately sits under.
@@ -510,6 +513,13 @@ export class AppModule {
         // CampaignHealthModule/CreativeMemoryModule to reuse their exported services, same pattern
         // CampaignHealthModule itself establishes for MetricSnapshotModule.
         OpportunitiesModule,
+        // EYVRA Samantha V2 Command Center real-data-wiring fix: real, read-only
+        // `GET /api/v1/command-center/account-summary` -- ONE account-wide aggregate composing
+        // MetaAdsService (campaign enumeration) + CampaignHealthService.assess (every real active
+        // campaign, capped) + the SAME opportunity detectors OpportunitiesModule already exposes
+        // per-campaign, applied account-wide. Zero I/O/repository of its own -- imports
+        // MetaAdsModule/CampaignHealthModule/CreativeMemoryModule to reuse their exported services.
+        CommandCenterModule,
         // EYVRA -- SAMANTHA V2 + KAI V2 Phase 25 -- Autonomous Campaign Creation foundation (PROMPT
         // 32/33/35): real, read-only Listing Readiness / Campaign Blueprint / Campaign Preflight --
         // deterministic planning/assessment only, zero Meta API call, zero mutation (see

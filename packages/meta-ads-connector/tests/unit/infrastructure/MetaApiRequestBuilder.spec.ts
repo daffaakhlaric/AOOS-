@@ -199,4 +199,37 @@ describe("MetaApiRequestBuilder", () => {
       expect(url.searchParams.get("after")).toBe("cursor-1");
     });
   });
+
+  /** AAOS Command Center creative thumbnails — the READ-side hash/video-id -> URL resolution. */
+  describe("creative thumbnail resolution URLs", () => {
+    it("batches EVERY hash into one adimages URL, as a JSON-array-shaped `hashes` param", () => {
+      const url = new URL(
+        MetaApiRequestBuilder.adImagesByHashesUrl(
+          "act_123",
+          ["4b899eb644b9f4649abeea3fe701715c", "hash-2"],
+          "TOKEN",
+        ),
+      );
+      expect(url.origin + url.pathname).toBe(`${BASE}/act_123/adimages`);
+      expect(url.searchParams.get("hashes")).toBe(
+        JSON.stringify(["4b899eb644b9f4649abeea3fe701715c", "hash-2"]),
+      );
+      expect(url.searchParams.get("fields")).toBe("hash,url,permalink_url");
+      expect(url.searchParams.get("access_token")).toBe("TOKEN");
+    });
+
+    it("sets no `limit` on the adimages URL — the hash list already bounds the result set", () => {
+      const url = new URL(MetaApiRequestBuilder.adImagesByHashesUrl("act_123", ["h1"], "TOKEN"));
+      expect(url.searchParams.has("limit")).toBe(false);
+    });
+
+    it("addresses a video creative's OWN node and requests only the poster frame, never the playable source", () => {
+      const url = new URL(MetaApiRequestBuilder.videoThumbnailsUrl("1523323098869727", "TOKEN"));
+      expect(url.origin + url.pathname).toBe(`${BASE}/1523323098869727`);
+      const fields = url.searchParams.get("fields") ?? "";
+      expect(fields).toBe("picture,thumbnails{uri,is_preferred}");
+      expect(fields).not.toContain("source");
+      expect(url.searchParams.get("access_token")).toBe("TOKEN");
+    });
+  });
 });

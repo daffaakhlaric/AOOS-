@@ -8,6 +8,7 @@ import { LeadsModule } from "../leads/leads.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { MetaAdsModule } from "../meta-ads/meta-ads.module.js";
+import { MetaSyncModule } from "../meta-sync/meta-sync.module.js";
 import { ObjectiveModule } from "../objective/objective.module.js";
 import { RecyclingModule } from "../recycling/recycling.module.js";
 import { TenantRepository } from "../superadmin/infrastructure/tenant.repository.js";
@@ -39,6 +40,7 @@ import { OverviewService } from "./overview.service.js";
   imports: [
     LeadsModule,
     MetaAdsModule,
+    MetaSyncModule,
     ObjectiveModule,
     RecyclingModule,
     ActivityLogModule,

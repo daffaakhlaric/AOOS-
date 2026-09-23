@@ -268,8 +268,11 @@ export class CreativePackagesService {
     await this.repository.recordPublishedMetaAdIds(id, adIds);
   }
 
-  async list(query: GetPackagesQueryDto): Promise<readonly CreativePackageResponseDto[]> {
-    const packages = await this.repository.list(this.tenantId, {
+  async list(
+    query: GetPackagesQueryDto,
+    tenantId = this.tenantId,
+  ): Promise<readonly CreativePackageResponseDto[]> {
+    const packages = await this.repository.list(tenantId, {
       ...(query.status !== undefined ? { status: query.status } : {}),
       limit: query.limit,
     });
@@ -277,10 +280,10 @@ export class CreativePackagesService {
   }
 
   /** `GET /api/v1/creative-packages/:id` — the single-item lookup the dashboard previously faked by re-fetching the whole list and `.find()`-ing client-side. */
-  async byId(id: string): Promise<CreativePackageDetailResponseDto> {
-    const pkg = await this.findOrThrow(id);
+  async byId(id: string, tenantId = this.tenantId): Promise<CreativePackageDetailResponseDto> {
+    const pkg = await this.findOrThrowScoped(tenantId, id);
     const logs = await this.logRepository.list({
-      tenantId: this.tenantId,
+      tenantId,
       packageId: id,
       limit: 200,
     });

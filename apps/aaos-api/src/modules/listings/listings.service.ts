@@ -3,13 +3,15 @@ import { randomUUID } from "node:crypto";
 import type { AssetLibrary } from "@aos/asset-library";
 import { ALLOWED_IMAGE_MIME_TYPES } from "@aos/asset-library";
 import { NotFoundError, UnavailableError, ValidationError } from "@aos/errors";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { ASSET_LIBRARY } from "../../di-tokens.js";
 
+import { buildListingAdvertising } from "./domain/listing-advertising.js";
 import { buildPropertyKnowledge, type PropertyKnowledge } from "./domain/property-knowledge.js";
 import type {
   CreateListingBodyDto,
+  DraftListingBodyDto,
   DocumentResponseDto,
   GetListingsQueryDto,
   ListingListResponseDto,
@@ -26,6 +28,7 @@ import type {
   ListingUpdate,
 } from "./infrastructure/listing.repository.js";
 import { ListingRepository } from "./infrastructure/listing.repository.js";
+import { MetaLeadDestinationsService } from "./meta-lead-destinations.service.js";
 
 /** Spec Part 4's "max 10MB/foto, max 20 foto" — the ONLY place these limits are enforced (Zod can't inspect file bytes). */
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -110,6 +113,8 @@ function toListingDto(row: ListingRow): ListingResponseDto {
     propertyType: row.property_type as ListingResponseDto["propertyType"],
     listingStatus: row.listing_status as ListingResponseDto["listingStatus"],
     price: row.price,
+    ...(row.meta_page_id ? { metaPageId: row.meta_page_id } : {}),
+    ...(row.meta_ad_account_id ? { metaAdAccountId: row.meta_ad_account_id } : {}),
     ...(row.branch_id !== null ? { branchId: row.branch_id } : {}),
     ...(row.wa_number !== null ? { waNumber: row.wa_number } : {}),
     ...(row.land_area !== null ? { landArea: row.land_area } : {}),
@@ -160,8 +165,24 @@ export class ListingsService {
   constructor(
     private readonly repository: ListingRepository,
     @Inject(ASSET_LIBRARY) private readonly assetLibrary: AssetLibrary | undefined,
+    @Optional() private readonly destinations?: MetaLeadDestinationsService,
   ) {}
 
+  async leadDestinations(tenantId: string) {
+    if (!this.destinations) throw new UnavailableError("Layanan tujuan Meta belum tersedia.");
+    return this.destinations.list(tenantId);
+  }
+  private async validateDestination(
+    tenantId: string,
+    pageId?: string | null,
+    accountId?: string | null,
+    number?: string | null,
+  ) {
+    if (!pageId && !accountId) return;
+    if (!pageId || !accountId || !number || !this.destinations)
+      throw new ValidationError("Pilih Page dan WhatsApp Business yang lengkap.");
+    await this.destinations.validate(tenantId, pageId, accountId, number);
+  }
   async list(tenantId: string, query: GetListingsQueryDto): Promise<ListingListResponseDto> {
     const rows = await this.repository.listByTenant(tenantId);
     const filtered = rows.filter((row) => {
@@ -182,6 +203,49 @@ export class ListingsService {
     return { listings: filtered.map(toListingDto), total: filtered.length };
   }
 
+  async saveDraft(tenantId: string, id: string, dto: DraftListingBodyDto) {
+    const current = await this.requireRow(tenantId, id);
+    if (current.listing_status !== "DRAFT")
+      throw new ValidationError("Only drafts may use incomplete data");
+    return this.update(tenantId, id, { ...dto, listingStatus: "DRAFT" });
+  }
+  async finish(tenantId: string, id: string) {
+    const row = await this.requireRow(tenantId, id);
+    if (
+      !row.title.trim() ||
+      row.price <= 0 ||
+      row.property_type === "UNSPECIFIED" ||
+      !row.city ||
+      !row.address
+    )
+      throw new ValidationError("Judul, tipe, harga, alamat dan kota wajib diisi");
+    return this.update(tenantId, id, { listingStatus: "AKTIF" });
+  }
+  async advertisingInventory(tenantId: string) {
+    const inventory = await this.list(tenantId, {});
+    let campaigns: Awaited<ReturnType<ListingRepository["advertisingCampaigns"]>> | undefined;
+    const errors: string[] = [];
+    try {
+      campaigns = await this.repository.advertisingCampaigns(tenantId);
+    } catch {
+      errors.push("Hubungan campaign belum dapat dimuat. Status campaign tidak dapat dipastikan.");
+    }
+    return {
+      listings: inventory.listings.map(buildListingAdvertising),
+      total: inventory.total,
+      campaigns: campaigns
+        ?.filter((c) => c.listing_id !== null)
+        .map((c) => ({
+          listingId: c.listing_id,
+          id: c.meta_campaign_id,
+          name: c.name,
+          status: c.status,
+          syncedAt: c.synced_at,
+        })),
+      errors,
+    };
+  }
+
   private async requireRow(tenantId: string, id: string): Promise<ListingRow> {
     const row = await this.repository.findById(id);
     if (row === undefined || row.tenant_id !== tenantId) {
@@ -194,15 +258,22 @@ export class ListingsService {
     return toListingDto(await this.requireRow(tenantId, id));
   }
 
-  async create(tenantId: string, dto: CreateListingBodyDto): Promise<ListingResponseDto> {
+  async create(
+    tenantId: string,
+    dto: CreateListingBodyDto | DraftListingBodyDto,
+  ): Promise<ListingResponseDto> {
+    await this.validateDestination(tenantId, dto.metaPageId, dto.metaAdAccountId, dto.waNumber);
     const insert: ListingInsert = {
       tenant_id: tenantId,
       title: dto.title,
-      property_type: dto.propertyType,
+      property_type: dto.propertyType ?? "UNSPECIFIED",
       listing_status: dto.listingStatus ?? "DRAFT",
-      price: dto.price,
+      price: dto.price ?? 0,
       branch_id: dto.branchId ?? null,
       wa_number: dto.waNumber ?? null,
+      ...(dto.metaPageId && dto.metaAdAccountId
+        ? { meta_page_id: dto.metaPageId, meta_ad_account_id: dto.metaAdAccountId }
+        : {}),
       land_area: dto.landArea ?? null,
       build_area: dto.buildArea ?? null,
       bedrooms: dto.bedrooms ?? null,
@@ -234,13 +305,26 @@ export class ListingsService {
     id: string,
     dto: UpdateListingBodyDto,
   ): Promise<ListingResponseDto> {
-    await this.requireRow(tenantId, id);
+    const existing = await this.requireRow(tenantId, id);
+    if (
+      dto.metaPageId !== undefined ||
+      dto.metaAdAccountId !== undefined ||
+      dto.waNumber !== undefined
+    )
+      await this.validateDestination(
+        tenantId,
+        dto.metaPageId === undefined ? existing.meta_page_id : dto.metaPageId,
+        dto.metaAdAccountId === undefined ? existing.meta_ad_account_id : dto.metaAdAccountId,
+        dto.waNumber === undefined ? existing.wa_number : dto.waNumber,
+      );
     const patch: ListingUpdate = {
       ...(dto.title !== undefined ? { title: dto.title } : {}),
       ...(dto.propertyType !== undefined ? { property_type: dto.propertyType } : {}),
       ...(dto.listingStatus !== undefined ? { listing_status: dto.listingStatus } : {}),
       ...(dto.price !== undefined ? { price: dto.price } : {}),
       ...(dto.branchId !== undefined ? { branch_id: dto.branchId } : {}),
+      ...(dto.metaPageId !== undefined ? { meta_page_id: dto.metaPageId } : {}),
+      ...(dto.metaAdAccountId !== undefined ? { meta_ad_account_id: dto.metaAdAccountId } : {}),
       ...(dto.waNumber !== undefined ? { wa_number: dto.waNumber } : {}),
       ...(dto.landArea !== undefined ? { land_area: dto.landArea } : {}),
       ...(dto.buildArea !== undefined ? { build_area: dto.buildArea } : {}),
@@ -312,6 +396,7 @@ export class ListingsService {
     }
 
     const newPhoto: ListingPhotoRow = {
+      storagePath: uploaded.value.path,
       id: randomUUID(),
       url: uploaded.value.publicUrl,
       ...(input.label !== undefined ? { label: input.label } : {}),

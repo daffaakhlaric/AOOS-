@@ -3,6 +3,7 @@ import type { Result } from "@aos/common";
 import type { MetaApiError } from "../domain/errors/index.js";
 import type {
   MetaAdAccountResponse,
+  MetaAdImagesResponse,
   MetaAdInterestSearchResponse,
   MetaAdListResponse,
   MetaAdLocationSearchResponse,
@@ -13,6 +14,7 @@ import type {
   MetaCustomAudienceUsersResponse,
   MetaImageUploadResponse,
   MetaUpdateResponse,
+  MetaVideoThumbnailsResponse,
   MetaVideoUploadResponse,
 } from "../types/MetaApiTypes.js";
 
@@ -380,6 +382,37 @@ export interface IMetaAdsClient {
     imageUrl: string,
     accessToken: string,
   ): Promise<Result<MetaImageUploadResponse, MetaApiError>>;
+
+  /**
+   * AAOS Command Center creative thumbnails: `GET /act_{ad-account-id}/adimages?hashes=[...]
+   * &fields=hash,url,permalink_url` — resolves real Meta image HASHES (the values this codebase
+   * already persists as `meta_ads.creative_ref` for `IMAGE` creatives, and the same
+   * `link_data.image_hash` `uploadImage` produces) to renderable URLs. The READ counterpart of
+   * `uploadImage`'s WRITE, on the SAME real edge.
+   *
+   * BATCHED BY CONTRACT — `hashes` is a LIST, and one call resolves all of them. Callers must never
+   * loop this per ad: the connector enforces a real 200-calls/hour budget (see
+   * `MetaApiRequestBuilder.adImagesByHashesUrl`'s own doc for the live incident a per-ad fanout
+   * caused). Meta silently omits a hash it cannot resolve, so the returned `data` is legitimately
+   * shorter than `hashes` — never an error.
+   */
+  getAdImagesByHashes(
+    adAccountId: string,
+    hashes: ReadonlyArray<string>,
+    accessToken: string,
+  ): Promise<Result<MetaAdImagesResponse, MetaApiError>>;
+
+  /**
+   * AAOS Command Center creative thumbnails: `GET /{video-id}?fields=picture,thumbnails{uri,
+   * is_preferred}` — resolves a real Meta VIDEO ID (the value `meta_ads.creative_ref` carries for a
+   * `VIDEO` creative, and the same id `uploadVideo` returns) to its poster-frame URL. Per video id,
+   * because Meta exposes no batch-by-id edge for videos — see
+   * `MetaApiRequestBuilder.videoThumbnailsUrl`. Never requests the playable video itself.
+   */
+  getVideoThumbnail(
+    videoId: string,
+    accessToken: string,
+  ): Promise<Result<MetaVideoThumbnailsResponse, MetaApiError>>;
 
   /**
    * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /act_{ad-account-id}/customaudiences` with

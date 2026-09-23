@@ -1,0 +1,147 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  min-height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-4) var(--sp-3);
+  transition: width 0.15s ease;
+}
+
+/* Desktop is the primary product surface. Hide the rail only on a genuinely narrow CSS viewport;
+   this avoids losing the desktop sidebar when browser zoom/device scale makes a wide screenshot
+   report a tablet-sized CSS viewport. */
+@media (max-width: 767px) {
+  .sidebar {
+    display: none;
+  }
+}
+
+.sidebarCollapsed {
+  width: 64px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-6);
+  padding: 0 var(--sp-1);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.logoMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.wordmark {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  color: var(--text-primary);
+}
+
+.collapseButton {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.collapseButton:hover {
+  background: var(--bg);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 9px var(--sp-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.navItem:hover {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.navItemActive {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.navItemDisabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.navItemDisabled:hover {
+  background: none;
+  color: var(--text-secondary);
+}
+
+.navIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.navLabel {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.soonBadge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.settingsRow {
+  margin-top: auto;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--sp-3) var(--sp-1);
+}
+
+.sidebar {flex-shrink:0; width:210px; background:#f0f2ff; position:sticky; top:0; height:100vh} .sidebarCollapsed {width:64px} .nav {flex:0; gap:7px} .settingsRow {margin-top:64px} .wordmark {font-size:22px; color:#392185; letter-spacing:.06em} .logoMark {display:none} .navItemDisabled {opacity:.8} .navItem {font-size:13px; padding:8px} .soonBadge {display:none} .team {margin-top:24px; padding:14px 10px; border:1px solid #e0ddf8; border-radius:8px; font-size:12px; color:var(--text-secondary)} .team p {margin-bottom:12px} .team div {display:flex; align-items:center; gap:10px; margin:12px 0} .team strong {display:block; color:var(--text-primary)} .orb {display:grid; place-items:center; border-radius:50%; width:30px; height:30px; background:#e2d4ff; color:var(--brand)}

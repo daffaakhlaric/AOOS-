@@ -1,0 +1,40 @@
+/* Compact operational panel (spec section 11) — a tight list of real per-agent status rows, not
+   giant colored cards and not plain bordered form rows: a thin bottom rule between rows (no full
+   border box per row) reads as one continuous operations panel instead of 3 separate form fields. */
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-3) var(--sp-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.row:last-child {
+  border-bottom: none;
+  padding-bottom: var(--sp-1);
+}
+
+.opLine {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding-left: 16px;
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+

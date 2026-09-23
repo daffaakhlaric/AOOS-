@@ -16,6 +16,11 @@ export const CreateListingBodySchema = z.object({
   price: z.number().int().positive("price must be a positive integer"),
   branchId: z.string().min(1).optional(),
   waNumber: z.string().min(1).optional(),
+  metaPageId: z.string().regex(/^\d+$/).optional(),
+  metaAdAccountId: z
+    .string()
+    .regex(/^act_\d+$/)
+    .optional(),
 
   landArea: z.number().int().nonnegative().optional(),
   buildArea: z.number().int().nonnegative().optional(),
@@ -43,7 +48,27 @@ export const CreateListingBodySchema = z.object({
 export type CreateListingBodyDto = z.infer<typeof CreateListingBodySchema>;
 
 /** `PUT /api/v1/listings/:id` body — every field optional (partial patch), same "omit to keep unchanged" discipline as `UpdateWabaConfigBodySchema`. */
-export const UpdateListingBodySchema = CreateListingBodySchema.partial();
+export const UpdateListingBodySchema = CreateListingBodySchema.partial().extend({
+  waNumber: CreateListingBodySchema.shape.waNumber.nullable(),
+  metaPageId: CreateListingBodySchema.shape.metaPageId.nullable(),
+  metaAdAccountId: CreateListingBodySchema.shape.metaAdAccountId.nullable(),
+  landArea: CreateListingBodySchema.shape.landArea.nullable(),
+  buildArea: CreateListingBodySchema.shape.buildArea.nullable(),
+  bedrooms: CreateListingBodySchema.shape.bedrooms.nullable(),
+  bathrooms: CreateListingBodySchema.shape.bathrooms.nullable(),
+  garage: CreateListingBodySchema.shape.garage.nullable(),
+  floors: CreateListingBodySchema.shape.floors.nullable(),
+  certificate: CreateListingBodySchema.shape.certificate.nullable(),
+  condition: CreateListingBodySchema.shape.condition.nullable(),
+  electricity: CreateListingBodySchema.shape.electricity.nullable(),
+  facing: CreateListingBodySchema.shape.facing.nullable(),
+  address: CreateListingBodySchema.shape.address.nullable(),
+  city: CreateListingBodySchema.shape.city.nullable(),
+  province: CreateListingBodySchema.shape.province.nullable(),
+  kecamatan: CreateListingBodySchema.shape.kecamatan.nullable(),
+  postalCode: CreateListingBodySchema.shape.postalCode.nullable(),
+  description: CreateListingBodySchema.shape.description.nullable(),
+});
 export type UpdateListingBodyDto = z.infer<typeof UpdateListingBodySchema>;
 
 /** `GET /api/v1/listings` query — the Listing Manager's filter/search bar. */
@@ -88,11 +113,13 @@ export interface DocumentResponseDto {
 export interface ListingResponseDto {
   readonly id: string;
   readonly title: string;
-  readonly propertyType: PropertyType;
+  readonly propertyType: PropertyType | "UNSPECIFIED";
   readonly listingStatus: ListingStatus;
   readonly price: number;
   readonly branchId?: string;
   readonly waNumber?: string;
+  readonly metaPageId?: string;
+  readonly metaAdAccountId?: string;
 
   readonly landArea?: number;
   readonly buildArea?: number;
@@ -133,3 +160,9 @@ export interface PublishKnowledgeResponseDto {
   readonly listing: ListingResponseDto;
   readonly inKnowledgeBase: true;
 }
+
+export const DraftListingBodySchema = UpdateListingBodySchema.extend({
+  title: z.string().trim().min(1),
+  price: z.number().int().nonnegative().optional(),
+});
+export type DraftListingBodyDto = z.infer<typeof DraftListingBodySchema>;

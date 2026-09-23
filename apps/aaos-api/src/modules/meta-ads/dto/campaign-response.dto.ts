@@ -40,6 +40,22 @@ export interface AdResponseDto {
   readonly primaryText?: string;
   readonly headline?: string;
   readonly description?: string;
+  /**
+   * AAOS Command Center creative thumbnails — the real Meta creative asset backing this ad,
+   * flattened from `Ad.creativeAsset` (`@aos/meta-ads-connector`) into the same
+   * `{kind, ref}` shape this codebase already persists as `meta_ads.creative_kind` /
+   * `meta_ads.creative_ref` (see `meta-sync/domain/build-sync-snapshot.ts`'s `creativeFields`).
+   *
+   * `ref` is a real Meta image HASH (for `"IMAGE"`) or a real Meta VIDEO ID (for `"VIDEO"`) — NOT a
+   * URL; resolving it to a renderable thumbnail is a separate Meta read
+   * (`ResolveCreativeThumbnails`). `undefined` when Meta's `creative{image_hash,video_id}`
+   * expansion returned neither field for this ad (no creative attached yet, or a Dynamic
+   * Creative/Collection shape that uses neither) — never a fabricated placeholder ref.
+   *
+   * Additive/optional, same convention `primaryText`/`headline`/`description` above already
+   * establish: every pre-existing consumer of this DTO is unaffected.
+   */
+  readonly creativeAsset?: { readonly kind: "IMAGE" | "VIDEO"; readonly ref: string };
 }
 
 export interface AdSetResponseDto {
@@ -168,5 +184,19 @@ function toAdResponseDto(ad: Ad): AdResponseDto {
     ...(ad.primaryText !== undefined ? { primaryText: ad.primaryText } : {}),
     ...(ad.headline !== undefined ? { headline: ad.headline } : {}),
     ...(ad.description !== undefined ? { description: ad.description } : {}),
+    ...(ad.creativeAsset !== undefined
+      ? {
+          creativeAsset: {
+            kind: ad.creativeAsset.kind,
+            // `CreativeAsset` is a discriminated union carrying EITHER `imageHash` OR `videoId`
+            // (never both) — flattened to one `ref` here, exactly as `meta_ads.creative_ref`
+            // already stores it.
+            ref:
+              ad.creativeAsset.kind === "IMAGE"
+                ? ad.creativeAsset.imageHash
+                : ad.creativeAsset.videoId,
+          },
+        }
+      : {}),
   };
 }

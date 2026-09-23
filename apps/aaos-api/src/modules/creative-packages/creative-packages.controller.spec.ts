@@ -38,8 +38,10 @@ describe("CreativePackagesController", () => {
     const service = buildFakeService();
     const controller = new CreativePackagesController(service);
     const query = GetPackagesQuerySchema.parse({ status: "PENDING" });
-    await expect(controller.list(query)).resolves.toEqual([{ id: "pkg-1", status: "PENDING" }]);
-    expect(service.list).toHaveBeenCalledWith(query);
+    await expect(controller.list(query, "tenant-b")).resolves.toEqual([
+      { id: "pkg-1", status: "PENDING" },
+    ]);
+    expect(service.list).toHaveBeenCalledWith(query, "tenant-b");
   });
 
   it("GET /api/v1/creative-packages/logs delegates to logs (declared before :id so it is not shadowed)", async () => {
@@ -58,8 +60,8 @@ describe("CreativePackagesController", () => {
   it("GET /api/v1/creative-packages/:id delegates to byId", async () => {
     const service = buildFakeService();
     const controller = new CreativePackagesController(service);
-    await controller.byId("pkg-1");
-    expect(service.byId).toHaveBeenCalledWith("pkg-1");
+    await controller.byId("pkg-1", "tenant-b");
+    expect(service.byId).toHaveBeenCalledWith("pkg-1", "tenant-b");
   });
 
   it("POST /api/v1/creative-packages delegates to create", async () => {

@@ -3,10 +3,12 @@ import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { MetaOAuthModule } from "../meta-oauth/meta-oauth.module.js";
 
 import { ListingRepository } from "./infrastructure/listing.repository.js";
 import { ListingsController } from "./listings.controller.js";
 import { ListingsService } from "./listings.service.js";
+import { MetaLeadDestinationsService } from "./meta-lead-destinations.service.js";
 
 /**
  * `modules/listings` (AAOS-MULTI-TENANT-SUPERADMIN-PROPERTY Phase 2 — Listing Manager). Builds
@@ -16,9 +18,11 @@ import { ListingsService } from "./listings.service.js";
  * (`AppModule.forRoot`) directly — no separate provider needed here.
  */
 @Module({
+  imports: [MetaOAuthModule],
   controllers: [ListingsController],
   providers: [
     ListingsService,
+    MetaLeadDestinationsService,
     ApiKeyGuard,
     {
       provide: ListingRepository,

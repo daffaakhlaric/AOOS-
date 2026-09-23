@@ -122,6 +122,31 @@ export class AbTestVariantRepository {
     return (data ?? []).map(toDomain);
   }
 
+  /**
+   * AAOS Command Center creative thumbnails — every real `ab_test_variants` row for one tenant, in
+   * ONE tenant-scoped read. The Command Center needs the real, per-Meta-ad A/B-test outcome
+   * (`status === "WINNER"`, declared by `decideWinner`'s real Rp/lead margin check and persisted by
+   * `AbTestingService`) to badge a campaign row's representative creative as a genuine WINNER
+   * rather than falling back to Samantha's weaker `SCALE` verdict proxy.
+   *
+   * Deliberately tenant-wide rather than per-ad or per-test: the caller needs a `meta_ad_id ->
+   * outcome` lookup across every campaign it is summarizing, and `ab_test_variants` is a low-volume
+   * table (a handful of rows per test), so one read beats an N-per-campaign fanout. `listByAbTest`
+   * above stays the per-test read and is untouched.
+   */
+  async listByTenant(tenantId: string): Promise<readonly StoredAbTestVariant[]> {
+    const { data, error } = await this.client
+      .from<AbTestVariantRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId);
+    if (error !== null) {
+      throw new AbTestVariantRepositoryError(
+        `AbTestVariantRepository.listByTenant failed: ${error.message}`,
+      );
+    }
+    return (data ?? []).map(toDomain);
+  }
+
   async markStatus(id: string, status: AbTestVariantStatus): Promise<void> {
     const { error } = await this.client
       .from<AbTestVariantRow>(TABLE)

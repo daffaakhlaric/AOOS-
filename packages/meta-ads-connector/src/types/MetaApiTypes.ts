@@ -456,6 +456,66 @@ export const MetaCustomAudienceUsersResponseSchema = z.object({
 });
 export type MetaCustomAudienceUsersResponse = z.infer<typeof MetaCustomAudienceUsersResponseSchema>;
 
+/**
+ * One row of `GET /act_{ad-account-id}/adimages?hashes=[...]&fields=hash,url,permalink_url`
+ * (AAOS Command Center creative thumbnails) — the READ-side counterpart of the already-shipped
+ * WRITE-side `MetaImageUploadResponseSchema` (`POST /{ad-account}/adimages`). Verified against
+ * Meta's Marketing API "Ad Image" reference (developers.facebook.com/docs/marketing-api/reference/
+ * ad-image): `hash` is the same `image_hash` `link_data.image_hash` carries and the same value
+ * this codebase already persists as `meta_ads.creative_ref` for an `IMAGE` creative, and `url` /
+ * `permalink_url` are the two real, renderable URLs Meta returns for it.
+ *
+ * `url` is Meta's own (expiring) CDN URL and `permalink_url` its stable `facebook.com` permalink —
+ * BOTH kept optional because Meta genuinely omits them for some assets (e.g. an image deleted from
+ * the ad account's library while its hash is still referenced by a historical ad). A row with
+ * neither simply yields no thumbnail for that hash rather than failing the whole batch closed.
+ */
+export const MetaAdImageSchema = z.object({
+  hash: z.string(),
+  url: z.string().optional(),
+  permalink_url: z.string().optional(),
+});
+export type MetaAdImage = z.infer<typeof MetaAdImageSchema>;
+
+/**
+ * Response of `GET /act_{ad-account-id}/adimages?hashes=[...]` — a normal Graph API edge read, so
+ * the payload is `{data: [...]}`. Meta silently omits a hash it cannot resolve (no error row), so
+ * `data` legitimately comes back SHORTER than the requested hash list, and `[]` is a real, honest
+ * "none of these hashes resolve in this ad account" answer.
+ */
+export const MetaAdImagesResponseSchema = z.object({
+  data: z.array(MetaAdImageSchema).default([]),
+  paging: MetaPagingSchema.optional(),
+});
+export type MetaAdImagesResponse = z.infer<typeof MetaAdImagesResponseSchema>;
+
+/** One generated poster frame on Meta's real `GET /{video-id}?fields=thumbnails{uri,is_preferred}` edge — `is_preferred` marks the frame selected in Ads Manager. */
+export const MetaVideoThumbnailSchema = z.object({
+  uri: z.string(),
+  is_preferred: z.boolean().optional(),
+});
+export type MetaVideoThumbnail = z.infer<typeof MetaVideoThumbnailSchema>;
+
+/**
+ * Response of `GET /{video-id}?fields=picture,thumbnails{uri,is_preferred}` (AAOS Command Center
+ * creative thumbnails) — the poster-frame lookup for a `VIDEO` creative, whose
+ * `meta_ads.creative_ref` is a real Meta VIDEO ID (not a hash), so it is addressed as its own
+ * Graph node rather than through an ad-account edge. Verified against Meta's Graph API "Video"
+ * reference (developers.facebook.com/docs/graph-api/reference/video/): `picture` is the video's own
+ * auto-selected thumbnail URL and `thumbnails` is the full edge of generated poster frames.
+ *
+ * Both fields optional: a video still processing (or one whose thumbnails were never generated)
+ * genuinely returns neither, which yields no thumbnail for that ad rather than an error. The VIDEO
+ * ITSELF (`source`) is deliberately never requested — the Command Center table renders a poster
+ * frame, never a playable video.
+ */
+export const MetaVideoThumbnailsResponseSchema = z.object({
+  id: z.string(),
+  picture: z.string().optional(),
+  thumbnails: z.object({ data: z.array(MetaVideoThumbnailSchema).default([]) }).optional(),
+});
+export type MetaVideoThumbnailsResponse = z.infer<typeof MetaVideoThumbnailsResponseSchema>;
+
 export const MetaErrorResponseSchema = z.object({
   error: z.object({
     message: z.string(),

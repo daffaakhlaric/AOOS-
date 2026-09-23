@@ -1,0 +1,19 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 64px;
+}
+
+/* Desktop/tablet app shell (persistent sidebar) at >=768px — mobile bottom nav only below that.
+   768px, not 1024px: the desktop app must remain usable in a "Desktop Site" mobile-browser mode,
+   whose CSS viewport is typically ~980-1024px wide but is NOT actually a mobile layout context. */
+@media (min-width: 768px) {
+  .main {
+    padding-bottom: 0;
+  }
+}

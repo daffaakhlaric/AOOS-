@@ -1,0 +1,60 @@
+/* Performance Overview moved from its old 8-col slot (beside AI Team) into this round's new 4-col
+   Row-C slot beside Needs Attention/Opportunities (~160px height budget) — the selector row and
+   chart height below are tightened accordingly; no change to the real underlying data/logic. */
+.selector {
+  display: flex;
+  gap: 5px;
+  margin-bottom: var(--sp-2);
+}
+
+.selectorButton {
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.selectorButtonActive {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.errorTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.errorMeta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.retryButton {
+  margin-top: var(--sp-3);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.retryButton:hover {
+  background: var(--bg);
+}
+
+.selectorButton {padding:2px 8px; font-size:11.5px} .selector {margin-bottom:2px}
+/* Real chart height for the taller Row-C card (see CommandCenterClient.module.css) — replaces the
+   old Tailwind `h-20` (80px), which squashed a real 12-day trend into an unreadable strip. */
+.chart {
+  height: 150px;
+}

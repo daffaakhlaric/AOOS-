@@ -178,7 +178,14 @@ describe("AppModule.forRoot", () => {
     // PROMPT 53 — KIE WEBHOOK (Phase 41): +1 provider (TASK_WAKE_REGISTRY, see di-tokens.ts's own
     // doc) — no new import (composed from the SAME `creativeConnector` bundle KAI_AGENT_RUNTIME
     // already comes from, not a second composition).
-    expect(dynamicModule.imports).toHaveLength(41);
+    // EYVRA Samantha V2 Command Center real-data-wiring fix: +1 import (CommandCenterModule, the
+    // new real `GET /api/v1/command-center/account-summary` HTTP surface) — no new global provider
+    // and no new repository at all (imports MetaAdsModule/CampaignHealthModule/CreativeMemoryModule
+    // to reuse their already-exported services).
+    // Listing Knowledge (document-backed listing Q&A): +1 import (ListingKnowledgeModule, its own
+    // controller + ListingKnowledgeService + a KnowledgeModelGateway class-provider) -- all three
+    // are module-local providers, so no new GLOBAL provider and no new repository.
+    expect(dynamicModule.imports).toHaveLength(43);
     expect(dynamicModule.providers).toHaveLength(25);
   });
 

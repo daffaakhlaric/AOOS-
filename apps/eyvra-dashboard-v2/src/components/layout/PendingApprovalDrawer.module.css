@@ -1,0 +1,23 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+}
+
+.actionType {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

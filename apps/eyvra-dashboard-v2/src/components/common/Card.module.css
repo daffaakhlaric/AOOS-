@@ -1,0 +1,55 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--sp-5);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.body {
+  min-width: 0;
+}
+
+/* LEVEL 1 (hero) — most visual weight: Growth Objective, Samantha Decision Queue. Padding tightened
+   this round (was `--sp-6`/24px) as part of the grid-restructure's density requirements — Growth
+   Objective in particular now has a hard ~110-125px (active) / ~80-95px (empty) total-height budget
+   that a 24px top+bottom padding alone would already consume a third of. */
+.hero {
+  padding: var(--sp-4);
+  border-color: var(--brand-soft);
+  box-shadow:
+    0 1px 3px rgba(105, 65, 198, 0.1),
+    0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+/* LEVEL 3 (supporting) — quieter, denser: Active Experiments, Kai Production, Recent Activity. */
+.compact {
+  padding: var(--sp-4);
+  box-shadow: none;
+}
+
+.compact .title {
+  font-size: 15px;
+}
+
+.card {padding:14px; border-radius:10px} .header {margin-bottom:10px} .title,.compact .title {font-size:14px; font-weight:650} .hero {box-shadow:var(--shadow-card); border-color:#e8e2f4}

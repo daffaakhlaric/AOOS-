@@ -29,6 +29,14 @@ export type {
   UploadCreativeAssetInput,
   UploadCreativeAssetOutput,
 } from "./application/use-cases/UploadCreativeAsset.js";
+export {
+  ResolveCreativeThumbnails,
+  MAX_VIDEO_THUMBNAIL_CALLS,
+} from "./application/use-cases/ResolveCreativeThumbnails.js";
+export type {
+  ResolveCreativeThumbnailsInput,
+  ResolveCreativeThumbnailsOutput,
+} from "./application/use-cases/ResolveCreativeThumbnails.js";
 export { PauseCampaign } from "./application/use-cases/PauseCampaign.js";
 export type {
   PauseCampaignInput,
@@ -197,6 +205,10 @@ export type {
   MetaAdLocationSearchResponse,
   MetaVideoUploadResponse,
   MetaImageUploadResponse,
+  MetaAdImage,
+  MetaAdImagesResponse,
+  MetaVideoThumbnail,
+  MetaVideoThumbnailsResponse,
   MetaCustomAudienceCreateResponse,
   MetaCustomAudienceUsersResponse,
   MetaCampaignExpanded,

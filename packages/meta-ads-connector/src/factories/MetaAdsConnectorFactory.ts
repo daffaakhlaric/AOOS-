@@ -17,6 +17,7 @@ import { ExecuteVerdict } from "../application/use-cases/ExecuteVerdict.js";
 import { PauseCampaign } from "../application/use-cases/PauseCampaign.js";
 import { ProcessLeadWebhook } from "../application/use-cases/ProcessLeadWebhook.js";
 import { PullCampaignData, type Tracer } from "../application/use-cases/PullCampaignData.js";
+import { ResolveCreativeThumbnails } from "../application/use-cases/ResolveCreativeThumbnails.js";
 import { RestructureCampaign } from "../application/use-cases/RestructureCampaign.js";
 import { SearchAdInterests } from "../application/use-cases/SearchAdInterests.js";
 import { SearchAdLocations } from "../application/use-cases/SearchAdLocations.js";
@@ -54,6 +55,13 @@ export interface MetaAdsConnector {
   readonly createAd: CreateAd;
   /** AAOS-GO-LIVE: real video/image asset upload into the ad account's asset library — see `UploadCreativeAsset`'s docstring. */
   readonly uploadCreativeAsset: UploadCreativeAsset;
+  /**
+   * AAOS Command Center creative thumbnails — the READ-side counterpart of `uploadCreativeAsset`
+   * above: resolves a real Meta image hash / video id back to a renderable thumbnail URL. See
+   * `ResolveCreativeThumbnails`'s own docstring for its batching and its deliberate never-`err`
+   * contract.
+   */
+  readonly resolveCreativeThumbnails: ResolveCreativeThumbnails;
   /** AAOS-GO-LIVE: campaign-level pause — used by Go Live rollback. */
   readonly pauseCampaign: PauseCampaign;
   /**
@@ -161,6 +169,13 @@ export class MetaAdsConnectorFactory {
 
     const createAd = new CreateAd(client, rateLimiter, retry, logger, tracer);
     const uploadCreativeAsset = new UploadCreativeAsset(client, rateLimiter, retry, logger, tracer);
+    const resolveCreativeThumbnails = new ResolveCreativeThumbnails(
+      client,
+      rateLimiter,
+      retry,
+      logger,
+      tracer,
+    );
     const pauseCampaign = new PauseCampaign(client, rateLimiter, retry, logger, tracer);
     const restructureCampaign = new RestructureCampaign(client, rateLimiter, retry, logger, tracer);
     const activateCampaign = new ActivateCampaign(client, rateLimiter, retry, logger, tracer);
@@ -219,6 +234,7 @@ export class MetaAdsConnectorFactory {
       createCampaign,
       createAd,
       uploadCreativeAsset,
+      resolveCreativeThumbnails,
       pauseCampaign,
       restructureCampaign,
       activateCampaign,

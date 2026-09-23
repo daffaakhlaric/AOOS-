@@ -1,0 +1,40 @@
+.page { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:8px; width:100%; max-width:none; padding:8px 24px 12px;
+ grid-template-areas:"growth growth growth growth growth growth growth growth growth growth growth growth" "kpi kpi kpi kpi kpi kpi kpi kpi kpi pulse pulse pulse" "needs needs needs needs opp opp opp opp perf perf perf perf" "decisions decisions decisions decisions decisions decisions decisions decisions decisions activity activity activity" "experiments experiments experiments experiments kai kai kai kai kai activity activity activity";
+}
+.page > div { min-width:0; }
+.areaGrowth {grid-area:growth} .areaKpi {grid-area:kpi} .areaPulse {grid-area:pulse} .areaNeeds {grid-area:needs} .areaOpp {grid-area:opp} .areaPerf {grid-area:perf} .areaDecisions {grid-area:decisions} .areaActivity {grid-area:activity; min-height:0} .areaExperiments {grid-area:experiments} .areaKai {grid-area:kai}
+.areaNeeds > section {background:#fff7f8; border-color:#ffe0e5}
+.areaOpp > section {background:#f1fcf7; border-color:#d6f3e5}
+/* Row C is CONTENT-SIZED, never inner-scrolled. A fixed height here produced per-card scrollbars
+   whenever the content was a few pixels taller (user-reported: "gausah pake scroll up down di
+   kanan, di buat compact"). CSS Grid already stretches all three cards in the row to the tallest
+   one, so the row stays aligned without any fixed height — and nothing can be hidden behind a
+   scrollbar. */
+.areaNeeds > section,.areaOpp > section,.areaPerf > section {overflow:visible}
+.areaDecisions > section {min-height:298px}
+.areaActivity > section {height:100%; display:flex; flex-direction:column}
+.areaActivity > section > div:last-child {flex:1; min-height:0; display:flex; flex-direction:column}
+/* Row E is content-sized too, same reason as Row C: Kai Production's failure notice + progress bar
+   + creative tiles and Active Experiments' control/variant rows now size themselves instead of
+   scrolling inside a fixed box. */
+.areaExperiments > section,.areaKai > section {overflow:visible}
+@media(max-width:767px) {.page {padding:16px; grid-template-columns:minmax(0,1fr); grid-template-areas:"growth" "kpi" "pulse" "needs" "opp" "perf" "decisions" "experiments" "kai" "activity"}}
+
+@media(min-width:1201px){.areaActivity{position:relative}.areaActivity > section{position:absolute;inset:0}.areaDecisions > section{padding:6px 10px}.areaDecisions > section > header{margin-bottom:4px}.areaPerf > section{padding:10px}.areaPerf > section > header{margin-bottom:6px}.areaExperiments > section,.areaKai > section{padding:10px}}
+
+/* Reference-design header link ("View All -->") on the Samantha Attention Queue card. Same brand-purple
+   treatment `ActivityFeed.module.css`'s own `.footerLink` already establishes, sized for a card header
+   row. Purely presentational; adds no height and no inner scrolling. */
+.cardHeaderLink {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--brand);
+  white-space: nowrap;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.cardHeaderLink:hover {
+  background: var(--brand-soft);
+}

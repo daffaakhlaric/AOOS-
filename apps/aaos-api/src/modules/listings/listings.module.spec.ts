@@ -8,6 +8,7 @@ import { ListingRepository } from "./infrastructure/listing.repository.js";
 import { ListingsController } from "./listings.controller.js";
 import { ListingsModule } from "./listings.module.js";
 import { ListingsService } from "./listings.service.js";
+import { MetaLeadDestinationsService } from "./meta-lead-destinations.service.js";
 
 describe("ListingsModule", () => {
   it("registers ListingsController as its controller", () => {
@@ -15,12 +16,13 @@ describe("ListingsModule", () => {
     expect(metadata).toEqual([ListingsController]);
   });
 
-  it("registers ListingsService, ApiKeyGuard, and a ListingRepository factory as providers", () => {
+  it("registers ListingsService, MetaLeadDestinationsService, ApiKeyGuard, and a ListingRepository factory as providers", () => {
     const metadata = Reflect.getMetadata("providers", ListingsModule) as Array<
       { provide?: unknown } | unknown
     >;
-    expect(metadata).toHaveLength(3);
+    expect(metadata).toHaveLength(4);
     expect(metadata).toContain(ListingsService);
+    expect(metadata).toContain(MetaLeadDestinationsService);
     expect(metadata).toContain(ApiKeyGuard);
     const repoProvider = metadata.find(
       (p) =>

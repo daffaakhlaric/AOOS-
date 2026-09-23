@@ -23,6 +23,8 @@ import {
 import {
   MetaAdAccountResponseSchema,
   type MetaAdAccountResponse,
+  MetaAdImagesResponseSchema,
+  type MetaAdImagesResponse,
   MetaAdInterestSearchResponseSchema,
   type MetaAdInterestSearchResponse,
   MetaAdListResponseSchema,
@@ -45,6 +47,8 @@ import {
   type MetaImageUploadResponse,
   MetaUpdateResponseSchema,
   type MetaUpdateResponse,
+  MetaVideoThumbnailsResponseSchema,
+  type MetaVideoThumbnailsResponse,
   MetaVideoUploadResponseSchema,
   type MetaVideoUploadResponse,
 } from "../../types/MetaApiTypes.js";
@@ -429,6 +433,31 @@ export class MetaApiClient implements IMetaAdsClient {
       return responseResult;
     }
     return this.parseBody(responseResult.value, MetaImageUploadResponseSchema);
+  }
+
+  /**
+   * AAOS Command Center creative thumbnails: `GET /act_{ad-account-id}/adimages?hashes=[...]` —
+   * see `IMetaAdsClient.getAdImagesByHashes`. One batched call for every requested hash.
+   */
+  async getAdImagesByHashes(
+    adAccountId: string,
+    hashes: ReadonlyArray<string>,
+    accessToken: string,
+  ): Promise<Result<MetaAdImagesResponse, MetaApiError>> {
+    const url = MetaApiRequestBuilder.adImagesByHashesUrl(adAccountId, hashes, accessToken);
+    return this.getJson(url, MetaAdImagesResponseSchema);
+  }
+
+  /**
+   * AAOS Command Center creative thumbnails: `GET /{video-id}?fields=picture,thumbnails{uri,
+   * is_preferred}` — see `IMetaAdsClient.getVideoThumbnail`.
+   */
+  async getVideoThumbnail(
+    videoId: string,
+    accessToken: string,
+  ): Promise<Result<MetaVideoThumbnailsResponse, MetaApiError>> {
+    const url = MetaApiRequestBuilder.videoThumbnailsUrl(videoId, accessToken);
+    return this.getJson(url, MetaVideoThumbnailsResponseSchema);
   }
 
   /**

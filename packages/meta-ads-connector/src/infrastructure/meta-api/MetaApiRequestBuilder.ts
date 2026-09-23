@@ -260,6 +260,56 @@ export class MetaApiRequestBuilder {
   }
 
   /**
+   * AAOS Command Center creative thumbnails: `GET /act_{ad-account-id}/adimages?hashes=[...]
+   * &fields=hash,url,permalink_url` — the READ-side resolution of a real Meta image HASH (the value
+   * this codebase already persists as `meta_ads.creative_ref` for an `IMAGE` creative) to a
+   * renderable URL. The READ counterpart of `uploadImageUrl`'s WRITE above, on the SAME real edge.
+   * Verified against Meta's Marketing API "Ad Image" reference
+   * (developers.facebook.com/docs/marketing-api/reference/ad-image): `hashes` is a real, documented
+   * filter param on this edge and takes a JSON-array-shaped string — the same
+   * `JSON.stringify([...])` convention `adLocationSearchUrl`'s own `location_types` already uses.
+   *
+   * DELIBERATELY BATCHED: every hash the caller needs for one ad account goes into ONE request, so
+   * resolving N ads' thumbnails costs exactly 1 Meta call, not N. This matters — the connector
+   * enforces a real 200-calls/hour `TokenBucketRateLimiter` budget, and a per-ad fanout here is
+   * exactly the shape that exhausted it in the live Command Center incident documented on
+   * `CommandCenterService`'s `ACCOUNT_SUMMARY_CACHE_TTL_MS`.
+   *
+   * No `limit` is set (unlike `buildGetUrl`'s fixed `limit=100`): the result set is already bounded
+   * by the caller's own `hashes` list, and an explicit `limit` below that list's length would
+   * silently truncate real rows.
+   */
+  static adImagesByHashesUrl(
+    adAccountId: string,
+    hashes: ReadonlyArray<string>,
+    accessToken: string,
+  ): string {
+    const url = new URL(`${BASE_URL}/${API_VERSION}/${adAccountId}/adimages`);
+    url.searchParams.set("hashes", JSON.stringify([...hashes]));
+    url.searchParams.set("fields", "hash,url,permalink_url");
+    url.searchParams.set("access_token", accessToken);
+    return url.toString();
+  }
+
+  /**
+   * AAOS Command Center creative thumbnails: `GET /{video-id}?fields=picture,thumbnails{uri,
+   * is_preferred}` — the poster-frame lookup for a real Meta VIDEO ID (the value this codebase
+   * persists as `meta_ads.creative_ref` for a `VIDEO` creative). Unlike images, Meta exposes no
+   * ad-account edge that filters videos by id, so this necessarily addresses the video's OWN Graph
+   * node — one call per distinct video id, which is why the caller both caps and long-TTL-caches
+   * them (see `ResolveCreativeThumbnails`).
+   *
+   * `source` (the playable video file) is deliberately NOT requested — the Command Center table
+   * renders a still poster frame, never a video.
+   */
+  static videoThumbnailsUrl(videoId: string, accessToken: string): string {
+    const url = new URL(`${BASE_URL}/${API_VERSION}/${videoId}`);
+    url.searchParams.set("fields", "picture,thumbnails{uri,is_preferred}");
+    url.searchParams.set("access_token", accessToken);
+    return url.toString();
+  }
+
+  /**
    * AAOS-ABTESTING-LOOKALIKE Part 2: `POST /act_{ad-account-id}/customaudiences` — creates a
    * Custom Audience (`subtype: "CUSTOM"`) or a Lookalike Audience (`subtype: "LOOKALIKE"`), both
    * on this same node URL — verified 2026-08-21 against Meta's Marketing API docs.

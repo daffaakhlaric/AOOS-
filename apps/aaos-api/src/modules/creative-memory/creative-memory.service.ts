@@ -20,6 +20,48 @@ import { CreativeMemoryRepository } from "./infrastructure/creative-memory.repos
 export class CreativeMemoryService {
   constructor(private readonly repository: CreativeMemoryRepository) {}
 
+  /**
+   * AAOS Command Center creative thumbnails — real Kai lineage, keyed by Meta ad id:
+   * `meta_ad_id -> {creativePackageId, assetUrl?}`, built from the ONE real persisted link this
+   * codebase has (`creative_packages.published_meta_ad_ids`, see
+   * `CreativeMemoryRepository.listPublishedPackageLineage`). One tenant-scoped read, pure reshaping
+   * after it.
+   *
+   * `assetUrl` is the package's real generated GCS URL — `video_url` when the package produced a
+   * video, otherwise its first `image_urls` entry. Absent when the package genuinely has neither
+   * yet (generation incomplete/failed). This is the KAI-side asset, deliberately distinct from the
+   * Meta-side thumbnail URL: the same creative exists in both places, and the UI uses the Kai URL
+   * to link back to the package, never as the thumbnail itself.
+   *
+   * When one Meta ad id somehow appears under two packages (possible in principle — nothing
+   * enforces exclusivity on a JSONB array), the FIRST row wins and the duplicate is ignored rather
+   * than guessed at.
+   */
+  async getKaiLineageByMetaAdId(
+    tenantId: string,
+  ): Promise<
+    ReadonlyMap<string, { readonly creativePackageId: string; readonly assetUrl?: string }>
+  > {
+    const rows = await this.repository.listPublishedPackageLineage(tenantId);
+    const byMetaAdId = new Map<
+      string,
+      { readonly creativePackageId: string; readonly assetUrl?: string }
+    >();
+    for (const row of rows) {
+      const assetUrl = row.videoUrl ?? row.imageUrls[0];
+      for (const metaAdId of row.publishedMetaAdIds) {
+        if (metaAdId.length === 0 || byMetaAdId.has(metaAdId)) {
+          continue;
+        }
+        byMetaAdId.set(metaAdId, {
+          creativePackageId: row.id,
+          ...(assetUrl !== undefined && assetUrl.length > 0 ? { assetUrl } : {}),
+        });
+      }
+    }
+    return byMetaAdId;
+  }
+
   async getAnglePerformance(
     tenantId: string,
     window?: WindowDateRange,

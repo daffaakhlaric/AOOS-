@@ -90,6 +90,11 @@ export class LeadsController {
     return this.leadsService.getAnalytics(query, tenantId);
   }
 
+  @Get("campaign/:campaignId")
+  async campaignLeads(@Param("campaignId") campaignId: string, @TenantId() tenantId: string) {
+    return this.leadsService.getCampaignLeads(campaignId, tenantId);
+  }
+
   @Get(":id")
   async getLeadDetail(
     @Param("id") id: string,

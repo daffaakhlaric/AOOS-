@@ -9,6 +9,7 @@ import type { DailyInsightResponseDto } from "../llm/dto/daily-insight.dto.js";
 import type { LlmService } from "../llm/llm.service.js";
 import type { HeatmapResponseDto } from "../meta-ads/dto/heatmap.dto.js";
 import type { MetaAdsService } from "../meta-ads/meta-ads.service.js";
+import type { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import type { ObjectiveResponseDto } from "../objective/dto/objective-response.dto.js";
 import type { ObjectiveService } from "../objective/objective.service.js";
 import type { RecyclingService, RecyclingTodaySummary } from "../recycling/recycling.service.js";
@@ -82,6 +83,14 @@ interface BuildOverviewServiceOptions {
    * every pre-existing test already assumes, so existing assertions stay valid unmodified.
    */
   readonly adAccounts?: readonly { readonly id: string; readonly name: string }[];
+  /** Real `meta_insights_daily` account-wide aggregate rows `getTimeseries` now prefers (2026-09-21 fix). */
+  readonly accountDailyHistory?: readonly {
+    readonly date: string;
+    readonly spend: number;
+    readonly leads: number;
+    readonly impressions: number;
+    readonly clicks: number;
+  }[];
 }
 
 function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
@@ -89,6 +98,7 @@ function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
   readonly llmService: LlmService & { readonly generateDailyInsightSpy: ReturnType<typeof vi.fn> };
   readonly metaAdsService: MetaAdsService;
   readonly overviewSnapshotRepository: OverviewSnapshotRepository;
+  readonly metaSyncService: MetaSyncService;
 } {
   const getLeadsByBranch = vi.fn(async () => options.leadsPerBranch ?? []);
   const leadsService = { getLeadsByBranch } as unknown as LeadsService;
@@ -149,6 +159,15 @@ function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
     generateDailyInsightSpy,
   } as unknown as LlmService & { readonly generateDailyInsightSpy: typeof generateDailyInsightSpy };
 
+  /**
+   * Real `meta_insights_daily` account-wide aggregate (`getTimeseries`'s preferred source since the
+   * 2026-09-21 fix). Defaults to `[]` so existing tests keep exercising the
+   * `overview_daily_snapshots` fallback path unchanged; `options.accountDailyHistory` overrides it.
+   */
+  const metaSyncService = {
+    getAccountDailyHistory: vi.fn(async () => options.accountDailyHistory ?? []),
+  } as unknown as MetaSyncService;
+
   const service = new OverviewService(
     leadsService,
     metaAdsService,
@@ -158,9 +177,10 @@ function buildOverviewService(options: BuildOverviewServiceOptions = {}): {
     activityRepository,
     llmService,
     overviewSnapshotRepository,
+    metaSyncService,
   );
 
-  return { service, llmService, metaAdsService, overviewSnapshotRepository };
+  return { service, llmService, metaAdsService, overviewSnapshotRepository, metaSyncService };
 }
 
 describe("OverviewService.getOverview", () => {
@@ -377,5 +397,41 @@ describe("OverviewService.getTimeseries", () => {
     const result = await service.getTimeseries(TENANT_ID, 30);
 
     expect(result.points).toEqual([]);
+  });
+
+  /**
+   * REAL BUG FIX regression guard (observed live, 2026-09-21): `overview_daily_snapshots` had ZERO
+   * rows for the real tenant, so every trend surface (KPI sparklines + Performance Overview) was
+   * stuck on its honest "not enough history" state — while `meta_insights_daily` already held real
+   * per-day rows. `meta_insights_daily` is now the PREFERRED source.
+   */
+  it("prefers the real meta_insights_daily account-wide aggregate over the snapshot table", async () => {
+    const { service, overviewSnapshotRepository } = buildOverviewService({
+      accountDailyHistory: [
+        { date: "2026-09-15", spend: 83_945, leads: 1, impressions: 2_670, clicks: 33 },
+        { date: "2026-09-16", spend: 64_485, leads: 4, impressions: 2_657, clicks: 25 },
+      ],
+    });
+
+    const result = await service.getTimeseries(TENANT_ID, 30);
+
+    expect(result.points).toEqual([
+      { date: "2026-09-15", totalSpend: 83_945, totalLeads: 1 },
+      { date: "2026-09-16", totalSpend: 64_485, totalLeads: 4 },
+    ]);
+    // The snapshot table must not even be consulted when the real Meta daily aggregate has rows.
+    expect(overviewSnapshotRepository.listRecent).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the snapshot table when meta_insights_daily genuinely has no rows", async () => {
+    const { service, overviewSnapshotRepository, metaSyncService } = buildOverviewService();
+    (overviewSnapshotRepository.listRecent as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { date: "2026-01-15", totalSpend: 750_000, totalLeads: 5 },
+    ]);
+
+    const result = await service.getTimeseries(TENANT_ID, 30);
+
+    expect(metaSyncService.getAccountDailyHistory).toHaveBeenCalledWith(TENANT_ID, 30);
+    expect(result.points).toEqual([{ date: "2026-01-15", totalSpend: 750_000, totalLeads: 5 }]);
   });
 });

@@ -57,6 +57,29 @@ export interface PublishedAssetRow {
   readonly imageCount: number;
 }
 
+/**
+ * AAOS Command Center creative thumbnails — the minimal `creative_packages` columns needed to walk
+ * the real Kai lineage BACKWARDS: from a Meta ad id to the Kai package that produced it, plus that
+ * package's real generated asset URL. A third, narrower query row rather than widening either
+ * interface above, so both existing reads keep selecting exactly the columns their own tests pin.
+ */
+interface CreativePackageLineageQueryRow {
+  readonly id: string;
+  readonly published_meta_ad_ids: readonly string[] | null;
+  readonly video_url: string | null;
+  readonly image_urls: readonly string[] | null;
+}
+
+/** One real Kai package's published-ad lineage — see `listPublishedPackageLineage`. */
+export interface PublishedPackageLineageRow {
+  readonly id: string;
+  readonly publishedMetaAdIds: readonly string[];
+  /** Real GCS URL of the generated video, when this package produced one. */
+  readonly videoUrl?: string;
+  /** Real GCS URLs of the generated images (empty when this package produced none). */
+  readonly imageUrls: readonly string[];
+}
+
 interface MetaAdIdRow {
   readonly id: string;
   readonly meta_ad_id: string;
@@ -65,6 +88,7 @@ interface MetaAdIdRow {
 const CREATIVE_PACKAGE_COLUMNS = "id, angle, published_meta_ad_ids, fatigue_status, generated_at";
 const CREATIVE_PACKAGE_ASSET_COLUMNS =
   "id, angle, title, decided_format, published_meta_ad_ids, fatigue_status, generated_at, video_url, image_urls";
+const CREATIVE_PACKAGE_LINEAGE_COLUMNS = "id, published_meta_ad_ids, video_url, image_urls";
 const INSIGHT_COLUMNS = "date, spend, impressions, clicks, reach, leads";
 
 /**
@@ -123,6 +147,43 @@ export class CreativeMemoryRepository {
         publishedMetaAdIds: row.published_meta_ad_ids ?? [],
         fatigueStatus: row.fatigue_status,
         generatedAt: row.generated_at,
+      }));
+  }
+
+  /**
+   * AAOS Command Center creative thumbnails — every real, published Kai `creative_packages` row for
+   * this tenant, reduced to its `meta_ad_id` lineage plus its real generated asset URLs. ONE
+   * tenant-scoped read, used to answer "did the creative representing this campaign come from Kai,
+   * and if so which package and which GCS asset".
+   *
+   * `creative_packages.published_meta_ad_ids` (migration `052_creative_packages_published_ad_ids
+   * .sql`, written by `CreativePackageRepository.recordPublishedMetaAdIds`) is the ONE real,
+   * persisted Meta-ad -> Kai-package link that exists in this codebase. Note the honest limit: it
+   * maps to a Meta AD ID, never to a Meta creative hash/video id, so lineage can only be attached
+   * once an ad has been selected — see `CommandCenterService`'s own note.
+   *
+   * Deliberately NOT filtered to `vertical = 'PROPERTY'`, unlike both reads above: the Command
+   * Center serves both verticals, and an AUTOMOTIVE package's lineage is just as real.
+   */
+  async listPublishedPackageLineage(
+    tenantId: string,
+  ): Promise<readonly PublishedPackageLineageRow[]> {
+    const { data, error } = await this.client
+      .from<CreativePackageLineageQueryRow>(CREATIVE_PACKAGES_TABLE)
+      .select(CREATIVE_PACKAGE_LINEAGE_COLUMNS)
+      .eq("tenant_id", tenantId);
+    if (error !== null) {
+      throw new CreativeMemoryRepositoryError(
+        `CreativeMemoryRepository.listPublishedPackageLineage failed: ${error.message}`,
+      );
+    }
+    return (data ?? [])
+      .filter((row) => row.published_meta_ad_ids !== null && row.published_meta_ad_ids.length > 0)
+      .map((row) => ({
+        id: row.id,
+        publishedMetaAdIds: row.published_meta_ad_ids ?? [],
+        ...(row.video_url !== null ? { videoUrl: row.video_url } : {}),
+        imageUrls: row.image_urls ?? [],
       }));
   }
 

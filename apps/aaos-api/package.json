@@ -14,7 +14,9 @@
     "test": "vitest run",
     "test:e2e": "vitest run test/",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prestart:dev": "node ../../scripts/free-port.mjs 3000",
+    "prestart": "node ../../scripts/free-port.mjs 3000"
   },
   "dependencies": {
     "@aos/asset-library": "workspace:*",
@@ -41,7 +43,12 @@
     "@nestjs/platform-fastify": "^10.4.0",
     "@nestjs/schedule": "^4.1.1",
     "@supabase/supabase-js": "^2.45.0",
+    "csv-parse": "^7.0.2",
+    "exceljs": "^4.4.0",
+    "fast-xml-parser": "^5.11.1",
     "fastify": "^4.28.1",
+    "fflate": "^0.8.3",
+    "pdfjs-dist": "^6.3.289",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sharp": "^0.33.5",
@@ -63,5 +70,8 @@
     "typescript": "^5.5.4",
     "unplugin-swc": "^1.5.1",
     "vitest": "^2.0.5"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   }
 }

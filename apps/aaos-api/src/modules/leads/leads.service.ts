@@ -58,6 +58,25 @@ import type { UpdateLeadStatusBodyDto } from "./dto/update-lead-status.dto.js";
  */
 @Injectable()
 export class LeadsService {
+  async getCampaignLeads(campaignId: string, tenantId: string) {
+    const results = await Promise.all(
+      ALL_BRANCH_IDS.map((branch) => this.leadStore.getLeadsByBranch.execute(branch, tenantId)),
+    );
+    return results.flatMap((result) => {
+      if (!result.ok) throw result.error;
+      return result.value
+        .filter((lead) => lead.campaignId === campaignId)
+        .map((lead) => ({
+          id: lead.id.toString(),
+          status: lead.status,
+          temperature: lead.temperature,
+          score: lead.score,
+          createdAt: lead.createdAt.toISOString(),
+          contacted: lead.firstMessageAt !== undefined,
+          qualifiedAt: lead.becameHotAt?.toISOString(),
+        }));
+    });
+  }
   constructor(
     @Inject(AAOS_API_CONFIG) private readonly config: AaosApiConfig,
     @Inject(LEAD_STORE) private readonly leadStore: LeadStore,

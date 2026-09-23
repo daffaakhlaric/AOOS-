@@ -1,0 +1,35 @@
+/*
+ * 6 cards. `minmax(0, 1fr)` (not a bare `1fr`) is the actual wrap fix: without the explicit `0`
+ * minimum, a grid track's default `auto` minimum lets its content (the KPI value's intrinsic text
+ * width) force the track wider than the available space, which is what was pushing "Rp2,1jt" onto
+ * two lines at 1440px. With `minmax(0, 1fr)` the track can shrink below its content's intrinsic
+ * width, and `white-space: nowrap` + `text-overflow: ellipsis` on the value itself
+ * (KpiCard.module.css) then take over instead of wrapping.
+ *
+ * RE-VERIFIED this round at the new, narrower KPI area width: `.areaKpi` is now 9-of-12 page columns
+ * (AI Team Pulse takes the other 3), not the full 12. At 1440px viewport with the 220px sidebar and
+ * the page's 24px side padding: content width 1440-220-48=1172px; 12 tracks + 11*14px gaps ->
+ * (1172-154)/12≈84.8px/track; the 9-col KPI area = 9*84.8 + 8*14≈875px (was ≈1172px full-width
+ * before). Inside that, this 6-card strip with an 8px gap: (875-40)/6≈139px per card (was ≈185px)
+ * — real risk this round, mitigated by tightening the KPI card's own padding/font-size
+ * (KpiCard.module.css: 12px padding, 22px value) rather than by loosening this grid.
+ */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+/* Tablet: 768-1023px -> 3x2 grid (still minmax(0,1fr) for the same reason). */
+@media (max-width: 1023px) {
+  .strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Mobile: <768px -> 2 columns x 3 rows, minimum 13-14px body text (KpiCard.module.css). */
+@media (max-width: 767px) {
+  .strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

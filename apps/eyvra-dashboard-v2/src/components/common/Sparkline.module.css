@@ -1,0 +1,9 @@
+/* Sits flush at the bottom of a KPI card, stretching to the card's real width (the SVG's own
+   `preserveAspectRatio="none"` handles the distortion-free stretch of its fixed viewBox). */
+.spark {
+  display: block;
+  width: 100%;
+  height: 26px;
+  margin-top: auto;
+  overflow: visible;
+}

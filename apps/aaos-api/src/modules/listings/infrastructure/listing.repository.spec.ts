@@ -177,3 +177,32 @@ describe("ListingRepository", () => {
     await expect(repo.deleteById("listing-1")).rejects.toThrow(ListingRepositoryError);
   });
 });
+
+describe("advertising campaign tenant scope", () => {
+  it("does not include campaign links owned by another tenant", async () => {
+    const client = createFakeSupabaseClient();
+    const campaigns = [
+      {
+        id: "a",
+        tenant_id: "tenant-a",
+        listing_id: "listing-a",
+        meta_campaign_id: "ca",
+        status: "ACTIVE",
+        name: "A",
+        synced_at: "2026-01-01",
+      },
+      {
+        id: "b",
+        tenant_id: "tenant-b",
+        listing_id: "listing-b",
+        meta_campaign_id: "cb",
+        status: "ACTIVE",
+        name: "B",
+        synced_at: "2026-01-01",
+      },
+    ];
+    campaigns.forEach((c) => client.seed("meta_campaigns", c));
+    const rows = await new ListingRepository(client).advertisingCampaigns("tenant-a");
+    expect(rows.map((row) => row.meta_campaign_id)).toEqual(["ca"]);
+  });
+});

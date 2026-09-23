@@ -1,0 +1,8 @@
+/**
+ * Tailwind utility-class generation for @tremor/react — same real necessity apps/eyvra-dashboard's
+ * own src/app/tremor.css documents (Tremor v3 ships no prebuilt CSS; its components are plain
+ * Tailwind-utility-class markup). `@tailwind base` deliberately omitted so it can't fight with
+ * globals.css's own hand-written reset.
+ */
+@tailwind components;
+@tailwind utilities;

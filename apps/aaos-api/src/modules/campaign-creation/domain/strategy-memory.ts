@@ -105,7 +105,7 @@ export function resolveArea(
 }
 
 export interface StrategyMemoryTarget {
-  readonly propertyType: PropertyType;
+  readonly propertyType: PropertyType | "UNSPECIFIED";
   readonly price: number;
   readonly city?: string;
   readonly province?: string;
@@ -115,7 +115,7 @@ export interface StrategyMemoryTarget {
 export interface StrategyMemoryCandidate {
   readonly listingId: string;
   readonly metaCampaignId: string;
-  readonly propertyType: PropertyType;
+  readonly propertyType: PropertyType | "UNSPECIFIED";
   readonly price: number;
   readonly city?: string;
   readonly province?: string;

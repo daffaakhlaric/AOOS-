@@ -1,0 +1,143 @@
+/* Needs Attention / Opportunities — matched to the user's reference card: a tinted surface, an
+   icon-square header with an "N items" counter on the right, then rows of
+   [status dot] [big number] [bold label] / [muted sub-line].
+   (Rewritten from scratch this round — the previous file had three generations of appended
+   single-line overrides fighting each other.) */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerIcon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.headerIcon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.panelLabel {
+  font-size: 14px;
+  font-weight: 650;
+  flex: 1;
+  min-width: 0;
+}
+
+.totalBadge,
+.totalBadgeSuccess {
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Tone: the attention panel reads red, the opportunity panel green — applied to the icon square,
+   the title and the counter together so each card has one coherent accent. */
+.panelAttention .headerIcon {
+  background: var(--critical);
+  color: #fff;
+}
+.panelAttention .panelLabel {
+  color: var(--critical);
+}
+.panelAttention .totalBadge {
+  color: var(--critical);
+}
+
+.panelOpportunity .headerIcon {
+  background: var(--success);
+  color: #fff;
+}
+.panelOpportunity .panelLabel {
+  color: var(--success);
+}
+.panelOpportunity .totalBadgeSuccess {
+  color: var(--success);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* [dot] [value] [label / sub-line] — the dot and value columns are fixed so every row's label
+   starts on the same x, exactly like the reference. */
+.row {
+  display: grid;
+  grid-template-columns: 8px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+
+.rowValue {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* An honest "no real data" value (an em-dash) should not shout like a real measurement. */
+.rowValueUnavailable {
+  color: var(--text-muted);
+}
+
+.rowLabel {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.rowNote {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  /* Nudged down so the dot optically centres against the value's baseline-aligned cap height. */
+  transform: translateY(4px);
+}
+
+.dotCritical {
+  background: var(--critical);
+}
+.dotWarning {
+  background: var(--warning);
+}
+.dotSuccess {
+  background: var(--success);
+}
+.dotMuted {
+  background: var(--text-muted);
+  opacity: 0.55;
+}
+
+.capNote {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}

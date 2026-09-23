@@ -152,6 +152,27 @@ export class MetaSyncService {
   }
 
   /**
+   * Real account-wide daily aggregate (summed per date, `level = 'campaign'` only) — the data source
+   * the Command Center's KPI sparklines / Performance Overview chart consume via
+   * `OverviewService.getTimeseries`. Thin pass-through; see
+   * `MetaSyncRepository.getAccountDailyHistory`'s own doc for the multi-count correctness detail.
+   */
+  async getAccountDailyHistory(
+    tenantId: string,
+    days: number,
+  ): Promise<
+    readonly {
+      readonly date: string;
+      readonly spend: number;
+      readonly leads: number;
+      readonly impressions: number;
+      readonly clicks: number;
+    }[]
+  > {
+    return this.repository.getAccountDailyHistory(tenantId, days);
+  }
+
+  /**
    * Campaign->Listing Mapping — real write path, called once by `CampaignsService.
    * createPropertyCampaign`'s real LIVE branch right after `syncCampaign` above (so the real
    * `meta_campaigns` row already exists). Thin pass-through — see `MetaSyncRepository.

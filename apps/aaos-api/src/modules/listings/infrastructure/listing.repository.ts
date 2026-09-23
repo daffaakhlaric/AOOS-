@@ -4,6 +4,7 @@ const TABLE = "listings";
 
 /** A single stored photo entry inside `listings.photos` (JSONB array) — COLUMN-FOR-COLUMN with `PhotoResponseDto`. */
 export interface ListingPhotoRow {
+  readonly storagePath?: string;
   readonly id: string;
   readonly url: string;
   readonly label?: string;
@@ -38,6 +39,8 @@ export interface ListingRow {
   readonly price: number;
   readonly branch_id: string | null;
   readonly wa_number: string | null;
+  readonly meta_page_id?: string | null;
+  readonly meta_ad_account_id?: string | null;
   readonly land_area: number | null;
   readonly build_area: number | null;
   readonly bedrooms: number | null;
@@ -88,6 +91,32 @@ interface DeletableSupabaseClient {
  */
 export class ListingRepository {
   constructor(private readonly client: SupabaseClientLike) {}
+
+  /** Synced campaign evidence, scoped before returning any linkage. */
+  async advertisingCampaigns(
+    tenantId: string,
+  ): Promise<
+    readonly {
+      listing_id: string | null;
+      meta_campaign_id: string;
+      name: string;
+      status: string;
+      synced_at: string;
+    }[]
+  > {
+    const { data, error } = await this.client
+      .from<{
+        listing_id: string | null;
+        meta_campaign_id: string;
+        name: string;
+        status: string;
+        synced_at: string;
+      }>("meta_campaigns")
+      .select("listing_id,meta_campaign_id,name,status,synced_at")
+      .eq("tenant_id", tenantId);
+    if (error !== null) throw new ListingRepositoryError("Campaign linkage unavailable");
+    return data ?? [];
+  }
 
   async insert(values: ListingInsert): Promise<ListingRow> {
     const { data, error } = await this.client

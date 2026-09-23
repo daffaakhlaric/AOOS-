@@ -5,6 +5,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ListingRepository, ListingRow } from "./infrastructure/listing.repository.js";
 import { ListingsService } from "./listings.service.js";
+import type { MetaLeadDestinationsService } from "./meta-lead-destinations.service.js";
+
+it("validates and persists Meta destination IDs with the listing, rejecting stale numbers before writes", async () => {
+  const repository = makeRepository();
+  const validate = vi.fn(async () => "+62812");
+  const service = new ListingsService(repository, undefined, {
+    validate,
+  } as unknown as MetaLeadDestinationsService);
+  vi.mocked(repository.insert).mockImplementation(async (value) => makeRow(value));
+  const draft = { title: "BSD", metaPageId: "1", metaAdAccountId: "act_123", waNumber: "+62812" };
+  const saved = await service.create(TENANT, draft);
+  expect(validate).toHaveBeenCalledWith(TENANT, "1", "act_123", "+62812");
+  expect(saved.metaPageId).toBe("1");
+  expect(saved.metaAdAccountId).toBe("act_123");
+  vi.mocked(repository.findById).mockResolvedValue(
+    makeRow({ meta_page_id: "1", meta_ad_account_id: "act_123" }),
+  );
+  validate.mockRejectedValueOnce(new ValidationError("stale destination"));
+  await expect(service.update(TENANT, "listing-1", { waNumber: "+62999" })).rejects.toThrow(
+    "stale destination",
+  );
+  expect(repository.updateById).not.toHaveBeenCalled();
+});
 
 const TENANT = "propertyklik-demo";
 
@@ -486,5 +509,81 @@ describe("ListingsService", () => {
     const knowledge = await service.buildPropertyKnowledge(TENANT);
     expect(knowledge.listings).toHaveLength(1);
     expect(knowledge.listings[0]?.id).toBe("a");
+  });
+});
+
+describe("advertising inventory", () => {
+  it("returns factual drafts and preserves unknown campaign state on read failure", async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.listByTenant).mockResolvedValue([makeRow()]);
+    Object.assign(repository, {
+      advertisingCampaigns: vi.fn().mockRejectedValue(new Error("unavailable")),
+    });
+    const result = await new ListingsService(repository, undefined).advertisingInventory(TENANT);
+    expect(result.listings).toHaveLength(1);
+    expect(result.listings[0]?.copy.origin).toBe("LISTING_FACTS");
+    expect(result.campaigns).toBeUndefined();
+    expect(result.errors).toHaveLength(1);
+  });
+  it("passes the requesting tenant to both inventory and campaign reads", async () => {
+    const repository = makeRepository();
+    const campaigns = vi.fn().mockResolvedValue([]);
+    Object.assign(repository, { advertisingCampaigns: campaigns });
+    await new ListingsService(repository, undefined).advertisingInventory("tenant-b");
+    expect(repository.listByTenant).toHaveBeenCalledWith("tenant-b");
+    expect(campaigns).toHaveBeenCalledWith("tenant-b");
+  });
+});
+
+describe("listing editor persistence", () => {
+  it("persists an incomplete draft without invented property facts", async () => {
+    const repository = makeRepository();
+    repository.insert = vi.fn(async (row) => makeRow(row));
+    const result = await new ListingsService(repository, undefined).create(TENANT, {
+      title: "Unit baru",
+    });
+    expect(repository.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: TENANT,
+        title: "Unit baru",
+        listing_status: "DRAFT",
+        property_type: "UNSPECIFIED",
+        price: 0,
+      }),
+    );
+    expect(result.propertyType).toBe("UNSPECIFIED");
+  });
+  it("clears an optional value instead of preserving stale information", async () => {
+    const repository = makeRepository();
+    repository.findById = vi.fn(async () => makeRow());
+    repository.updateById = vi.fn(async (_id, patch) => makeRow(patch));
+    const result = await new ListingsService(repository, undefined).update(TENANT, "listing-1", {
+      waNumber: null,
+    });
+    expect(repository.updateById).toHaveBeenCalledWith(
+      "listing-1",
+      expect.objectContaining({ wa_number: null }),
+    );
+    expect(result.waNumber).toBeUndefined();
+  });
+  it("refuses to finalize an incomplete listing", async () => {
+    const repository = makeRepository();
+    repository.findById = vi.fn(async () =>
+      makeRow({ price: 0, listing_status: "DRAFT", property_type: "UNSPECIFIED" }),
+    );
+    await expect(
+      new ListingsService(repository, undefined).finish(TENANT, "listing-1"),
+    ).rejects.toThrow();
+    expect(repository.updateById).not.toHaveBeenCalled();
+  });
+  it("does not save drafts belonging to another tenant", async () => {
+    const repository = makeRepository();
+    repository.findById = vi.fn(async () => makeRow({ listing_status: "DRAFT" }));
+    await expect(
+      new ListingsService(repository, undefined).saveDraft("other", "listing-1", {
+        title: "Overwrite",
+      }),
+    ).rejects.toThrow();
+    expect(repository.updateById).not.toHaveBeenCalled();
   });
 });

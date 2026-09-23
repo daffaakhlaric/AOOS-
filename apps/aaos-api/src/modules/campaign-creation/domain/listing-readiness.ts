@@ -63,7 +63,7 @@ export interface ListingReadinessResult {
 }
 
 function checkPropertyType(listing: ListingResponseDto): ListingReadinessCheck {
-  if (listing.propertyType.length === 0) {
+  if (listing.propertyType.length === 0 || listing.propertyType === "UNSPECIFIED") {
     return {
       name: "propertyType",
       passed: false,

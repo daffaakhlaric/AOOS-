@@ -5,10 +5,11 @@ import {
   Verdict,
   type AdAccount,
 } from "@aos/meta-ads-connector";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import { META_ADS_CONNECTOR_REGISTRY } from "../../di-tokens.js";
 import { ActivityLogger } from "../activity-log/activity-logger.service.js";
+import { ResponseCache } from "../llm/cache/ResponseCache.js";
 import type {
   CampaignInsightRequestDto,
   CampaignInsightResponseDto,
@@ -48,6 +49,19 @@ import {
 import type { MetaAdsConnectorRegistry } from "./infrastructure/meta-ads-connector-registry.js";
 
 /**
+ * AAOS Command Center creative thumbnails — how long a resolved Meta creative-ref -> thumbnail-URL
+ * mapping is cached. SIX HOURS, deliberately far longer than the 5-minute Command Center summary
+ * cache: a Meta image hash / video id addresses one immutable asset, so once resolved the mapping
+ * does not go stale the way performance numbers do. Meta's own CDN `url` does eventually expire,
+ * which is exactly why this is hours rather than permanent — and why a URL that fails to load in
+ * the browser falls back to the row's honest placeholder rather than showing a broken image.
+ */
+const CREATIVE_THUMBNAIL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+/** `ResponseCache` namespace for `CREATIVE_THUMBNAIL_CACHE_TTL_MS`'s cache — keyed per `(tenantId, ref)`. */
+const THUMBNAIL_CACHE_NAMESPACE = "meta-creative-thumbnail";
+
+/**
  * Wires `PullCampaignData` and `ExecuteVerdict` from `@aos/meta-ads-connector`, translating
  * between this app's HTTP DTOs and the connector's domain types. Consistent error-translation
  * pattern with `modules/webhook/webhook.service.ts`: on `Result.err(...)`, this service
@@ -64,6 +78,16 @@ import type { MetaAdsConnectorRegistry } from "./infrastructure/meta-ads-connect
  */
 @Injectable()
 export class MetaAdsService {
+  private readonly logger = new Logger(MetaAdsService.name);
+
+  /**
+   * AAOS Command Center creative thumbnails — the LONG-TTL (`CREATIVE_THUMBNAIL_CACHE_TTL_MS`)
+   * hash/video-id -> URL cache described on `resolveCreativeThumbnails`. Reuses this codebase's
+   * existing `ResponseCache<T>` (`modules/llm/cache/ResponseCache.ts`) rather than a second,
+   * parallel cache implementation — the same decision `CommandCenterService` already made.
+   */
+  private readonly thumbnailCache = new ResponseCache<string>(CREATIVE_THUMBNAIL_CACHE_TTL_MS);
+
   constructor(
     @Inject(META_ADS_CONNECTOR_REGISTRY)
     private readonly connectorRegistry: MetaAdsConnectorRegistry,
@@ -363,6 +387,98 @@ export class MetaAdsService {
     await indexPulledAdAccount(this.adTenantIndex, tenantId, result.value);
 
     return result.value;
+  }
+
+  /**
+   * AAOS Command Center creative thumbnails — resolves real Meta creative REFS (an image HASH or a
+   * VIDEO ID, which is all `Ad.creativeAsset`/`meta_ads.creative_ref` carries) to real, renderable
+   * thumbnail URLs, via the connector's `ResolveCreativeThumbnails` use case.
+   *
+   * RATE-LIMIT DISCIPLINE — this is the method that could most easily re-cause the live incident
+   * documented on `CommandCenterService`'s `ACCOUNT_SUMMARY_CACHE_TTL_MS` (the connector enforces a
+   * real 200-calls/hour `TokenBucketRateLimiter`), so it is protected on three sides:
+   *   1. BATCHED — every image hash goes into ONE `GET /act_X/adimages?hashes=[...]` call; videos
+   *      are capped by `MAX_VIDEO_THUMBNAIL_CALLS` inside the use case.
+   *   2. LONG-TTL CACHED — a hash/video-id -> URL mapping is effectively immutable for a given
+   *      asset, so it is cached per (tenant, ref) for `CREATIVE_THUMBNAIL_CACHE_TTL_MS` using this
+   *      codebase's existing `ResponseCache<T>` (no second cache implementation). An already-cached
+   *      ref is never re-resolved, and a call with nothing uncached spends ZERO Meta calls.
+   *   3. NEVER THROWS — a resolution failure (rate limit, Meta error, unconfigured connector)
+   *      returns whatever was resolved (possibly nothing) rather than propagating, so a decorative
+   *      thumbnail lookup can never blank a real decision queue.
+   *
+   * Deliberately NOT cached negatively: a ref Meta could not resolve this minute (e.g. a video
+   * still processing) is retried on the next uncached pass rather than being pinned as "no
+   * thumbnail" for hours.
+   */
+  async resolveCreativeThumbnails(
+    tenantId: string,
+    refs: readonly { readonly kind: "IMAGE" | "VIDEO"; readonly ref: string }[],
+    adAccountId?: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    const resolved = new Map<string, string>();
+    const pendingImageHashes: string[] = [];
+    const pendingVideoIds: string[] = [];
+
+    for (const { kind, ref } of refs) {
+      if (ref.length === 0) {
+        continue;
+      }
+      const cached = this.thumbnailCache.get(THUMBNAIL_CACHE_NAMESPACE, { tenantId, ref });
+      if (cached !== undefined) {
+        resolved.set(ref, cached);
+        continue;
+      }
+      if (kind === "IMAGE") {
+        pendingImageHashes.push(ref);
+      } else {
+        pendingVideoIds.push(ref);
+      }
+    }
+
+    if (pendingImageHashes.length === 0 && pendingVideoIds.length === 0) {
+      return resolved;
+    }
+
+    try {
+      const connectorResult = await this.connectorRegistry.resolve(tenantId);
+      if (!connectorResult.ok) {
+        return resolved;
+      }
+      const connector = connectorResult.value;
+
+      const rawAdAccountId = adAccountId ?? connector.adAccountIds[0];
+      if (rawAdAccountId === undefined || !connector.adAccountIds.includes(rawAdAccountId)) {
+        return resolved;
+      }
+      const adAccountIdResult = AdAccountId.create(rawAdAccountId);
+      if (!adAccountIdResult.ok) {
+        return resolved;
+      }
+
+      const output = await connector.resolveCreativeThumbnails.execute({
+        adAccountId: adAccountIdResult.value,
+        imageHashes: pendingImageHashes,
+        videoIds: pendingVideoIds,
+        accessToken: connector.accessToken,
+      });
+
+      for (const [ref, url] of output.thumbnailUrlsByRef) {
+        this.thumbnailCache.set(THUMBNAIL_CACHE_NAMESPACE, { tenantId, ref }, url);
+        resolved.set(ref, url);
+      }
+      for (const reason of output.errors) {
+        this.logger.warn(
+          `MetaAdsService.resolveCreativeThumbnails(${tenantId}): ${reason} — affected rows degrade to their placeholder`,
+        );
+      }
+    } catch (caught) {
+      this.logger.warn(
+        `MetaAdsService.resolveCreativeThumbnails(${tenantId}) failed, continuing with ${String(resolved.size)} cached thumbnail(s): ${caught instanceof Error ? caught.message : String(caught)}`,
+      );
+    }
+
+    return resolved;
   }
 
   /**

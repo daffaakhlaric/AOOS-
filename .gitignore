@@ -8,6 +8,7 @@ build/
 .turbo/
 *.tsbuildinfo
 .next/
+.next-dev/
 
 # Test / coverage
 coverage/
@@ -44,3 +45,6 @@ docker/data/
 
 # Markdown docs
 *.md
+
+# Per-machine runtime lock (scheduler); never meaningful in history
+.claude/scheduled_tasks.lock

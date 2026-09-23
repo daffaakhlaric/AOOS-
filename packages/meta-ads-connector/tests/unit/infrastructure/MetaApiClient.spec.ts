@@ -1042,4 +1042,83 @@ describe("MetaApiClient", () => {
     const result = await client.getCampaigns("act_123", "TOKEN", "last_30d");
     expect(result.ok).toBe(false);
   });
+
+  /** AAOS Command Center creative thumbnails — real READ-side hash/video-id resolution. */
+  it("getAdImagesByHashes() resolves real image hashes to Meta's own url/permalink_url in ONE call", async () => {
+    let requestCount = 0;
+    let seenHashes: string | null = null;
+    mswServer.use(
+      http.get(`${BASE}/act_123/adimages`, ({ request }) => {
+        requestCount += 1;
+        seenHashes = new URL(request.url).searchParams.get("hashes");
+        return HttpResponse.json({
+          data: [
+            {
+              hash: "4b899eb644b9f4649abeea3fe701715c",
+              url: "https://scontent.xx.fbcdn.net/v/real-image.jpg",
+              permalink_url: "https://www.facebook.com/ads/image/?d=REAL",
+            },
+          ],
+        });
+      }),
+    );
+    const client = new MetaApiClient();
+    const result = await client.getAdImagesByHashes(
+      "act_123",
+      ["4b899eb644b9f4649abeea3fe701715c", "hash-2"],
+      "TOKEN",
+    );
+    expect(unwrap(result).data[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/real-image.jpg");
+    expect(requestCount).toBe(1);
+    expect(seenHashes).toBe(JSON.stringify(["4b899eb644b9f4649abeea3fe701715c", "hash-2"]));
+  });
+
+  it("getAdImagesByHashes() accepts an empty data array — a real 'none of these hashes resolve' answer", async () => {
+    mswServer.use(http.get(`${BASE}/act_123/adimages`, () => HttpResponse.json({ data: [] })));
+    const client = new MetaApiClient();
+    expect(unwrap(await client.getAdImagesByHashes("act_123", ["gone"], "TOKEN")).data).toEqual([]);
+  });
+
+  it("getAdImagesByHashes() maps Meta's real rate-limit error code 17 to RateLimitError, same as every other read", async () => {
+    mswServer.use(
+      http.get(`${BASE}/act_123/adimages`, () =>
+        HttpResponse.json(
+          { error: { message: "User request limit reached", code: 17 } },
+          { status: 503 },
+        ),
+      ),
+    );
+    const client = new MetaApiClient();
+    expect(unwrapErr(await client.getAdImagesByHashes("act_123", ["h1"], "TOKEN"))).toBeInstanceOf(
+      RateLimitError,
+    );
+  });
+
+  it("getVideoThumbnail() parses a real video's picture + thumbnails edge", async () => {
+    mswServer.use(
+      http.get(`${BASE}/1523323098869727`, () =>
+        HttpResponse.json({
+          id: "1523323098869727",
+          picture: "https://scontent.xx.fbcdn.net/v/auto-picture.jpg",
+          thumbnails: {
+            data: [
+              { uri: "https://scontent.xx.fbcdn.net/v/frame-preferred.jpg", is_preferred: true },
+            ],
+          },
+        }),
+      ),
+    );
+    const client = new MetaApiClient();
+    const value = unwrap(await client.getVideoThumbnail("1523323098869727", "TOKEN"));
+    expect(value.picture).toBe("https://scontent.xx.fbcdn.net/v/auto-picture.jpg");
+    expect(value.thumbnails?.data[0]?.is_preferred).toBe(true);
+  });
+
+  it("getVideoThumbnail() parses a still-processing video that carries neither picture nor thumbnails", async () => {
+    mswServer.use(http.get(`${BASE}/9999`, () => HttpResponse.json({ id: "9999" })));
+    const client = new MetaApiClient();
+    const value = unwrap(await client.getVideoThumbnail("9999", "TOKEN"));
+    expect(value.picture).toBeUndefined();
+    expect(value.thumbnails).toBeUndefined();
+  });
 });

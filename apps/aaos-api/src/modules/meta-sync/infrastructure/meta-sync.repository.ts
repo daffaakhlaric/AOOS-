@@ -143,6 +143,80 @@ export class MetaSyncRepository {
   }
 
   /**
+   * Real ACCOUNT-WIDE daily aggregate over `meta_insights_daily`, summed per `date` across every
+   * real campaign for this tenant — the data source the Command Center's KPI sparklines and
+   * Performance Overview chart need.
+   *
+   * REAL BUG FIX (observed live, 2026-09-21): `OverviewService.getTimeseries` read
+   * `overview_daily_snapshots`, a table whose daily writer cron had produced ZERO rows for the real
+   * tenant, so every trend surface rendered its honest "not enough history" state forever — while
+   * `meta_insights_daily` already held real per-day rows (verified live: 2026-09-15 onward).
+   *
+   * CRITICAL correctness detail: `meta_insights_daily` holds one row per (level, entity, date) —
+   * `level` is `'campaign' | 'adset' | 'ad'` (`050_meta_sync.sql`). Summing every row for a date
+   * would multi-count the SAME spend at three granularities. This filters `level = 'campaign'`,
+   * exactly as `getCampaignDailyHistory` above already does.
+   *
+   * `ctr`/`cpl`/`frequency` are deliberately NOT summed (summing a ratio is meaningless) — callers
+   * that need an account-wide CPL derive it from the summed `spend`/`leads` returned here. Ordered
+   * oldest-to-newest, the shape a chart consumes directly. An empty array is a real, honest result.
+   */
+  async getAccountDailyHistory(
+    tenantId: string,
+    days: number,
+  ): Promise<
+    readonly {
+      readonly date: string;
+      readonly spend: number;
+      readonly leads: number;
+      readonly impressions: number;
+      readonly clicks: number;
+    }[]
+  > {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - Math.max(days - 1, 0));
+    const sinceDate = since.toISOString().slice(0, 10);
+
+    const { data, error } = await this.client
+      .from<InsightHistoryRow>(INSIGHTS_TABLE)
+      .select("date, spend, impressions, clicks, frequency, ctr, cpl, leads")
+      .eq("tenant_id", tenantId)
+      .eq("level", "campaign")
+      .gte("date", sinceDate)
+      .order("date", { ascending: true });
+    if (error !== null) {
+      throw new MetaSyncRepositoryError(
+        `MetaSyncRepository.getAccountDailyHistory: insights query failed: ${error.message}`,
+      );
+    }
+
+    const byDate = new Map<
+      string,
+      { date: string; spend: number; leads: number; impressions: number; clicks: number }
+    >();
+    for (const row of data ?? []) {
+      const existing = byDate.get(row.date);
+      if (existing === undefined) {
+        byDate.set(row.date, {
+          date: row.date,
+          spend: row.spend,
+          leads: row.leads,
+          impressions: row.impressions,
+          clicks: row.clicks,
+        });
+      } else {
+        existing.spend += row.spend;
+        existing.leads += row.leads;
+        existing.impressions += row.impressions;
+        existing.clicks += row.clicks;
+      }
+    }
+    // `.order("date")` already returned rows oldest-first, and Map preserves insertion order, so
+    // the aggregated output is oldest-first too without a second sort.
+    return [...byDate.values()];
+  }
+
+  /**
    * Campaign->Listing Mapping (053_meta_campaigns_listing_id.sql) — real write path called once,
    * right after `CampaignsService.createPropertyCampaign`'s existing `metaSync.syncCampaign` hook
    * (so the real `meta_campaigns` row already exists by the time this UPDATE runs). A plain UPDATE,

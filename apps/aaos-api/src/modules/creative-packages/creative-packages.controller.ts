@@ -53,8 +53,9 @@ export class CreativePackagesController {
   @Get()
   async list(
     @Query(new ZodValidationPipe(GetPackagesQuerySchema)) query: GetPackagesQueryDto,
+    @TenantId() tenantId: string,
   ): Promise<readonly CreativePackageResponseDto[]> {
-    return this.service.list(query);
+    return this.service.list(query, tenantId);
   }
 
   @Get("logs")
@@ -102,8 +103,11 @@ export class CreativePackagesController {
   }
 
   @Get(":id")
-  async byId(@Param("id") id: string): Promise<CreativePackageDetailResponseDto> {
-    return this.service.byId(id);
+  async byId(
+    @Param("id") id: string,
+    @TenantId() tenantId: string,
+  ): Promise<CreativePackageDetailResponseDto> {
+    return this.service.byId(id, tenantId);
   }
 
   @Post()

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { z } from "zod";
 
 import { CorrelationId } from "../../common/correlation.js";
 import { TenantId } from "../../common/tenant-context.js";
@@ -53,6 +54,40 @@ import { MetaAdsService } from "./meta-ads.service.js";
 @UseGuards(ApiKeyGuard)
 export class MetaAdsController {
   constructor(private readonly metaAdsService: MetaAdsService) {}
+
+  @Post("meta-ads/creative-thumbnails")
+  @HttpCode(200)
+  async creativeThumbnails(
+    @TenantId() tenantId: string,
+    @Body(
+      new ZodValidationPipe(
+        z.object({
+          adAccountId: z
+            .string()
+            .regex(/^act_[0-9]+$/)
+            .optional(),
+          refs: z
+            .array(
+              z.object({
+                kind: z.enum(["IMAGE", "VIDEO"]),
+                ref: z
+                  .string()
+                  .regex(/^[a-zA-Z0-9_-]+$/)
+                  .max(200),
+              }),
+            )
+            .max(50),
+        }),
+      ),
+    )
+    body: { adAccountId?: string; refs: { kind: "IMAGE" | "VIDEO"; ref: string }[] },
+  ) {
+    return {
+      thumbnails: Object.fromEntries(
+        await this.metaAdsService.resolveCreativeThumbnails(tenantId, body.refs, body.adAccountId),
+      ),
+    };
+  }
 
   @Get("campaigns")
   async getCampaigns(

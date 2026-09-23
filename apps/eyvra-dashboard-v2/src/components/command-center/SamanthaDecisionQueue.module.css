@@ -1,0 +1,656 @@
+/* Density rebuild (Command Center grid-restructure, Row D, 9-of-12 columns): compact pill tabs above
+   a compact ~76-92px-tall row list, instead of the old large report-style cards. */
+.tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--bg);
+}
+
+.tabActive {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+/* "Completed" — no real resolved/completed-decision concept exists anywhere in this codebase (no
+   historical decision-status tracking), so this tab is rendered visibly disabled with an honest
+   tooltip rather than a fabricated count. See SamanthaDecisionQueue.tsx's own doc for why disabled
+   (vs. omitted) was chosen. */
+.tabDisabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.tabDisabled:hover {
+  background: var(--surface);
+}
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.row {
+  border: 1px solid var(--border);
+  border-left: 4px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.rail_critical {
+  border-left-color: var(--critical);
+}
+
+.rail_warning {
+  border-left-color: var(--warning);
+}
+
+.rail_success {
+  border-left-color: var(--success);
+}
+
+.rail_neutral {
+  border-left-color: var(--border);
+}
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.rowIdentity {
+  flex: 0 0 auto;
+  min-width: 110px;
+  max-width: 190px;
+}
+
+.rowName {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowIssue {
+  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowMetrics {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+}
+
+.rowMetric {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rowMetricLabel {
+  color: var(--text-muted);
+}
+
+.rowNoEvidence {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.rowConfidence {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.rowPlanSummary {
+  flex: 1 1 160px;
+  min-width: 90px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.impactBadge {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.impact_critical {
+  background: var(--critical-soft);
+  color: var(--critical);
+}
+
+.impact_warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.impact_success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.impact_neutral {
+  background: var(--bg);
+  color: var(--text-secondary);
+}
+
+.rowActions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.evidenceButton,
+.approveButton {
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.evidenceButton {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.evidenceButton:hover {
+  background: var(--bg);
+}
+
+.approveButton {
+  background: var(--border);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.spendNote {
+  margin-top: 5px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+/* Everything below here only renders inside the `[Evidence]` expand — moved out of the default row
+   per this round's density requirement (was always-visible before). */
+.evidenceDetail {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.healthRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.healthDim {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
+  cursor: default;
+}
+
+.healthDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.health_HEALTHY {
+  background: var(--success);
+}
+
+.health_WATCH {
+  background: var(--warning);
+  opacity: 0.6;
+}
+
+.health_WARNING {
+  background: var(--warning);
+}
+
+.health_CRITICAL {
+  background: var(--critical);
+}
+
+.health_UNKNOWN {
+  background: transparent;
+  border: 1px dashed var(--text-muted);
+}
+
+.planBox {
+  background: var(--brand-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+}
+
+.planLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--brand);
+}
+
+.planReason {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+
+.planList {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.planReview {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.evidenceReasoningList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.evidenceReasoning {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+/* Metric-aware semantic tone, not raw arithmetic sign — a CPL increase is `.deltaBad` (red) even
+   though its `deltaPct` is positive; see SamanthaDecisionCard.tsx's `deltaTone()`. */
+.deltaBad {
+  color: var(--critical);
+}
+
+.deltaGood {
+  color: var(--success);
+}
+
+@media (max-width: 480px) {
+  .rowActions {
+    flex-direction: column;
+  }
+}
+
+/* Row height raised 78px -> 90px (and the list 234px -> 276px, still exactly 3 rows + a peek of the
+   4th to signal scrollability) — user-reported the rows read as "gepeng" (squashed/flat) with the
+   metric label/value stacks and 3-line plan summary crowding each other at 78px. */
+.queue {list-style:none; margin:0; padding:0; gap:0; height:276px; max-height:276px; overflow:auto}
+.row {padding:12px 8px; height:90px; flex-shrink:0; border:0; border-left:3px solid transparent; border-bottom:1px solid var(--border); border-radius:0}
+.rail_critical {border-left-color:var(--critical)} .rail_warning {border-left-color:var(--warning)} .rail_success {border-left-color:var(--success)}
+/* 7 real columns, left to right, matching the reference design's own row anatomy:
+   thumbnail · identity (impact pill / name / real sub-line) · mini sparkline · metric columns ·
+   confidence · Samantha Plan · actions. */
+.rowMain {display:grid; grid-template-columns:48px minmax(120px,1.5fr) 60px minmax(132px,1.3fr) 54px minmax(96px,1fr) auto; gap:10px; height:100%; align-items:center}
+/* Row thumbnail: the real listing photo (`.thumbnailImage`) when the real
+   campaign -> listing -> `mainPhotoUrl` chain resolves one, otherwise the honest `.thumbnail`
+   placeholder tile — same box so the row never reflows as photos fill in. */
+.thumbnail {width:44px; height:58px; display:grid; place-items:center; background:var(--bg); border:1px dashed var(--border); color:var(--text-muted); border-radius:6px}
+.thumbnail svg {width:18px; height:18px; opacity:.75}
+.thumbnailImage {width:44px; height:58px; object-fit:cover; border:1px solid var(--border); border-radius:6px; background:var(--bg); display:block}
+/* Wrapper that owns the row's 44px thumbnail grid cell, so the creative-condition badge can sit
+   over the bottom of the tile without changing the row's own layout or height. */
+.thumbnailBox {position:relative; width:44px; height:58px; border-radius:6px; overflow:hidden}
+/* Real creative condition (WINNER | FATIGUED), traced to a real A/B-test outcome or Samantha
+   verdict. Deliberately tiny and low-contrast-bordered: it annotates the 90px row, never dominates
+   it. */
+.creativeBadge {position:absolute; left:0; right:0; bottom:0; text-align:center; font-size:8.5px; font-weight:700; letter-spacing:.02em; line-height:1.35; padding:1px 0; border-radius:0 0 var(--radius-sm) var(--radius-sm); border-top:1px solid var(--border)}
+.badge_winner {background:var(--success); color:#fff}
+.badge_fatigued {background:var(--warning); color:#231a00}
+.rowIdentity {min-width:0; max-width:none} .rowName {font-size:12.5px} .rowIssue {font-size:11.5px; font-weight:600; color:var(--brand)}
+.rowMetrics {gap:10px; flex-wrap:nowrap; min-width:0} .rowMetric {font-size:11.5px; white-space:normal} .rowMetricLabel {display:block}
+.rowConfidence small,.rowPlanSummary small {display:block; color:var(--text-muted); font-size:11.5px; font-weight:400}
+.rowPlanSummary {white-space:normal; font-size:11.5px; min-width:0; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical}
+.rowActions {flex-direction:column; gap:4px} .evidenceButton,.approveButton {font-size:11.5px; padding:4px 7px; border-radius:5px}
+.impactBadge {font-size:11.5px; padding:1px 5px} .tab {padding:4px 8px; font-size:11.5px; background:var(--bg); border-color:transparent; font-weight:400} .tabActive {background:var(--critical-soft); color:var(--critical); border-color:transparent} .tabs {flex-wrap:nowrap; overflow:auto; margin-bottom:4px}
+.evidenceDetail {font-size:13px; border:0; gap:14px} .evidenceDetail h3 {font-size:14px} .evidenceDetail p {font-size:13px}
+@media(max-width:767px){.row {height:auto; min-height:140px} .rowMain {grid-template-columns:40px minmax(0,1fr) 90px} .rowMetrics {grid-column:2} .rowPlanSummary {grid-column:2} .rowActions {grid-column:3; grid-row:2 / 4} .queue {max-height:450px}}
+
+/* ─────────────────────────────────────────────────────────────────────────────────────────────────
+   Reference-design pass for the Samantha Attention Queue rows/tabs. Presentation only — every value
+   rendered through these classes comes from the real account-summary payload (see
+   SamanthaDecisionCard.tsx's own per-field docs). Row height stays 90px and the list stays the
+   intentional 276px scroller (3 rows + a peek).
+   ──────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/* Tabs — `Label (n)` pills. Inactive: light-grey bg, grey text, NO border. Active: tinted per tab
+   (red-on-pink for Critical, per the reference) with a small leading icon. */
+.tab {
+  gap: 4px;
+  border: 1px solid transparent;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.tab:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.tabIcon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* `.tabActive` keeps its selector weight; the per-tab tone below supplies the real colours. */
+.tabActive {
+  font-weight: 650;
+  border-color: transparent;
+}
+
+.tone_critical {
+  background: var(--critical-soft);
+  color: var(--critical);
+}
+
+.tone_warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.tone_success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.tone_brand {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.tabActive:hover {
+  filter: brightness(0.97);
+}
+
+/* Thumbnail — 48x48 rounded, per the reference (was 44x58). */
+.thumbnailBox,
+.thumbnail,
+.thumbnailImage {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+}
+
+/* Identity block: impact pill with a leading colored dot, bold name, grey real sub-line. */
+.rowIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.impactBadge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+}
+
+.impactDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.rowName {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* The real evidence `reasoning` sub-line: grey, one line, ellipsised, full real text in `title`. */
+.rowIssue {
+  margin-top: 0;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mini sparkline cell. Renders EMPTY (no line, no axis, no placeholder) whenever this campaign has
+   no real trend series — the empty cell only preserves column alignment. */
+.rowSpark {
+  width: 60px;
+  min-width: 0;
+}
+
+.rowSparkInner {
+  display: block;
+  width: 60px;
+  height: 30px;
+}
+
+.rowSparkInner svg {
+  height: 30px;
+  margin-top: 0;
+}
+
+/* Metric columns: small grey label, then `baseline → current`, then the delta beneath in its
+   metric-aware semantic colour. */
+.rowMetrics {
+  display: flex;
+  gap: 12px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.rowMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.rowMetricLabel {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.rowMetricValue {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowMetricDelta {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Confidence: small grey label, percentage large and bold beneath. */
+.rowConfidence {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rowConfidence small {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rowConfidence strong {
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+/* Samantha Plan: small grey label, then up to 2 real grey lines beneath, each ellipsised with its
+   own full real string in `title`. */
+.rowPlanSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  -webkit-line-clamp: none;
+}
+
+.rowPlanSummary small {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rowPlanLine {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Actions: solid brand-purple Approve Plan + white outlined View Evidence + the `⋮` overflow.
+   Approve Plan and the overflow are BOTH genuinely `disabled` (no real endpoint exists for either);
+   the reduced opacity + `not-allowed` cursor keep them clearly non-interactive while still matching
+   the reference's solid-purple treatment. */
+.rowActions {
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+}
+
+.approveButton {
+  background: var(--brand);
+  border: 1px solid var(--brand);
+  color: #fff;
+  opacity: 0.55;
+  cursor: not-allowed;
+  font-weight: 650;
+}
+
+.evidenceButton {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.overflowButton {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 5px;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1279px) {
+  /* Narrower hero card: drop the plan column's minimum rather than the sparkline, so the one real
+     new data surface survives the squeeze. */
+  .rowMain {
+    grid-template-columns: 48px minmax(104px, 1.4fr) 60px minmax(124px, 1.2fr) 48px minmax(72px, 0.9fr) auto;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 767px) {
+  .rowMain {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+  }
+  .rowSpark {
+    grid-column: 2;
+  }
+  .rowMetrics,
+  .rowNoEvidence {
+    grid-column: 2;
+  }
+  .rowConfidence {
+    grid-column: 2;
+  }
+  .rowPlanSummary {
+    grid-column: 2;
+  }
+  .rowActions {
+    grid-column: 3;
+    grid-row: 2 / 6;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
