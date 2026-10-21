@@ -13,13 +13,16 @@ import type {
   MetaCreateResponse as ClientMetaCreateResponse,
   PageCursor,
 } from "../../contracts/IMetaAdsClient.js";
+import type { MetaWriteReceipt, MetaVerificationResult } from "../../contracts/MetaExecution.js";
+import type {
+  MetaApiError} from "../../domain/errors/index.js";
 import {
   ApiServerError,
   AuthError,
-  MetaApiError,
   PermissionError,
   RateLimitError,
 } from "../../domain/errors/index.js";
+import { MetaSafetyError } from "../../domain/errors/MetaSafetyError.js";
 import {
   MetaAdAccountResponseSchema,
   type MetaAdAccountResponse,
@@ -125,6 +128,10 @@ function serializeTargeting(
 }
 
 export interface MetaApiClientOptions {
+  /** Only a future executor may supply this after trusted context + readiness checks. */
+  readonly authorizeWrite?: (operation: string) => Promise<boolean>;
+  readonly persistReceipt?: (receipt: MetaWriteReceipt) => Promise<void>;
+
   readonly timeoutMs?: number;
   /** Injectable fetch implementation — defaults to the global native `fetch`; overridable for tests (MSW normally suffices, but this keeps the door open for a raw fetch mock too). */
   readonly fetchImpl?: typeof fetch;
@@ -147,11 +154,14 @@ export interface MetaApiClientOptions {
  * response body that fails Zod validation — is converted to a `Result.err(MetaApiError)`.
  */
 export class MetaApiClient implements IMetaAdsClient {
+  private readonly options: MetaApiClientOptions;
+  private readonly writeResponses = new WeakSet<Response>();
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly onUsageHeader: ((usage: BusinessUseCaseUsage) => void) | undefined;
 
   constructor(options: MetaApiClientOptions = {}) {
+    this.options = options;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.onUsageHeader = options.onUsageHeader;
@@ -265,6 +275,7 @@ export class MetaApiClient implements IMetaAdsClient {
       objective: params.objective,
       special_ad_categories: params.specialAdCategories,
       status: params.status,
+      is_adset_budget_sharing_enabled: params.isAdSetBudgetSharingEnabled ?? false,
       access_token: accessToken,
     });
   }
@@ -288,6 +299,10 @@ export class MetaApiClient implements IMetaAdsClient {
       optimization_goal: params.optimizationGoal,
       billing_event: params.billingEvent,
       daily_budget: params.dailyBudgetCents,
+      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+      ...(params.promotedObjectPageId !== undefined
+        ? { promoted_object: { page_id: params.promotedObjectPageId } }
+        : {}),
       status: params.status,
       ...(params.targeting !== undefined
         ? { targeting: serializeTargeting(params.targeting, params.specialAdCategories) }
@@ -554,6 +569,105 @@ export class MetaApiClient implements IMetaAdsClient {
     return this.parseBody(responseResult.value, MetaCustomAudienceCreateResponseSchema);
   }
 
+  /** Safe probes use the same transport, error mapping and API version as normal reads. */
+  async readGraph(
+    path: string,
+    accessToken: string,
+    fields: string,
+  ): Promise<Result<Record<string, unknown>, MetaApiError>> {
+    if (!new RegExp("^[a-zA-Z0-9_]+(?:/[a-zA-Z0-9_]+)?$").test(path))
+      return err(new MetaSafetyError("META_VALIDATION_ERROR"));
+    const url = new URL(MetaApiRequestBuilder.adAccountUrl(path, accessToken));
+    url.searchParams.set("fields", fields);
+    const result = await this.doFetch(url.toString(), { method: "GET" });
+    if (!result.ok) return result;
+    try {
+      const value: unknown = await result.value.json();
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        return err(new MetaSafetyError("META_VALIDATION_ERROR"));
+      return ok(value as Record<string, unknown>);
+    } catch {
+      return err(new MetaSafetyError("META_TRANSIENT_ERROR"));
+    }
+  }
+  async verifyObjectState(
+    id: string,
+    accountId: string,
+    expected: Readonly<Record<string, string>>,
+    token: string,
+  ): Promise<MetaVerificationResult> {
+    if (!/^\d+$/.test(id) || !/^act_\d+$/.test(accountId))
+      return { status: "MISMATCH", mismatchedFields: ["id"] };
+    const fields = [...new Set(["id", "account_id", ...Object.keys(expected)])].join(",");
+    const result = await this.readGraph(id, token, fields);
+    if (!result.ok) {
+      const code = result.error instanceof MetaSafetyError ? result.error.normalizedCode : "";
+      return {
+        status:
+          code === "META_PERMISSION_ERROR"
+            ? "PERMISSION_BLOCKED"
+            : code === "META_RESOURCE_NOT_FOUND"
+              ? "NOT_FOUND"
+              : "UNCERTAIN",
+        mismatchedFields: [],
+      };
+    }
+    const observed = result.value;
+    const mismatchedFields: string[] = [];
+    if (observed.id !== id) mismatchedFields.push("id");
+    if (observed.account_id !== accountId.replace(/^act_/, "")) mismatchedFields.push("account_id");
+    for (const [key, value] of Object.entries(expected))
+      if (observed[key] !== value) mismatchedFields.push(key);
+    return {
+      status: mismatchedFields.length ? "MISMATCH" : "VERIFIED",
+      mismatchedFields,
+      observed,
+    };
+  }
+  verifyCampaignState(
+    id: string,
+    accountId: string,
+    expected: Readonly<Record<string, string>>,
+    token: string,
+  ) {
+    return this.verifyObjectState(id, accountId, expected, token);
+  }
+  verifyAdSetState(
+    id: string,
+    accountId: string,
+    expected: Readonly<Record<string, string>>,
+    token: string,
+  ) {
+    return this.verifyObjectState(id, accountId, expected, token);
+  }
+  verifyAdState(
+    id: string,
+    accountId: string,
+    expected: Readonly<Record<string, string>>,
+    token: string,
+  ) {
+    return this.verifyObjectState(id, accountId, expected, token);
+  }
+  verifyBudget(id: string, accountId: string, providerBudget: string, token: string) {
+    return this.verifyObjectState(id, accountId, { daily_budget: providerBudget }, token);
+  }
+  async verifyCreativeLinkage(
+    id: string,
+    accountId: string,
+    creativeId: string,
+    token: string,
+  ): Promise<MetaVerificationResult> {
+    const state = await this.verifyObjectState(id, accountId, {}, token);
+    if (state.status !== "VERIFIED") return state;
+    const result = await this.readGraph(id, token, "creative{id}");
+    if (!result.ok) return { status: "UNCERTAIN", mismatchedFields: [] };
+    const creative = result.value.creative as { id?: unknown } | undefined;
+    return {
+      status: creative?.id === creativeId ? "VERIFIED" : "MISMATCH",
+      mismatchedFields: creative?.id === creativeId ? [] : ["creative.id"],
+    };
+  }
+
   private async getJson<T>(
     url: string,
     schema: {
@@ -597,7 +711,7 @@ export class MetaApiClient implements IMetaAdsClient {
   private async postJsonBody(
     url: string,
     body: Readonly<
-      Record<string, string | number | ReadonlyArray<string> | Record<string, unknown>>
+      Record<string, string | number | boolean | ReadonlyArray<string> | Record<string, unknown>>
     >,
   ): Promise<Result<ClientMetaCreateResponse, MetaApiError>> {
     const responseResult = await this.doFetch(url, {
@@ -612,6 +726,26 @@ export class MetaApiClient implements IMetaAdsClient {
   }
 
   private async doFetch(url: string, init: RequestInit): Promise<Result<Response, MetaApiError>> {
+    const isWrite = init.method !== undefined && !["GET", "HEAD"].includes(init.method);
+    const operation = new URL(url).pathname;
+    const submittedAt = new Date().toISOString();
+    if (isWrite) {
+      if (process.env["META_REAL_WRITES_ENABLED"] !== "true")
+        return err(new MetaSafetyError("META_WRITE_DISABLED"));
+      if (!this.options.authorizeWrite || !this.options.persistReceipt)
+        return err(new MetaSafetyError("META_WRITE_CONTEXT_REQUIRED"));
+      try {
+        if (!(await this.options.authorizeWrite(operation)))
+          return err(new MetaSafetyError("META_WRITE_CONTEXT_REQUIRED"));
+      } catch {
+        return err(new MetaSafetyError("META_WRITE_CONTEXT_REQUIRED"));
+      }
+      if (
+        typeof init.body === "string" &&
+        /daily_budget|lifetime_budget|bid_amount/.test(init.body)
+      )
+        return err(new MetaSafetyError("BUDGET_WRITE_UNVERIFIED"));
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -627,12 +761,37 @@ export class MetaApiClient implements IMetaAdsClient {
         this.onUsageHeader?.(usage);
       }
       if (!response.ok) {
-        return err(await this.toMetaApiError(response));
+        if (isWrite && response.status >= 500)
+          return err(new MetaSafetyError("META_WRITE_UNCERTAIN", { httpStatus: response.status }));
+        const error = await this.toMetaApiError(response);
+        return err(error);
+      }
+      if (isWrite) {
+        this.writeResponses.add(response);
+        try {
+          const body = (await response.clone().json()) as { id?: unknown };
+          await this.options.persistReceipt!({
+            provider: "META",
+            operation,
+            submittedAt,
+            responseStatus: response.status,
+            ...(typeof body.id === "string" ? { providerObjectId: body.id } : {}),
+            ...(response.headers.get("x-fb-trace-id")
+              ? { requestId: response.headers.get("x-fb-trace-id")! }
+              : {}),
+            normalizedResult: "ACCEPTED_UNVERIFIED",
+            verificationRequired: true,
+          });
+        } catch {
+          return err(new MetaSafetyError("META_WRITE_UNCERTAIN"));
+        }
       }
       return ok(response);
     } catch (cause) {
       return err(
-        new ApiServerError(`Meta API network failure: ${describeCause(cause)}`, { cause }),
+        isWrite
+          ? new MetaSafetyError("META_WRITE_UNCERTAIN")
+          : new ApiServerError("META_TRANSIENT_ERROR"),
       );
     } finally {
       clearTimeout(timeout);
@@ -649,6 +808,8 @@ export class MetaApiClient implements IMetaAdsClient {
     try {
       json = await response.json();
     } catch (cause) {
+      if (this.writeResponses.has(response))
+        return err(new MetaSafetyError("META_WRITE_UNCERTAIN"));
       return err(
         new ApiServerError(`Meta API returned a non-JSON response body: ${describeCause(cause)}`, {
           cause,
@@ -657,6 +818,8 @@ export class MetaApiClient implements IMetaAdsClient {
     }
     const parsed = schema.safeParse(json);
     if (!parsed.success) {
+      if (this.writeResponses.has(response))
+        return err(new MetaSafetyError("META_WRITE_UNCERTAIN"));
       return err(
         new ApiServerError("Meta API response failed schema validation", {
           cause: new ValidationError("Meta API response failed schema validation", {
@@ -677,17 +840,17 @@ export class MetaApiClient implements IMetaAdsClient {
       const parsed = MetaErrorResponseSchema.safeParse(body);
       if (parsed.success) {
         metaErrorCode = parsed.data.error.code;
-        message = parsed.data.error.message;
+        message = "META_PROVIDER_ERROR";
       }
     } catch {
       // Non-JSON error body — fall back to the generic HTTP-status-only message above.
     }
 
     if (metaErrorCode === META_INVALID_TOKEN_CODE) {
-      return new AuthError(message);
+      return new MetaSafetyError("META_AUTH_ERROR", { httpStatus });
     }
     if (metaErrorCode === META_MISSING_PERMISSION_CODE) {
-      return new PermissionError(message);
+      return new MetaSafetyError("META_PERMISSION_ERROR", { httpStatus });
     }
     // Real fix for the live incident: Meta's own real, documented error code `17` ("User request
     // limit reached") is a genuine rate-limit condition REGARDLESS of the HTTP status it happens
@@ -711,7 +874,14 @@ export class MetaApiClient implements IMetaAdsClient {
     if (httpStatus === 500 || httpStatus === 503) {
       return new ApiServerError(message, { context: { httpStatus } });
     }
-    return new MetaApiError(message, { httpStatus, metaErrorCode });
+    return new MetaSafetyError(
+      metaErrorCode === 100
+        ? "META_INVALID_PARAMETER"
+        : httpStatus === 404
+          ? "META_RESOURCE_NOT_FOUND"
+          : "META_PROVIDER_ERROR",
+      { httpStatus, ...(metaErrorCode !== undefined ? { metaErrorCode } : {}) },
+    );
   }
 }
 

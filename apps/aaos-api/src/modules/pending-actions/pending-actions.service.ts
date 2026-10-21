@@ -1,9 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+
 
 import { ConflictError, NotFoundError } from "@aos/errors";
 import { Injectable, Logger, Optional } from "@nestjs/common";
 
 import { AuditLogService } from "../audit-log/audit-log.service.js";
+import { GrowthPolicyService } from "../automation-policy/growth-policy.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignBodyDto } from "../campaigns/dto/create-property-campaign.dto.js";
 import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
@@ -78,6 +80,7 @@ export class PendingActionsService {
     // constructors: a bare `Function`-typed param with a default still gets a real DI resolution
     // attempt from Nest without `@Optional()`.
     @Optional() private readonly now: () => Date = () => new Date(),
+    @Optional() private readonly growthPolicy?: GrowthPolicyService,
   ) {}
 
   /** The real write path a gated caller (today: `SchedulerService`) uses to enqueue a pending action instead of executing it directly. Returns the new row's real id. */
@@ -143,7 +146,93 @@ export class PendingActionsService {
     decisionNotes: string | undefined,
   ): Promise<PendingActionRow> {
     const row = await this.requireOwnedByTenant(id, tenantId);
-    if (row.status !== "PENDING") {
+    if (
+      ![
+        "CREATE_PROPERTY_CAMPAIGN",
+        "REVIEW_CREATIVE_BRIEF",
+        "PUBLISH_CAMPAIGN_FROM_ASSET",
+        "RESTRUCTURE_CAMPAIGN",
+      ].includes(row.action_type)
+    ) {
+      throw new ConflictError(`Unsupported action_type "${row.action_type}"`);
+    }
+    if (!this.growthPolicy) throw new ConflictError("GROWTH_POLICY_UNAVAILABLE");
+    const current = await this.growthPolicy.current(tenantId);
+    if (current.policy.safetyPolicy.killSwitch) throw new ConflictError("KILL_SWITCH");
+    if (
+      row.payload["policyVersion"] !== undefined &&
+      row.payload["policyVersion"] !== current.version
+    )
+      throw new ConflictError("STALE_POLICY");
+    const action =
+      row.action_type === "REVIEW_CREATIVE_BRIEF"
+        ? "REQUEST_KAI_REFRESH"
+        : row.action_type === "RESTRUCTURE_CAMPAIGN"
+          ? "SCALE"
+          : "ACTIVATE_CAMPAIGN";
+    if (current.policy.safetyPolicy.permissions[action] === "DISABLED")
+      throw new ConflictError("ACTION_DISABLED");
+    if (
+      !(await this.pendingActions.claim(
+        id,
+        tenantId,
+        "EXECUTING",
+        decidedBy,
+        decisionNotes,
+        this.now().toISOString(),
+      ))
+    ) {
+      throw new ConflictError(
+        "Only a PENDING action can be approved; this action is already claimed or decided.",
+      );
+    }
+    try {
+      const latest = await this.growthPolicy.current(tenantId);
+      if (latest.version !== current.version || latest.policy.safetyPolicy.killSwitch)
+        throw new ConflictError("POLICY_CHANGED_DURING_APPROVAL");
+      return await this.executeApproved(id, tenantId, decidedBy, decisionNotes);
+    } catch (error) {
+      // A timeout does not prove Meta rejected the mutation. Keep the claim permanently.
+      await this.pendingActions.markUncertain(id, tenantId).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async enqueueRecommendation(
+    tenantId: string,
+    campaignId: string,
+    policyVersion: number,
+    payload: Record<string, unknown>,
+  ): Promise<string> {
+    const digest = createHash("sha256")
+      .update(
+        JSON.stringify([
+          tenantId,
+          campaignId,
+          payload["decision"],
+          policyVersion,
+          this.now().toISOString().slice(0, 10),
+        ]),
+      )
+      .digest("hex");
+    const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+    return this.enqueue({
+      id,
+      tenantId,
+      agent: "SAMANTHA",
+      actionType: "REVIEW_SAMANTHA_RECOMMENDATION",
+      payload: { ...payload, campaignId, policyVersion },
+    });
+  }
+
+  private async executeApproved(
+    id: string,
+    tenantId: string,
+    decidedBy: string | undefined,
+    decisionNotes: string | undefined,
+  ): Promise<PendingActionRow> {
+    const row = await this.requireOwnedByTenant(id, tenantId);
+    if (row.status !== "EXECUTING") {
       throw new ConflictError(
         `pending_agent_actions "${id}" has status "${row.status}" — only a PENDING action can be approved`,
       );
@@ -200,6 +289,7 @@ export class PendingActionsService {
         tenantId,
         { listingId },
         randomUUID(),
+        creativePackageId,
       );
       // AAOS LOOP UPGRADE, Sprint 8c — the SAME real idempotency-marker write
       // `SchedulerService.runCampaignPublishCheck` uses for its own FULL_CONTROL/DEV path, so this
@@ -326,7 +416,16 @@ export class PendingActionsService {
     decisionNotes: string | undefined,
   ): Promise<PendingActionRow> {
     const row = await this.requireOwnedByTenant(id, tenantId);
-    if (row.status !== "PENDING") {
+    if (
+      !(await this.pendingActions.claim(
+        id,
+        tenantId,
+        "REJECTING",
+        decidedBy,
+        decisionNotes,
+        this.now().toISOString(),
+      ))
+    ) {
       throw new ConflictError(
         `pending_agent_actions "${id}" has status "${row.status}" — only a PENDING action can be rejected`,
       );

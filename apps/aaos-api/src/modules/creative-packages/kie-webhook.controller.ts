@@ -33,7 +33,7 @@ export class KieWebhookController {
   receive(
     @Body(new ZodValidationPipe(KieWebhookBodySchema)) body: KieWebhookBodyDto,
     @CorrelationId() correlationId: string,
-  ): KieWebhookResult {
+  ): Promise<KieWebhookResult> {
     return this.service.handleCallback(body, correlationId);
   }
 }

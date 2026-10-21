@@ -132,6 +132,8 @@ export class MetaOAuthService {
       return { success: false, message: "OAuth state is invalid, already used, or expired." };
     }
     const tenantId = stateRow.tenant_id;
+    const tenant = await this.tenants.findByTenantId(tenantId);
+    if (!tenant) return { success: false, message: "Workspace unavailable" };
 
     let client: MetaAdsOAuthClient;
     try {
@@ -175,21 +177,23 @@ export class MetaOAuthService {
 
     const encryptedToken = this.encryption.encrypt(longLived.value.accessToken);
 
-    await this.tenants.updateByTenantId(tenantId, {
+    await this.tenants.updateMetaAtVersion(tenantId, tenant.meta_credential_version ?? 0, {
       meta_access_token_encrypted: encryptedToken,
+      meta_access_token: null,
       meta_token_expires_at: expiresAt,
       meta_connection_source: "oauth",
       meta_fb_user_id: me.value.fbUserId,
       meta_fb_user_name: me.value.fbUserName ?? null,
-      ...(adAccounts.length === 1 ? { meta_ad_account_id: adAccounts[0]?.adAccountId } : {}),
+      // New credentials require explicit resource selection, even for a single account.
+      meta_ad_account_id: null,
+      meta_page_id: null,
+      meta_instagram_id: null,
+      meta_whatsapp_destination: null,
     });
 
     return {
       success: true,
-      message:
-        adAccounts.length === 1
-          ? `Meta connected — ad account "${adAccounts[0]?.adAccountId ?? ""}" auto-selected.`
-          : `Meta connected — ${String(adAccounts.length)} ad account(s) found; pick one in Settings.`,
+      message: `Meta credential saved — ${String(adAccounts.length)} ad account(s) found; select and verify one in Settings.`,
     };
   }
 
@@ -207,6 +211,7 @@ export class MetaOAuthService {
     if (tenant === undefined || tenant.meta_connection_source !== "oauth") {
       return ok({ refreshed: false });
     }
+    const expectedCredentialVersion = tenant.meta_credential_version ?? 0;
     if (
       tenant.meta_access_token_encrypted === null ||
       tenant.meta_access_token_encrypted === undefined ||
@@ -256,8 +261,9 @@ export class MetaOAuthService {
       refreshed.value.expiresInSeconds !== undefined
         ? new Date(this.now().getTime() + refreshed.value.expiresInSeconds * 1000).toISOString()
         : tenant.meta_token_expires_at;
-    await this.tenants.updateByTenantId(tenantId, {
+    await this.tenants.updateMetaAtVersion(tenantId, expectedCredentialVersion, {
       meta_access_token_encrypted: this.encryption.encrypt(refreshed.value.accessToken),
+      meta_last_refreshed_at: new Date().toISOString(),
       meta_token_expires_at: newExpiresAt,
     });
     await this.tokenRefreshLog.insert({
@@ -276,7 +282,8 @@ export class MetaOAuthService {
    * this sprint — see this class's own doc for why.
    */
   async getToken(tenantId: string): Promise<string> {
-    await this.refreshTokenIfNeeded(tenantId);
+    const refresh = await this.refreshTokenIfNeeded(tenantId);
+    if (!refresh.ok) throw new UnavailableError("Meta credential refresh failed");
     const tenant = await this.tenants.findByTenantId(tenantId);
     if (
       tenant === undefined ||
@@ -289,14 +296,22 @@ export class MetaOAuthService {
     return this.encryption.decrypt(tenant.meta_access_token_encrypted);
   }
 
-  /** `DELETE /oauth/meta/disconnect` — reverts to the `'manual'` connection source. Deliberately does NOT touch `tenants.meta_access_token` (the pre-existing plain-text manual column) — only the OAuth-specific encrypted fields are cleared. */
+  /** Disconnect clears both credential formats and selected destinations atomically. */
   async disconnect(tenantId: string): Promise<void> {
-    await this.tenants.updateByTenantId(tenantId, {
+    const tenant = await this.tenants.findByTenantId(tenantId);
+    if (!tenant) throw new UnavailableError("Workspace unavailable");
+    await this.tenants.updateMetaAtVersion(tenantId, tenant.meta_credential_version ?? 0, {
       meta_connection_source: "manual",
+      meta_access_token: null,
+      meta_integration_status: "DISCONNECTED",
       meta_access_token_encrypted: null,
       meta_token_expires_at: null,
       meta_fb_user_id: null,
       meta_fb_user_name: null,
+      meta_ad_account_id: null,
+      meta_page_id: null,
+      meta_instagram_id: null,
+      meta_whatsapp_destination: null,
     });
   }
 
@@ -325,9 +340,9 @@ function metaStatusFromTenant(tenant: TenantRow): {
 } {
   const source = tenant.meta_connection_source === "oauth" ? "oauth" : "manual";
   const connected =
-    source === "oauth"
-      ? tenant.meta_access_token_encrypted !== null && tenant.meta_access_token_encrypted.length > 0
-      : tenant.meta_access_token !== null && tenant.meta_access_token.length > 0;
+    tenant.meta_integration_status === "CONNECTED" &&
+    Boolean(tenant.meta_access_token_encrypted) &&
+    Boolean(tenant.meta_ad_account_id);
   return {
     connected,
     source,

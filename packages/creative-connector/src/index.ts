@@ -74,7 +74,8 @@ export type {
 } from "./domain/value-objects/GenerationModel.js";
 export { AspectRatio } from "./domain/value-objects/AspectRatio.js";
 export { GenerationType } from "./domain/value-objects/GenerationType.js";
-export type { TaskId, FileUrl, MediaUrl } from "./domain/value-objects/index.js";
+export { TaskId } from "./domain/value-objects/TaskId.js";
+export type { FileUrl, MediaUrl } from "./domain/value-objects/index.js";
 // Additive: the raw Kie AI successFlag VO and its smart constructor.
 export { SuccessFlag, parseSuccessFlag } from "./domain/value-objects/SuccessFlag.js";
 // Additive: see design resolution #3 — DurationSeconds (5|8) vs. ExtendDurationSeconds (1-8).

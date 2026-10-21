@@ -101,7 +101,7 @@
   place-items: center;
   font-size: 10.5px;
   font-weight: 700;
-  color: #fff;
+  color: var(--palette-ffffff);
   /* Neutral gray for META/SISTEM/unknown agents — overridden inline with the real agent identity
      color (`--samantha`/`--kai`/`--clara`) when the agent is one of the 3. */
   background: var(--text-muted);

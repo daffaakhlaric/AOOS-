@@ -18,7 +18,10 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 const GENERATE_URL = "https://api.kie.ai/api/v1/veo/generate";
-const statusUrl = (taskId: string): string => `https://api.kie.ai/api/v1/jobs/${taskId}`;
+const statusHandler = (taskId: string, response: () => Response) =>
+  http.get("https://api.kie.ai/api/v1/veo/record-info", ({ request }) =>
+    new URL(request.url).searchParams.get("taskId") === taskId ? response() : undefined,
+  );
 
 function makeUseCase(publisher = createFakePublisher()) {
   const client = new KieAiGenerationClient({ apiKey: "key", sleep: async () => undefined });
@@ -35,7 +38,7 @@ describe("GenerateVideoFromImage (integration, MSW-mocked api.kie.ai)", () => {
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_veo_1" } }),
       ),
-      http.get(statusUrl("task_veo_1"), () =>
+      statusHandler("task_veo_1", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_veo_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v.mp4" },
@@ -59,7 +62,7 @@ describe("GenerateVideoFromImage (integration, MSW-mocked api.kie.ai)", () => {
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_veo_2" } }),
       ),
-      http.get(statusUrl("task_veo_2"), () =>
+      statusHandler("task_veo_2", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_veo_2", successFlag: 1, videoUrl: "https://cdn.kie.ai/v2.mp4" },
@@ -85,7 +88,7 @@ describe("GenerateVideoFromImage (integration, MSW-mocked api.kie.ai)", () => {
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_veo_3" } }),
       ),
-      http.get(statusUrl("task_veo_3"), () =>
+      statusHandler("task_veo_3", () =>
         HttpResponse.json({ code: 200, data: { taskId: "task_veo_3", successFlag: 2 } }),
       ),
     );

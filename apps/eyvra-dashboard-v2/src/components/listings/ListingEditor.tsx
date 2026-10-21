@@ -385,7 +385,11 @@ export function ListingEditor({ listingId }: { listingId?: string }) {
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
-          if (!busy) void upload(e.dataTransfer.files, kind);
+          // `dataTransfer.files` only stays valid for the synchronous span of this event; `upload`
+          // is async (its first step, `persist()`, alone takes 3s+ per the real save logs) and
+          // reads the list only after that await. Materialize it into a plain array NOW, not a
+          // live reference read later.
+          if (!busy) void upload(Array.from(e.dataTransfer.files), kind);
         }}
       >
         <b>＋ {label}</b>
@@ -396,8 +400,14 @@ export function ListingEditor({ listingId }: { listingId?: string }) {
           accept={accept}
           disabled={busy || (kind === "documents" && !config)}
           onChange={(e) => {
-            if (e.target.files) void upload(e.target.files, kind);
+            // Same reasoning as onDrop above: `input.files` is a LIVE FileList tied to the input's
+            // current value. Resetting `e.target.value` below (needed so re-picking the same file
+            // fires another change event) clears `.files` too — including for any code still
+            // holding this same reference. Snapshot into a plain array before that reset, or the
+            // upload silently receives zero files once `persist()`'s await resolves.
+            const files = Array.from(e.target.files ?? []);
             e.target.value = "";
+            if (files.length > 0) void upload(files, kind);
           }}
         />
       </label>
@@ -705,7 +715,11 @@ export function ListingEditor({ listingId }: { listingId?: string }) {
           <article className={styles.card}>
             <h3>Listing Readiness</h3>
             <div className={styles.readiness}>
-              <div style={{ background: "conic-gradient(#08b782 " + ready + "%, #e8edf5 0)" }}>
+              <div
+                style={{
+                  background: "conic-gradient(var(--success) " + ready + "%, var(--border) 0)",
+                }}
+              >
                 <b>
                   {ready}
                   <small>/100</small>

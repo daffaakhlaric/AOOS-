@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { AuditLogModule } from "../audit-log/audit-log.module.js";
+import { GrowthPolicyModule } from "../automation-policy/growth-policy.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { CreativePackagesModule } from "../creative-packages/creative-packages.module.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
@@ -29,6 +30,7 @@ import { PendingActionsService } from "./pending-actions.service.js";
  */
 @Module({
   imports: [
+    GrowthPolicyModule,
     CampaignsModule,
     AuditLogModule,
     ModeGuardModule,

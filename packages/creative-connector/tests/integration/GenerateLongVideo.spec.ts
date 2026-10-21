@@ -18,7 +18,10 @@ afterAll(() => mswServer.close());
 
 const GENERATE_URL = "https://api.kie.ai/api/v1/veo/generate";
 const EXTEND_URL = "https://api.kie.ai/api/v1/veo/extend";
-const statusUrl = (taskId: string): string => `https://api.kie.ai/api/v1/jobs/${taskId}`;
+const statusHandler = (taskId: string, response: () => Response) =>
+  http.get("https://api.kie.ai/api/v1/veo/record-info", ({ request }) =>
+    new URL(request.url).searchParams.get("taskId") === taskId ? response() : undefined,
+  );
 
 function makeUseCase(publisher = createFakePublisher()) {
   const client = new KieAiGenerationClient({ apiKey: "key", sleep: async () => undefined });
@@ -55,7 +58,7 @@ function registerHandlers(taskCount: number): { generateCalls: number; extendCal
       });
     }),
     ...Array.from({ length: taskCount }, (_, i) => i + 1).map((n) =>
-      http.get(statusUrl(`task_${n}`), () =>
+      statusHandler(`task_${n}`, () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: `task_${n}`, successFlag: 1, videoUrl: `https://cdn.kie.ai/v${n}.mp4` },
@@ -141,7 +144,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
         receivedBody = await request.json();
         return HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_1" } });
       }),
-      http.get(statusUrl("task_1"), () =>
+      statusHandler("task_1", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v1.mp4" },
@@ -177,7 +180,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_1" } }),
       ),
-      http.get(statusUrl("task_1"), () =>
+      statusHandler("task_1", () =>
         HttpResponse.json({ code: 200, data: { taskId: "task_1", successFlag: 2 } }),
       ),
     );
@@ -199,7 +202,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_1" } }),
       ),
-      http.get(statusUrl("task_1"), () =>
+      statusHandler("task_1", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v1.mp4" },
@@ -208,7 +211,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
       http.post(EXTEND_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_2" } }),
       ),
-      http.get(statusUrl("task_2"), () =>
+      statusHandler("task_2", () =>
         HttpResponse.json({ code: 200, data: { taskId: "task_2", successFlag: 2 } }),
       ),
     );
@@ -242,7 +245,7 @@ describe("GenerateLongVideo (integration, MSW-mocked api.kie.ai) — pinned long
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_1" } }),
       ),
-      http.get(statusUrl("task_1"), () =>
+      statusHandler("task_1", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_1", successFlag: 1, videoUrl: "https://cdn.kie.ai/v1.mp4" },

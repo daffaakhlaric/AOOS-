@@ -7,49 +7,49 @@ import { buildFakeExecutionContext, buildFakeRequest } from "../../../test-suppo
 import { ApiKeyGuard } from "./api-key.guard.js";
 
 describe("ApiKeyGuard", () => {
-  it("allows a request with the correct x-api-key header", () => {
+  it("rejects an API key without authenticated user identity", async () => {
     const guard = new ApiKeyGuard(buildTestConfig());
     const context = buildFakeExecutionContext(
       buildFakeRequest({ headers: { "x-api-key": "test-api-key" } }),
     );
-    expect(guard.canActivate(context)).toBe(true);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it("throws UnauthorizedException when the header is missing", () => {
+  it("throws UnauthorizedException when the header is missing", async () => {
     const guard = new ApiKeyGuard(buildTestConfig());
     const context = buildFakeExecutionContext(buildFakeRequest());
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it("throws UnauthorizedException when the header is an empty string", () => {
+  it("throws UnauthorizedException when the header is an empty string", async () => {
     const guard = new ApiKeyGuard(buildTestConfig());
     const context = buildFakeExecutionContext(buildFakeRequest({ headers: { "x-api-key": "" } }));
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it("throws UnauthorizedException when the key has the wrong length", () => {
+  it("throws UnauthorizedException when the key has the wrong length", async () => {
     const guard = new ApiKeyGuard(buildTestConfig());
     const context = buildFakeExecutionContext(
       buildFakeRequest({ headers: { "x-api-key": "short" } }),
     );
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it("throws UnauthorizedException when the key has the same length but wrong value", () => {
+  it("throws UnauthorizedException when the key has the same length but wrong value", async () => {
     const guard = new ApiKeyGuard(buildTestConfig());
     // Same length as "test-api-key" (12 chars) so this exercises the timingSafeEqual mismatch
     // branch specifically, not the length-mismatch short-circuit.
     const context = buildFakeExecutionContext(
       buildFakeRequest({ headers: { "x-api-key": "test-api-kex" } }),
     );
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it("throws UnauthorizedException when the header is provided as an array", () => {
+  it("throws UnauthorizedException when the header is provided as an array", async () => {
     const guard = new ApiKeyGuard(buildTestConfig());
     const context = buildFakeExecutionContext(
       buildFakeRequest({ headers: { "x-api-key": ["a", "b"] } }),
     );
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 });

@@ -35,3 +35,5 @@
 .linkDisabled {
   opacity: 0.4;
 }
+
+.nav {overflow-x:auto;justify-content:flex-start;} .link {min-width:82px;flex:1 0 auto;}

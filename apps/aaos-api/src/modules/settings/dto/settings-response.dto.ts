@@ -23,7 +23,7 @@ export interface TenantInfoDto {
  */
 export interface MetaSettingsDto {
   readonly adAccountId?: string;
-  readonly accessToken?: string;
+
   readonly apiVersion: string;
   readonly hasToken: boolean;
   /** True when this tenant has no `tenants.meta_access_token` override and this deployment's `META_ACCESS_TOKEN` env var is being used instead (coordinator note section 4's fallback path). */

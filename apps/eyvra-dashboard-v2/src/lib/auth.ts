@@ -12,7 +12,6 @@ export type UserRole = "manager" | "owner" | "sales" | "superadmin";
 export type Vertical = "AUTOMOTIVE" | "PROPERTY";
 
 export const DEFAULT_TENANT_ID = "dss-motor";
-const DEFAULT_VERTICAL: Vertical = "AUTOMOTIVE";
 
 export interface SessionInfo {
   readonly userId: string;
@@ -20,27 +19,6 @@ export interface SessionInfo {
   readonly role: UserRole;
   readonly tenantId: string;
   readonly vertical: Vertical;
-}
-
-function parseRole(raw: unknown): UserRole {
-  if (raw === "manager" || raw === "owner" || raw === "sales" || raw === "superadmin") {
-    return raw;
-  }
-  return "sales";
-}
-
-function parseTenantId(raw: unknown): string {
-  if (typeof raw === "string" && raw.length > 0) {
-    return raw;
-  }
-  return DEFAULT_TENANT_ID;
-}
-
-function parseVertical(raw: unknown): Vertical {
-  if (raw === "AUTOMOTIVE" || raw === "PROPERTY") {
-    return raw;
-  }
-  return DEFAULT_VERTICAL;
 }
 
 function requireSupabaseEnv(): { url: string; anonKey: string } {
@@ -94,12 +72,45 @@ export async function getSession(
   if (user === null) {
     return null;
   }
-  const metadata = user.user_metadata as Record<string, unknown> | null;
-  return {
-    userId: user.id,
-    email: user.email,
-    role: parseRole(metadata?.["role"]),
-    tenantId: parseTenantId(metadata?.["tenantId"]),
-    vertical: parseVertical(metadata?.["vertical"]),
-  };
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData.session?.access_token) return null;
+  const hint = request.cookies.get("skorpintar-workspace")?.value;
+  try {
+    const contextResponse = await fetch(
+      new URL("/api/v1/auth/context", process.env.AAOS_API_BASE_URL),
+      {
+        headers: {
+          "x-api-key": process.env.AAOS_API_KEY ?? "",
+          authorization: "Bearer " + sessionData.session.access_token,
+          ...(hint ? { "x-tenant-id": hint } : {}),
+        },
+        cache: "no-store",
+      },
+    );
+    if (!contextResponse.ok) return null;
+    const trusted = await contextResponse.json();
+    if (
+      trusted.userId !== user.id ||
+      !trusted.membershipId ||
+      !trusted.tenantId ||
+      !["PROPERTY", "AUTOMOTIVE"].includes(trusted.vertical)
+    )
+      return null;
+    const role: UserRole = trusted.superadmin
+      ? "superadmin"
+      : trusted.role === "OWNER"
+        ? "owner"
+        : ["ADMIN", "MEDIA_BUYER"].includes(trusted.role)
+          ? "manager"
+          : "sales";
+    return {
+      userId: user.id,
+      email: user.email,
+      role,
+      tenantId: trusted.tenantId,
+      vertical: trusted.vertical,
+    };
+  } catch {
+    return null;
+  }
 }

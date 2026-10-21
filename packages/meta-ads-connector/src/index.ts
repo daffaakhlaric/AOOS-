@@ -278,3 +278,7 @@ export { mapLead, mapLeads, derivePublisherPlatform } from "./mappers/LeadMapper
 export { mapAdInterest } from "./mappers/AdInterestMapper.js";
 export { mapAdLocation } from "./mappers/AdLocationMapper.js";
 export type { AdIdentifiers, AdResolver } from "./mappers/LeadMapper.js";
+
+export { MetaSafetyError } from "./domain/errors/MetaSafetyError.js";
+export * from "./contracts/MetaExecution.js";
+export * from "./utils/MetaMoney.js";

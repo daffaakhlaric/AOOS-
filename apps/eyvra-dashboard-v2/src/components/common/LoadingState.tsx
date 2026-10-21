@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import styles from "./LoadingState.module.css";
 
 export function LoadingState({
@@ -9,7 +10,7 @@ export function LoadingState({
 }): React.ReactElement {
   return (
     <div className={styles.wrap} role="status" data-testid={testId ?? "loading-state"}>
-      <span className={styles.skeleton} aria-hidden="true" />
+      <BrandLogo />
       <span>{processLabel ?? "Memuat..."}</span>
     </div>
   );

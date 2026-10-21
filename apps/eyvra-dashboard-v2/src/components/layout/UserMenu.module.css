@@ -1,0 +1,9 @@
+.menu {position:relative;font-size:13px;z-index:30;}
+.menu summary {display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;min-height:40px;}
+.menu summary::-webkit-details-marker {display:none;}
+.avatar {display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--cyan-soft);color:var(--deep-teal);font-weight:700;}
+.panel {position:absolute;right:0;top:calc(100% + 8px);width:240px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);}
+.panel strong {display:block;font-size:12px;padding:8px;color:var(--text-secondary);}
+.panel a,.panel button {display:block;width:100%;text-align:left;padding:10px;border:0;background:transparent;border-radius:6px;cursor:pointer;color:var(--text-primary);font:inherit;}
+.panel a:hover,.panel button:hover {background:var(--cyan-soft);}
+.panel p {color:var(--critical);padding:8px;}

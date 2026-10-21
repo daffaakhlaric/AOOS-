@@ -47,6 +47,7 @@ it("selects real video variants and preserves QA state when an image fails", asy
     })),
   );
   render(<KaiStudio briefId="b" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Buka Inspector →" }));
   await screen.findByRole("button", { name: "Select Video" });
   await waitFor(() =>
     expect(
@@ -67,4 +68,47 @@ it("shows fetch failure with retry instead of an empty successful queue", async 
   render(<KaiStudio />);
   expect(await screen.findByRole("alert")).toHaveTextContent("Production data could not be loaded");
   expect(screen.getByRole("button", { name: "Retry production data" })).toBeInTheDocument();
+});
+it("keeps manual edits across mode switches and never generates fake assets", async () => {
+  const fetcher = vi.fn(async (url: string, _options?: RequestInit) => ({
+    ok: true,
+    json: async () =>
+      url.includes("/api/creative/")
+        ? { package: { ...pkg, status: "DRAFT", imageUrls: [], videoUrl: undefined }, logs: [] }
+        : { packages: [{ ...pkg, status: "DRAFT", imageUrls: [], videoUrl: undefined }] },
+  }));
+  vi.stubGlobal("fetch", fetcher);
+  render(<KaiStudio briefId="b" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Manual" }));
+  fireEvent.change(screen.getByLabelText("Target Audience"), {
+    target: { value: "Investor draft" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Auto dari Samantha" }));
+  fireEvent.click(screen.getByRole("button", { name: "Manual" }));
+  expect(screen.getByLabelText("Target Audience")).toHaveValue("Investor draft");
+  expect(screen.getByRole("button", { name: "✧ Generate Konsep Creative" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "✧ Generate Image" })).toBeDisabled();
+  expect(screen.getByText("Belum ada hasil pada format ini")).toBeInTheDocument();
+  expect(fetcher.mock.calls.every(([, options]) => !options || !("method" in options))).toBe(true);
+});
+it("allows local scene planning and blocks shortlist without recorded QA", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url.includes("/api/creative/") ? { package: pkg, logs: [] } : { packages: [pkg] },
+    })),
+  );
+  render(<KaiStudio briefId="b" />);
+  fireEvent.click(await screen.findByRole("button", { name: "＋ Tambah Scene" }));
+  fireEvent.change(screen.getByLabelText("Overlay"), { target: { value: "Lihat properti" } });
+  expect(screen.getByLabelText("Overlay")).toHaveValue("Lihat properti");
+  expect(
+    screen
+      .getAllByLabelText("Pilih untuk shortlist")
+      .every((e) => (e as HTMLInputElement).disabled),
+  ).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Hapus scene 1" }));
+  expect(screen.getByText("Belum ada storyboard")).toBeInTheDocument();
 });

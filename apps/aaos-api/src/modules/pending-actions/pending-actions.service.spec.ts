@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
 import type { AuditLogService } from "../audit-log/audit-log.service.js";
+import { defaultGrowthPolicy } from "../automation-policy/domain/growth-policy.js";
+import type { GrowthPolicyService } from "../automation-policy/growth-policy.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
 import type { RestructureCampaignResponseDto } from "../campaigns/dto/restructure-campaign.dto.js";
@@ -165,11 +167,42 @@ function buildService(
     creativePackageRepository,
     creativePackagesService,
     () => FIXED_NOW,
+    {
+      current: async () => ({ version: 0, policy: defaultGrowthPolicy() }),
+    } as unknown as GrowthPolicyService,
   );
   return { service, campaignsService, auditLog, creativePackagesService };
 }
 
 describe("PendingActionsService", () => {
+  it("executes only once for simultaneous approvals and rejects replay after timeout", async () => {
+    const client = createFakeSupabaseClient();
+    seedPendingAction(client);
+    const campaigns = buildFakeCampaignsService(async () => {
+      throw new Error("provider timeout");
+    });
+    const { service } = buildService(client, campaigns);
+    const results = await Promise.allSettled([
+      service.approve("pending-1", "dss-motor", "manager", undefined),
+      service.approve("pending-1", "dss-motor", "manager", undefined),
+    ]);
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+    expect(campaigns.createPropertyCampaign).toHaveBeenCalledTimes(1);
+    expect(client.rows("pending_agent_actions")[0]?.["status"]).toBe("EXECUTION_UNCERTAIN");
+    await expect(service.approve("pending-1", "dss-motor", "manager", undefined)).rejects.toThrow();
+    expect(campaigns.createPropertyCampaign).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks stale policy before claiming or mutating", async () => {
+    const client = createFakeSupabaseClient();
+    seedPendingAction(client, { payload: { listingId: "listing-1", policyVersion: 99 } });
+    const { service, campaignsService } = buildService(client);
+    await expect(service.approve("pending-1", "dss-motor", "manager", undefined)).rejects.toThrow(
+      "STALE_POLICY",
+    );
+    expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
+    expect(client.rows("pending_agent_actions")[0]?.["status"]).toBe("PENDING");
+  });
   describe("enqueue", () => {
     it("writes a real PENDING pending_agent_actions row (never touches Meta/CampaignsService)", async () => {
       const client = createFakeSupabaseClient();
@@ -396,6 +429,7 @@ describe("PendingActionsService", () => {
         "dss-motor",
         { listingId: "listing-1" },
         expect.any(String),
+        "cp-auto-1",
       );
       const creativeRepository = new CreativePackageRepository(client);
       const pkg = await creativeRepository.findById("dss-motor", "cp-auto-1");

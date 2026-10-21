@@ -69,7 +69,7 @@ export class SuperadminService {
       vertical: row.vertical as "AUTOMOTIVE" | "PROPERTY",
       status: row.status as "TRIAL" | "ACTIVE" | "SUSPENDED",
       ...(row.trial_ends_at !== null ? { trialEndsAt: row.trial_ends_at } : {}),
-      hasMetaToken: row.meta_access_token !== null && row.meta_access_token.length > 0,
+      hasMetaToken: Boolean(row.meta_access_token_encrypted),
       ...(row.meta_ad_account_id !== null
         ? { maskedMetaAdAccountId: maskTail(row.meta_ad_account_id) }
         : {}),
@@ -100,6 +100,10 @@ export class SuperadminService {
    * Auth user on a failed tenant-row insert, same discipline as `SalesHumansService.create`.
    */
   async create(dto: CreateTenantBodyDto): Promise<TenantResponseDto> {
+    if (dto.metaAccessToken || dto.metaAdAccountId)
+      throw new ValidationError(
+        "Configure Meta through verified workspace Settings after provisioning.",
+      );
     const existing = await this.tenants.findByTenantId(dto.tenantId);
     if (existing !== undefined) {
       throw new ConflictError(`Tenant id "${dto.tenantId}" sudah digunakan`);
@@ -133,7 +137,7 @@ export class SuperadminService {
         vertical: dto.vertical,
         status: dto.status,
         trial_ends_at: trialEndsAt,
-        meta_access_token: dto.metaAccessToken ?? null,
+        meta_access_token: null,
         meta_ad_account_id: dto.metaAdAccountId ?? null,
         meta_api_version: dto.metaApiVersion ?? "v21.0",
         // AAOS-PROPERTY-DEVLIVE-ACTIVITYLOG Phase A: a brand-new tenant starts in DEV — a real,
@@ -173,6 +177,14 @@ export class SuperadminService {
   }
 
   async update(tenantId: string, dto: UpdateTenantBodyDto): Promise<TenantResponseDto> {
+    if (
+      dto.metaAccessToken !== undefined ||
+      dto.metaAdAccountId !== undefined ||
+      dto.metaApiVersion !== undefined
+    )
+      throw new ValidationError(
+        "Use verified workspace Settings to replace Meta credentials or account.",
+      );
     const existing = await this.tenants.findByTenantId(tenantId);
     if (existing === undefined) {
       throw new NotFoundError(`No tenant found for id "${tenantId}"`);
@@ -182,9 +194,6 @@ export class SuperadminService {
       ...(dto.vertical !== undefined ? { vertical: dto.vertical } : {}),
       ...(dto.status !== undefined ? { status: dto.status } : {}),
       ...(dto.trialEndsAt !== undefined ? { trial_ends_at: dto.trialEndsAt } : {}),
-      ...(dto.metaAccessToken !== undefined ? { meta_access_token: dto.metaAccessToken } : {}),
-      ...(dto.metaAdAccountId !== undefined ? { meta_ad_account_id: dto.metaAdAccountId } : {}),
-      ...(dto.metaApiVersion !== undefined ? { meta_api_version: dto.metaApiVersion } : {}),
       updated_at: new Date().toISOString(),
     });
     // Real cache invalidation (AAOS-MULTI-TENANT-PHASE1B Phase 3) — Super Admin editing a

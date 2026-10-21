@@ -90,3 +90,5 @@
     font-size: 13px;
   }
 }
+
+.value,.unavailableValue {font-family:var(--heading-font);}

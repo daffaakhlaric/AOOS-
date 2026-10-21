@@ -18,7 +18,10 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 const CREATE_TASK_URL = "https://api.kie.ai/api/v1/jobs/createTask";
-const statusUrl = (taskId: string): string => `https://api.kie.ai/api/v1/jobs/${taskId}`;
+const statusHandler = (taskId: string, response: () => Response) =>
+  http.get("https://api.kie.ai/api/v1/jobs/recordInfo", ({ request }) =>
+    new URL(request.url).searchParams.get("taskId") === taskId ? response() : undefined,
+  );
 
 function makeUseCase() {
   const client = new KieAiGenerationClient({ apiKey: "key", sleep: async () => undefined });
@@ -42,19 +45,19 @@ describe("GenerateImageSet (integration, MSW-mocked api.kie.ai)", () => {
           data: { taskId: `task_${counter}` },
         });
       }),
-      http.get(statusUrl("task_1"), () =>
+      statusHandler("task_1", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_1", successFlag: 1, imageUrl: "https://cdn.kie.ai/i1.jpg" },
         }),
       ),
-      http.get(statusUrl("task_2"), () =>
+      statusHandler("task_2", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_2", successFlag: 1, imageUrl: "https://cdn.kie.ai/i2.jpg" },
         }),
       ),
-      http.get(statusUrl("task_3"), () =>
+      statusHandler("task_3", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_3", successFlag: 1, imageUrl: "https://cdn.kie.ai/i3.jpg" },
@@ -94,13 +97,13 @@ describe("GenerateImageSet (integration, MSW-mocked api.kie.ai)", () => {
         const taskId = body.input.prompt === "prompt 1" ? "task_1" : "task_3";
         return HttpResponse.json({ code: 200, msg: "success", data: { taskId } });
       }),
-      http.get(statusUrl("task_1"), () =>
+      statusHandler("task_1", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_1", successFlag: 1, imageUrl: "https://cdn.kie.ai/i1.jpg" },
         }),
       ),
-      http.get(statusUrl("task_3"), () =>
+      statusHandler("task_3", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_3", successFlag: 1, imageUrl: "https://cdn.kie.ai/i3.jpg" },

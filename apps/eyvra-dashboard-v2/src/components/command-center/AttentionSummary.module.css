@@ -48,7 +48,7 @@
    the title and the counter together so each card has one coherent accent. */
 .panelAttention .headerIcon {
   background: var(--critical);
-  color: #fff;
+  color: var(--palette-ffffff);
 }
 .panelAttention .panelLabel {
   color: var(--critical);
@@ -59,7 +59,7 @@
 
 .panelOpportunity .headerIcon {
   background: var(--success);
-  color: #fff;
+  color: var(--palette-ffffff);
 }
 .panelOpportunity .panelLabel {
   color: var(--success);

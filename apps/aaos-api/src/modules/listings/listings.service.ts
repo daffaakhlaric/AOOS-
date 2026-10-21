@@ -258,6 +258,28 @@ export class ListingsService {
     return toListingDto(await this.requireRow(tenantId, id));
   }
 
+  async detailWorkspace(tenantId: string, id: string) {
+    const listing = await this.getById(tenantId, id);
+    const errors: string[] = [];
+    let campaigns:
+      { id: string; listingId: string; name: string; status: string; syncedAt: string }[] | null =
+      null;
+    try {
+      campaigns = (await this.repository.advertisingCampaigns(tenantId))
+        .filter((c) => c.listing_id === id)
+        .map((c) => ({
+          id: c.meta_campaign_id,
+          listingId: id,
+          name: c.name,
+          status: c.status,
+          syncedAt: c.synced_at,
+        }));
+    } catch {
+      errors.push("Hubungan campaign sementara tidak tersedia.");
+    }
+    return { ...buildListingAdvertising(listing), campaigns, errors };
+  }
+
   async create(
     tenantId: string,
     dto: CreateListingBodyDto | DraftListingBodyDto,

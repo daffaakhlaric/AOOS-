@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { SupabaseClientLike } from "@aos/lead-store";
 
 import type { CampaignHealth } from "../domain/campaign-health.js";
@@ -11,7 +13,7 @@ export interface CampaignAssessmentRow {
   readonly id: string;
   readonly tenant_id: string;
   readonly meta_campaign_id: string;
-  readonly health: CampaignHealth;
+  readonly health: CampaignHealth & { readonly runtimeEvidence?: Record<string, unknown> };
   readonly diagnosis: CampaignDiagnosis;
   readonly decision: SamanthaDecision;
   readonly assessed_at: string;
@@ -48,6 +50,56 @@ function toStoredAssessment(row: CampaignAssessmentRow): StoredAssessment {
  */
 export class CampaignAssessmentRepository {
   constructor(private readonly client: SupabaseClientLike) {}
+
+  async recordForLoop(
+    tenantId: string,
+    campaignId: string,
+    correlationId: string,
+    health: CampaignHealth,
+    diagnosis: CampaignDiagnosis,
+    decision: SamanthaDecision,
+    evidence: Record<string, unknown>,
+  ): Promise<StoredAssessment> {
+    const digest = createHash("sha256")
+      .update(JSON.stringify([tenantId, campaignId, correlationId]))
+      .digest("hex");
+    const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+    const existing = await this.client
+      .from<CampaignAssessmentRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("id", id)
+      .maybeSingle();
+    if (existing.error)
+      throw new CampaignAssessmentRepositoryError("Runtime evidence lookup failed");
+    if (existing.data) return toStoredAssessment(existing.data);
+    const result = await this.client
+      .from<CampaignAssessmentRow>(TABLE)
+      .insert({
+        id,
+        tenant_id: tenantId,
+        meta_campaign_id: campaignId,
+        health: {
+          ...health,
+          runtimeEvidence: { ...evidence, schemaVersion: 1, correlationId, campaignId },
+        },
+        diagnosis,
+        decision,
+      })
+      .select("*")
+      .single();
+    if (!result.error && result.data) return toStoredAssessment(result.data);
+    // A concurrent retry can insert the same immutable assessment first.
+    const retry = await this.client
+      .from<CampaignAssessmentRow>(TABLE)
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("id", id)
+      .maybeSingle();
+    if (retry.error || !retry.data)
+      throw new CampaignAssessmentRepositoryError("Runtime evidence was not persisted");
+    return toStoredAssessment(retry.data);
+  }
 
   async record(
     tenantId: string,

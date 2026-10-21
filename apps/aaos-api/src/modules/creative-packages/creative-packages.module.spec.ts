@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { createFakeSupabaseClient } from "../../test-support/fake-supabase-client.js";
 
+import { CreativeHandoffController } from "./creative-handoff.controller.js";
 import { CreativePackagesController } from "./creative-packages.controller.js";
 import { CreativePackagesModule } from "./creative-packages.module.js";
+import { CreativeHandoffRepository } from "./infrastructure/creative-handoff.repository.js";
 import { CreativeLogRepository } from "./infrastructure/creative-log.repository.js";
 import { CreativePackageRepository } from "./infrastructure/creative-package.repository.js";
 import { KieWebhookController } from "./kie-webhook.controller.js";
@@ -22,14 +24,22 @@ function providers(): readonly FactoryProvider[] {
 }
 
 describe("CreativePackagesModule", () => {
-  it("registers CreativePackagesController and KieWebhookController (PROMPT 53 — Phase 41) as its controllers", () => {
+  it("registers handoff before dynamic package routes and retains the webhook", () => {
     const metadata = Reflect.getMetadata("controllers", CreativePackagesModule) as unknown[];
-    expect(metadata).toEqual([CreativePackagesController, KieWebhookController]);
+    expect(metadata).toEqual([
+      CreativeHandoffController,
+      CreativePackagesController,
+      KieWebhookController,
+    ]);
   });
 
   it("builds both repositories from the SHARED SUPABASE_CLIENT (not a second connection)", () => {
     const client = createFakeSupabaseClient();
-    for (const token of [CreativePackageRepository, CreativeLogRepository]) {
+    for (const token of [
+      CreativePackageRepository,
+      CreativeLogRepository,
+      CreativeHandoffRepository,
+    ]) {
       const provider = providers().find((candidate) => candidate.provide === token);
       expect(provider?.inject).toEqual([SUPABASE_CLIENT]);
       const built = (provider?.useFactory as (c: unknown) => unknown)(client);

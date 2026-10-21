@@ -9,3 +9,4 @@ packages:
 # non-interactive environment).
 onlyBuiltDependencies:
   - sharp
+  - ffmpeg-static

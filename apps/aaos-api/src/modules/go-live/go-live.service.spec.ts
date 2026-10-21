@@ -127,6 +127,7 @@ function makeService(
   const connectorRegistry = {
     resolve: vi.fn(async () =>
       ok({
+        selectedPageId: "tenant-page-fixture",
         ...connector,
         accessToken: config.META_ACCESS_TOKEN,
         adAccountIds: config.META_AD_ACCOUNT_IDS,
@@ -206,9 +207,13 @@ describe("GoLiveService.execute — guards (fail closed, before any external cal
     );
   });
 
-  it("rejects a real (non-dry-run) request when META_PAGE_ID is unset", async () => {
+  it("rejects a real request without a tenant Page even when a global Page exists", async () => {
     const simulation = buildSimulation();
-    const { service } = makeService(simulation, {}, { META_PAGE_ID: "" });
+    const { service } = makeService(
+      simulation,
+      { selectedPageId: undefined },
+      { META_PAGE_ID: "global-page-must-not-be-used" },
+    );
     await expect(service.execute("sim-1", goLiveBody, "corr-1", "dss-motor")).rejects.toThrow(
       ValidationError,
     );

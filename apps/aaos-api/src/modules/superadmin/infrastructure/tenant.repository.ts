@@ -4,6 +4,16 @@ const TABLE = "tenants";
 
 /** Raw `tenants` row shape (snake_case) — COLUMN-FOR-COLUMN with `supabase/migrations/007_tenants_waba.sql`. */
 export interface TenantRow {
+  readonly meta_credential_version?: number;
+  readonly meta_integration_status?: string;
+  readonly meta_page_id?: string | null;
+  readonly meta_instagram_id?: string | null;
+  readonly meta_whatsapp_destination?: string | null;
+  readonly meta_last_validated_at?: string | null;
+  readonly meta_last_refreshed_at?: string | null;
+  readonly meta_capabilities?: unknown;
+  readonly meta_execution_tier?: string;
+
   readonly id: string;
   readonly tenant_id: string;
   readonly name: string;
@@ -164,6 +174,30 @@ export class TenantRepository {
     if (error !== null || data === null) {
       throw new TenantRepositoryError(
         `TenantRepository.updateByTenantId failed: ${error?.message ?? "no row returned"}`,
+      );
+    }
+    return data;
+  }
+
+  /** Compare-and-swap prevents a slow probe/refresh from replacing newer credentials. */
+  async updateMetaAtVersion(
+    tenantId: string,
+    expectedVersion: number,
+    values: TenantUpdate,
+  ): Promise<TenantRow> {
+    if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+      throw new TenantRepositoryError("Credential version is required");
+    }
+    const { data, error } = await this.client
+      .from<TenantRow>(TABLE)
+      .update(values)
+      .eq("tenant_id", tenantId)
+      .eq("meta_credential_version", expectedVersion)
+      .select("*")
+      .single();
+    if (error !== null || data === null) {
+      throw new TenantRepositoryError(
+        "Integration changed or persistence unavailable; reload before retrying",
       );
     }
     return data;

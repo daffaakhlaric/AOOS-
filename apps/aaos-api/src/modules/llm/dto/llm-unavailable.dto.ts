@@ -21,7 +21,15 @@ export type LlmUnavailableReason =
    * there is no real copy text to hand the LLM, so asking it to analyze would only invite it to
    * hallucinate an analysis of text it never received.
    */
-  | "NO_COPY_TEXT";
+  | "NO_COPY_TEXT"
+  /**
+   * Creative Stress Test, Second Boundary — `LlmService.simulateStressTestPersona`/
+   * `evaluateStressTestCopy`'s real, honest degrade when the creative under test has NO real
+   * `primaryText`/`headline`/`description` at all (not even a listing-detail proxy) — see
+   * `hasRealCreativeText` in `dto/stress-test-evaluators.dto.ts`. Checked BEFORE the gate/OpenAI
+   * call, same discipline as `NO_COPY_TEXT` above.
+   */
+  | "NO_CREATIVE_CONTENT";
 
 export interface LlmUnavailableResponseDto {
   readonly available: false;
@@ -36,6 +44,7 @@ const REASON_MESSAGES: Record<LlmUnavailableReason, string> = {
   INVALID_RESPONSE: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
   NO_COPY_TEXT:
     "Teks iklan tidak tersedia dari Meta untuk tipe creative ini, tidak bisa dianalisis",
+  NO_CREATIVE_CONTENT: "Tidak ada teks/creative nyata untuk dievaluasi pada run ini",
 };
 
 /** Builds an `available: false` fallback response with the spec's Section 7 Indonesian copy for `reason`. */

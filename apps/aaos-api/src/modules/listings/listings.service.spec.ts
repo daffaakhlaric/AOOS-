@@ -31,6 +31,41 @@ it("validates and persists Meta destination IDs with the listing, rejecting stal
 
 const TENANT = "propertyklik-demo";
 
+it("scopes the detail workspace before campaign lookup and excludes other listings", async () => {
+  const repository = makeRepository();
+  const campaigns = vi.fn(async () => [
+    {
+      listing_id: "listing-1",
+      meta_campaign_id: "campaign-a",
+      name: "Correct",
+      status: "ACTIVE",
+      synced_at: "2026-09-23",
+    },
+    {
+      listing_id: "listing-2",
+      meta_campaign_id: "campaign-b",
+      name: "Other listing",
+      status: "ACTIVE",
+      synced_at: "2026-09-23",
+    },
+  ]);
+  repository.advertisingCampaigns = campaigns;
+  const service = new ListingsService(repository, undefined);
+  vi.mocked(repository.findById).mockResolvedValue(makeRow());
+  await expect(service.detailWorkspace("other-tenant", "listing-1")).rejects.toBeInstanceOf(
+    NotFoundError,
+  );
+  expect(campaigns).not.toHaveBeenCalled();
+  const result = await service.detailWorkspace(TENANT, "listing-1");
+  expect(campaigns).toHaveBeenCalledWith(TENANT);
+  expect(result.campaigns?.map((c) => c.id)).toEqual(["campaign-a"]);
+  campaigns.mockRejectedValueOnce(new Error("offline"));
+  const partial = await service.detailWorkspace(TENANT, "listing-1");
+  expect(partial.listing.id).toBe("listing-1");
+  expect(partial.campaigns).toBeNull();
+  expect(partial.errors).toHaveLength(1);
+});
+
 function makeRow(overrides: Partial<ListingRow> = {}): ListingRow {
   return {
     id: "listing-1",

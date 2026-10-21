@@ -17,7 +17,7 @@ import {
 } from "@aos/meta-ads-connector";
 import type { MobixScraperService } from "@aos/mobix-web-scraper";
 import type { ObjectiveEngine } from "@aos/objective-engine";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createFakeSupabaseClient,
@@ -32,6 +32,7 @@ import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AgentRunRepository } from "../agent-runs/infrastructure/agent-run.repository.js";
 import type { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import type { AuditLogService } from "../audit-log/audit-log.service.js";
+import type { CampaignHealthService } from "../campaign-health/campaign-health.service.js";
 import type { CampaignsService } from "../campaigns/campaigns.service.js";
 import type { CreatePropertyCampaignResponseDto } from "../campaigns/dto/create-property-campaign.dto.js";
 import type { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
@@ -43,6 +44,7 @@ import type { LlmService } from "../llm/llm.service.js";
 import type { LookalikeService } from "../lookalike/lookalike.service.js";
 import type { MarketIntelligenceService } from "../market-intelligence/market-intelligence.service.js";
 import type { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
+import type { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import type { ModeGuardService } from "../mode-guard/mode-guard.service.js";
 import type { PendingActionRow } from "../pending-actions/infrastructure/pending-action.repository.js";
 import type { PendingActionsService } from "../pending-actions/pending-actions.service.js";
@@ -53,7 +55,13 @@ import type { TenantRepository } from "../superadmin/infrastructure/tenant.repos
 import type { CalendarEventResult, StoredCalendarEvent } from "./domain/calendar-event.js";
 import type { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import type { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
-import { SchedulerService, nextOccurrence, resolveCalendarRange } from "./scheduler.service.js";
+import type { LoopRuntimeRepository } from "./infrastructure/loop-runtime.repository.js";
+import {
+  SchedulerService,
+  nextOccurrence,
+  nextRuntimeOccurrence,
+  resolveCalendarRange,
+} from "./scheduler.service.js";
 
 function unwrap<T>(result: { ok: boolean; value?: T; error?: unknown }): T {
   if (!result.ok) {
@@ -533,6 +541,9 @@ function buildService(
     creativePackageRepository?: CreativePackageRepository;
     creativePackagesService?: CreativePackagesService;
     loopRunRepository?: LoopRunRepository;
+    loopRuntime?: LoopRuntimeRepository;
+    campaignHealth?: CampaignHealthService;
+    metaSync?: MetaSyncService;
   } = {},
 ): SchedulerService {
   const config = buildTestConfig();
@@ -578,8 +589,162 @@ function buildService(
     options.creativePackageRepository ?? buildFakeCreativePackageRepository(),
     options.creativePackagesService ?? buildFakeCreativePackagesService(),
     options.loopRunRepository ?? buildFakeLoopRunRepository(),
+    options.loopRuntime,
+    options.campaignHealth,
+    options.metaSync,
   );
 }
+
+describe("durable advertising runtime integration", () => {
+  beforeEach(() => vi.stubEnv("ADVERTISING_LOOP_RUNTIME_V2", "true"));
+  afterEach(() => vi.unstubAllEnvs());
+  function runtime(event = buildEvent()) {
+    const claim = {
+      id: "loop-1",
+      correlation_id: "loop-1",
+      tenant_id: event.tenantId,
+      trigger_event_id: event.id,
+      lease_owner: "worker-1",
+      event,
+    };
+    return {
+      claim: vi.fn(async () => claim),
+      finish: vi.fn(async (..._args: unknown[]) => undefined),
+      heartbeat: vi.fn(async () => true),
+      reconcile: vi.fn(async () => 0),
+    };
+  }
+  it("does not dispatch a duplicate claim", async () => {
+    const repo = buildFakeRepository(),
+      scraper = buildFakeScraper();
+    const rt = { ...runtime(), claim: vi.fn(async () => null) };
+    await buildService({
+      repository: repo,
+      scraper,
+      loopRuntime: rt as unknown as LoopRuntimeRepository,
+    }).executeEvent(buildEvent());
+    expect(scraper.runFullScrape).not.toHaveBeenCalled();
+    expect(repo.markRunning).not.toHaveBeenCalled();
+    expect(rt.finish).not.toHaveBeenCalled();
+  });
+  it("fails closed on unavailable persistence before any side effect", async () => {
+    const scraper = buildFakeScraper(),
+      rt = runtime();
+    rt.claim.mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(
+      buildService({ scraper, loopRuntime: rt as unknown as LoopRuntimeRepository }).executeEvent(
+        buildEvent(),
+      ),
+    ).rejects.toThrow("database unavailable");
+    expect(scraper.runFullScrape).not.toHaveBeenCalled();
+  });
+  it("completes through the transactional RPC and schedules the next future occurrence", async () => {
+    const event = buildEvent({ recurrence: "DAILY" }),
+      rt = runtime(event),
+      repo = buildFakeRepository();
+    await buildService({
+      repository: repo,
+      loopRuntime: rt as unknown as LoopRuntimeRepository,
+    }).executeEvent(event);
+    expect(rt.finish).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "loop-1" }),
+      true,
+      expect.objectContaining({ units: 2 }),
+      null,
+      expect.any(String),
+    );
+    expect(Date.parse(rt.finish.mock.calls[0]![4] as unknown as string)).toBeGreaterThan(
+      Date.now() - 1000,
+    );
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(repo.markDone).not.toHaveBeenCalled();
+  });
+  it("records failed handlers without claiming success", async () => {
+    const rt = runtime();
+    await buildService({
+      scraper: buildFakeScraper(false),
+      loopRuntime: rt as unknown as LoopRuntimeRepository,
+    }).executeEvent(buildEvent());
+    expect(rt.finish).toHaveBeenCalledWith(expect.anything(), false, null, "LOOP_HANDLER_FAILED");
+  });
+  it("uses the event reloaded under database lock instead of a stale trigger payload", async () => {
+    const rt = runtime(buildEvent({ eventType: "UNSUPPORTED_EVENT" })),
+      scraper = buildFakeScraper();
+    await buildService({
+      scraper,
+      loopRuntime: rt as unknown as LoopRuntimeRepository,
+    }).executeEvent(buildEvent());
+    expect(scraper.runFullScrape).not.toHaveBeenCalled();
+    expect(rt.finish).toHaveBeenCalledWith(expect.anything(), false, null, "UNSUPPORTED_TRIGGER");
+  });
+  it("coalesces downtime without replaying every missed interval", () => {
+    const now = new Date("2026-10-05T10:00:00Z");
+    expect(
+      nextRuntimeOccurrence(
+        buildEvent({ recurrence: "DAILY", scheduledAt: "2026-10-01T09:00:00Z" }),
+        now,
+      )?.toISOString(),
+    ).toBe("2026-10-06T09:00:00.000Z");
+    expect(nextRuntimeOccurrence(buildEvent(), now)).toBeUndefined();
+  });
+  it("honors the deployment cutover instead of replaying legacy backlog", async () => {
+    const start = "2026-10-05T00:00:00.000Z";
+    vi.stubEnv("ADVERTISING_LOOP_RUNTIME_START_AT", start);
+    const repository = buildFakeRepository(),
+      rt = runtime();
+    await buildService({
+      repository,
+      loopRuntime: rt as unknown as LoopRuntimeRepository,
+    }).checkAndRunDueEvents();
+    expect(repository.listDuePending).toHaveBeenCalledWith(
+      expect.any(String),
+      start,
+      expect.any(String),
+    );
+  });
+  it("syncs snapshots, persists campaign decisions and does not call legacy autonomous handlers", async () => {
+    const event = buildEvent({ eventType: "SAMANTHA_ANALYZE" }),
+      rt = runtime(event);
+    const assessForLoop = vi.fn(async () => ({
+      id: "assessment-1",
+      assessedAt: "2026-10-05T00:00:00Z",
+      decision: { decision: "MONITOR" },
+    }));
+    const syncAllCampaignInsights = vi.fn(async () => undefined);
+    const llm = buildFakeLlmService(),
+      campaigns = buildFakeCampaignsService();
+    await buildService({
+      loopRuntime: rt as unknown as LoopRuntimeRepository,
+      llmService: llm,
+      campaignsService: campaigns,
+      campaignHealth: { assessForLoop } as unknown as CampaignHealthService,
+      metaSync: { syncAllCampaignInsights } as unknown as MetaSyncService,
+    }).executeEvent(event);
+    expect(syncAllCampaignInsights).toHaveBeenCalledWith(event.tenantId);
+    expect(assessForLoop).toHaveBeenCalledWith(
+      event.tenantId,
+      buildAdAccount().campaigns[0]!.metaId,
+      "loop-1",
+    );
+    expect(syncAllCampaignInsights.mock.invocationCallOrder[0]).toBeLessThan(
+      assessForLoop.mock.invocationCallOrder[0]!,
+    );
+    expect(llm.analyze).not.toHaveBeenCalled();
+    expect(campaigns.createPropertyCampaign).not.toHaveBeenCalled();
+    expect(rt.finish).toHaveBeenCalledWith(
+      expect.anything(),
+      true,
+      expect.objectContaining({
+        execution: expect.objectContaining({ status: "NOT_EXECUTED" }),
+        assessments: expect.arrayContaining([
+          expect.objectContaining({ assessmentId: "assessment-1" }),
+        ]),
+      }),
+      null,
+      null,
+    );
+  });
+});
 
 describe("SchedulerService.executeEvent", () => {
   it("marks a stray unsupported event type FAILED with an honest message", async () => {

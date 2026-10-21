@@ -64,6 +64,59 @@ function seedRow(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe("CampaignAssessmentRepository", () => {
+  it("persists immutable runtime evidence once per tenant/campaign/correlation", async () => {
+    const client = createFakeSupabaseClient(),
+      repo = new CampaignAssessmentRepository(client);
+    const first = await repo.recordForLoop(
+      TENANT,
+      META_CAMPAIGN_ID,
+      "loop-1",
+      HEALTH_SAMPLE,
+      DIAGNOSIS_SAMPLE,
+      DECISION_SAMPLE,
+      { current: { spend: 100 }, unavailable: ["tracking"] },
+    );
+    const repeat = await repo.recordForLoop(
+      TENANT,
+      META_CAMPAIGN_ID,
+      "loop-1",
+      HEALTH_SAMPLE,
+      DIAGNOSIS_SAMPLE,
+      DECISION_SAMPLE,
+      { current: { spend: 999 } },
+    );
+    expect(repeat.id).toBe(first.id);
+    expect(client.rows("samantha_campaign_assessments")).toHaveLength(1);
+    expect(client.rows("samantha_campaign_assessments")[0]?.health).toMatchObject({
+      runtimeEvidence: { correlationId: "loop-1", current: { spend: 100 } },
+    });
+    await repo.recordForLoop(
+      "another-tenant",
+      META_CAMPAIGN_ID,
+      "loop-1",
+      HEALTH_SAMPLE,
+      DIAGNOSIS_SAMPLE,
+      DECISION_SAMPLE,
+      {},
+    );
+    expect(client.rows("samantha_campaign_assessments")).toHaveLength(2);
+  });
+  it("fails closed when runtime evidence cannot be looked up", async () => {
+    const client = createFakeSupabaseClient(),
+      repo = new CampaignAssessmentRepository(client);
+    client.forceErrorOnce("samantha_campaign_assessments", "database offline");
+    await expect(
+      repo.recordForLoop(
+        TENANT,
+        META_CAMPAIGN_ID,
+        "loop-1",
+        HEALTH_SAMPLE,
+        DIAGNOSIS_SAMPLE,
+        DECISION_SAMPLE,
+        {},
+      ),
+    ).rejects.toThrow("lookup failed");
+  });
   it("record() inserts a real row for the tenant/campaign", async () => {
     const client = createFakeSupabaseClient();
     const repo = new CampaignAssessmentRepository(client);

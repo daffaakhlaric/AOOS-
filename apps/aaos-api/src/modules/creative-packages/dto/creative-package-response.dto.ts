@@ -16,6 +16,7 @@ import type {
  * concern, not something the dashboard should see or send back.
  */
 export interface CreativePackageResponseDto {
+  readonly productionFormat?: "IMAGE" | "VIDEO" | "CAROUSEL";
   readonly id: string;
   readonly briefId: string;
   readonly adId?: string;

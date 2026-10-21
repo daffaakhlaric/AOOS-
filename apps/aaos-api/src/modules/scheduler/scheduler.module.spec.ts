@@ -9,6 +9,8 @@ import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
 import { AuditLogModule } from "../audit-log/audit-log.module.js";
+import { GrowthPolicyModule } from "../automation-policy/growth-policy.module.js";
+import { CampaignHealthModule } from "../campaign-health/campaign-health.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { CreativePackagesModule } from "../creative-packages/creative-packages.module.js";
 import { IntelligenceModule } from "../intelligence/intelligence.module.js";
@@ -17,6 +19,7 @@ import { LlmModule } from "../llm/llm.module.js";
 import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { MarketIntelligenceModule } from "../market-intelligence/market-intelligence.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { MetaSyncModule } from "../meta-sync/meta-sync.module.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 import { PendingActionsModule } from "../pending-actions/pending-actions.module.js";
 import { PropertyObjectiveModule } from "../property-objective/property-objective.module.js";
@@ -39,6 +42,9 @@ describe("SchedulerModule", () => {
   it("imports LlmModule/RecyclingModule/AbTestingModule/LookalikeModule/IntelligenceModule/ListingsModule/ModeGuardModule/ActivityLogModule/CampaignsModule/AgentRunsModule/AiJudgeModule/PendingActionsModule/AgentConfigModule/AuditLogModule/PropertyObjectiveModule/MarketIntelligenceModule/CreativePackagesModule so SchedulerService can inject every real dependency (Phase C: PROPERTY campaign-trigger wiring; AAOS EPIC S Phase S5: real CampaignsService.createPropertyCampaign wiring, LocationResolverModule no longer imported directly here — see scheduler.module.ts's own doc; AAOS-AI-JUDGE-SELF-IMPROVING Phase J2: AiJudgeModule added for the real SAMANTHA_ANALYZE judging wiring; AAOS-OPERATING-MODE-APPROVAL-GATE: PendingActionsModule added for the real APPROVAL-mode enqueue wiring; AAOS Self-Improving Phase SI-1: AgentConfigModule added for the real pause_cpl_multiplier config wiring; AAOS LOOP UPGRADE Sprint 6: AuditLogModule (Prompt 17 CAMPAIGN_PUBLISHED writer) and PropertyObjectiveModule (Prompt 15 business-context-aware reasoning) added; AAOS LOOP UPGRADE Sprint 7: MarketIntelligenceModule (Prompt 18 MARKET_INTELLIGENCE_REFRESH wiring) added; AAOS LOOP UPGRADE Sprint 8b: CreativePackagesModule (Prompt 19 Step 4 triggerAutoLoopGeneration auto-trigger wiring) added)", () => {
     const metadata = Reflect.getMetadata("imports", SchedulerModule) as unknown[];
     expect(metadata).toEqual([
+      GrowthPolicyModule,
+      CampaignHealthModule,
+      MetaSyncModule,
       LlmModule,
       RecyclingModule,
       AbTestingModule,

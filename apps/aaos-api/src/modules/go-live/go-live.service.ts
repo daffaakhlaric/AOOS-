@@ -123,17 +123,15 @@ export class GoLiveService {
       );
     }
     const rawAdAccountId = connector.adAccountIds[0];
-    if (rawAdAccountId === undefined) {
-      throw new ValidationError("No META_AD_ACCOUNT_IDS is configured");
+    if (rawAdAccountId === undefined || connector.adAccountIds.length !== 1) {
+      throw new ValidationError("Exactly one tenant-selected Meta ad account is required");
     }
     const adAccountIdResult = AdAccountId.create(rawAdAccountId);
     if (!adAccountIdResult.ok) {
       throw adAccountIdResult.error;
     }
-    if (!this.config.GO_LIVE_DRY_RUN && this.config.META_PAGE_ID.length === 0) {
-      throw new ValidationError(
-        "META_PAGE_ID is not configured — required for a real (non-dry-run) Go Live's ad creative",
-      );
+    if (!this.config.GO_LIVE_DRY_RUN && !connector.selectedPageId) {
+      throw new ValidationError("A verified tenant-selected Page is required for real Go Live");
     }
 
     const dryRun = this.config.GO_LIVE_DRY_RUN;
@@ -248,7 +246,7 @@ export class GoLiveService {
         adAccountId: adAccountIdResult.value,
         adSetId,
         name: `GoLive-${simulation.branch ?? "UMUM"}-${id.slice(0, 8)}-ad`,
-        pageId: this.config.META_PAGE_ID,
+        pageId: connector.selectedPageId!,
         creative:
           body.creative.assetType === "VIDEO"
             ? {

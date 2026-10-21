@@ -17,7 +17,10 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 const CREATE_TASK_URL = "https://api.kie.ai/api/v1/jobs/createTask";
-const statusUrl = (taskId: string): string => `https://api.kie.ai/api/v1/jobs/${taskId}`;
+const statusHandler = (taskId: string, response: () => Response) =>
+  http.get("https://api.kie.ai/api/v1/jobs/recordInfo", ({ request }) =>
+    new URL(request.url).searchParams.get("taskId") === taskId ? response() : undefined,
+  );
 
 function makeUseCase(publisher = createFakePublisher()) {
   const client = new KieAiGenerationClient({ apiKey: "key", sleep: async () => undefined });
@@ -34,7 +37,7 @@ describe("GenerateImage (integration, MSW-mocked api.kie.ai)", () => {
       http.post(CREATE_TASK_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_google_1" } }),
       ),
-      http.get(statusUrl("task_google_1"), () =>
+      statusHandler("task_google_1", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_google_1", successFlag: 1, imageUrl: "https://cdn.kie.ai/i.jpg" },
@@ -59,7 +62,7 @@ describe("GenerateImage (integration, MSW-mocked api.kie.ai)", () => {
         receivedBody = await request.json();
         return HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_google_2" } });
       }),
-      http.get(statusUrl("task_google_2"), () =>
+      statusHandler("task_google_2", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_google_2", successFlag: 1, imageUrl: "https://cdn.kie.ai/i2.jpg" },
@@ -76,7 +79,7 @@ describe("GenerateImage (integration, MSW-mocked api.kie.ai)", () => {
       http.post(CREATE_TASK_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_google_3" } }),
       ),
-      http.get(statusUrl("task_google_3"), () =>
+      statusHandler("task_google_3", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_google_3", successFlag: 1, imageUrl: "https://cdn.kie.ai/i3.jpg" },
@@ -97,7 +100,7 @@ describe("GenerateImage (integration, MSW-mocked api.kie.ai)", () => {
       http.post(CREATE_TASK_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_google_4" } }),
       ),
-      http.get(statusUrl("task_google_4"), () =>
+      statusHandler("task_google_4", () =>
         HttpResponse.json({ code: 200, data: { taskId: "task_google_4", successFlag: 3 } }),
       ),
     );

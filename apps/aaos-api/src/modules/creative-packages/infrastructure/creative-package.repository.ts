@@ -143,6 +143,33 @@ function toDomain(row: CreativePackageRow): StoredCreativePackage {
 export class CreativePackageRepository {
   constructor(private readonly client: SupabaseClientLike) {}
 
+  async productionFormats(
+    tenantId: string,
+    ids: string[],
+  ): Promise<Map<string, "IMAGE" | "VIDEO" | "CAROUSEL">> {
+    if (!ids.length) return new Map();
+    type ConceptRow = { id: string; data: { format?: string } };
+    type Filter = {
+      in(
+        column: string,
+        values: string[],
+      ): PromiseLike<{ data: ConceptRow[] | null; error: { message: string } | null }>;
+    };
+    const query = this.client
+      .from<ConceptRow>("kai_concepts")
+      .select("id,data")
+      .eq("tenant_id", tenantId) as unknown as Filter;
+    const { data, error } = await query.in("id", ids);
+    if (error) throw new Error("Production format metadata could not be loaded");
+    const formats = new Map<string, "IMAGE" | "VIDEO" | "CAROUSEL">();
+    for (const row of data ?? []) {
+      const format = row.data.format;
+      if (format === "IMAGE" || format === "VIDEO" || format === "CAROUSEL")
+        formats.set(row.id, format);
+    }
+    return formats;
+  }
+
   async create(input: CreateCreativePackageInput): Promise<StoredCreativePackage> {
     // `created_at`/`updated_at` are written explicitly rather than left to the column defaults so
     // the row this method SELECTs back always carries them (and so both timestamps agree exactly on

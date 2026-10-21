@@ -21,6 +21,7 @@ export interface PendingActionRow {
 }
 
 export interface CreatePendingActionInput {
+  readonly id?: string;
   readonly tenantId: string;
   readonly agent: string;
   readonly actionType: string;
@@ -40,10 +41,47 @@ export class PendingActionRepositoryError extends Error {}
 export class PendingActionRepository {
   constructor(private readonly client: SupabaseClientLike) {}
 
+  /** Compare-and-set in PostgreSQL, shared by approval and rejection across API instances. */
+  async claim(
+    id: string,
+    tenantId: string,
+    status: "EXECUTING" | "REJECTING",
+    actor: string | undefined,
+    notes: string | undefined,
+    at: string,
+  ): Promise<boolean> {
+    const { data, error } = await this.client
+      .from<PendingActionRow>(TABLE)
+      .update({ status, decided_by: actor ?? null, decision_notes: notes ?? null, decided_at: at })
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .eq("status", "PENDING")
+      .select("*");
+    if (error)
+      throw new PendingActionRepositoryError(
+        "Approval claim failed; verify migration 070. No action was executed.",
+      );
+    return data?.length === 1;
+  }
+
+  async markUncertain(id: string, tenantId: string): Promise<void> {
+    const { error } = await this.client
+      .from<PendingActionRow>(TABLE)
+      .update({ status: "EXECUTION_UNCERTAIN" })
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .eq("status", "EXECUTING");
+    if (error)
+      throw new PendingActionRepositoryError(
+        "Execution outcome requires reconciliation; do not retry.",
+      );
+  }
+
   async create(input: CreatePendingActionInput): Promise<PendingActionRow> {
     const { data, error } = await this.client
       .from<PendingActionRow>(TABLE)
       .insert({
+        ...(input.id ? { id: input.id } : {}),
         tenant_id: input.tenantId,
         agent: input.agent,
         action_type: input.actionType,
@@ -53,6 +91,11 @@ export class PendingActionRepository {
       .select("*")
       .single();
     if (error !== null || data === null) {
+      if (input.id) {
+        const existing = await this.findById(input.id);
+        if (existing?.tenant_id === input.tenantId && existing.action_type === input.actionType)
+          return existing;
+      }
       throw new PendingActionRepositoryError(
         `PendingActionRepository.create failed: ${error?.message ?? "no row returned"}`,
       );

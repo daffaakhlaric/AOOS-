@@ -70,6 +70,11 @@ export class ListingsController {
     return this.service.advertisingInventory(tenantId);
   }
 
+  @Get(":id/workspace")
+  detailWorkspace(@TenantId() tenantId: string, @Param("id") id: string) {
+    return this.service.detailWorkspace(tenantId, id);
+  }
+
   @Post("drafts")
   draft(
     @TenantId() t: string,

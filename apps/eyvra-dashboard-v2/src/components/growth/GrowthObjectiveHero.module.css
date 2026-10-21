@@ -130,7 +130,7 @@
 .createLink {
   display: inline-block;
   background: var(--brand);
-  color: #fff;
+  color: var(--palette-ffffff);
   padding: 6px 14px;
   border-radius: var(--radius-sm);
   font-size: 12.5px;

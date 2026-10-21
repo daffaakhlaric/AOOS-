@@ -31,6 +31,10 @@ export interface CreateCampaignParams {
   readonly specialAdCategories: ReadonlyArray<string>;
   /** Always `"PAUSED"` — DSS approves before activating. */
   readonly status: string;
+  /** Page promoted object required by current Click-to-WhatsApp ad sets. */
+  readonly promotedObjectPageId?: string;
+  /** Required by current Meta API when campaign budget is not enabled. */
+  readonly isAdSetBudgetSharingEnabled?: boolean;
 }
 
 /**
@@ -77,6 +81,7 @@ export interface CreateAdSetParams {
   readonly dailyBudgetCents: number;
   /** Always `"PAUSED"` — DSS approves before activating. */
   readonly status: string;
+  readonly promotedObjectPageId?: string;
   /**
    * AAOS EPIC S, Phase S1 — optional/additive real Meta `targeting` object. **Omitted here means
    * `createAdSet` sends no `targeting` field to Meta at all** — every existing AUTOMOTIVE call

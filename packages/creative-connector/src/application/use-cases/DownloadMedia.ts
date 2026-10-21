@@ -35,29 +35,57 @@ export class DownloadMedia {
           cause: error instanceof Error ? error : undefined,
         }),
       );
-    } finally {
-      clearTimeout(timeout);
     }
-
-    if (!response.ok) {
-      return err(
-        new KieApiError(`DownloadMedia: ${urlStr} responded with HTTP ${response.status}`, {
-          httpStatus: response.status,
-        }),
-      );
-    }
-
-    let arrayBuffer: ArrayBuffer;
     try {
-      arrayBuffer = await response.arrayBuffer();
+      if (!response.ok) {
+        return err(
+          new KieApiError(`DownloadMedia: ${urlStr} responded with HTTP ${response.status}`, {
+            httpStatus: response.status,
+          }),
+        );
+      }
+      const limit = 128 * 1024 * 1024;
+      if (Number(response.headers?.get?.("content-length")) > limit) {
+        controller.abort();
+        return err(new KieApiError("DownloadMedia: media exceeds 128 MiB limit"));
+      }
+      if (!response.body) {
+        try {
+          return ok(Buffer.from(await response.arrayBuffer()));
+        } catch (error) {
+          return err(
+            new KieApiError(`DownloadMedia: failed to read response body for ${urlStr}`, {
+              cause: error instanceof Error ? error : undefined,
+            }),
+          );
+        }
+      }
+      const chunks: Buffer[] = [];
+      let bytes = 0;
+      const reader = response.body.getReader();
+      try {
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) break;
+          bytes += next.value.byteLength;
+          if (bytes > limit) {
+            controller.abort();
+            return err(new KieApiError("DownloadMedia: media exceeds 128 MiB limit"));
+          }
+          chunks.push(Buffer.from(next.value));
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      return ok(Buffer.concat(chunks));
     } catch (error) {
       return err(
         new KieApiError(`DownloadMedia: failed to read response body for ${urlStr}`, {
           cause: error instanceof Error ? error : undefined,
         }),
       );
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return ok(Buffer.from(arrayBuffer));
   }
 }

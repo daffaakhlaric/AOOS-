@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MAIN_NAV, SETTINGS_ITEM, type NavItem } from "./navItems";
 import { NavIcon } from "./NavIcon";
 import styles from "./Sidebar.module.css";
+import { BrandLogo, BrandMark } from "@/components/brand/BrandLogo";
 
 export function Sidebar(): React.ReactElement {
   const pathname = usePathname();
@@ -36,7 +37,9 @@ export function Sidebar(): React.ReactElement {
       className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""}`}
     >
       <div className={styles.top}>
-        <span className={styles.wordmark}>{collapsed ? "E" : "EYVRA"}</span>
+        <Link href="/command-center" aria-label="SkorPintar Ads Insight — Command Center">
+          {collapsed ? <BrandMark /> : <BrandLogo />}
+        </Link>
         <button
           type="button"
           className={styles.collapseButton}
@@ -46,14 +49,38 @@ export function Sidebar(): React.ReactElement {
           <NavIcon name="menu" size={14} />
         </button>
       </div>
-      <div className={styles.nav}>{MAIN_NAV.map(itemLink)}</div>
+      <div className={styles.nav}>
+        {MAIN_NAV.map((item) => (
+          <Fragment key={item.key}>
+            {itemLink(item)}
+            {item.key === "automation" && !collapsed && pathname.startsWith("/automation") && (
+              <Link
+                className={styles.navItem}
+                href="/automation/growth-settings"
+                aria-current={pathname === "/automation/growth-settings" ? "page" : undefined}
+              >
+                　Growth Settings
+              </Link>
+            )}
+          </Fragment>
+        ))}
+        {!collapsed && pathname.startsWith("/samantha/") && (
+          <Link
+            href="/samantha/simulation/compare"
+            aria-current={pathname === "/samantha/simulation/compare" ? "page" : undefined}
+            className={`${styles.navItem} ${pathname === "/samantha/simulation/compare" ? styles.navItemActive : ""}`}
+          >
+            Compare Runs
+          </Link>
+        )}
+      </div>
       <div className={styles.settingsRow}>
         <div className={styles.divider} />
         {itemLink(SETTINGS_ITEM)}
       </div>
       {!collapsed ? (
         <aside className={styles.team}>
-          <p>Your AI Team</p>
+          <p>AI yang mengubah data menjadi pertumbuhan.</p>
           {[
             ["Samantha", "Advertising operations"],
             ["Kai", "Creative production"],
@@ -67,6 +94,8 @@ export function Sidebar(): React.ReactElement {
               </span>
             </div>
           ))}
+          <Link href="/samantha">Buka Samantha →</Link>
+          <Link href="/listings">Kelola Listings →</Link>
         </aside>
       ) : null}
     </nav>

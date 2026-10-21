@@ -8,6 +8,8 @@ import { AgentConfigModule } from "../agent-config/agent-config.module.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
 import { AuditLogModule } from "../audit-log/audit-log.module.js";
+import { GrowthPolicyModule } from "../automation-policy/growth-policy.module.js";
+import { CampaignHealthModule } from "../campaign-health/campaign-health.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
 import { CreativePackagesModule } from "../creative-packages/creative-packages.module.js";
 import { CreativePackageRepository } from "../creative-packages/infrastructure/creative-package.repository.js";
@@ -18,6 +20,7 @@ import { LookalikeModule } from "../lookalike/lookalike.module.js";
 import { MarketIntelligenceModule } from "../market-intelligence/market-intelligence.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { AdTenantIndexRepository } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
+import { MetaSyncModule } from "../meta-sync/meta-sync.module.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 import { PendingActionsModule } from "../pending-actions/pending-actions.module.js";
 import { PropertyObjectiveModule } from "../property-objective/property-objective.module.js";
@@ -27,6 +30,7 @@ import { TenantRepository } from "../superadmin/infrastructure/tenant.repository
 import { CreativeDiverseSetController } from "./creative-diverse-set.controller.js";
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
+import { LoopRuntimeRepository } from "./infrastructure/loop-runtime.repository.js";
 import { SchedulerController } from "./scheduler.controller.js";
 import { SchedulerService } from "./scheduler.service.js";
 
@@ -80,6 +84,9 @@ import { SchedulerService } from "./scheduler.service.js";
  */
 @Module({
   imports: [
+    GrowthPolicyModule,
+    CampaignHealthModule,
+    MetaSyncModule,
     LlmModule,
     RecyclingModule,
     AbTestingModule,
@@ -122,6 +129,11 @@ import { SchedulerService } from "./scheduler.service.js";
   // controller's own doc.
   controllers: [SchedulerController, CreativeDiverseSetController],
   providers: [
+    {
+      provide: LoopRuntimeRepository,
+      useFactory: (client: SupabaseClientLike) => new LoopRuntimeRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
     SchedulerService,
     ApiKeyGuard,
     {

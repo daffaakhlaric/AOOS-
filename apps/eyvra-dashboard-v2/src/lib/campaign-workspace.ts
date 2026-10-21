@@ -8,16 +8,35 @@ export interface CampaignLead {
   contacted: boolean;
   qualifiedAt?: string;
 }
+/**
+ * Real, already-fetched `AbTestResponseDto` shape (`apps/aaos-api/.../abtesting/dto/
+ * ab-test-response.dto.ts`) — the workspace route (`app/api/campaigns/[campaignId]/workspace/
+ * route.ts`) forwards `/api/v1/abtesting` responses straight through with only a `campaignId`
+ * filter, so every field below is already present on the wire today; widening this interface adds
+ * zero new backend calls or computation, it only stops the TypeScript type from dropping fields the
+ * response already carries. `rphLead` (Rp per real lead) is the REAL primary metric
+ * `decideWinner`/`monitorRunningTests` evaluate winners on server-side — present it honestly as
+ * that, never relabeled as "CPQL"/"Hot Lead Rate" (no CRM-stage data backs those here).
+ */
 export interface CampaignExperiment {
   id: string;
   name: string;
   campaignId: string;
+  adSetId?: string;
   status: string;
   thresholdSpend: number;
   thresholdDays: number;
   minMarginPct: number;
+  autoPauseLoser?: boolean;
+  autoScaleWinner?: boolean;
   winnerVariantId?: string;
+  /** Real Rp/lead of the declared winner — undefined until a winner exists. */
+  winnerRphLead?: number;
+  /** Real rounded % the winner beat the runner-up's Rp/lead by — undefined until a winner exists. */
+  improvementPct?: number;
   startedAt?: string;
+  completedAt?: string;
+  failedReason?: string;
   createdAt: string;
   variants: {
     id: string;
@@ -27,10 +46,18 @@ export interface CampaignExperiment {
     creativePackageId: string;
     metaAdId?: string;
     spend: number;
+    impressions?: number;
+    clicks?: number;
+    conversations?: number;
     leads: number;
+    /** Real Rp/lead for this variant; undefined/null when it has no leads yet. */
+    rphLead?: number;
     ctr?: number;
+    lastSyncedAt?: string;
     imageUrl?: string;
     videoUrl?: string;
+    primaryText?: string;
+    headline?: string;
   }[];
 }
 export interface CampaignPackage extends CreativePackageDto {

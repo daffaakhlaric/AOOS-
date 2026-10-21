@@ -1,9 +1,11 @@
 import type { ITaskWakeRegistry } from "@aos/creative-connector";
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+
 
 import { TASK_WAKE_REGISTRY } from "../../di-tokens.js";
 
 import type { KieWebhookBodyDto } from "./dto/kie-webhook.dto.js";
+import { KaiProductionRepository } from "./infrastructure/kai-production.repository.js";
 
 export interface KieWebhookResult {
   readonly received: true;
@@ -53,10 +55,16 @@ export class KieWebhookService {
 
   constructor(
     @Inject(TASK_WAKE_REGISTRY) private readonly wakeRegistry: ITaskWakeRegistry | undefined,
+    @Optional() private readonly productionJobs?: KaiProductionRepository,
   ) {}
 
-  handleCallback(body: KieWebhookBodyDto, correlationId: string): KieWebhookResult {
+  async handleCallback(body: KieWebhookBodyDto, correlationId: string): Promise<KieWebhookResult> {
     const taskId = body.data.taskId;
+    if (this.productionJobs && (await this.productionJobs.wakeProviderTask(taskId))) {
+      this.logger.log(`KIE callback woke persisted production task ${taskId} (${correlationId}).`);
+      this.wakeRegistry?.wake(taskId);
+      return { received: true, handled: true };
+    }
 
     if (this.wakeRegistry === undefined) {
       this.logger.warn(

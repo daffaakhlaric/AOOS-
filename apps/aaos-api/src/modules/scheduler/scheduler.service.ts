@@ -27,7 +27,7 @@ import {
 } from "@aos/meta-ads-connector";
 import type { MobixScraperService } from "@aos/mobix-web-scraper";
 import type { ObjectiveEngine } from "@aos/objective-engine";
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
@@ -47,6 +47,9 @@ import { evaluateLogicRules, type LogicRuleSet } from "../agent-config/logic-int
 import { AgentRunsService } from "../agent-runs/agent-runs.service.js";
 import { AiJudgeService } from "../ai-judge/ai-judge.service.js";
 import { AuditLogService } from "../audit-log/audit-log.service.js";
+import { evaluateGrowthPolicy } from "../automation-policy/domain/policy-engine.js";
+import { GrowthPolicyService } from "../automation-policy/growth-policy.service.js";
+import { CampaignHealthService } from "../campaign-health/campaign-health.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
 import { CreativePackagesService } from "../creative-packages/creative-packages.service.js";
 import { dedupeFacadeCollisions } from "../creative-packages/domain/creative-diversity-score.js";
@@ -71,6 +74,7 @@ import {
   indexPulledAdAccount,
 } from "../meta-ads/infrastructure/ad-tenant-index.repository.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
+import { MetaSyncService } from "../meta-sync/meta-sync.service.js";
 import { ModeGuardService, type TenantMode } from "../mode-guard/mode-guard.service.js";
 import { PendingActionsService } from "../pending-actions/pending-actions.service.js";
 import { isBusinessContextFilled } from "../property-objective/dto/property-objective.dto.js";
@@ -103,6 +107,7 @@ import type {
 import type { DiverseCreativeBriefSetResultDto } from "./dto/diverse-creative-brief-set.dto.js";
 import { CalendarEventRepository } from "./infrastructure/calendar-event.repository.js";
 import { LoopRunRepository } from "./infrastructure/loop-run.repository.js";
+import { LoopRuntimeRepository } from "./infrastructure/loop-runtime.repository.js";
 
 /** How far back `checkAndRunDueEvents` looks for a `PENDING` event it might have missed on a prior tick — matches the spec's own 1-minute cron cadence. */
 const DUE_WINDOW_MS = 60_000;
@@ -249,6 +254,10 @@ export class SchedulerService {
      * real dependents outside this class.
      */
     private readonly loopRunRepository: LoopRunRepository,
+    @Optional() private readonly loopRuntime?: LoopRuntimeRepository,
+    @Optional() private readonly campaignHealth?: CampaignHealthService,
+    @Optional() private readonly metaSync?: MetaSyncService,
+    @Optional() private readonly growthPolicy?: GrowthPolicyService,
   ) {}
 
   /**
@@ -266,9 +275,15 @@ export class SchedulerService {
       if (tenant.status === "SUSPENDED") {
         continue;
       }
+      if (process.env["ADVERTISING_LOOP_RUNTIME_V2"] === "true") {
+        if (!this.loopRuntime) throw new Error("LOOP_RUNTIME_UNAVAILABLE");
+        await this.loopRuntime.reconcile(tenant.tenant_id);
+      }
       const dueEvents = await this.repository.listDuePending(
         tenant.tenant_id,
-        windowStart.toISOString(),
+        process.env["ADVERTISING_LOOP_RUNTIME_V2"] === "true"
+          ? (process.env["ADVERTISING_LOOP_RUNTIME_START_AT"] ?? "1970-01-01T00:00:00.000Z")
+          : windowStart.toISOString(),
         now.toISOString(),
       );
       for (const event of dueEvents) {
@@ -283,10 +298,21 @@ export class SchedulerService {
 
   async executeEvent(event: StoredCalendarEvent): Promise<void> {
     const startedAt = new Date();
-    await this.repository.markRunning(event.id, startedAt.toISOString());
-    const correlationId = randomUUID();
+    const runtimeEnabled = process.env["ADVERTISING_LOOP_RUNTIME_V2"] === "true";
+    if (runtimeEnabled && !this.loopRuntime) throw new Error("LOOP_RUNTIME_UNAVAILABLE");
+    const claim = runtimeEnabled
+      ? await this.loopRuntime!.claim(event.tenantId, event.id, randomUUID())
+      : null;
+    if (runtimeEnabled && !claim) return;
+    if (claim) event = claim.event;
+    if (!runtimeEnabled) await this.repository.markRunning(event.id, startedAt.toISOString());
+    const correlationId = claim?.correlation_id ?? randomUUID();
 
     if (!isSupportedCalendarEventType(event.eventType)) {
+      if (claim) {
+        await this.loopRuntime!.finish(claim, false, null, "UNSUPPORTED_TRIGGER");
+        return;
+      }
       await this.repository.markFailed(
         event.id,
         new Date().toISOString(),
@@ -295,6 +321,20 @@ export class SchedulerService {
       );
       return;
     }
+
+    const heartbeat = claim
+      ? setInterval(() => {
+          void this.loopRuntime!.heartbeat(claim)
+            .then((ok) => {
+              if (!ok)
+                this.logger.error(
+                  `Loop ${claim.id}: lease lost; external state requires reconciliation.`,
+                );
+            })
+            .catch(() => this.logger.error(`Loop ${claim.id}: heartbeat persistence unavailable.`));
+        }, 30000)
+      : undefined;
+    heartbeat?.unref();
 
     try {
       let result: CalendarEventResult;
@@ -335,20 +375,33 @@ export class SchedulerService {
       }
 
       const durationMs = Date.now() - startedAt.getTime();
-      await this.repository.markDone(event.id, new Date().toISOString(), durationMs, result);
+      if (claim)
+        await this.loopRuntime!.finish(
+          claim,
+          true,
+          result,
+          null,
+          nextRuntimeOccurrence(event, new Date())?.toISOString() ?? null,
+        );
+      else await this.repository.markDone(event.id, new Date().toISOString(), durationMs, result);
 
-      if (event.recurrence !== "ONCE") {
+      if (!claim && event.recurrence !== "ONCE") {
         await this.scheduleNext(event);
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       this.logger.error(`SchedulerService.executeEvent(${event.id}) failed: ${message}`);
-      await this.repository.markFailed(
-        event.id,
-        new Date().toISOString(),
-        Date.now() - startedAt.getTime(),
-        message,
-      );
+      if (claim) {
+        await this.loopRuntime!.finish(claim, false, null, "LOOP_HANDLER_FAILED");
+      } else
+        await this.repository.markFailed(
+          event.id,
+          new Date().toISOString(),
+          Date.now() - startedAt.getTime(),
+          message,
+        );
+    } finally {
+      if (heartbeat) clearInterval(heartbeat);
     }
   }
 
@@ -496,6 +549,74 @@ export class SchedulerService {
     correlationId: string,
   ): Promise<CalendarEventResult> {
     const adAccounts = await this.pullAdAccounts(tenantId, correlationId);
+    if (process.env["ADVERTISING_LOOP_RUNTIME_V2"] === "true") {
+      if (!this.campaignHealth) throw new Error("CAMPAIGN_HEALTH_UNAVAILABLE");
+      if (!this.metaSync) throw new Error("META_SNAPSHOT_SYNC_UNAVAILABLE");
+      await this.metaSync.syncAllCampaignInsights(tenantId);
+      const growth = await this.growthPolicy?.current(tenantId);
+      const campaignIds = [
+        ...new Set(adAccounts.flatMap((account) => account.campaigns.map((c) => c.metaId))),
+      ];
+      const assessments = [];
+      for (const campaignId of campaignIds) {
+        const saved = await this.campaignHealth.assessForLoop(tenantId, campaignId, correlationId);
+        const growthEligibility =
+          growth && saved.decision.decision === "SCALE"
+            ? evaluateGrowthPolicy(growth.policy, {
+                action: "SCALE",
+                confidence: saved.decision.confidence,
+                policyVersion: growth.version,
+                currentPolicyVersion: growth.version,
+              })
+            : {
+                allowed: false,
+                requiresApproval: false,
+                blocked: ["EXECUTION_NOT_CONNECTED"],
+                policyVersion: growth?.version ?? 0,
+              };
+        assessments.push({
+          campaignId,
+          assessmentId: saved.id,
+          decision: saved.decision,
+          assessedAt: saved.assessedAt,
+          growthEligibility,
+        });
+        if (growth && !["NO_ACTION", "MONITOR", "KEEP"].includes(saved.decision.decision)) {
+          await this.pendingActions.enqueueRecommendation(tenantId, campaignId, growth.version, {
+            decision: saved.decision.decision,
+            reason: saved.decision.reason,
+            confidence: saved.decision.confidence,
+            assessmentId: saved.id,
+            assessedAt: saved.assessedAt,
+            correlationId,
+            monitoringPlan: saved.decision.monitoringPlan,
+            blocked: growthEligibility.blocked,
+            executionReady: false,
+          });
+        }
+      }
+      const result = {
+        summary: `${assessments.length} campaign dinilai; bukti tersimpan. Tidak ada aksi otomatis.`,
+        correlationId,
+        assessments,
+        growthPolicyVersion: growth?.version ?? 0,
+        growthObjective: growth?.policy.growthObjective,
+        execution: {
+          status: "NOT_EXECUTED",
+          reason: "Execution guards and downstream quality evidence are not yet connected.",
+        },
+      };
+      const activityId = await this.activityLogger.start({
+        tenantId,
+        agent: "SAMANTHA",
+        actionType: "CAMPAIGN_ASSESSMENT_RECORDED",
+        mode: await this.modeGuard.resolveMode(tenantId),
+        loopId: correlationId,
+        input: { campaignIds },
+      });
+      await this.activityLogger.complete(activityId, { status: "SUCCESS", output: result });
+      return result;
+    }
     const allAds = adAccounts.flatMap((account) => flattenAds(account));
     const campaigns = adAccounts.reduce((sum, account) => sum + account.campaigns.length, 0);
 
@@ -2280,6 +2401,19 @@ export function resolveCalendarRange(
 }
 
 /** Pure — the next `scheduled_at` for a recurring event, per the spec's `scheduleNext`/`nextWeeklyOccurrence`. `undefined` for `ONCE` (never recurs) or an event whose `recurrenceDays` is empty/missing on `WEEKLY` (nothing to advance to). */
+export function nextRuntimeOccurrence(event: StoredCalendarEvent, now: Date): Date | undefined {
+  let cursor = event;
+  for (let i = 0; i < 10000; i++) {
+    const next = nextOccurrence(cursor);
+    if (!next) return undefined;
+    if (!Number.isFinite(next.getTime()) || next.getTime() <= Date.parse(cursor.scheduledAt))
+      throw new Error("INVALID_RECURRENCE");
+    if (next > now) return next;
+    cursor = { ...cursor, scheduledAt: next.toISOString() };
+  }
+  throw new Error("RECURRENCE_BACKLOG_TOO_LARGE");
+}
+
 export function nextOccurrence(event: StoredCalendarEvent): Date | undefined {
   const previous = new Date(event.scheduledAt);
   switch (event.recurrence) {

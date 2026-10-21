@@ -92,7 +92,7 @@ export class TaskPoller implements ITaskPoller {
     let backoffIndex = 0;
 
     for (;;) {
-      const statusResult = await this.client.getTaskStatus(taskId.toString());
+      const statusResult = await this.client.getTaskStatus(taskId.toString(), kind);
       const elapsedMs = this.now().getTime() - startedAt.getTime();
 
       if (!statusResult.ok) {

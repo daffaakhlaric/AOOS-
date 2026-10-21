@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 /**
  * Re-implemented 1:1 from apps/eyvra-dashboard/src/lib/api.ts — thin, server-only fetch wrapper to
  * the real apps/aaos-api HTTP endpoints. Every src/app/api/* route handler in this app calls
@@ -56,6 +58,22 @@ export async function callAaosApi<T>(
   const abortFromCaller = (): void => controller.abort();
   options.signal?.addEventListener("abort", abortFromCaller, { once: true });
 
+  const store = cookies();
+  const auth = createServerClient(
+    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    {
+      cookies: {
+        getAll: () => store.getAll(),
+        setAll: (values: { name: string; value: string; options: CookieOptions }[]) => {
+          for (const { name, value, options } of values) store.set(name, value, options);
+        },
+      },
+    },
+  );
+  const { data: identity, error: identityError } = await auth.auth.getSession();
+  if (identityError || !identity.session?.access_token)
+    throw new AaosApiError(401, "Authenticated session required");
   let response: Response;
   try {
     response = await fetch(url, {
@@ -64,6 +82,7 @@ export async function callAaosApi<T>(
         "x-api-key": apiKey,
         ...(options.body !== undefined ? { "content-type": "application/json" } : {}),
         ...options.headers,
+        authorization: "Bearer " + identity.session.access_token,
       },
       ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
       cache: "no-store",

@@ -7,7 +7,7 @@ export interface KieTaskCreatedResponse {
   readonly taskId: string;
 }
 
-/** Raw shape of a `GET /api/v1/jobs/{taskId}` poll response body (Part 4 of the spec), pre-mapping. */
+/** Normalized status shared by Market image and Veo video polling. */
 export interface RawTaskStatusResponse {
   readonly taskId: string;
   readonly successFlag: number;
@@ -89,5 +89,6 @@ export interface ICreativeClient {
 
   getTaskStatus(
     taskId: string,
+    kind?: "image" | "video",
   ): Promise<Result<RawTaskStatusResponse, KieApiError | RateLimitError>>;
 }

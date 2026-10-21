@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({
 import { MobileNav } from "@/components/layout/MobileNav";
 
 describe("MobileNav", () => {
-  it("renders the first 5 nav items with Command Center active", () => {
+  it("renders the MVP nav items with Command Center active", () => {
     render(<MobileNav />);
     const active = screen.getByText("Command Center");
     expect(active.closest("a")).toHaveAttribute("aria-current", "page");

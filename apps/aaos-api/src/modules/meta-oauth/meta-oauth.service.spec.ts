@@ -42,6 +42,7 @@ function seedTenant(client: FakeSupabaseClient, overrides: Record<string, unknow
     status: "ACTIVE",
     trial_ends_at: null,
     meta_access_token: null,
+    meta_credential_version: 1,
     meta_ad_account_id: null,
     meta_api_version: "v21.0",
     mode: "LIVE",
@@ -174,7 +175,7 @@ function buildHarnessWithUnconfiguredApp() {
 }
 
 describe("MetaOAuthService.handleCallback", () => {
-  it("succeeds: exchanges code -> long-lived token, persists encrypted onto tenants, auto-selects the one ad account", async () => {
+  it("succeeds: exchanges code -> long-lived token, persists encrypted onto tenants, requires explicit selection even for one ad account", async () => {
     const { service, client, tenants } = buildHarness({ fetchImpl: buildHappyPathFetch(1) });
     seedTenant(client);
     const { authorizeUrl } = await service.generateOAuthUrl("dss-motor");
@@ -186,7 +187,7 @@ describe("MetaOAuthService.handleCallback", () => {
     const tenant = await tenants.findByTenantId("dss-motor");
     expect(tenant?.meta_connection_source).toBe("oauth");
     expect(tenant?.meta_fb_user_id).toBe("1000");
-    expect(tenant?.meta_ad_account_id).toBe("111");
+    expect(tenant?.meta_ad_account_id).toBeNull();
     expect(tenant?.meta_access_token_encrypted).not.toBe("LONG_LIVED");
     expect(tenant?.meta_access_token_encrypted).toMatch(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]*$/);
   });
@@ -276,6 +277,30 @@ describe("MetaOAuthService.getToken", () => {
 });
 
 describe("MetaOAuthService.refreshTokenIfNeeded", () => {
+  it("cannot restore credentials after a concurrent disconnect", async () => {
+    let duringRefresh: () => Promise<void> = async () => {};
+    const refreshFetch = vi.fn(async () => {
+      await duringRefresh();
+      return jsonResponse({ access_token: "LATE_TOKEN", expires_in: 5183944 });
+    }) as unknown as typeof fetch;
+    const { service, client, encryption, tenants } = buildHarness({ fetchImpl: refreshFetch });
+    seedTenant(client, {
+      meta_connection_source: "oauth",
+      meta_access_token_encrypted: encryption.encrypt("OLD_TOKEN"),
+      meta_token_expires_at: "2026-09-14T10:00:00.000Z",
+    });
+    duringRefresh = async () => {
+      // Model the database trigger's version advance when a disconnect wins.
+      await tenants.updateByTenantId("dss-motor", {
+        meta_credential_version: 2,
+        meta_access_token_encrypted: null,
+        meta_integration_status: "DISCONNECTED",
+      });
+    };
+    await expect(service.refreshTokenIfNeeded("dss-motor")).rejects.toThrow("Integration changed");
+    expect((await tenants.findByTenantId("dss-motor"))?.meta_access_token_encrypted).toBeNull();
+    expect(client.rows("token_refresh_log").some((row) => row["success"] === true)).toBe(false);
+  });
   it("is a no-op for a tenant that is not OAuth-connected", async () => {
     const { service, client } = buildHarness();
     seedTenant(client, { meta_connection_source: "manual" });
@@ -344,7 +369,7 @@ describe("MetaOAuthService.refreshTokenIfNeeded", () => {
 });
 
 describe("MetaOAuthService.disconnect", () => {
-  it("reverts meta_connection_source to 'manual' and clears OAuth fields WITHOUT touching meta_access_token", async () => {
+  it("clears all credentials and destinations on disconnect", async () => {
     const { service, client, tenants, encryption } = buildHarness();
     seedTenant(client, {
       meta_access_token: "manual-plain-token-should-survive",
@@ -363,7 +388,10 @@ describe("MetaOAuthService.disconnect", () => {
     expect(tenant?.meta_token_expires_at).toBeNull();
     expect(tenant?.meta_fb_user_id).toBeNull();
     expect(tenant?.meta_fb_user_name).toBeNull();
-    // The pre-existing plain-text MANUAL column must be untouched.
-    expect(tenant?.meta_access_token).toBe("manual-plain-token-should-survive");
+    // Legacy credentials cannot survive disconnect.
+    expect(tenant?.meta_access_token).toBeNull();
+    expect(tenant?.meta_ad_account_id).toBeNull();
+    expect(tenant?.meta_page_id).toBeNull();
+    expect(tenant?.meta_integration_status).toBe("DISCONNECTED");
   });
 });

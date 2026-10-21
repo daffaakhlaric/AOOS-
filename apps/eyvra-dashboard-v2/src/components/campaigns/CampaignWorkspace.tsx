@@ -3,32 +3,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/common/Card";
-import { Drawer } from "@/components/common/Drawer";
+import { CampaignDetailV2 as Detail } from "./CampaignDetailV2";
 import { LoadingState } from "@/components/common/LoadingState";
 import { useAccountSummary } from "@/components/command-center/useAccountSummary";
 import { useCampaignThumbnail } from "@/components/command-center/useCampaignThumbnail";
 import { formatIdrCompact } from "@/lib/formatters";
-import { presentLabel, presentText, getMetricDeltaIntent } from "@/lib/presentation";
+import { presentLabel } from "@/lib/presentation";
 import {
   mapCampaignPortfolioItem,
   type CampaignView,
   type PortfolioResponse,
-  type HistoryPoint,
 } from "@/lib/campaigns";
 import styles from "./CampaignWorkspace.module.css";
-import { CampaignTabs } from "./CampaignTabs";
 
 const money = (n: number | undefined) => (n === undefined ? "—" : formatIdrCompact(n));
-const tabs = [
-  "Overview",
-  "Performance",
-  "Creative Health",
-  "Lead Quality",
-  "Budget",
-  "Experiments",
-  "History",
-  "Kai Creative",
-];
 const tabKeys = [
   "overview",
   "performance",
@@ -68,15 +56,6 @@ function Photo({ item }: { item: CampaignView }) {
     </span>
   );
 }
-function metric(value: number | undefined, key?: string) {
-  if (value === undefined) return "—";
-  return key === "ctr"
-    ? `${(value * 100).toFixed(2)}%`
-    : key === "cpl"
-      ? money(value)
-      : value.toLocaleString("id-ID", { maximumFractionDigits: 2 });
-}
-
 export function CampaignWorkspace({ campaignId }: { campaignId?: string }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -87,7 +66,6 @@ export function CampaignWorkspace({ campaignId }: { campaignId?: string }) {
   const [attempt, setAttempt] = useState(0);
   const [columns, setColumns] = useState(false);
   const [advanced, setAdvanced] = useState(false);
-  const [builder, setBuilder] = useState(false);
   const period = query.get("period") ?? "last_7d";
   useEffect(() => {
     let active = true;
@@ -196,9 +174,9 @@ export function CampaignWorkspace({ campaignId }: { campaignId?: string }) {
             <h1>Campaigns</h1>
             <p>Pantau seluruh campaign dan keputusan Samantha dalam satu tempat.</p>
           </div>
-          <button className={styles.primary} onClick={() => setBuilder(true)}>
+          <Link className={styles.primary} href="/campaigns/new">
             ＋ Create Campaign
-          </button>
+          </Link>
         </header>
       )}
       {error && (
@@ -448,263 +426,6 @@ export function CampaignWorkspace({ campaignId }: { campaignId?: string }) {
             <Link href="/campaigns">Back to Campaigns</Link>
           </Card>
         ))}
-      <Drawer open={builder} onClose={() => setBuilder(false)} title="Samantha Campaign Builder">
-        <p>
-          Builder tersedia pada tahap berikutnya setelah detail campaign selesai. Belum ada campaign
-          yang dibuat.
-        </p>
-        <ol>
-          {[
-            "Listing",
-            "Goal",
-            "Budget",
-            "Samantha Plan",
-            "Kai Creative",
-            "Preflight",
-            "Review",
-          ].map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-      </Drawer>
     </main>
-  );
-}
-
-function Detail({
-  item,
-  tab,
-  onTab,
-}: {
-  item: CampaignView;
-  tab: string;
-  onTab: (tab: string) => void;
-}) {
-  const [evidence, setEvidence] = useState(false);
-  const [history, setHistory] = useState<HistoryPoint[]>();
-  const [historyError, setHistoryError] = useState(false);
-
-  const assessment = item.assessment;
-  const decision = assessment?.decision;
-  useEffect(() => {
-    let active = true;
-    setHistory(undefined);
-    setHistoryError(false);
-    fetch(`/api/campaigns/${encodeURIComponent(item.campaign.metaId)}/history`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error();
-        return (await r.json()) as { points: HistoryPoint[] };
-      })
-      .then((r) => {
-        if (active) setHistory(r.points);
-      })
-      .catch(() => {
-        if (active) setHistoryError(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, [item.campaign.metaId]);
-  return (
-    <>
-      <div className={styles.breadcrumb}>
-        <Link href="/campaigns">Campaigns</Link> / {item.name}
-      </div>
-      <header className={styles.heading}>
-        <div className={styles.identity}>
-          <Photo item={item} />
-          <div>
-            <h1>
-              {item.name}{" "}
-              <Badge
-                text={presentLabel(item.campaign.status)}
-                tone={item.campaign.status === "ACTIVE" ? "HEALTHY" : "UNKNOWN"}
-              />
-            </h1>
-            <p>
-              {presentLabel(item.campaign.objective)} · {money(item.budget)}/day · Synced{" "}
-              {new Date(item.campaign.syncedAt).toLocaleTimeString("id-ID")}
-            </p>
-          </div>
-        </div>
-        <div className={styles.buttons}>
-          <button disabled title="Campaign mutation integration is not available">
-            Ⅱ Pause
-          </button>
-          <button disabled title="Editing will be available with Campaign Builder">
-            Edit
-          </button>
-        </div>
-      </header>
-      <section className={styles.kpis}>
-        {[
-          ["Spend", money(item.campaign.spend)],
-          ["Raw Leads", item.leads],
-          ["Qualified Leads", "—"],
-          ["CPL", money(item.cpl)],
-          ["CPQL", "—"],
-          ["Bookings", "—"],
-        ].map(([label, value]) => (
-          <Card key={label}>
-            <small>{label}</small>
-            <strong>{value}</strong>
-            {value === "—" && <small>Attribution unavailable</small>}
-          </Card>
-        ))}
-      </section>
-      <section className={styles.hero}>
-        <Card>
-          <div className={styles.tableHeader}>
-            <h2>✧ Samantha Decision</h2>
-            <Badge
-              text={decision ? `${presentLabel(decision.impact)} impact` : "Evaluating"}
-              tone={decision?.impact === "HIGH" ? "WARNING" : "purple"}
-            />
-            <span className={styles.confidence}>
-              Confidence <b>{decision ? `${Math.round(decision.confidence * 100)}%` : "—"}</b>
-            </span>
-          </div>
-          <div className={styles.decisionGrid}>
-            <div>
-              <div className={styles.diagnosis}>
-                <small>Diagnosis · Recommendation</small>
-                <h2>{decision?.decision === "NO_ACTION" ? "No change recommended" : item.issue}</h2>
-                <p>
-                  {assessment?.diagnosis.evidence[0]?.reasoning ??
-                    "Samantha menunggu data yang cukup untuk menilai campaign ini."}
-                </p>
-              </div>
-              <div className={styles.signals}>
-                {assessment?.diagnosis.evidence.slice(0, 3).map((signal, i) => (
-                  <div key={i}>
-                    <small>{signal.metric?.toUpperCase() ?? "Signal"}</small>
-                    <b>
-                      {metric(signal.baselineValue, signal.metric)} →{" "}
-                      {metric(signal.currentValue, signal.metric)}
-                    </b>
-                    {signal.deltaPct !== undefined && (
-                      <span
-                        className={
-                          getMetricDeltaIntent(signal.metric, signal.deltaPct) === "good"
-                            ? styles.good
-                            : styles.bad
-                        }
-                      >
-                        {signal.deltaPct > 0 ? "↑" : "↓"}{" "}
-                        {Math.abs(signal.deltaPct * 100).toFixed(0)}%
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className={styles.plan}>
-              <h3>Samantha Plan</h3>
-              <ol>
-                <li>{decision ? presentLabel(decision.decision) : "Evaluate latest signals"}</li>
-                {decision?.monitoringPlan.successConditions.slice(0, 2).map((condition, i) => (
-                  <li key={i}>{presentText(condition)}</li>
-                ))}
-                {decision && <li>Review after {decision.monitoringPlan.reviewAfterHours} hours</li>}
-              </ol>
-              <p className={styles.muted}>
-                Assessment ini berupa rekomendasi; status eksekusi belum terhubung.
-              </p>
-              <div className={styles.buttons}>
-                <button onClick={() => setEvidence(true)}>View Evidence</button>
-                <button disabled title="No executable approval plan is linked to this assessment">
-                  Approve Plan
-                </button>
-              </div>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <h2>⚙ Automation</h2>
-          <dl className={styles.automation}>
-            <dt>Mode</dt>
-            <dd>Not linked</dd>
-            <dt>Current state</dt>
-            <dd>{item.state}</dd>
-            <dt>Review window</dt>
-            <dd>
-              {decision
-                ? `${decision.monitoringPlan.reviewAfterHours} hours after action`
-                : "Unavailable"}
-            </dd>
-            <dt>Success condition</dt>
-            <dd>
-              {decision?.monitoringPlan.successConditions.map(presentText).join(" ") ||
-                "Not defined"}
-            </dd>
-            <dt>Rollback condition</dt>
-            <dd>
-              {decision?.monitoringPlan.rollbackConditions.map(presentText).join(" ") ||
-                "Not defined"}
-            </dd>
-            <dt>Last execution</dt>
-            <dd>No linked execution record</dd>
-          </dl>
-        </Card>
-      </section>
-      <nav className={styles.tabs} role="tablist" aria-label="Campaign detail tabs">
-        {tabs.map((label, i) => (
-          <button
-            role="tab"
-            aria-selected={tab === tabKeys[i]}
-            key={label}
-            className={tab === tabKeys[i] ? styles.activeTab : ""}
-            onClick={() => onTab(tabKeys[i] ?? "overview")}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-      <CampaignTabs
-        item={item}
-        tab={tab}
-        onTab={onTab}
-        history={history}
-        historyError={historyError}
-      />
-      <Drawer open={evidence} onClose={() => setEvidence(false)} title={`Evidence · ${item.name}`}>
-        <h3>{item.issue}</h3>
-        <p>{decision ? presentText(decision.reason) : "Assessment belum tersedia."}</p>
-        <h3>Observed signals</h3>
-        {assessment?.diagnosis.evidence.map((signal, i) => (
-          <p key={i}>
-            <b>{presentLabel(signal.type)}</b> · {metric(signal.baselineValue, signal.metric)} →{" "}
-            {metric(signal.currentValue, signal.metric)}
-            <br />
-            {signal.reasoning}
-          </p>
-        ))}
-        <h3>Health dimensions</h3>
-        {assessment &&
-          Object.entries(assessment.health)
-            .filter(([key]) => key !== "overallStatus")
-            .map(
-              ([key, value]) =>
-                typeof value !== "string" && (
-                  <p key={key}>
-                    <b>{key.replace(/([A-Z])/g, " $1")}</b> · {presentLabel(value.status)} ·{" "}
-                    {Math.round(value.confidence * 100)}% confidence
-                    <br />
-                    {value.issues.map(presentText).join(" ")}
-                  </p>
-                ),
-            )}
-        <h3>Expected outcome</h3>
-        <p>{decision && presentText(decision.expectedOutcome)}</p>
-        <h3>Risk of waiting</h3>
-        <p>{decision && presentText(decision.riskOfDoingNothing)}</p>
-        <h3>Rollback / review</h3>
-        <p>
-          {decision?.monitoringPlan.rollbackConditions.map(presentText).join(" ") ||
-            "No rollback condition provided."}
-        </p>
-        <p>Review window: {decision?.monitoringPlan.reviewAfterHours ?? "—"} hours.</p>
-      </Drawer>
-    </>
   );
 }

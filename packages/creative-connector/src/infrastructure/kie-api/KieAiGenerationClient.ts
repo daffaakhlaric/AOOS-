@@ -29,8 +29,8 @@ export const VEO_GENERATE_PATH = "/api/v1/veo/generate";
 export const VEO_EXTEND_PATH = "/api/v1/veo/extend";
 export const JOBS_CREATE_TASK_PATH = "/api/v1/jobs/createTask";
 
-export function jobsStatusPath(taskId: string): string {
-  return `/api/v1/jobs/${taskId}`;
+export function jobsStatusPath(taskId: string, kind: "image" | "video" = "image"): string {
+  return `${kind === "video" ? "/api/v1/veo/record-info" : "/api/v1/jobs/recordInfo"}?taskId=${encodeURIComponent(taskId)}`;
 }
 
 const DEFAULT_MAX_ATTEMPTS = 4; // 1 initial attempt + up to 3 retries, per the spec's "max 3x"
@@ -110,10 +110,11 @@ export class KieAiGenerationClient implements ICreativeClient {
 
   async getTaskStatus(
     taskId: string,
+    kind: "image" | "video" = "image",
   ): Promise<Result<RawTaskStatusResponse, KieApiError | RateLimitError>> {
     return this.request(
       "GET",
-      jobsStatusPath(taskId),
+      jobsStatusPath(taskId, kind),
       undefined,
       KieApiResponseMapper.mapTaskStatusResponse,
     );
@@ -167,6 +168,7 @@ export class KieAiGenerationClient implements ICreativeClient {
     let response: Response;
     try {
       response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        signal: AbortSignal.timeout(45000),
         method,
         headers: {
           Authorization: `Bearer ${this.apiKey}`,

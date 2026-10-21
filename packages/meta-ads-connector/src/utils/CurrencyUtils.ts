@@ -1,13 +1,4 @@
-/**
- * IDR currency helpers. Meta reports/accepts budget fields (`daily_budget`) in *cents* — the
- * smallest currency subunit Meta's API uses regardless of the account's actual currency having
- * no minor unit in everyday IDR usage — while every AAOS domain Value Object (`Spend`, `Budget`,
- * `Rph`) operates in whole Rupiah. Getting this ×100/÷100 conversion backwards would be a real
- * financial bug (a budget 100x too large or too small), so it is centralized here and unit-tested
- * exhaustively rather than inlined at each call site.
- */
-
-/** Meta cents → whole Rupiah. Truncates any fractional cent remainder (Meta never sends fractional cents in practice). */
+/** Legacy read compatibility only. IDR provider units are UNVERIFIED; production budget writes are blocked in MetaApiClient. Use MetaMoney contracts for new code. */
 export function centsToRupiah(cents: number): number {
   return Math.trunc(cents) / 100;
 }

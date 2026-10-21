@@ -25,7 +25,9 @@ import type { Tracer } from "./PullCampaignData.js";
  */
 export const DEFAULT_DAILY_BUDGET_IDR = 100_000;
 
-const OPTIMIZATION_GOAL_LEAD_GENERATION = "LEAD_GENERATION";
+// Meta's current OUTCOME_LEADS + Click-to-WhatsApp setup accepts CONVERSATIONS.
+// LEAD_GENERATION is rejected as an unavailable performance goal for this objective.
+const OPTIMIZATION_GOAL_LEAD_GENERATION = "CONVERSATIONS";
 const BILLING_EVENT_IMPRESSIONS = "IMPRESSIONS";
 
 export interface CreateCampaignInput {
@@ -50,6 +52,7 @@ export interface CreateCampaignInput {
    * — today's AUTOMOTIVE behavior, unchanged.
    */
   readonly targeting?: CreateAdSetTargeting;
+  readonly promotedObjectPageId?: string;
 }
 
 export interface CreateCampaignOutput {
@@ -95,6 +98,10 @@ export class CreateCampaign {
                 objective: CampaignObjective.OUTCOME_LEADS,
                 specialAdCategories,
                 status: AdStatus.PAUSED,
+                ...(input.promotedObjectPageId
+                  ? { promotedObjectPageId: input.promotedObjectPageId }
+                  : {}),
+                isAdSetBudgetSharingEnabled: false,
               },
               input.accessToken,
             ),

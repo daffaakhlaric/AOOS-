@@ -49,7 +49,15 @@ const TaskStatusResponseSchema = z.object({
   data: z
     .object({
       taskId: z.string(),
-      successFlag: z.number(),
+      successFlag: z.number().optional(),
+      state: z.enum(["waiting", "queuing", "generating", "success", "fail"]).optional(),
+      resultJson: z.string().nullish(),
+      response: z
+        .object({
+          resultUrls: z.array(z.string()).optional(),
+          originUrls: z.array(z.string()).optional(),
+        })
+        .nullish(),
       videoUrl: z.string().optional(),
       imageUrl: z.string().optional(),
       images: z.array(z.string()).optional(),
@@ -181,6 +189,32 @@ export class KieApiResponseMapper {
         }),
       );
     }
-    return ok(parsed.data.data);
+    const data = parsed.data.data;
+    const flag =
+      data.successFlag ??
+      (data.state === "success" ? 1 : data.state === "fail" ? 3 : data.state ? 0 : undefined);
+    if (flag === undefined)
+      return err(new KieApiError("Kie AI task status missing state/successFlag"));
+    let marketUrls: string[] | undefined;
+    if (data.resultJson) {
+      try {
+        const result = z
+          .object({ resultUrls: z.array(z.string().url()) })
+          .safeParse(JSON.parse(data.resultJson));
+        if (!result.success)
+          return err(new KieApiError("Kie AI resultJson has invalid result URLs"));
+        marketUrls = result.data.resultUrls;
+      } catch {
+        return err(new KieApiError("Kie AI resultJson is not valid JSON"));
+      }
+    }
+    const videoUrls = data.response?.resultUrls ?? data.response?.originUrls;
+    return ok({
+      taskId: data.taskId,
+      successFlag: flag,
+      ...(data.videoUrl || videoUrls?.[0] ? { videoUrl: data.videoUrl ?? videoUrls?.[0] } : {}),
+      ...(data.imageUrl || marketUrls?.[0] ? { imageUrl: data.imageUrl ?? marketUrls?.[0] } : {}),
+      ...(data.images || marketUrls ? { images: data.images ?? marketUrls } : {}),
+    });
   }
 }

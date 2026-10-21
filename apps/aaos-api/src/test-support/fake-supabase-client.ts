@@ -68,11 +68,13 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
 
   function builder(table: string, mode: "select" | "insert" | "update" | "delete", payload?: Row) {
     const filters: Filter[] = [];
+    const membershipFilters: { column: string; values: unknown[] }[] = [];
     let orderBy: { readonly column: string; readonly ascending: boolean } | undefined;
     let maxRows: number | undefined;
 
     function query(): Row[] {
       let rows = tableRows(table).filter((row) => matches(row, filters));
+      rows = rows.filter((row) => membershipFilters.every((f) => f.values.includes(row[f.column])));
       if (orderBy !== undefined) {
         const { column, ascending } = orderBy;
         rows = [...rows].sort((a, b) => {
@@ -85,6 +87,10 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
 
     const api = {
       select: () => api,
+      in: (column: string, values: unknown[]) => {
+        membershipFilters.push({ column, values });
+        return api;
+      },
       eq: (column: string, value: unknown) => {
         filters.push({ column, op: "eq", value });
         return api;

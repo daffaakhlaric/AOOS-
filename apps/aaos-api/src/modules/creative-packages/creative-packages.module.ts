@@ -1,21 +1,30 @@
 import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
+
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import { AgentRunsModule } from "../agent-runs/agent-runs.module.js";
 import { AiJudgeModule } from "../ai-judge/ai-judge.module.js";
 import { AuditLogModule } from "../audit-log/audit-log.module.js";
+import { GrowthPolicyModule } from "../automation-policy/growth-policy.module.js";
 import { ListingsModule } from "../listings/listings.module.js";
 import { LlmModule } from "../llm/llm.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
+import { CreativeHandoffController } from "./creative-handoff.controller.js";
+import { CreativeHandoffService } from "./creative-handoff.service.js";
 import { CreativePackagesController } from "./creative-packages.controller.js";
 import { CreativePackagesService } from "./creative-packages.service.js";
 import { KieWebhookSecretGuard } from "./guards/kie-webhook-secret.guard.js";
+import { CreativeHandoffRepository } from "./infrastructure/creative-handoff.repository.js";
 import { CreativeLogRepository } from "./infrastructure/creative-log.repository.js";
 import { CreativePackageRepository } from "./infrastructure/creative-package.repository.js";
+import { KaiProductionRepository } from "./infrastructure/kai-production.repository.js";
+import { KaiPlanningService } from "./kai-planning.service.js";
+import { KaiProductionMediaService } from "./kai-production-media.service.js";
+import { KaiProductionWorker } from "./kai-production.worker.js";
 import { KieWebhookController } from "./kie-webhook.controller.js";
 import { KieWebhookService } from "./kie-webhook.service.js";
 
@@ -33,6 +42,7 @@ import { KieWebhookService } from "./kie-webhook.service.js";
  */
 @Module({
   imports: [
+    GrowthPolicyModule,
     // K1/K2 (`docs/PROMPT-AAOS-PROPERTY-CAMPAIGN-AND-CREATIVE.md`) — reuses the SAME real,
     // tenant-scoped `ListingsService.getById` `SimulationModule` already imports this module for
     // (its PROPERTY Kai-prompt preview), not a second listing lookup path.
@@ -58,9 +68,24 @@ import { KieWebhookService } from "./kie-webhook.service.js";
     // real LLM call in this app already goes through (never a second, bespoke LLM composition).
     LlmModule,
   ],
-  controllers: [CreativePackagesController, KieWebhookController],
+  controllers: [CreativeHandoffController, CreativePackagesController, KieWebhookController],
   providers: [
     CreativePackagesService,
+    CreativeHandoffService,
+    KaiPlanningService,
+    KaiProductionWorker,
+    KaiProductionMediaService,
+    {
+      provide: KaiProductionRepository,
+      useFactory: (client: SupabaseClientLike) => new KaiProductionRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
+    {
+      provide: CreativeHandoffRepository,
+      useFactory: (client: SupabaseClientLike): CreativeHandoffRepository =>
+        new CreativeHandoffRepository(client),
+      inject: [SUPABASE_CLIENT],
+    },
     ApiKeyGuard,
     // PROMPT 53 — KIE WEBHOOK (Phase 41). `KieWebhookService` injects `TASK_WAKE_REGISTRY` — a
     // global provider from `AppModule.forRoot`, needing no explicit import here, same as

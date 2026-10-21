@@ -5,7 +5,9 @@ import type { ResolvedLocation } from "../../location-resolver/location-resolver
 import type { MatchedPropertyCity } from "../dto/create-property-campaign.dto.js";
 
 /** Meta's real accepted `targeting.geo_locations.cities[].radius` range for `distanceUnit: "kilometer"` — see `MetaTargetingCity`'s own doc (`IMetaAdsClient.ts`). */
-const MIN_RADIUS_KM = 17;
+// Meta currently rejects the lower boundary for HOUSING in some ad accounts;
+// 25 km is the first stable value accepted across the API versions we use.
+const MIN_RADIUS_KM = 25;
 const MAX_RADIUS_KM = 80;
 
 export interface PropertyTargetingResult {
@@ -80,7 +82,7 @@ export async function resolvePropertyTargeting(
   return {
     targeting: {
       geoLocations: {
-        cities: matchedCities.map((matched) => ({
+        cities: matchedCities.slice(0, 1).map((matched) => ({
           key: matched.key,
           radius,
           distanceUnit: "kilometer" as const,

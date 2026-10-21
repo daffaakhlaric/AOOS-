@@ -68,7 +68,7 @@
   padding: 0 3px;
   border-radius: 999px;
   background: var(--critical);
-  color: #fff;
+  color: var(--palette-ffffff);
   font-size: 10px;
   font-weight: 700;
   display: inline-flex;
@@ -88,4 +88,5 @@
   max-width: 200px;
 }
 
-.bar {height:72px; padding:6px 24px; background:transparent; border:0; flex-wrap:nowrap} .title {font-size:27px; line-height:1.2; letter-spacing:-.8px} .subtitle {font-size:12.5px} .greeting {font-size:12px; color:var(--text-secondary)} .period,.mode {border:1px solid #e6e3f3; border-radius:6px; padding:7px 10px; font-size:11.5px; white-space:nowrap} .mode {background:#f6f5ff} .mode > span {color:var(--brand)} .userChip {border:0; display:flex; align-items:center; gap:8px; padding:0; max-width:145px} .avatar {width:30px; height:30px; border-radius:50%; display:grid; place-items:center; color:white; background:var(--brand)} @media(max-width:1200px){.mode{display:none}.bar{height:auto; min-height:78px; flex-wrap:wrap}} @media(max-width:767px){.bar{padding:16px}.title{font-size:25px}.actions{flex-wrap:wrap}.period{padding:4px}}
+.bar {height:72px; padding:6px 24px; background:transparent; border:0; flex-wrap:nowrap} .title {font-size:27px; line-height:1.2; letter-spacing:-.8px} .subtitle {font-size:12.5px} .greeting {font-size:12px; color:var(--text-secondary)} .period,.mode {border:1px solid var(--cyan-soft); border-radius:6px; padding:7px 10px; font-size:11.5px; white-space:nowrap} .mode {background:var(--cyan-soft)} .mode > span {color:var(--brand)} .userChip {border:0; display:flex; align-items:center; gap:8px; padding:0; max-width:145px} .avatar {width:30px; height:30px; border-radius:50%; display:grid; place-items:center; color:white; background:var(--brand)} @media(max-width:1200px){.mode{display:none}.bar{height:auto; min-height:78px; flex-wrap:wrap}} @media(max-width:767px){.bar{padding:16px}.title{font-size:25px}.actions{flex-wrap:wrap}.period{padding:4px}}
+.bar {background:var(--surface);border-bottom:1px solid var(--border);min-height:88px;height:auto;padding:16px 24px;} .mode {background:var(--cyan-soft);} .mobileBrand {display:none;} @media(max-width:767px){.mobileBrand{display:block}.bar{padding:14px 16px}.title{font-size:22px}.actions{width:100%;justify-content:flex-end}}

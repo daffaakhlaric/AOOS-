@@ -103,7 +103,7 @@ function ListingRow({
       </button>
       <button
         className={styles.more}
-        aria-label={`Informasi ${item.listing.title}`}
+        aria-label={`Buka detail ${item.listing.title}`}
         onClick={onMore}
       >
         ⋮
@@ -449,7 +449,7 @@ export function ListingsPage() {
                       onSelect={() => choose(item)}
                       onMore={() => {
                         choose(item);
-                        window.location.href = "/listings/" + item.listing.id + "/edit";
+                        window.location.href = "/listings/" + encodeURIComponent(item.listing.id);
                       }}
                     />
                   ))}

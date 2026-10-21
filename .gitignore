@@ -48,3 +48,10 @@ docker/data/
 
 # Per-machine runtime lock (scheduler); never meaningful in history
 .claude/scheduled_tasks.lock
+
+# Local campaign builder drafts
+.campaign-drafts/
+
+# Temporary presentation rendering and chart extraction workspaces
+.presentation-build/
+.chart-data-*/

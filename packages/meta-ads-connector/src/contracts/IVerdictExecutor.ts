@@ -23,6 +23,10 @@ export interface VerdictExecutionInput {
   readonly accessToken: string;
   /** Required only for SCALE — the adset's current daily budget in whole IDR, used to compute the +20% target. */
   readonly currentDailyBudgetIDR?: number;
+  /** Absolute reviewed target; never recomputed from a changed live budget. */
+  readonly requestedDailyBudgetIDR?: number;
+  /** Required for absolute scaling: validates membership and reads back the ad set. */
+  readonly campaignId?: string;
 }
 
 /**

@@ -42,6 +42,47 @@ it("creates an incomplete draft without inventing price or property type", async
     expect.objectContaining({ method: "POST", body: JSON.stringify({ title: "Rumah BSD" }) }),
   );
 });
+it("does not lose the picked file when the draft save it waits on is slow", async () => {
+  // Regression test for a real race: `input.files` is a LIVE FileList tied to the input element —
+  // real browsers clear it as a side effect of resetting `input.value` (needed so re-picking the
+  // same file still fires another change event). `upload()` is async and only reads the file list
+  // after `await persist()` resolves; real save logs showed persist() commonly taking 3s+, so by
+  // the time it reads the list, a live reference would already be empty. jsdom's file input does
+  // NOT reproduce that aliasing (verified: this exact scenario passes even against the unfixed
+  // handler under jsdom), so this test reproduces the real hazard directly — mutating the input's
+  // `.files` out from under the handler between the event and the awaited resolution — rather than
+  // relying on jsdom to model browser-specific FileList behavior it doesn't implement.
+  let resolveDraft: (() => void) | undefined;
+  const draftGate = new Promise<void>((resolve) => {
+    resolveDraft = resolve;
+  });
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes("config"))
+      return { ok: true, json: async () => ({ formats: [], maxBytes: 1 }) };
+    if (url.includes("drafts")) {
+      await draftGate; // held open until the test explicitly releases it, simulating the real delay
+      return {
+        ok: true,
+        json: async () => ({ id: "draft-a", listingStatus: "DRAFT", photos: [] }),
+      };
+    }
+    return { ok: true, json: async () => ({ documents: [], videos: [] }) };
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<ListingEditor />);
+  fireEvent.change(screen.getByLabelText("Judul Listing *"), { target: { value: "Rumah BSD" } });
+  const file = new File(["x"], "photo.png", { type: "image/png" });
+  const input: HTMLInputElement = screen
+    .getByText("＋ Upload Foto")
+    .closest("label")!
+    .querySelector("input")!;
+  fireEvent.change(input, { target: { files: [file] } });
+  // Simulate the real browser's live-FileList aliasing: whatever reference the handler captured,
+  // the DOM node's `.files` is now empty — same end state `e.target.value = ""` produces in Chrome.
+  Object.defineProperty(input, "files", { value: [], configurable: true });
+  resolveDraft!();
+  expect(await screen.findByText("photo.png")).toBeInTheDocument();
+});
 it("shows source filename, sheet and row from analysis without invented promo copy", async () => {
   vi.stubGlobal(
     "fetch",

@@ -300,6 +300,7 @@ export class CampaignsService {
             dailyBudgetIDR: body.dailyBudgetIDR,
             specialAdCategories: [HOUSING_SPECIAL_AD_CATEGORY],
             targeting: propertyTargeting.targeting,
+            promotedObjectPageId: connector.selectedPageId,
           });
           if (!executed.ok) {
             throw executed.error;
@@ -512,10 +513,10 @@ export class CampaignsService {
     creativePackage: StoredCreativePackage,
     accessToken: string,
   ): Promise<readonly string[]> {
-    const pageId = this.config.META_PAGE_ID;
-    if (pageId.length === 0) {
+    const pageId = connector.selectedPageId;
+    if (!pageId) {
       this.logger.warn(
-        `CampaignsService.publishPropertyAds(${creativePackage.id}): META_PAGE_ID is not configured — skipping real ad creation.`,
+        `CampaignsService.publishPropertyAds(${creativePackage.id}): tenant Page is not selected — skipping real ad creation.`,
       );
       return [];
     }

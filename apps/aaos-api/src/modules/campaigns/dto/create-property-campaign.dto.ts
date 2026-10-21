@@ -20,6 +20,7 @@ import { z } from "zod";
  */
 export const CreatePropertyCampaignBodySchema = z.object({
   listingId: z.string().trim().min(1),
+  creativePackageId: z.string().uuid().optional(),
   /** Optional whole-IDR daily budget override — defaults to `CreateCampaign`'s `DEFAULT_DAILY_BUDGET_IDR` when omitted, same as the AUTOMOTIVE endpoint. */
   dailyBudgetIDR: z.number().int().positive().optional(),
 });

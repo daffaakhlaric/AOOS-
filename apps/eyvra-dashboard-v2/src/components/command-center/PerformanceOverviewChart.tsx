@@ -101,8 +101,8 @@ export function PerformanceOverviewChart({
     leads: "Raw Leads",
     cpl: "CPL",
   };
-  const colorByMetric: Record<Metric, "indigo" | "emerald" | "amber"> = {
-    spend: "indigo",
+  const colorByMetric: Record<Metric, "cyan" | "emerald" | "amber"> = {
+    spend: "cyan",
     leads: "emerald",
     cpl: "amber",
   };

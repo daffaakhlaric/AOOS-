@@ -276,7 +276,14 @@ export class CreativePackagesService {
       ...(query.status !== undefined ? { status: query.status } : {}),
       limit: query.limit,
     });
-    return packages.map(toCreativePackageResponseDto);
+    const formats = await this.repository.productionFormats(
+      tenantId,
+      packages.map((p) => p.id),
+    );
+    return packages.map((p) => ({
+      ...toCreativePackageResponseDto(p),
+      ...(formats.has(p.id) ? { productionFormat: formats.get(p.id) } : {}),
+    }));
   }
 
   /** `GET /api/v1/creative-packages/:id` — the single-item lookup the dashboard previously faked by re-fetching the whole list and `.find()`-ing client-side. */
@@ -1465,8 +1472,9 @@ export class CreativePackagesService {
     id: string,
     body: ApprovePackageBodyDto,
     now: Date,
+    tenantId = this.tenantId,
   ): Promise<CreativePackageResponseDto> {
-    const existing = await this.findOrThrow(id);
+    const existing = await this.findOrThrowScoped(tenantId, id);
     if (existing.status !== "PENDING") {
       throw new ValidationError(
         `Creative package "${id}" is ${existing.status}; only a PENDING package can be approved`,
@@ -1490,7 +1498,7 @@ export class CreativePackagesService {
       message: `Package disetujui manager${selected !== undefined ? ` (copy ${labelOf(existing.copyVariants, selected)})` : ""}.`,
       ...(selected !== undefined ? { metadata: { selectedCopyVariantId: selected } } : {}),
     });
-    return toCreativePackageResponseDto(await this.findOrThrow(id));
+    return toCreativePackageResponseDto(await this.findOrThrowScoped(tenantId, id));
   }
 
   async reject(

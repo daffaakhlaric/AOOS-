@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Poppins } from "next/font/google";
 
 import "./globals.css";
 // Imported after globals.css so this app's own hand-crafted tokens win any overlap — see
@@ -8,11 +8,17 @@ import "./globals.css";
 import "./tremor.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-poppins",
+});
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "EYVRA",
-  description: "EYVRA Command Center — an agentic advertising operations console.",
+  title: { default: "SkorPintar Ads Insight", template: "%s | SkorPintar" },
+  description: "Data yang lebih pintar untuk keputusan iklan yang lebih besar.",
+  icons: { icon: "/brand/skorpintar-mark.svg", apple: "/brand/skorpintar-full.png" },
 };
 
 export default function RootLayout({
@@ -21,7 +27,7 @@ export default function RootLayout({
   readonly children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <html lang="id" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="id" className={`${inter.variable} ${jetbrainsMono.variable} ${poppins.variable}`}>
       <body>{children}</body>
     </html>
   );

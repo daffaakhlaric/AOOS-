@@ -4,6 +4,164 @@ import type {
 } from "../../campaign-health/domain/decision.js";
 import type { AutomationMode } from "../../growth-objectives/dto/growth-objective.dto.js";
 
+import { PACE_PROFILES, type GrowthPolicy, type GROWTH_ACTIONS } from "./growth-policy.js";
+
+export interface GrowthExecutionEvidence {
+  readonly policyVersion: number;
+  readonly currentPolicyVersion: number;
+  readonly action: (typeof GROWTH_ACTIONS)[number];
+  readonly confidence: number;
+  readonly trackingHealthy?: boolean;
+  readonly learningProtected?: boolean;
+  readonly dataSufficient?: boolean;
+  readonly campaignActive?: boolean;
+  readonly crmAgeHours?: number;
+  readonly qualifiedRate?: number;
+  readonly hoursSinceEdit?: number;
+  readonly observationHours?: number;
+  readonly leads?: number;
+  readonly costPerOutcome?: number;
+  readonly currentBudget?: number;
+  readonly requestedBudget?: number;
+  readonly accountDailySpend?: number;
+  readonly monthSpend?: number;
+  readonly activeCreatives?: number;
+  readonly qaPassed?: boolean;
+  readonly simulationPassed?: boolean;
+  readonly claimsVerified?: boolean;
+}
+
+/** Extends the existing policy engine; unknown evidence fails closed, even after approval. */
+export function evaluateGrowthPolicy(policy: GrowthPolicy, e: GrowthExecutionEvidence) {
+  const blocked: string[] = [];
+  // JSON normally excludes NaN, but internal metric calculations can still produce it.
+  // Never let comparisons against NaN silently satisfy a spending guard.
+  for (const key of [
+    "crmAgeHours",
+    "qualifiedRate",
+    "hoursSinceEdit",
+    "observationHours",
+    "leads",
+    "costPerOutcome",
+    "accountDailySpend",
+    "monthSpend",
+    "activeCreatives",
+  ] as const) {
+    const value = e[key];
+    if (value !== undefined && (!Number.isFinite(value) || value < 0))
+      blocked.push(`INVALID_EVIDENCE_${key}`);
+  }
+  if (!["SCALE", "PAUSE_CREATIVE", "REQUEST_KAI_REFRESH", "PUBLISH_CREATIVE"].includes(e.action))
+    blocked.push("ACTION_GUARDS_NOT_CONNECTED");
+  const p = policy.budgetPolicy;
+  if (e.policyVersion !== e.currentPolicyVersion) blocked.push("STALE_POLICY");
+  if (policy.safetyPolicy.killSwitch) blocked.push("KILL_SWITCH");
+  if (policy.safetyPolicy.permissions[e.action] === "DISABLED") blocked.push("ACTION_DISABLED");
+  if (!Number.isFinite(e.confidence) || e.confidence < policy.safetyPolicy.minimumConfidence)
+    blocked.push("LOW_CONFIDENCE");
+  if (["SCALE", "UPDATE_AUDIENCE", "ACTIVATE_CAMPAIGN", "PUBLISH_CREATIVE"].includes(e.action)) {
+    if (e.trackingHealthy !== true) blocked.push("TRACKING_UNVERIFIED");
+    if (e.learningProtected !== false) blocked.push("LEARNING_UNVERIFIED_OR_PROTECTED");
+    if (e.dataSufficient !== true) blocked.push("INSUFFICIENT_DATA");
+    if (
+      policy.optimizationBasis !== "META_LEAD" &&
+      policy.conversionPolicy.primaryMetric !== "LEAD"
+    ) {
+      if (
+        e.crmAgeHours === undefined ||
+        e.crmAgeHours < 0 ||
+        e.crmAgeHours > policy.conversionPolicy.maximumCrmAgeHours
+      )
+        blocked.push("CRM_STALE_OR_MISSING");
+      if (
+        e.qualifiedRate === undefined ||
+        e.qualifiedRate < policy.conversionPolicy.minimumQualifiedRate
+      )
+        blocked.push("QUALITY_UNVERIFIED_OR_LOW");
+    }
+  }
+  const pace = PACE_PROFILES[policy.pace];
+  const allowedScalePercent = Math.min(p.maxScalePercentPerAction, pace.scalePercent);
+  if (e.action === "SCALE") {
+    if (!p.autoScaleEnabled) blocked.push("SCALING_DISABLED");
+    if (e.campaignActive !== true) blocked.push("CAMPAIGN_NOT_ACTIVE");
+    if (e.observationHours === undefined || e.observationHours < p.minimumObservationHours)
+      blocked.push("OBSERVATION_WINDOW");
+    if (
+      e.hoursSinceEdit === undefined ||
+      e.hoursSinceEdit < Math.max(p.scaleCooldownHours, pace.cooldownHours)
+    )
+      blocked.push("EDIT_COOLDOWN");
+    if (e.leads === undefined || e.leads < p.minimumLeads) blocked.push("MINIMUM_SAMPLE");
+    if (
+      p.maximumCostPerOutcome !== null &&
+      (e.costPerOutcome === undefined || e.costPerOutcome > p.maximumCostPerOutcome)
+    )
+      blocked.push("COST_THRESHOLD");
+    if (
+      e.currentBudget === undefined ||
+      e.requestedBudget === undefined ||
+      !Number.isFinite(e.currentBudget) ||
+      !Number.isFinite(e.requestedBudget) ||
+      e.currentBudget <= 0 ||
+      e.requestedBudget <= e.currentBudget
+    )
+      blocked.push("INVALID_BUDGET_TARGET");
+    else {
+      if ((e.requestedBudget / e.currentBudget - 1) * 100 > allowedScalePercent + 1e-9)
+        blocked.push("SCALE_STEP_CAP");
+      if (
+        p.dailyBudgetCeiling === null ||
+        e.requestedBudget > p.dailyBudgetCeiling ||
+        e.requestedBudget < p.dailyBudgetFloor
+      )
+        blocked.push("CAMPAIGN_BUDGET_CAP");
+      const delta = e.requestedBudget - e.currentBudget;
+      if (
+        p.accountDailySpendCap === null ||
+        e.accountDailySpend === undefined ||
+        e.accountDailySpend + delta > p.accountDailySpendCap
+      )
+        blocked.push("ACCOUNT_SPEND_CAP");
+      if (
+        p.monthlySpendCap === null ||
+        e.monthSpend === undefined ||
+        e.monthSpend + e.requestedBudget > p.monthlySpendCap
+      )
+        blocked.push("MONTHLY_SPEND_CAP");
+    }
+  }
+  if (
+    e.action === "PAUSE_CREATIVE" &&
+    (e.activeCreatives === undefined ||
+      e.activeCreatives - 1 < policy.creativePolicy.minimumActiveCreatives)
+  )
+    blocked.push("CREATIVE_CAPACITY");
+  if (e.action === "REQUEST_KAI_REFRESH" && !policy.creativePolicy.autoCreativeRefresh)
+    blocked.push("CREATIVE_REFRESH_DISABLED");
+  if (e.action === "UPDATE_AUDIENCE" && policy.audiencePolicy.mode !== "GUARDED_AUTOMATIC")
+    blocked.push("AUDIENCE_REQUIRES_EXPERIMENT_OR_REVIEW");
+  if (e.action === "PUBLISH_CREATIVE") {
+    if (e.qaPassed !== true) blocked.push("QA_REQUIRED");
+    if (e.simulationPassed !== true) blocked.push("SIMULATION_REQUIRED");
+    if (e.claimsVerified !== true) blocked.push("CLAIM_VERIFICATION_REQUIRED");
+  }
+  const requiresApproval =
+    blocked.length === 0 &&
+    (policy.autonomousMode === "ADVISOR" ||
+      policy.autonomousMode === "COPILOT" ||
+      policy.safetyPolicy.permissions[e.action] !== "AUTO" ||
+      ["ACTIVATE_CAMPAIGN", "FIX_TRACKING"].includes(e.action));
+  return {
+    allowed: blocked.length === 0 && !requiresApproval,
+    requiresApproval,
+    blocked,
+    policyVersion: e.currentPolicyVersion,
+    allowedScalePercent,
+    reviewHours: pace.reviewHours,
+  };
+}
+
 /**
  * EYVRA — SAMANTHA V2 Phase 5. Pure, deterministic, total "decision -> may it auto-proceed" mapping
  * over an already-computed `SamanthaDecision` (Phase 4) and a tenant's `AutomationPolicy` — no I/O,

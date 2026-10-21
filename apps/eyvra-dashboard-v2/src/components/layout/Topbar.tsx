@@ -1,5 +1,7 @@
 "use client";
 
+import { UserMenu } from "./UserMenu";
+import { BrandMark } from "@/components/brand/BrandLogo";
 import { useEffect, useState } from "react";
 
 import { PendingApprovalDrawer, usePendingActionsCount } from "./PendingApprovalDrawer";
@@ -54,9 +56,12 @@ export function Topbar({
   return (
     <>
       <header className={styles.bar}>
+        <span className={styles.mobileBrand}>
+          <BrandMark />
+        </span>
         <div>
           <p className={styles.greeting}>
-            Welcome back{userEmail ? `, ${userEmail.split("@")[0]}` : ""} 👋
+            Selamat datang{userEmail ? `, ${userEmail.split("@")[0]}` : ""} 👋
           </p>
           <h1 className={styles.title}>{title}</h1>
           {subtitle !== undefined ? <p className={styles.subtitle}>{subtitle}</p> : null}
@@ -66,10 +71,10 @@ export function Topbar({
             className={styles.period}
             title="Campaign metrics use the backend’s last 7 days; CRM counts show current totals."
           >
-            Last 7 Days
+            7 hari terakhir
           </span>
           <span className={styles.mode}>
-            <span aria-hidden="true">●</span> {mode ?? "Automation unavailable"}
+            <span aria-hidden="true">●</span> {mode ?? "Mode belum tersedia"}
           </span>
           {lastSyncLabel !== undefined ? (
             <span className={styles.syncTime} title="Waktu sinkronisasi data terakhir">
@@ -92,12 +97,7 @@ export function Topbar({
           <button type="button" className={styles.iconButton} aria-label="Notifikasi" disabled>
             <NavIcon name="bell" size={16} />
           </button>
-          {userEmail !== undefined ? (
-            <span className={styles.userChip} title={userEmail}>
-              <span className={styles.avatar}>{userEmail.slice(0, 2).toUpperCase()}</span>
-              {userEmail.split("@")[0]}
-            </span>
-          ) : null}
+          <UserMenu email={userEmail} />
         </div>
       </header>
       <PendingApprovalDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />

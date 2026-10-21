@@ -1,4 +1,4 @@
-import { createParamDecorator, type ExecutionContext } from "@nestjs/common";
+import { createParamDecorator, ForbiddenException, type ExecutionContext } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";
 
 export const TENANT_ID_HEADER = "x-tenant-id";
@@ -24,11 +24,10 @@ export const DEFAULT_TENANT_ID = "dss-motor";
  * tenant-scoped from the start since it is brand new.
  */
 export function resolveTenantId(request: FastifyRequest): string {
-  const headerValue = request.headers[TENANT_ID_HEADER];
-  if (typeof headerValue === "string" && headerValue.length > 0) {
-    return headerValue;
-  }
-  return DEFAULT_TENANT_ID;
+  const context = (request as FastifyRequest & { tenantContext?: { tenantId: string } })
+    .tenantContext;
+  if (!context?.tenantId) throw new ForbiddenException("Trusted tenant context required");
+  return context.tenantId;
 }
 
 /** The raw param-decorator factory, exported separately (Nest convention, mirrors `correlationIdFactory`) so it's directly unit-testable without going through Nest's decorator/metadata machinery. */

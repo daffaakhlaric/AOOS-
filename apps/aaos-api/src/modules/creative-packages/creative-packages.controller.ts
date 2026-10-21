@@ -130,8 +130,9 @@ export class CreativePackagesController {
   async approve(
     @Param("id") id: string,
     @Body(new ZodValidationPipe(ApprovePackageBodySchema)) body: ApprovePackageBodyDto,
+    @TenantId() tenantId: string,
   ): Promise<CreativePackageResponseDto> {
-    return this.service.approve(id, body, new Date());
+    return this.service.approve(id, body, new Date(), tenantId);
   }
 
   @Post(":id/reject")

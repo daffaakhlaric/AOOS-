@@ -5,6 +5,21 @@ import { createFakeSupabaseClient } from "../../../test-support/fake-supabase-cl
 import { TenantRepository, TenantRepositoryError } from "./tenant.repository.js";
 
 describe("TenantRepository", () => {
+  it("rejects stale credential updates without replacing the newer account", async () => {
+    const client = createFakeSupabaseClient();
+    client.seed("tenants", {
+      tenant_id: "workspace-a",
+      meta_credential_version: 3,
+      meta_ad_account_id: "act_333",
+    });
+    const repo = new TenantRepository(client);
+    await expect(
+      repo.updateMetaAtVersion("workspace-a", 2, { meta_ad_account_id: "act_222" }),
+    ).rejects.toThrow("Integration changed");
+    expect((await repo.findByTenantId("workspace-a"))?.meta_ad_account_id).toBe("act_333");
+    await repo.updateMetaAtVersion("workspace-a", 3, { meta_ad_account_id: "act_444" });
+    expect((await repo.findByTenantId("workspace-a"))?.meta_ad_account_id).toBe("act_444");
+  });
   it("inserts a row and returns it (including the DB-generated id)", async () => {
     const client = createFakeSupabaseClient();
     const repo = new TenantRepository(client);

@@ -1,3 +1,160 @@
-.workspace{display:grid;gap:14px;padding-bottom:20px}.workspace h3{font-size:14px;margin:0 0 10px;font-weight:650}.twoCol{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}.sectionHead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}.controls{display:flex;gap:8px;flex-wrap:wrap}.controls button[aria-pressed=true]{color:#6d28d9;border-color:#c4b5fd;background:#f5f0ff}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px;margin:14px 0}.stats>div{padding:12px;background:#f8f9fd;border:1px solid #edf0f7;border-radius:8px}.stats small,.stats strong{display:block}.stats strong{font-size:20px;margin-top:6px}.muted{color:var(--text-muted);font-size:11px}.chart{width:100%;height:260px}.chart text{font-size:10px;fill:#79839b}.observation{padding:16px 20px;border-left:3px solid #8b5cf6;background:#f1ebff;border-radius:8px}.observation b{color:#6d28d9}.empty{padding:24px;border:1px dashed #dce0ed;background:#fafbfe;border-radius:8px;color:var(--text-secondary);margin:10px 0}.empty strong{color:var(--text-primary)}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:16px;margin-top:14px}.creative{overflow:hidden;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.creative>div:last-child{padding:14px}.creative p{max-height:70px;overflow:auto}.media{background:#f1f0f8;min-height:120px;display:flex;align-items:center;justify-content:center;border-radius:8px;overflow:hidden;aspect-ratio:4/3}.media img,.media video{height:100%;width:100%;object-fit:contain}.media>span{text-align:center;font-size:32px;color:#a198b8}.media small{display:block;font-size:11px}.tag{display:inline-block;color:#7541c1;background:#f2ebff;padding:4px 8px;border-radius:6px;font-size:10px}.tag[data-health=Winner],.tag[data-health=Healthy]{background:#e4f8ef;color:#078552}.tag[data-health=Watch]{background:#fff3da;color:#a36300}.tag[data-health=Fatigued]{background:#ffedf1;color:#bd3652}.previewStrip{display:flex;gap:8px;margin:12px 0}.previewStrip>div{flex:1;min-width:0}.previewStrip .media{min-height:70px;aspect-ratio:1}.funnel{display:flex;align-items:center;gap:12px;margin:14px 0}.funnel>span{flex:1}.funnel>div{width:30%;height:7px;border-radius:8px;background:#eeeaf8}.funnel i{display:block;height:100%;background:#8b5cf6;border-radius:8px}.timeline{list-style:none;padding:0 0 0 18px}.timeline li{border-left:2px solid #e8ddff;padding:0 0 24px 20px;position:relative}.timeline li:before{content:"";width:8px;height:8px;background:#9b79de;border-radius:50%;position:absolute;left:-5px;top:7px}.timeline time{margin-left:10px;color:var(--text-muted);font-size:10px}.timeline h3{margin-top:10px}.steps{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}.steps>span{flex:1;padding:10px;background:#f6f7fb;border-radius:6px;font-size:11px}.steps>span[data-active=true]{background:#f0e8ff;color:#7135c2}.tableWrap{overflow:auto}.tableWrap table{width:100%;border-collapse:collapse;font-size:11px}.tableWrap th{background:#f7f8fc;text-align:left;color:var(--text-muted);padding:12px}.tableWrap td{border-bottom:1px solid var(--border);padding:12px}.stack{display:grid;gap:12px}.warning{background:#fff8e8;border:1px solid #f4dfb1;padding:12px;border-radius:8px}.form{display:grid;gap:14px}.form label{display:grid;gap:6px}.form input,.form select,.form textarea{font:inherit;padding:10px;border:1px solid var(--border);border-radius:6px;width:100%}.workspace progress{width:100%;height:7px}.form button{padding:12px;color:white;background:#7c3aed;border-radius:6px;border:0}.form button:disabled{opacity:.5}.workspace details{margin-top:12px}.workspace summary{cursor:pointer;color:#7135c2}@media(max-width:1000px){.twoCol{grid-template-columns:1fr}.sectionHead{align-items:flex-start;flex-wrap:wrap}.gallery{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}}@media(max-width:600px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.gallery{grid-template-columns:1fr}.chart{height:220px}.timeline time{display:block;margin:8px 0}.sectionHead{gap:8px}}
-.workspace button,.workspace select{font:inherit;border:1px solid var(--border);border-radius:6px;background:var(--surface);padding:8px 10px;color:var(--text-primary)}.workspace button{cursor:pointer}.workspace button:disabled{opacity:.5;cursor:not-allowed}.workspace button:hover:not(:disabled){border-color:#b8a0e8;background:#f8f4ff}
+.workspace{display:grid;gap:14px;padding-bottom:20px}.workspace h3{font-size:14px;margin:0 0 10px;font-weight:650}.twoCol{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}.sectionHead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}.controls{display:flex;gap:8px;flex-wrap:wrap}.controls button[aria-pressed=true]{color:var(--brand);border-color:var(--border);background:var(--cyan-soft)}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px;margin:14px 0}.stats>div{padding:12px;background:var(--palette-f8f9fd);border:1px solid var(--palette-edf0f7);border-radius:8px}.stats small,.stats strong{display:block}.stats strong{font-size:20px;margin-top:6px}.muted{color:var(--text-muted);font-size:11px}.chart{width:100%;height:260px}.chart text{font-size:10px;fill:var(--palette-79839b)}.observation{padding:16px 20px;border-left:3px solid var(--brand);background:var(--cyan-soft);border-radius:8px}.observation b{color:var(--brand)}.empty{padding:24px;border:1px dashed var(--palette-dce0ed);background:var(--palette-fafbfe);border-radius:8px;color:var(--text-secondary);margin:10px 0}.empty strong{color:var(--text-primary)}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:16px;margin-top:14px}.creative{overflow:hidden;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.creative>div:last-child{padding:14px}.creative p{max-height:70px;overflow:auto}.media{background:var(--palette-f1f0f8);min-height:120px;display:flex;align-items:center;justify-content:center;border-radius:8px;overflow:hidden;aspect-ratio:4/3}.media img,.media video{height:100%;width:100%;object-fit:contain}.media>span{text-align:center;font-size:32px;color:var(--brand)}.media small{display:block;font-size:11px}.tag{display:inline-block;color:var(--brand);background:var(--cyan-soft);padding:4px 8px;border-radius:6px;font-size:10px}.tag[data-health=Winner],.tag[data-health=Healthy]{background:var(--palette-e4f8ef);color:var(--palette-078552)}.tag[data-health=Watch]{background:var(--palette-fff3da);color:var(--palette-a36300)}.tag[data-health=Fatigued]{background:var(--palette-ffedf1);color:var(--palette-bd3652)}.previewStrip{display:flex;gap:8px;margin:12px 0}.previewStrip>div{flex:1;min-width:0}.previewStrip .media{min-height:70px;aspect-ratio:1}.funnel{display:flex;align-items:center;gap:12px;margin:14px 0}.funnel>span{flex:1}.funnel>div{width:30%;height:7px;border-radius:8px;background:var(--cyan-soft)}.funnel i{display:block;height:100%;background:var(--brand);border-radius:8px}.timeline{list-style:none;padding:0 0 0 18px}.timeline li{border-left:2px solid var(--cyan-soft);padding:0 0 24px 20px;position:relative}.timeline li:before{content:"";width:8px;height:8px;background:var(--brand);border-radius:50%;position:absolute;left:-5px;top:7px}.timeline time{margin-left:10px;color:var(--text-muted);font-size:10px}.timeline h3{margin-top:10px}.steps{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}.steps>span{flex:1;padding:10px;background:var(--palette-f6f7fb);border-radius:6px;font-size:11px}.steps>span[data-active=true]{background:var(--cyan-soft);color:var(--brand)}.tableWrap{overflow:auto}.tableWrap table{width:100%;border-collapse:collapse;font-size:11px}.tableWrap th{background:var(--palette-f7f8fc);text-align:left;color:var(--text-muted);padding:12px}.tableWrap td{border-bottom:1px solid var(--border);padding:12px}.stack{display:grid;gap:12px}.warning{background:var(--palette-fff8e8);border:1px solid var(--palette-f4dfb1);padding:12px;border-radius:8px}.form{display:grid;gap:14px}.form label{display:grid;gap:6px}.form input,.form select,.form textarea{font:inherit;padding:10px;border:1px solid var(--border);border-radius:6px;width:100%}.workspace progress{width:100%;height:7px}.form button{padding:12px;color:white;background:var(--brand);border-radius:6px;border:0}.form button:disabled{opacity:.5}.workspace details{margin-top:12px}.workspace summary{cursor:pointer;color:var(--brand)}@media(max-width:1000px){.twoCol{grid-template-columns:1fr}.sectionHead{align-items:flex-start;flex-wrap:wrap}.gallery{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}}@media(max-width:600px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.gallery{grid-template-columns:1fr}.chart{height:220px}.timeline time{display:block;margin:8px 0}.sectionHead{gap:8px}}
+.workspace button,.workspace select{font:inherit;border:1px solid var(--border);border-radius:6px;background:var(--surface);padding:8px 10px;color:var(--text-primary)}.workspace button{cursor:pointer}.workspace button:disabled{opacity:.5;cursor:not-allowed}.workspace button:hover:not(:disabled){border-color:var(--border);background:var(--cyan-soft)}
 .gallery{grid-template-columns:repeat(auto-fill,minmax(235px,1fr))}.media{max-height:340px}.workspace{min-width:0}.twoCol>*,.creative{min-width:0;overflow-wrap:anywhere}@media(max-width:600px){.gallery{grid-template-columns:1fr}}
+.overviewV2 .chart{height:190px}.overviewV2 .previewStrip{justify-content:flex-start}.overviewV2 .previewStrip>div{flex:0 1 100px}.overviewV2 .previewStrip .media{height:76px;min-height:76px;aspect-ratio:4/3}.previewName{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px}.healthCounts{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:4px;margin:8px 0}.healthCounts>div{background:var(--cyan-soft);border-radius:5px;padding:7px 4px;color:var(--brand)}.healthCounts b,.healthCounts small{display:block}.healthCounts small{font-size:8px}.healthCounts b{font-size:15px}.healthCounts [data-health=Winner],.healthCounts [data-health=Healthy]{background:var(--palette-e9f9f2);color:var(--palette-118763)}.healthCounts [data-health=Watch]{background:var(--palette-fff5e7);color:var(--palette-b67418)}.healthCounts [data-health=Fatigued]{background:var(--palette-ffedf2);color:var(--palette-ca4168)}.overviewV2 .stats{gap:6px;margin:8px 0}.overviewV2 .stats>div{padding:8px}.overviewV2 .stats strong{font-size:12px}.overviewV2 .sectionHead{gap:6px;margin-bottom:8px}.overviewV2 .controls{gap:4px}.overviewV2 .controls select{font-size:9px;padding:5px}
+.tag[data-health=Loser]{background:var(--palette-ffe4e9);color:var(--palette-b0223f)}.tag[data-health="Insufficient Data"]{background:var(--palette-eef0f6);color:var(--palette-5b6478)}.healthCounts [data-health=Loser]{background:var(--palette-ffe4e9);color:var(--palette-b0223f)}.healthCounts [data-health="Insufficient Data"]{background:var(--palette-eef0f6);color:var(--palette-5b6478)}
+.badgeRow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.metaStatus{display:inline-block;background:var(--palette-eef1fb);color:var(--palette-4a5578);padding:4px 8px;border-radius:6px;font-size:10px}
+.creativeRail{display:grid;gap:14px}.creativeRail h3{font-size:13px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.toolbar input[type=search]{font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:6px;flex:1;min-width:160px}.viewToggle{display:flex;gap:4px}
+.insightList{margin:0;padding-left:18px;display:grid;gap:8px;font-size:12px}
+.distRow{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:11px}.distRow>span{width:56px}.distRow>b{width:24px;text-align:right}.distBar{flex:1;height:8px;border-radius:8px;background:var(--cyan-soft);overflow:hidden}.distBar i{display:block;height:100%;background:var(--brand);border-radius:8px}
+
+/* Creative Health card tidy-up: overlay health/Meta-status/title on the media instead of a text
+   row below it, chip-style format/angle tags, a fixed 3-col metric grid, and a single footer row
+   (posture label + the 1-2 real actions that apply to this state) instead of three stacked
+   buttons on every card regardless of status. */
+.mediaFrame { position: relative; }
+.mediaFrame .media { max-height: none; aspect-ratio: 4 / 3; border-radius: 10px 10px 0 0; }
+.mediaFrame .media img, .mediaFrame .media video { object-fit: cover; }
+.mediaHealth, .mediaMetaStatus {
+  position: absolute; top: 10px; font-size: 10px; font-weight: 650; padding: 4px 9px;
+  border-radius: 999px; display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(255, 255, 255, 0.94); box-shadow: 0 1px 3px rgba(20, 20, 40, 0.15);
+}
+.mediaHealth { left: 10px; color: var(--brand); }
+.mediaHealth[data-health="Winner"], .mediaHealth[data-health="Healthy"] { color: var(--palette-078552); }
+.mediaHealth[data-health="Watch"] { color: var(--palette-a36300); }
+.mediaHealth[data-health="Fatigued"] { color: var(--palette-bd3652); }
+.mediaHealth[data-health="Loser"] { color: var(--palette-b0223f); }
+.mediaHealth[data-health="Insufficient Data"], .mediaHealth[data-health="Unassessed"] { color: var(--palette-5b6478); }
+.mediaMetaStatus { right: 10px; color: var(--palette-4a5578); }
+.mediaMetaStatus i { width: 6px; height: 6px; border-radius: 999px; background: var(--palette-9aa3bd); display: block; }
+.mediaMetaStatus[data-status="ACTIVE"] i { background: var(--palette-16a34a); }
+.mediaMetaStatus[data-status="PAUSED"] i { background: var(--palette-b45309); }
+.mediaCaption {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 12px 10px;
+  background: linear-gradient(180deg, transparent, rgba(10, 10, 25, 0.72));
+  color: var(--palette-ffffff); font-size: 12px; font-weight: 650; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.creativeBody { display: grid; gap: 10px; }
+.creativeBody h3 { margin: 0; font-size: 13px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  font-size: 10px; padding: 3px 8px; border-radius: 999px;
+  background: var(--palette-eef1fb); color: var(--palette-4a5578); white-space: nowrap;
+}
+.creativeMetrics {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px;
+}
+.creativeMetrics > div { min-width: 0; }
+.creativeMetrics small { display: block; color: var(--text-muted); font-size: 10px; }
+.creativeMetrics strong { display: block; font-size: 13px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; }
+.creativeFooter { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.posture {
+  font-size: 10.5px; font-weight: 650; padding: 5px 0; color: var(--palette-4a5578); white-space: nowrap;
+}
+.posture[data-health="Winner"], .posture[data-health="Healthy"] { color: var(--palette-078552); }
+.posture[data-health="Watch"] { color: var(--palette-a36300); }
+.posture[data-health="Fatigued"], .posture[data-health="Loser"] { color: var(--palette-bd3652); }
+.creativeFooter .controls { gap: 6px; }
+.creativeFooter .controls button { padding: 6px 10px; font-size: 11px; }
+@media (max-width: 480px) {
+  .creativeMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .creativeFooter { flex-direction: column; align-items: flex-start; }
+}
+
+/* Creative Health hero (Samantha's Analysis + Key Insight) + state summary cards + toolbar. */
+.heroRow {
+  display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.2fr);
+  gap: 14px; margin: 4px 0 14px;
+}
+.heroLeft {
+  display: flex; gap: 12px; padding: 16px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface);
+}
+.heroAvatar {
+  flex-shrink: 0; width: 40px; height: 40px; border-radius: 999px;
+  display: grid; place-items: center; font-size: 18px;
+  background: linear-gradient(135deg, var(--border), var(--brand)); color: var(--palette-ffffff);
+}
+.heroLeftBody { min-width: 0; display: grid; gap: 6px; }
+.heroLeftBody p { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: 0; }
+.heroTitleRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+.heroTitleRow b { font-size: 14px; }
+.heroTitleRow small { color: var(--text-muted); font-size: 10px; margin-left: auto; }
+.heroRight {
+  padding: 16px; border: 1px solid var(--cyan-soft); border-radius: 10px;
+  background: linear-gradient(180deg, var(--cyan-soft), var(--palette-ffffff));
+}
+.heroRightHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.heroRightHead b { font-size: 13px; color: var(--brand); }
+.heroRightHead button {
+  background: var(--brand); color: var(--palette-ffffff); border: 0; font-size: 11px; font-weight: 600;
+  padding: 9px 14px; border-radius: 7px; white-space: nowrap;
+}
+.heroRightHead button:hover:not(:disabled) { background: var(--brand); }
+
+/* Overall-portfolio posture badge (a different value domain from the per-card `.posture` — see
+   `CreativePosture` vs `CreativeHealthStatus` in src/lib/creative-health.ts). */
+.heroPosture {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px; padding: 4px 10px;
+  border-radius: 999px; white-space: nowrap;
+}
+.heroPosture[data-posture="HEALTHY"] { background: var(--palette-e4f8ef); color: var(--palette-078552); }
+.heroPosture[data-posture="MONITOR"] { background: var(--palette-fff3da); color: var(--palette-a36300); }
+.heroPosture[data-posture="NEEDS ATTENTION"] { background: var(--palette-ffedf1); color: var(--palette-bd3652); }
+.heroPosture[data-posture="INSUFFICIENT DATA"] { background: var(--palette-eef0f6); color: var(--palette-5b6478); }
+
+/* Lead Quality hero posture — a different value domain from Creative Health's (see
+   `LeadQualityPosture` vs `CreativePosture` in src/lib/lead-quality.ts). */
+.heroPosture[data-posture="EXCELLENT"] { background: var(--palette-e4f8ef); color: var(--palette-078552); }
+.heroPosture[data-posture="GOOD"] { background: var(--palette-e4f8ef); color: var(--palette-078552); }
+.heroPosture[data-posture="WATCH"] { background: var(--palette-fff3da); color: var(--palette-a36300); }
+.heroPosture[data-posture="POOR"] { background: var(--palette-ffedf1); color: var(--palette-bd3652); }
+.heroPosture[data-posture="INSUFFICIENT_DATA"] { background: var(--palette-eef0f6); color: var(--palette-5b6478); }
+
+/* Budget tab hero posture — a different value domain again (see `BudgetPosture` in src/lib/budget.ts). */
+.heroPosture[data-posture="SCALE"] { background: var(--palette-e4f8ef); color: var(--palette-078552); }
+.heroPosture[data-posture="HOLD"] { background: var(--palette-eef0f6); color: var(--palette-4a5578); }
+.heroPosture[data-posture="ATTENTION"] { background: var(--palette-ffedf1); color: var(--palette-bd3652); }
+.heroPosture[data-posture="UNKNOWN"] { background: var(--palette-eef0f6); color: var(--palette-5b6478); }
+
+.healthCounts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.stateCard {
+  display: grid; gap: 6px; text-align: left; padding: 12px; border-radius: 10px;
+  border: 1px solid transparent; background: var(--cyan-soft); cursor: pointer;
+}
+.stateCard[aria-pressed="true"] { border-color: currentColor; }
+.stateLabel { font-size: 11.5px; font-weight: 650; color: var(--palette-5b6478); }
+.stateCount { display: flex; align-items: baseline; gap: 6px; font-size: 20px; font-weight: 700; color: var(--text-primary); }
+.stateCount small { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.stateBar { display: block; height: 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.08); overflow: hidden; }
+.stateBar i { display: block; height: 100%; background: currentColor; border-radius: 4px; }
+.stateCard[data-health="Winner"], .stateCard[data-health="Healthy"] { background: var(--palette-e9f9f2); color: var(--palette-118763); }
+.stateCard[data-health="Watch"] { background: var(--palette-fff5e7); color: var(--palette-b67418); }
+.stateCard[data-health="Fatigued"] { background: var(--palette-ffedf2); color: var(--palette-ca4168); }
+.stateCard[data-health="Loser"] { background: var(--palette-ffe0e6); color: var(--palette-b0223f); }
+.stateCard[data-health="Insufficient Data"], .stateCard[data-health="Unassessed"] { background: var(--palette-eef0f6); color: var(--palette-5b6478); }
+
+.toolbar .primaryAction { background: var(--brand); color: var(--palette-ffffff); border: 0; font-weight: 600; }
+.toolbar .primaryAction:hover:not(:disabled) { background: var(--brand); }
+@media (max-width: 1100px) {
+  .heroRow { grid-template-columns: 1fr; }
+  .healthCounts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .healthCounts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Experiments tab: template cards (inert CTAs) + control-vs-variant thumbnail pair in the table. */
+.templateGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.templateCard { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.templateCard h3 { margin: 0; font-size: 12.5px; }
+.templateCard p { margin: 0; font-size: 11px; color: var(--text-secondary); line-height: 1.5; flex: 1; }
+.thumbPair { display: flex; gap: 6px; }
+.thumbPair .media { width: 52px; height: 52px; min-height: 0; aspect-ratio: auto; border-radius: 6px; }
+.linkCard { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+.linkCard:last-child { margin-bottom: 0; }
+.linkCard div { min-width: 0; }
+.linkCard p { margin: 2px 0 0; font-size: 11px; color: var(--text-secondary); }

@@ -38,7 +38,7 @@ export interface CalendarEventRow {
 
 export class CalendarEventRepositoryError extends Error {}
 
-function toDomain(row: CalendarEventRow): StoredCalendarEvent {
+export function toDomain(row: CalendarEventRow): StoredCalendarEvent {
   return {
     id: row.id,
     tenantId: row.tenant_id,

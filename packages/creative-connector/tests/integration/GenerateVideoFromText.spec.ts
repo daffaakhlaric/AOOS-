@@ -18,7 +18,10 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 const GENERATE_URL = "https://api.kie.ai/api/v1/veo/generate";
-const statusUrl = (taskId: string): string => `https://api.kie.ai/api/v1/jobs/${taskId}`;
+const statusHandler = (taskId: string, response: () => Response) =>
+  http.get("https://api.kie.ai/api/v1/veo/record-info", ({ request }) =>
+    new URL(request.url).searchParams.get("taskId") === taskId ? response() : undefined,
+  );
 
 function makeUseCase(publisher = createFakePublisher()) {
   const client = new KieAiGenerationClient({ apiKey: "key", sleep: async () => undefined });
@@ -35,7 +38,7 @@ describe("GenerateVideoFromText (integration, MSW-mocked api.kie.ai)", () => {
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_veo_txt" } }),
       ),
-      http.get(statusUrl("task_veo_txt"), () =>
+      statusHandler("task_veo_txt", () =>
         HttpResponse.json({
           code: 200,
           data: { taskId: "task_veo_txt", successFlag: 1, videoUrl: "https://cdn.kie.ai/txt.mp4" },
@@ -60,7 +63,7 @@ describe("GenerateVideoFromText (integration, MSW-mocked api.kie.ai)", () => {
         receivedBody = await request.json();
         return HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_veo_txt2" } });
       }),
-      http.get(statusUrl("task_veo_txt2"), () =>
+      statusHandler("task_veo_txt2", () =>
         HttpResponse.json({
           code: 200,
           data: {
@@ -86,7 +89,7 @@ describe("GenerateVideoFromText (integration, MSW-mocked api.kie.ai)", () => {
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_veo_txt3" } }),
       ),
-      http.get(statusUrl("task_veo_txt3"), () =>
+      statusHandler("task_veo_txt3", () =>
         HttpResponse.json({ code: 200, data: { taskId: "task_veo_txt3", successFlag: 2 } }),
       ),
     );
@@ -122,7 +125,7 @@ describe("GenerateVideoFromText (integration, MSW-mocked api.kie.ai)", () => {
       http.post(GENERATE_URL, () =>
         HttpResponse.json({ code: 200, msg: "success", data: { taskId: "task_veo_txt4" } }),
       ),
-      http.get(statusUrl("task_veo_txt4"), () =>
+      statusHandler("task_veo_txt4", () =>
         HttpResponse.json({
           code: 200,
           data: {

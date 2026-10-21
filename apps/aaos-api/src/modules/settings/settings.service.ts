@@ -1,7 +1,8 @@
 import { NotFoundError } from "@aos/errors";
-import type { MetaAdsConnector } from "@aos/meta-ads-connector";
-import { Inject, Injectable } from "@nestjs/common";
+import { MetaApiClient, type MetaAdsConnector } from "@aos/meta-ads-connector";
+import { BadRequestException , Inject, Injectable } from "@nestjs/common";
 
+import { EncryptionService } from "../../common/encryption.service.js";
 import type { AaosApiConfig } from "../../config/aaos-api.config.js";
 import {
   AAOS_API_CONFIG,
@@ -99,7 +100,7 @@ export class SettingsService {
 
   async getSettings(tenantId: string): Promise<SettingsResponseDto> {
     const tenant = await this.requireTenant(tenantId);
-    const hasOwnToken = tenant.meta_access_token !== null && tenant.meta_access_token.length > 0;
+    const hasOwnToken = Boolean(tenant.meta_access_token_encrypted);
     return {
       tenant: {
         tenantId: tenant.tenant_id,
@@ -124,26 +125,52 @@ export class SettingsService {
           : this.config.META_AD_ACCOUNT_IDS[0] !== undefined
             ? { adAccountId: this.config.META_AD_ACCOUNT_IDS[0] }
             : {}),
-        ...(hasOwnToken ? { accessToken: tenant.meta_access_token as string } : {}),
+
         apiVersion: tenant.meta_api_version ?? this.config.META_API_VERSION,
-        hasToken: hasOwnToken || this.config.META_ACCESS_TOKEN.length > 0,
-        usingEnvDefault: !hasOwnToken,
+        hasToken: hasOwnToken,
+        usingEnvDefault: false,
       },
     };
   }
 
   async updateMeta(tenantId: string, dto: UpdateMetaSettingsBodyDto): Promise<SettingsResponseDto> {
-    await this.requireTenant(tenantId);
-    await this.tenants.updateByTenantId(tenantId, {
-      ...(dto.accessToken !== undefined ? { meta_access_token: dto.accessToken } : {}),
-      ...(dto.adAccountId !== undefined ? { meta_ad_account_id: dto.adAccountId } : {}),
-      ...(dto.apiVersion !== undefined ? { meta_api_version: dto.apiVersion } : {}),
+    const tenant = await this.requireTenant(tenantId);
+    const encryption = new EncryptionService(this.config);
+    const candidate =
+      dto.accessToken ??
+      (tenant.meta_access_token_encrypted
+        ? encryption.decrypt(tenant.meta_access_token_encrypted)
+        : undefined);
+    const account = dto.adAccountId ?? tenant.meta_ad_account_id;
+    if (!candidate || !account || !/^act_\d+$/.test(account))
+      throw new BadRequestException("Explicit account and credential required");
+    const probe = await this.connector.client.getAdAccount(account, candidate);
+    if (!probe.ok || probe.value.id !== account)
+      throw new BadRequestException(
+        "Candidate credential/account verification failed; active configuration unchanged",
+      );
+    if (dto.pageId) {
+      const page = await new MetaApiClient({ timeoutMs: 15000 }).readGraph(
+        dto.pageId,
+        candidate,
+        "id",
+      );
+      if (!page.ok || page.value.id !== dto.pageId)
+        throw new BadRequestException(
+          "Selected Page cannot be verified; active configuration unchanged",
+        );
+    }
+    await this.tenants.updateMetaAtVersion(tenantId, tenant.meta_credential_version ?? 0, {
+      meta_access_token: null,
+      meta_access_token_encrypted: encryption.encrypt(candidate),
+      meta_ad_account_id: account,
+      ...(dto.accessToken
+        ? { meta_connection_source: "manual" as const, meta_token_expires_at: null }
+        : {}),
+      ...(dto.pageId !== undefined ? { meta_page_id: dto.pageId } : {}),
+      ...(dto.apiVersion ? { meta_api_version: dto.apiVersion } : {}),
       updated_at: new Date().toISOString(),
     });
-    // Real cache invalidation (AAOS-MULTI-TENANT-PHASE1B Phase 3, same discipline as
-    // `whatsAppConnectorRegistry.invalidate` below) — a saved token/ad-account-id/api-version
-    // means the tenant's next-resolved `MetaAdsConnector` must reflect it, never a stale cached
-    // instance built from the row's PREVIOUS values.
     this.metaAdsConnectorRegistry.invalidate(tenantId);
     return this.getSettings(tenantId);
   }
@@ -199,32 +226,25 @@ export class SettingsService {
    * path invented for this one button.
    */
   async testMetaConnection(tenantId: string): Promise<TestMetaConnectionResponseDto> {
-    const tenant = await this.requireTenant(tenantId);
-    if (tenant.meta_access_token === null || tenant.meta_access_token.length === 0) {
+    const resolved = await this.metaAdsConnectorRegistry.resolve(tenantId);
+    if (!resolved.ok)
       return {
         success: false,
-        message:
-          "Belum ada Meta Access Token tersimpan untuk tenant ini — isi dan simpan token terlebih dahulu sebelum menguji koneksi.",
+        message: "Integrasi Meta belum tersedia atau credential perlu dimigrasikan.",
       };
-    }
-    if (tenant.meta_ad_account_id === null || tenant.meta_ad_account_id.length === 0) {
-      return {
-        success: false,
-        message:
-          "Belum ada Ad Account ID tersimpan untuk tenant ini — isi dan simpan Ad Account ID terlebih dahulu sebelum menguji koneksi.",
-      };
-    }
-
-    const result = await this.connector.client.getAdAccount(
-      tenant.meta_ad_account_id,
-      tenant.meta_access_token,
-    );
-    if (!result.ok) {
-      return { success: false, message: `Koneksi Meta Ads gagal: ${result.error.message}` };
-    }
+    const context = resolved.value;
+    const account = context.adAccountIds[0];
+    if (!account) return { success: false, message: "Ad account belum dipilih." };
+    const result = await context.client.getAdAccount(account, context.accessToken);
+    if (!result.ok || result.value.id !== account)
+      return { success: false, message: "Verifikasi akun Meta gagal." };
+    await this.tenants.updateByTenantId(tenantId, {
+      meta_last_validated_at: new Date().toISOString(),
+      meta_integration_status: "CONNECTED",
+    });
     return {
       success: true,
-      message: `Terhubung — ${result.value.name}`,
+      message: "Terhubung untuk pembacaan; write belum diverifikasi.",
       accountName: result.value.name,
     };
   }

@@ -2927,4 +2927,384 @@ describe("LlmService", () => {
       expect(second).toEqual(first);
     });
   });
+
+  describe("simulateStressTestPersona (Creative Stress Test, Second Boundary)", () => {
+    const validPersonaBody = {
+      personaId: "PRICE_SENSITIVE",
+      personaLabel: "Price Sensitive",
+      personaDescription: "Fokus pada harga, DP, dan cicilan.",
+      primaryGoal: "CREATIVE_QUALITY",
+      creative: {
+        primaryText: "DP ringan mulai 15 juta!",
+        headline: "Xpander Cross DP Ringan",
+        description: "Unit siap survey hari ini",
+        angle: "DP_RINGAN",
+        format: "IMAGES_ONLY",
+        isProxyFromListing: false,
+      },
+    };
+    const validPersonaLlmJson = JSON.stringify({
+      attracts: ["DP ringan menarik untuk budget terbatas"],
+      confusions: [],
+      objections: [{ objection: "Cicilan bulanan mungkin masih berat", severity: "MEDIUM" }],
+      intentDrivers: ["Simulasi cicilan detail"],
+      narrativeReaction: "Menarik, tapi saya masih perlu hitung-hitung cicilan bulanan.",
+    });
+
+    it("returns available:true, simulated:true with a real Zod-validated critique from a mocked OpenAI response", async () => {
+      registerOpenAiChatHandler(validPersonaLlmJson);
+      const service = buildService();
+      const result = await service.simulateStressTestPersona(TENANT_ID, validPersonaBody);
+      expect(result).toEqual({
+        available: true,
+        simulated: true,
+        ...JSON.parse(validPersonaLlmJson),
+      });
+    });
+
+    it("returns NO_CREATIVE_CONTENT (never calling OpenAI) when the creative has no real text at all", async () => {
+      const service = buildService();
+      const result = await service.simulateStressTestPersona(TENANT_ID, {
+        ...validPersonaBody,
+        creative: { isProxyFromListing: false },
+      });
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_CREATIVE_CONTENT",
+        message: "Tidak ada teks/creative nyata untuk dievaluasi pada run ini",
+      });
+    });
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.simulateStressTestPersona(TENANT_ID, validPersonaBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("returns RATE_LIMITED when the local budget is exhausted", async () => {
+      const service = buildService({ rateLimiter: new AlwaysRateLimitedLimiter() });
+      const result = await service.simulateStressTestPersona(TENANT_ID, validPersonaBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "RATE_LIMITED",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.simulateStressTestPersona(TENANT_ID, validPersonaBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.simulateStressTestPersona(TENANT_ID, validPersonaBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when the LLM's objections carry a fabricated numeric frequency instead of the disclosed severity enum", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          attracts: ["a"],
+          confusions: [],
+          objections: [{ objection: "Harga mahal", severity: "82%" }],
+          intentDrivers: [],
+          narrativeReaction: "reaksi",
+        }),
+      );
+      const service = buildService();
+      const result = await service.simulateStressTestPersona(TENANT_ID, validPersonaBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validPersonaLlmJson);
+      const service = buildService();
+      const first = await service.simulateStressTestPersona(TENANT_ID, validPersonaBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.simulateStressTestPersona(TENANT_ID, validPersonaBody);
+      expect(second).toEqual(first);
+    });
+  });
+
+  describe("evaluateStressTestCopy (Creative Stress Test, Second Boundary)", () => {
+    const validCopyBody = {
+      primaryGoal: "CREATIVE_QUALITY",
+      creative: {
+        primaryText: "DP ringan mulai 15 juta!",
+        headline: "Xpander Cross DP Ringan",
+        description: "Unit siap survey hari ini",
+        angle: "DP_RINGAN",
+        format: "IMAGES_ONLY",
+        isProxyFromListing: false,
+      },
+    };
+    const validCopyLlmJson = JSON.stringify({
+      hookClarity: { status: "STRONG", reasoning: "Langsung menyebut DP ringan." },
+      offerStrength: {
+        status: "ADEQUATE",
+        reasoning: "Ada angka DP tapi tidak ada batas waktu promo.",
+      },
+      ctaSpecificity: { status: "WEAK", reasoning: "Tidak ada ajakan bertindak eksplisit." },
+      internalConsistency: { status: "STRONG", reasoning: "Headline dan primaryText konsisten." },
+      summary: "Hook kuat, CTA perlu diperjelas.",
+    });
+
+    it("returns available:true with a real Zod-validated copy evaluation from a mocked OpenAI response", async () => {
+      registerOpenAiChatHandler(validCopyLlmJson);
+      const service = buildService();
+      const result = await service.evaluateStressTestCopy(TENANT_ID, validCopyBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validCopyLlmJson) });
+    });
+
+    it("returns NO_CREATIVE_CONTENT (never calling OpenAI) when the creative has no real text at all", async () => {
+      const service = buildService();
+      const result = await service.evaluateStressTestCopy(TENANT_ID, {
+        ...validCopyBody,
+        creative: { isProxyFromListing: true },
+      });
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_CREATIVE_CONTENT",
+        message: "Tidak ada teks/creative nyata untuk dievaluasi pada run ini",
+      });
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.evaluateStressTestCopy(TENANT_ID, validCopyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.evaluateStressTestCopy(TENANT_ID, validCopyBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validCopyLlmJson);
+      const service = buildService();
+      const first = await service.evaluateStressTestCopy(TENANT_ID, validCopyBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.evaluateStressTestCopy(TENANT_ID, validCopyBody);
+      expect(second).toEqual(first);
+    });
+  });
+
+  describe("validateStressTestClaims (Creative Stress Test, Second Boundary — real Listing Knowledge grounding)", () => {
+    const validClaimBody = {
+      creative: {
+        primaryText: "Dekat stasiun KRL, hanya 300m",
+        headline: "Rumah Bintaro Dekat Stasiun",
+        isProxyFromListing: true,
+      },
+      knowledgeExcerpts: [
+        {
+          documentId: "doc-1",
+          fileName: "brosur.pdf",
+          excerpt: "Jarak ke stasiun KRL sekitar 300 meter.",
+        },
+      ],
+    };
+    const validClaimLlmJson = JSON.stringify({
+      findings: [
+        {
+          claim: "Dekat stasiun KRL, hanya 300m",
+          status: "SUPPORTED",
+          reasoning: "Brosur menyebut jarak 300 meter, sesuai klaim.",
+          citationDocumentId: "doc-1",
+          citationFileName: "brosur.pdf",
+        },
+      ],
+    });
+
+    it("returns available:true with real, cited findings grounded in the given knowledgeExcerpts", async () => {
+      registerOpenAiChatHandler(validClaimLlmJson);
+      const service = buildService();
+      const result = await service.validateStressTestClaims(TENANT_ID, validClaimBody);
+      expect(result).toEqual({ available: true, ...JSON.parse(validClaimLlmJson) });
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.validateStressTestClaims(TENANT_ID, validClaimBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "PROVIDER_ERROR",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns INVALID_RESPONSE when OpenAI returns malformed JSON", async () => {
+      registerOpenAiChatHandler("not json at all {{{");
+      const service = buildService();
+      const result = await service.validateStressTestClaims(TENANT_ID, validClaimBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "INVALID_RESPONSE",
+        message: "AI Analysis tidak tersedia saat ini, menampilkan analisa otomatis",
+      });
+    });
+
+    it("returns NO_API_KEY (no fabricated pass-all-claims result) when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.validateStressTestClaims(TENANT_ID, validClaimBody);
+      expect(result).toEqual({
+        available: false,
+        reason: "NO_API_KEY",
+        message: "Aktifkan AI Analysis dengan menambahkan OPENAI_API_KEY di settings",
+      });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validClaimLlmJson);
+      const service = buildService();
+      const first = await service.validateStressTestClaims(TENANT_ID, validClaimBody);
+      mswServer.resetHandlers(); // no handler registered — a second real call would fail
+      const second = await service.validateStressTestClaims(TENANT_ID, validClaimBody);
+      expect(second).toEqual(first);
+    });
+  });
+
+  describe("evaluateStressTestObjectionResolution (Creative Stress Test — Objection Resolution + Goal Impact)", () => {
+    const validResolutionBody = {
+      primaryGoal: "CPQL",
+      creative: {
+        headline: "Rumah Bintaro Dekat Stasiun",
+        primaryText: "SHM, 300m ke stasiun KRL",
+        isProxyFromListing: false,
+      },
+      listingFacts: { price: 1_500_000_000, certificate: "SHM" },
+      knowledgeExcerpts: [],
+      objections: [
+        {
+          id: "o1",
+          objection: "Legalitas belum jelas",
+          severity: "HIGH" as const,
+          personaLabels: ["Skeptical Buyer"],
+        },
+      ],
+    };
+    const validResolutionLlmJson = JSON.stringify({
+      assessments: [
+        {
+          id: "o1",
+          resolutionStatus: "RESOLVED",
+          goalImpact: "HIGH",
+          shortRecommendation: "Pertahankan penyebutan SHM di headline.",
+          evidence: "SHM",
+        },
+      ],
+    });
+
+    it("returns available:true + simulated:true with the Zod-validated (raw, unverified) assessments", async () => {
+      registerOpenAiChatHandler(validResolutionLlmJson);
+      const service = buildService();
+      const result = await service.evaluateStressTestObjectionResolution(
+        TENANT_ID,
+        validResolutionBody,
+      );
+      expect(result).toEqual({
+        available: true,
+        simulated: true,
+        ...JSON.parse(validResolutionLlmJson),
+      });
+    });
+
+    it("returns NO_CREATIVE_CONTENT without calling OpenAI when there is no creative text", async () => {
+      const service = buildService();
+      const result = await service.evaluateStressTestObjectionResolution(TENANT_ID, {
+        ...validResolutionBody,
+        creative: { isProxyFromListing: false },
+      });
+      expect(result).toMatchObject({ available: false, reason: "NO_CREATIVE_CONTENT" });
+    });
+
+    it("returns PROVIDER_ERROR when the OpenAI call fails", async () => {
+      registerOpenAiErrorHandler(503);
+      const service = buildService();
+      const result = await service.evaluateStressTestObjectionResolution(
+        TENANT_ID,
+        validResolutionBody,
+      );
+      expect(result).toMatchObject({ available: false, reason: "PROVIDER_ERROR" });
+    });
+
+    it("returns INVALID_RESPONSE when the payload has an unknown resolutionStatus", async () => {
+      registerOpenAiChatHandler(
+        JSON.stringify({
+          assessments: [
+            {
+              id: "o1",
+              resolutionStatus: "MAYBE",
+              goalImpact: "HIGH",
+              shortRecommendation: "x",
+              evidence: null,
+            },
+          ],
+        }),
+      );
+      const service = buildService();
+      const result = await service.evaluateStressTestObjectionResolution(
+        TENANT_ID,
+        validResolutionBody,
+      );
+      expect(result).toMatchObject({ available: false, reason: "INVALID_RESPONSE" });
+    });
+
+    it("returns NO_API_KEY when OPENAI_API_KEY is empty", async () => {
+      const service = buildService({ apiKey: "" });
+      const result = await service.evaluateStressTestObjectionResolution(
+        TENANT_ID,
+        validResolutionBody,
+      );
+      expect(result).toMatchObject({ available: false, reason: "NO_API_KEY" });
+    });
+
+    it("caches a successful response, never re-calling OpenAI for an identical body", async () => {
+      registerOpenAiChatHandler(validResolutionLlmJson);
+      const service = buildService();
+      const first = await service.evaluateStressTestObjectionResolution(
+        TENANT_ID,
+        validResolutionBody,
+      );
+      mswServer.resetHandlers();
+      const second = await service.evaluateStressTestObjectionResolution(
+        TENANT_ID,
+        validResolutionBody,
+      );
+      expect(second).toEqual(first);
+    });
+  });
 });

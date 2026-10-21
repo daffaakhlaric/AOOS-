@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { selectPropertyInterests, type StoredInterest } from "@/lib/meta-interests";
+import { draftListingStrategy } from "@/lib/listing-strategy";
 import { Drawer } from "@/components/common/Drawer";
 import {
   mapListingIntelligence,
@@ -24,6 +26,26 @@ export function SamanthaListingPanel({
   objectivesError: boolean;
   onClose: () => void;
 }) {
+  const [catalogue, setCatalogue] = useState<StoredInterest[]>();
+  const [catalogueError, setCatalogueError] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/meta-interests", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error();
+        return data as StoredInterest[];
+      })
+      .then((data) => {
+        if (!controller.signal.aborted) setCatalogue(data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCatalogueError(true);
+      });
+    return () => controller.abort();
+  }, []);
+  const interests = selectPropertyInterests(catalogue ?? [], item.listing.propertyType);
   const [objective, setObjective] = useState("");
   const [blueprint, setBlueprint] = useState<ListingBlueprint>();
   const [loading, setLoading] = useState(false),
@@ -84,11 +106,18 @@ export function SamanthaListingPanel({
     return () => controller.abort();
   }, [item.listing.id]);
   const view = mapListingIntelligence(item, blueprint);
+  const draft = draftListingStrategy(item);
+  const [variant, setVariant] = useState(0);
+  useEffect(() => {
+    setVariant(0);
+    setObjective("");
+  }, [item.listing.id]);
+  const selectedCopy = draft.variants[variant]!;
   const phase2 = "Tersedia pada tahap berikutnya setelah review visual.";
   async function copyText() {
     try {
       await navigator.clipboard.writeText(
-        [view.copy.primaryText, view.copy.headline, view.copy.description].join("\n\n"),
+        [selectedCopy.primaryText, selectedCopy.headline, selectedCopy.description].join("\n\n"),
       );
       setCopied(true);
       setCopyError(false);
@@ -126,7 +155,7 @@ export function SamanthaListingPanel({
           value={objective}
           onChange={(e) => setObjective(e.target.value)}
         >
-          <option value="">Pilih objective untuk strategi</option>
+          <option value="">Otomatis oleh Samantha · Qualified Leads</option>
           {objectives.map((o) => (
             <option key={o.id} value={o.id}>
               {o.targetValue} qualified leads · {o.startDate.slice(0, 10)} –{" "}
@@ -138,7 +167,7 @@ export function SamanthaListingPanel({
           <small role="status">Growth Objective belum dapat dimuat.</small>
         ) : (
           !objectives.length && (
-            <small>Belum ada Growth Objective. Strategi campaign belum dapat disusun.</small>
+            <small>Draft objective otomatis. Target angka dan budget belum disetujui.</small>
           )
         )}
       </div>
@@ -151,19 +180,15 @@ export function SamanthaListingPanel({
       <div className={styles.panelColumns} aria-busy={loading}>
         <section className={styles.panelCard}>
           <h3>◎ Objective</h3>
-          <p>
-            {loading ? "Menyiapkan strategi…" : (view.objective ?? "Menunggu Growth Objective")}
-          </p>
+          <p>{loading ? "Menyiapkan strategi…" : (view.objective ?? draft.objective)}</p>
           <small>
-            {view.objective
-              ? "Rekomendasi blueprint · belum diterapkan"
-              : "Pilih target bisnis di atas"}
+            {view.objective ? "Rekomendasi blueprint · belum diterapkan" : draft.rationale}
           </small>
         </section>
         <section className={styles.panelCard}>
           <h3>▱ Campaign Structure</h3>
-          <p>{loading ? "Menyiapkan struktur…" : (view.structure ?? "Belum ditentukan")}</p>
-          <small>Jumlah active ads belum direkomendasikan.</small>
+          <p>{loading ? "Menyiapkan struktur…" : (view.structure ?? draft.structure)}</p>
+          <small>Draft pengujian awal; belum ada iklan yang diaktifkan.</small>
         </section>
       </div>
       <section className={styles.panelCard}>
@@ -172,18 +197,49 @@ export function SamanthaListingPanel({
         </h3>
         <dl className={styles.audience}>
           <dt>Usia</dt>
-          <dd>{view.audience.age}</dd>
+          <dd>{draft.audience.age}</dd>
           <dt>Radius</dt>
-          <dd>{view.audience.radius}</dd>
+          <dd>{draft.audience.radiusKm} km · draft radius</dd>
           <dt>Lokasi</dt>
-          <dd>{view.audience.locations || "Pilih objective untuk rencana lokasi"}</dd>
+          <dd>{view.audience.locations || draft.audience.center || "Lengkapi lokasi listing"}</dd>
+          <dt>Interest</dt>
+          <dd>
+            {catalogueError ? (
+              <span role="status">Katalog interest belum dapat dimuat.</span>
+            ) : catalogue === undefined ? (
+              "Memuat katalog Meta…"
+            ) : interests.length ? (
+              interests.map((interest) => (
+                <div key={interest.id}>
+                  <strong>{interest.name}</strong>
+                  <br />
+                  <small>
+                    ID Meta: {interest.id} · Sinkron{" "}
+                    {new Date(interest.fetchedAt).toLocaleDateString("id-ID")}
+                  </small>
+                </div>
+              ))
+            ) : (
+              "Belum ada interest relevan dalam katalog tenant ini."
+            )}
+            <small>
+              Pilihan dari katalog Meta tersimpan; ketersediaan targeting perlu diperiksa ulang
+              sebelum launch.
+            </small>
+          </dd>
+          <dt>Behavior</dt>
+          <dd>{draft.audience.behavior}</dd>
+          <dt>Gender</dt>
+          <dd>Semua</dd>
+          <dt>Dasar radius</dt>
+          <dd>{draft.audience.rationale}</dd>
           <dt>Strategi</dt>
-          <dd>{view.audience.strategy || "Belum tersedia"}</dd>
+          <dd>
+            {view.audience.strategy ||
+              "Mulai dari area listing; evaluasi kualitas lead sebelum perluasan."}
+          </dd>
         </dl>
-        <small>
-          Rekomendasi bukan targeting aktif. Validasi kategori iklan, akun, dan destination
-          diperlukan sebelum launch.
-        </small>
+        <small>{draft.audience.validation}</small>
       </section>
       <section className={styles.panelCard}>
         <h3>▧ Creative Direction</h3>
@@ -194,7 +250,7 @@ export function SamanthaListingPanel({
               ? "Foto listing tersedia untuk rencana creative."
               : "Tambahkan foto untuk menyiapkan creative."}
         </p>
-        <small>Jumlah konsep, angle, dan rasio belum direkomendasikan.</small>
+        <small>{draft.direction}</small>
         {packagesError ? (
           <p className={styles.muted}>Data Kai belum dapat dimuat.</p>
         ) : packages === undefined ? (
@@ -212,22 +268,43 @@ export function SamanthaListingPanel({
         )}
       </section>
       <div className={styles.copyHeader}>
-        <span>Copy dari fakta listing · belum disetujui</span>
+        <span>5 variasi draft Samantha · berbasis fakta listing</span>
         <button onClick={copyText}>{copied ? "✓ Tersalin" : "Copy"}</button>
       </div>
       {copyError && <p role="status">Clipboard tidak tersedia. Pilih teks untuk menyalinnya.</p>}
+      <div className={styles.objectivePicker}>
+        <label htmlFor="copy-variant">Variasi copy</label>
+        <select
+          id="copy-variant"
+          value={variant}
+          onChange={(e) => {
+            setVariant(Number(e.target.value));
+            setCopied(false);
+          }}
+        >
+          {draft.variants.map((v, index) => (
+            <option key={v.angle} value={index}>
+              Variasi {index + 1} · {v.angle}
+            </option>
+          ))}
+        </select>
+        <small>
+          Draft berbasis aturan dari data listing, belum hasil analisis model atau terbit di Meta.
+          Ketersediaan multi-text mengikuti format iklan saat preflight.
+        </small>
+      </div>
       <div className={styles.copyGrid}>
         <section className={styles.panelCard}>
           <h3>▤ Primary Text</h3>
-          <p>{view.copy.primaryText}</p>
+          <p>{selectedCopy.primaryText}</p>
         </section>
         <section className={styles.panelCard}>
           <h3>Ｔ Headline</h3>
-          <p>{view.copy.headline}</p>
+          <p>{selectedCopy.headline}</p>
         </section>
         <section className={styles.panelCard}>
           <h3>▢ Description / Caption</h3>
-          <p>{view.copy.description}</p>
+          <p>{selectedCopy.description}</p>
         </section>
         <section className={styles.panelCard}>
           <h3>↗ CTA</h3>
@@ -267,7 +344,10 @@ export function SamanthaListingPanel({
       </section>
       <footer className={styles.sources}>
         <h3>♧ How Samantha Decides</h3>
-        <p>Rencana berasal dari data listing dan Growth Objective yang dipilih.</p>
+        <p>
+          Draft otomatis berasal dari fakta listing; Growth Objective tersimpan dapat dipilih
+          sebagai override.
+        </p>
         <button onClick={() => setDrawer("sources")}>▱ Listing Data</button>
         <span>Market Signal: belum tersedia</span>
         <button onClick={() => setDrawer("sources")}>◷ Campaign History</button>
@@ -305,8 +385,8 @@ export function SamanthaListingPanel({
         ) : drawer === "plan" ? (
           <>
             <h3>{item.listing.title}</h3>
-            <p>{view.objective ?? "Growth Objective belum dipilih."}</p>
-            <p>{view.structure ?? "Struktur campaign belum tersedia."}</p>
+            <p>{view.objective ?? draft.objective}</p>
+            <p>{view.structure ?? draft.structure}</p>
             <p>
               Belum ada campaign yang dibuat dari tampilan ini. Pemeriksaan preflight dan launch
               disiapkan pada tahap berikutnya.

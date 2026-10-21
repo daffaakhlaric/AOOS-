@@ -3,7 +3,11 @@ import type { BranchManager } from "@aos/branch-manager";
 import { BranchManagerFactory } from "@aos/branch-manager";
 import { CapiConnectorFactory, type CapiConnector } from "@aos/capi-connector";
 import { KaiAgentFactory, type KaiAgentRuntime } from "@aos/creative-agent";
-import { CreativeConnectorFactory, type ITaskWakeRegistry } from "@aos/creative-connector";
+import {
+  CreativeConnectorFactory,
+  type CreativeConnectorBundle,
+  type ITaskWakeRegistry,
+} from "@aos/creative-connector";
 import { EventBroker, type IEventBroker, type IPublisher } from "@aos/event-bus";
 import {
   ClosingRepository,
@@ -44,7 +48,7 @@ import {
 import { toLeadStoreConfig } from "./config/to-lead-store-config.js";
 import { toObjectiveEngineConfig } from "./config/to-objective-engine-config.js";
 import { toWhatsAppConnectorConfig } from "./config/to-whatsapp-connector-config.js";
-import {
+import { CREATIVE_CONNECTOR_RUNTIME ,
   AAOS_API_CONFIG,
   ASSET_LIBRARY,
   BRANCH_MANAGER,
@@ -75,6 +79,7 @@ import { AbTestingModule } from "./modules/abtesting/abtesting.module.js";
 import { ActivityLogModule } from "./modules/activity-log/activity-log.module.js";
 import { AssetsModule } from "./modules/assets/assets.module.js";
 import { AuditLogModule } from "./modules/audit-log/audit-log.module.js";
+import { AuthModule } from "./modules/auth/auth.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
 import { CampaignCreationModule } from "./modules/campaign-creation/campaign-creation.module.js";
 import { CampaignHealthModule } from "./modules/campaign-health/campaign-health.module.js";
@@ -83,6 +88,7 @@ import { ClosingsModule } from "./modules/closings/closings.module.js";
 import { CommandCenterModule } from "./modules/command-center/command-center.module.js";
 import { CreativeMemoryModule } from "./modules/creative-memory/creative-memory.module.js";
 import { CreativePackagesModule } from "./modules/creative-packages/creative-packages.module.js";
+import { CreativeStressTestModule } from "./modules/creative-stress-test/creative-stress-test.module.js";
 import { GoLiveModule } from "./modules/go-live/go-live.module.js";
 import { GrowthObjectivesModule } from "./modules/growth-objectives/growth-objectives.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
@@ -96,6 +102,7 @@ import { LookalikeModule } from "./modules/lookalike/lookalike.module.js";
 import { MarketIntelligenceModule } from "./modules/market-intelligence/market-intelligence.module.js";
 import { MetaAdsConnectorRegistry } from "./modules/meta-ads/infrastructure/meta-ads-connector-registry.js";
 import { MetaAdsModule } from "./modules/meta-ads/meta-ads.module.js";
+import { MetaReadinessModule } from "./modules/meta-ads/meta-readiness.module.js";
 import { MetaInterestsModule } from "./modules/meta-interests/meta-interests.module.js";
 import { MetaOAuthModule } from "./modules/meta-oauth/meta-oauth.module.js";
 import { MetricSnapshotModule } from "./modules/metric-snapshot/metric-snapshot.module.js";
@@ -307,6 +314,7 @@ export class AppModule {
     //
     // Shares the same real `IPublisher` as every other composed package.
     let kaiRuntime: KaiAgentRuntime | undefined;
+    let creativeConnector: CreativeConnectorBundle | undefined;
     // PROMPT 53 — KIE WEBHOOK (Phase 41). The SAME `TaskWakeRegistry` instance
     // `CreativeConnectorFactory.create` composed `TaskPoller` with — see `di-tokens.ts`'s
     // `TASK_WAKE_REGISTRY` doc for why this needs its own token (`KaiAgentRuntime` has no concept
@@ -317,7 +325,7 @@ export class AppModule {
       if (!creativeConnectorConfigResult.ok) {
         throw creativeConnectorConfigResult.error;
       }
-      const creativeConnector = CreativeConnectorFactory.create({
+      creativeConnector = CreativeConnectorFactory.create({
         config: creativeConnectorConfigResult.value,
         publisher,
       });
@@ -373,6 +381,8 @@ export class AppModule {
       module: AppModule,
       global: true,
       imports: [
+        AuthModule,
+        MetaReadinessModule,
         ListingKnowledgeModule,
         // AAOS-KALENDER-AKTIVITAS: registers `@nestjs/schedule`'s cron registry ONCE, at the
         // composition root every feature module (including `SchedulerModule`, the only `@Cron`
@@ -392,6 +402,12 @@ export class AppModule {
         // what actually mounts `AuditLogController`'s routes.
         AuditLogModule,
         CreativePackagesModule,
+        // Creative Stress Test, First Boundary — new, standalone module (real entity/persistence/
+        // status-machine skeleton for buyer-persona/objection stress testing of creatives). Does
+        // NOT import or extend SimulationModule/GoLiveModule — separate feature, separate table
+        // (`stress_test_runs`), see CreativeStressTestModule's own doc for the naming-collision
+        // warning this was built under.
+        CreativeStressTestModule,
         BranchesModule,
         CampaignsModule,
         ClosingsModule,
@@ -563,6 +579,7 @@ export class AppModule {
         // above — an injectable token that resolves to `undefined` on a deployment with no Kie AI
         // key, rather than a missing provider that would fail Nest's resolution at boot.
         { provide: KAI_AGENT_RUNTIME, useValue: kaiRuntime },
+        { provide: CREATIVE_CONNECTOR_RUNTIME, useValue: creativeConnector },
         // PROMPT 53 — KIE WEBHOOK (Phase 41). `useValue: undefined` is intentional and
         // load-bearing, same rationale as `KAI_AGENT_RUNTIME` immediately above — an injectable
         // token that resolves to `undefined` on a deployment with no Kai/Kie AI pipeline composed.
@@ -597,6 +614,7 @@ export class AppModule {
         ASSET_LIBRARY,
         MOBIX_SCRAPER_SERVICE,
         KAI_AGENT_RUNTIME,
+        CREATIVE_CONNECTOR_RUNTIME,
         TASK_WAKE_REGISTRY,
         CAPI_CONNECTOR,
       ],

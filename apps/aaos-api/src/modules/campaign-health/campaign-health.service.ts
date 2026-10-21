@@ -26,6 +26,7 @@ interface ComputedAssessment {
   readonly health: CampaignHealth;
   readonly diagnosis: CampaignDiagnosis;
   readonly decision: SamanthaDecision;
+  readonly evidence: Record<string, unknown>;
 }
 
 /**
@@ -58,6 +59,20 @@ export class CampaignHealthService {
   async assess(tenantId: string, metaCampaignId: string): Promise<CampaignHealthResponseDto> {
     const { health, diagnosis, decision } = await this.compute(tenantId, metaCampaignId);
     return toCampaignHealthResponseDto(metaCampaignId, health, diagnosis, decision);
+  }
+
+  /** Scheduled runtime requires durable evidence; unlike the UI helper, persistence must succeed. */
+  async assessForLoop(tenantId: string, metaCampaignId: string, correlationId: string) {
+    const { health, diagnosis, decision, evidence } = await this.compute(tenantId, metaCampaignId);
+    return this.repository.recordForLoop(
+      tenantId,
+      metaCampaignId,
+      correlationId,
+      health,
+      diagnosis,
+      decision,
+      evidence,
+    );
   }
 
   /**
@@ -193,6 +208,20 @@ export class CampaignHealthService {
     const diagnosis = diagnoseCampaign(health, signals);
     const decision = decideNextAction(health, diagnosis);
 
-    return { health, diagnosis, decision };
+    return {
+      health,
+      diagnosis,
+      decision,
+      evidence: {
+        capturedAt: new Date().toISOString(),
+        current,
+        previous,
+        campaignLifetime,
+        accountLifetime,
+        benchmark,
+        signals,
+        unavailable: ["trackingHealth", "crmQualifiedLeads", "appointments", "bookings"],
+      },
+    };
   }
 }

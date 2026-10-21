@@ -11,7 +11,8 @@ export class GetTaskStatus {
 
   async execute(
     taskId: TaskId,
+    kind: "image" | "video" = "image",
   ): Promise<Result<RawTaskStatusResponse, KieApiError | RateLimitError>> {
-    return this.client.getTaskStatus(taskId.toString());
+    return this.client.getTaskStatus(taskId.toString(), kind);
   }
 }

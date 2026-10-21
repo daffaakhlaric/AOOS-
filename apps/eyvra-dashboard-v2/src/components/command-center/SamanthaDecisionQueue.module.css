@@ -29,7 +29,7 @@
 .tabActive {
   background: var(--brand);
   border-color: var(--brand);
-  color: #fff;
+  color: var(--palette-ffffff);
 }
 
 /* "Completed" — no real resolved/completed-decision concept exists anywhere in this codebase (no
@@ -360,8 +360,8 @@
    verdict. Deliberately tiny and low-contrast-bordered: it annotates the 90px row, never dominates
    it. */
 .creativeBadge {position:absolute; left:0; right:0; bottom:0; text-align:center; font-size:8.5px; font-weight:700; letter-spacing:.02em; line-height:1.35; padding:1px 0; border-radius:0 0 var(--radius-sm) var(--radius-sm); border-top:1px solid var(--border)}
-.badge_winner {background:var(--success); color:#fff}
-.badge_fatigued {background:var(--warning); color:#231a00}
+.badge_winner {background:var(--success); color:var(--palette-ffffff)}
+.badge_fatigued {background:var(--warning); color:var(--palette-231a00)}
 .rowIdentity {min-width:0; max-width:none} .rowName {font-size:12.5px} .rowIssue {font-size:11.5px; font-weight:600; color:var(--brand)}
 .rowMetrics {gap:10px; flex-wrap:nowrap; min-width:0} .rowMetric {font-size:11.5px; white-space:normal} .rowMetricLabel {display:block}
 .rowConfidence small,.rowPlanSummary small {display:block; color:var(--text-muted); font-size:11.5px; font-weight:400}
@@ -596,7 +596,7 @@
 .approveButton {
   background: var(--brand);
   border: 1px solid var(--brand);
-  color: #fff;
+  color: var(--palette-ffffff);
   opacity: 0.55;
   cursor: not-allowed;
   font-weight: 650;

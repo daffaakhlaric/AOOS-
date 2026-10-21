@@ -10,6 +10,7 @@ import {
   EVENT_BROKER,
   EVENT_PUBLISHER,
   KAI_AGENT_RUNTIME,
+  CREATIVE_CONNECTOR_RUNTIME,
   LEAD_STORE,
   LEAD_STORE_CLOSING_REPOSITORY,
   LEAD_STORE_LEAD_REPOSITORY,
@@ -185,8 +186,13 @@ describe("AppModule.forRoot", () => {
     // Listing Knowledge (document-backed listing Q&A): +1 import (ListingKnowledgeModule, its own
     // controller + ListingKnowledgeService + a KnowledgeModelGateway class-provider) -- all three
     // are module-local providers, so no new GLOBAL provider and no new repository.
-    expect(dynamicModule.imports).toHaveLength(43);
-    expect(dynamicModule.providers).toHaveLength(25);
+    // Creative Stress Test, First Boundary: +1 import (CreativeStressTestModule, the new real
+    // `/api/v1/creative-stress-test*` HTTP surface) -- no new global provider and no new
+    // GLOBAL-scoped repository (composes its own StressTestRunRepository locally from the existing
+    // SUPABASE_CLIENT via `useFactory`, same pattern GrowthObjectivesModule/MetricSnapshotModule
+    // already establish). Deliberately does not import SimulationModule/GoLiveModule.
+    expect(dynamicModule.imports).toHaveLength(44);
+    expect(dynamicModule.providers).toHaveLength(26);
   });
 
   it("provides KAI_AGENT_RUNTIME as undefined when no Kie AI key / asset library is configured, so the app still boots", () => {
@@ -271,6 +277,7 @@ describe("AppModule.forRoot", () => {
       ASSET_LIBRARY,
       MOBIX_SCRAPER_SERVICE,
       KAI_AGENT_RUNTIME,
+      CREATIVE_CONNECTOR_RUNTIME,
       TASK_WAKE_REGISTRY,
       CAPI_CONNECTOR,
     ]);

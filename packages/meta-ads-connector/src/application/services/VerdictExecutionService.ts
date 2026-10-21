@@ -7,7 +7,7 @@ import type {
   IVerdictExecutor,
   VerdictExecutionInput,
 } from "../../contracts/IVerdictExecutor.js";
-import { type MetaApiError } from "../../domain/errors/index.js";
+import { MetaApiError } from "../../domain/errors/index.js";
 import { CampaignObjective } from "../../domain/value-objects/CampaignObjective.js";
 import { Verdict } from "../../domain/value-objects/Verdict.js";
 import type { ExponentialBackoffRetry } from "../../infrastructure/retry/ExponentialBackoffRetry.js";
@@ -82,13 +82,53 @@ export class VerdictExecutionService implements IVerdictExecutor {
     input: VerdictExecutionInput,
   ): Promise<Result<ExecutionResult, MetaApiError>> {
     const currentIDR = input.currentDailyBudgetIDR ?? 0;
-    const newIDR = Math.round(currentIDR * SCALE_FACTOR);
+    const newIDR = input.requestedDailyBudgetIDR ?? Math.round(currentIDR * SCALE_FACTOR);
+    if (input.requestedDailyBudgetIDR !== undefined) {
+      if (
+        input.targetType !== "adset" ||
+        !input.campaignId ||
+        !Number.isSafeInteger(currentIDR) ||
+        currentIDR <= 0 ||
+        !Number.isSafeInteger(newIDR) ||
+        newIDR <= currentIDR
+      ) {
+        return err(new MetaApiError("INVALID_ABSOLUTE_BUDGET_TARGET"));
+      }
+      const live = await callMetaApi(this.rateLimiter, this.retry, () =>
+        this.client.getAdSets(input.campaignId!, input.accessToken),
+      );
+      if (!live.ok) return err(live.error);
+      const adSet = live.value.data.find((row) => row.id === input.targetId);
+      if (
+        !adSet ||
+        adSet.status !== "ACTIVE" ||
+        Number(adSet.daily_budget) !== rupiahToCents(currentIDR)
+      ) {
+        return err(new MetaApiError("BUDGET_OR_ADSET_STATE_CHANGED"));
+      }
+    }
     const newCents = rupiahToCents(newIDR);
     const result = await callMetaApi(this.rateLimiter, this.retry, () =>
       this.client.scaleAdSetBudget(input.targetId, newCents, input.accessToken),
     );
     if (!result.ok) {
       return err(result.error);
+    }
+    if (input.requestedDailyBudgetIDR !== undefined) {
+      const verified = await callMetaApi(this.rateLimiter, this.retry, () =>
+        this.client.getAdSets(input.campaignId!, input.accessToken),
+      );
+      if (
+        !verified.ok ||
+        Number(verified.value.data.find((row) => row.id === input.targetId)?.daily_budget) !==
+          newCents
+      ) {
+        return err(
+          new MetaApiError(
+            "BUDGET_EXECUTION_UNCERTAIN: read-back did not confirm target; do not replay",
+          ),
+        );
+      }
     }
     return ok({
       action: "SCALED",

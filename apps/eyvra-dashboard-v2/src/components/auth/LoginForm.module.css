@@ -63,7 +63,7 @@
 
 .submitButton {
   background: var(--brand);
-  color: #fff;
+  color: var(--palette-ffffff);
   border: none;
   border-radius: var(--radius-sm);
   padding: 10px 16px;
@@ -80,3 +80,5 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.card { max-width:440px; padding:32px; } .wordmark { text-align:center; margin-bottom:20px; } .title {font-size:24px;} .subtitle {margin-top:12px;line-height:1.7;} .subtitle a {color:var(--brand);font-weight:600;} .input {min-height:44px;} .submitButton {min-height:44px;}

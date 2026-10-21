@@ -2,10 +2,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import styles from "./ListingEditor.module.css";
+type WhatsAppNumber = {
+  phoneNumberId: string;
+  displayNumber: string;
+  wabaId: string;
+  wabaName: string;
+  qualityRating?: string;
+};
 type Assets = {
   adAccountId: string;
   warning?: string;
-  pages: { id: string; name: string; whatsappNumber: string | null }[];
+  pages: { id: string; name: string }[];
+  whatsappNumbers: WhatsAppNumber[];
 };
 export function MetaLeadDestination({
   pageId,
@@ -28,7 +36,11 @@ export function MetaLeadDestination({
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || "Tujuan Meta belum tersedia.");
-        if (!Array.isArray(data.pages) || typeof data.adAccountId !== "string")
+        if (
+          !Array.isArray(data.pages) ||
+          !Array.isArray(data.whatsappNumbers) ||
+          typeof data.adAccountId !== "string"
+        )
           throw new Error("Daftar aset Meta belum tersedia.");
         if (!cancelled) setAssets(data);
       })
@@ -66,7 +78,15 @@ export function MetaLeadDestination({
               value={pageId}
               onChange={(event) => {
                 const selected = assets.pages.find((p) => p.id === event.target.value);
-                onChange(selected?.id ?? "", selected ? assets.adAccountId : "", "");
+                // Page and WhatsApp number are two independent choices from the same ad account/
+                // Business — Meta does not require a Page to be pre-linked to a specific WhatsApp
+                // number (see MetaLeadDestinationsService's class doc). Changing the Page keeps
+                // whatever WhatsApp number is already chosen; clearing the Page clears both.
+                onChange(
+                  selected?.id ?? "",
+                  selected ? assets.adAccountId : "",
+                  selected ? number : "",
+                );
               }}
             >
               <option value="">Pilih Page</option>
@@ -85,13 +105,15 @@ export function MetaLeadDestination({
             <select
               aria-label="WhatsApp Business Tujuan"
               value={number}
-              disabled={loading || !page?.whatsappNumber}
+              disabled={loading || assets.whatsappNumbers.length === 0}
               onChange={(event) => onChange(pageId, assets.adAccountId, event.target.value)}
             >
               <option value="">Pilih nomor WhatsApp</option>
-              {page?.whatsappNumber && (
-                <option value={page.whatsappNumber}>{page.whatsappNumber}</option>
-              )}
+              {assets.whatsappNumbers.map((w) => (
+                <option key={w.phoneNumberId} value={w.displayNumber}>
+                  {w.displayNumber} · {w.wabaName}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -99,10 +121,10 @@ export function MetaLeadDestination({
       {assets?.pages.length === 0 && (
         <p>Belum ada Page yang dapat digunakan oleh akun iklan ini.</p>
       )}
-      {page && !page.whatsappNumber && (
+      {assets && assets.whatsappNumbers.length === 0 && (
         <p>
-          Page ini belum memiliki nomor WhatsApp Business yang dapat dibaca dari Meta. Hubungkan
-          nomor ke Page dan periksa izin aset.
+          Belum ada nomor WhatsApp Business terverifikasi yang dapat dibaca dari Meta Business
+          Manager akun iklan ini.
         </p>
       )}
       {number && !pageId && (

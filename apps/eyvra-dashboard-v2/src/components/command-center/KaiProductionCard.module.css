@@ -73,7 +73,7 @@
   justify-content: center;
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
+  color: var(--palette-ffffff);
   background: var(--text-muted);
 }
 
@@ -114,7 +114,7 @@
   color: var(--text-muted);
 }
 
-.packageGrid {list-style:none; padding:0; margin:5px 0 0; grid-template-columns:repeat(4,minmax(0,1fr))} .packagePlaceholder,.packageImage {height:40px; width:100%; object-fit:cover} .packagePlaceholder {flex-direction:column; background:#f1edf9; color:var(--brand)} .packagePlaceholder small {font-size:11.5px; max-width:100%; overflow:hidden; white-space:nowrap} .packageTitle,.packageStatus {font-size:11.5px; padding:0 5px} .progressRow {display:flex; align-items:center; gap:12px; margin:0} .progressLabel {font-size:11.5px; margin:0} .progressTrack {flex:1; height:5px}
+.packageGrid {list-style:none; padding:0; margin:5px 0 0; grid-template-columns:repeat(4,minmax(0,1fr))} .packagePlaceholder,.packageImage {height:40px; width:100%; object-fit:cover} .packagePlaceholder {flex-direction:column; background:var(--cyan-soft); color:var(--brand)} .packagePlaceholder small {font-size:11.5px; max-width:100%; overflow:hidden; white-space:nowrap} .packageTitle,.packageStatus {font-size:11.5px; padding:0 5px} .progressRow {display:flex; align-items:center; gap:12px; margin:0} .progressLabel {font-size:11.5px; margin:0} .progressTrack {flex:1; height:5px}
 
 /* Real generation-failure notice (shown only when real FAILED packages exist AND zero real visuals
    were produced) — compact, human-readable; the raw provider error stays in the title tooltip. */

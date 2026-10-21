@@ -50,6 +50,11 @@ export class CampaignsController {
     body: CreatePropertyCampaignBodyDto,
     @CorrelationId() correlationId: string,
   ): Promise<CreatePropertyCampaignResponseDto> {
-    return this.campaignsService.createPropertyCampaign(tenantId, body, correlationId);
+    return this.campaignsService.createPropertyCampaign(
+      tenantId,
+      body,
+      correlationId,
+      body.creativePackageId,
+    );
   }
 }

@@ -29,6 +29,7 @@ export interface AdSummaryDto {
 }
 
 export interface AdSetSummaryDto {
+  readonly learningStatus?: string;
   readonly id: string;
   readonly metaId: string;
   readonly stableId: string;
@@ -227,9 +228,10 @@ export interface AbTestDto {
 }
 
 export type CreativePackageStatusDto =
-  "DRAFT" | "GENERATING" | "PENDING" | "APPROVED" | "REJECTED" | "FAILED";
+  "DRAFT" | "GENERATING" | "PENDING" | "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "FAILED";
 
 export interface CreativePackageDto {
+  readonly productionFormat?: "IMAGE" | "VIDEO" | "CAROUSEL";
   readonly imageUrls?: readonly string[];
   readonly videoUrl?: string;
   readonly requestedFormat?: string;

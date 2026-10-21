@@ -30,6 +30,73 @@ function makeService(client: IMetaAdsClient) {
 }
 
 describe("VerdictExecutionService", () => {
+  it("uses an absolute reviewed target and verifies the live budget before and after", async () => {
+    const client = fakeClient({
+      getAdSets: vi
+        .fn()
+        .mockResolvedValueOnce(
+          ok({ data: [{ id: "a", name: "A", status: "ACTIVE", daily_budget: "10000000" }] }),
+        )
+        .mockResolvedValueOnce(
+          ok({ data: [{ id: "a", name: "A", status: "ACTIVE", daily_budget: "11000000" }] }),
+        ),
+    });
+    const result = await makeService(client).execute({
+      verdict: Verdict.SCALE,
+      targetId: "a",
+      targetType: "adset",
+      accessToken: "test",
+      campaignId: "c",
+      currentDailyBudgetIDR: 100000,
+      requestedDailyBudgetIDR: 110000,
+    });
+    expect(result.ok).toBe(true);
+    expect(client.scaleAdSetBudget).toHaveBeenCalledTimes(1);
+    expect(client.scaleAdSetBudget).toHaveBeenCalledWith("a", 11000000, "test");
+  });
+
+  it("does not mutate an ad set whose budget changed since approval", async () => {
+    const client = fakeClient({
+      getAdSets: vi
+        .fn()
+        .mockResolvedValue(
+          ok({ data: [{ id: "a", name: "A", status: "ACTIVE", daily_budget: "12000000" }] }),
+        ),
+    });
+    const result = await makeService(client).execute({
+      verdict: Verdict.SCALE,
+      targetId: "a",
+      targetType: "adset",
+      accessToken: "test",
+      campaignId: "c",
+      currentDailyBudgetIDR: 100000,
+      requestedDailyBudgetIDR: 110000,
+    });
+    expect(result.ok).toBe(false);
+    expect(client.scaleAdSetBudget).not.toHaveBeenCalled();
+  });
+
+  it("reports uncertain execution when read-back cannot confirm the write", async () => {
+    const client = fakeClient({
+      getAdSets: vi
+        .fn()
+        .mockResolvedValue(
+          ok({ data: [{ id: "a", name: "A", status: "ACTIVE", daily_budget: "10000000" }] }),
+        ),
+    });
+    const result = await makeService(client).execute({
+      verdict: Verdict.SCALE,
+      targetId: "a",
+      targetType: "adset",
+      accessToken: "test",
+      campaignId: "c",
+      currentDailyBudgetIDR: 100000,
+      requestedDailyBudgetIDR: 110000,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain("EXECUTION_UNCERTAIN");
+    expect(client.scaleAdSetBudget).toHaveBeenCalledTimes(1);
+  });
   it("PAUSE calls client.pauseAd and returns action PAUSED", async () => {
     const client = fakeClient();
     const service = makeService(client);

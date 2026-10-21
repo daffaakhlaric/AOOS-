@@ -23,13 +23,16 @@ export default function Placeholder({
     <main>
       <Topbar title={title} />
       <div style={{ padding: 24 }}>
-        <Card title="Coming in V2">
-          <p>This workspace is being prepared. The Command Center is available now.</p>
+        <Card title="Workspace sedang disiapkan">
+          <p>
+            Bagian ini belum tersedia di SkorPintar Ads Insight. Anda tetap dapat memantau campaign
+            melalui Command Center.
+          </p>
           <Link
             href="/command-center"
             style={{ color: "var(--brand)", display: "inline-block", marginTop: 16 }}
           >
-            Return to Command Center →
+            Kembali ke Command Center →
           </Link>
         </Card>
       </div>
