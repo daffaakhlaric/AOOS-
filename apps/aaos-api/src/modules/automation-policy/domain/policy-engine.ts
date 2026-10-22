@@ -31,7 +31,66 @@ export interface GrowthExecutionEvidence {
   readonly claimsVerified?: boolean;
 }
 
+/** Explicit human campaign-status actions still obey the canonical policy and version. */
+export function evaluateCampaignStatusPolicy(
+  policy: GrowthPolicy,
+  action: string,
+  approvedVersion: number,
+  currentVersion: number,
+): string[] {
+  const blocked: string[] = [];
+  if (approvedVersion !== currentVersion) blocked.push("REAPPROVAL_REQUIRED");
+  if (policy.safetyPolicy.killSwitch) blocked.push("KILL_SWITCH");
+  if (action !== "PAUSE_CAMPAIGN" && action !== "RESUME_CAMPAIGN")
+    blocked.push("STATUS_ACTION_UNSUPPORTED");
+  else if (policy.safetyPolicy.permissions[action] === "DISABLED") blocked.push("ACTION_DISABLED");
+  // Resume spends money again; tracking/learning safeguards must be bound before this is enabled.
+  if (action === "RESUME_CAMPAIGN") blocked.push("RESUME_EVIDENCE_UNVERIFIED");
+  return blocked;
+}
+
 /** Extends the existing policy engine; unknown evidence fails closed, even after approval. */
+export function evaluateApprovedPausePolicy(
+  policy: GrowthPolicy,
+  evidence: {
+    confidence?: number;
+    daysCovered?: number;
+    dataLevel?: string;
+    spend?: number;
+    leads?: number;
+    diagnosis?: string;
+  },
+): string[] {
+  const blocked: string[] = [];
+  // This path stops spend after explicit human approval. It cannot authorize scaling,
+  // resume, or claims about qualified leads from unavailable CRM/tracking evidence.
+  if (policy.optimizationBasis !== "META_LEAD" || policy.conversionPolicy.primaryMetric !== "LEAD")
+    blocked.push("PAUSE_OUTCOME_BASIS_UNVERIFIED");
+  if (evidence.diagnosis !== "SPEND_WITHOUT_RESULT") blocked.push("PAUSE_DIAGNOSIS_UNVERIFIED");
+  if (
+    typeof evidence.confidence !== "number" ||
+    !Number.isFinite(evidence.confidence) ||
+    evidence.confidence > 1 ||
+    evidence.confidence < policy.safetyPolicy.minimumConfidence
+  )
+    blocked.push("LOW_CONFIDENCE");
+  if (!["MEDIUM", "HIGH"].includes(evidence.dataLevel ?? "")) blocked.push("INSUFFICIENT_DATA");
+  if (
+    typeof evidence.daysCovered !== "number" ||
+    !Number.isFinite(evidence.daysCovered) ||
+    evidence.daysCovered * 24 < policy.budgetPolicy.minimumObservationHours
+  )
+    blocked.push("OBSERVATION_WINDOW");
+  if (
+    typeof evidence.spend !== "number" ||
+    !Number.isFinite(evidence.spend) ||
+    evidence.spend <= 0 ||
+    evidence.leads !== 0
+  )
+    blocked.push("PAUSE_METRICS_UNVERIFIED");
+  return blocked;
+}
+
 export function evaluateGrowthPolicy(policy: GrowthPolicy, e: GrowthExecutionEvidence) {
   const blocked: string[] = [];
   // JSON normally excludes NaN, but internal metric calculations can still produce it.

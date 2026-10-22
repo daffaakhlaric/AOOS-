@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 
-
 import { ConflictError, NotFoundError } from "@aos/errors";
 import { Injectable, Logger, Optional } from "@nestjs/common";
 
+import { ActionProposalService } from "../actions/action-proposal.service.js";
 import { AuditLogService } from "../audit-log/audit-log.service.js";
 import { GrowthPolicyService } from "../automation-policy/growth-policy.service.js";
 import { CampaignsService } from "../campaigns/campaigns.service.js";
@@ -81,6 +81,7 @@ export class PendingActionsService {
     // attempt from Nest without `@Optional()`.
     @Optional() private readonly now: () => Date = () => new Date(),
     @Optional() private readonly growthPolicy?: GrowthPolicyService,
+    @Optional() private readonly proposals?: ActionProposalService,
   ) {}
 
   /** The real write path a gated caller (today: `SchedulerService`) uses to enqueue a pending action instead of executing it directly. Returns the new row's real id. */
@@ -216,13 +217,15 @@ export class PendingActionsService {
       )
       .digest("hex");
     const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
-    return this.enqueue({
+    const row = await this.pendingActions.create({
       id,
       tenantId,
       agent: "SAMANTHA",
       actionType: "REVIEW_SAMANTHA_RECOMMENDATION",
       payload: { ...payload, campaignId, policyVersion },
     });
+    if (this.proposals) await this.proposals.fromRecommendation(row);
+    return row.id;
   }
 
   private async executeApproved(

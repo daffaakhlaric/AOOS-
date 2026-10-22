@@ -48,7 +48,8 @@ import {
 import { toLeadStoreConfig } from "./config/to-lead-store-config.js";
 import { toObjectiveEngineConfig } from "./config/to-objective-engine-config.js";
 import { toWhatsAppConnectorConfig } from "./config/to-whatsapp-connector-config.js";
-import { CREATIVE_CONNECTOR_RUNTIME ,
+import {
+  CREATIVE_CONNECTOR_RUNTIME,
   AAOS_API_CONFIG,
   ASSET_LIBRARY,
   BRANCH_MANAGER,
@@ -76,6 +77,7 @@ import { AaosExceptionFilter } from "./filters/aaos-exception.filter.js";
 import { LoggingInterceptor } from "./interceptors/logging.interceptor.js";
 import { TracingInterceptor } from "./interceptors/tracing.interceptor.js";
 import { AbTestingModule } from "./modules/abtesting/abtesting.module.js";
+import { ActionsModule } from "./modules/actions/actions.module.js";
 import { ActivityLogModule } from "./modules/activity-log/activity-log.module.js";
 import { AssetsModule } from "./modules/assets/assets.module.js";
 import { AuditLogModule } from "./modules/audit-log/audit-log.module.js";
@@ -383,6 +385,7 @@ export class AppModule {
       imports: [
         AuthModule,
         MetaReadinessModule,
+        ActionsModule,
         ListingKnowledgeModule,
         // AAOS-KALENDER-AKTIVITAS: registers `@nestjs/schedule`'s cron registry ONCE, at the
         // composition root every feature module (including `SchedulerModule`, the only `@Cron`

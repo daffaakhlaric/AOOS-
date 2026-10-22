@@ -483,7 +483,7 @@ describe("CampaignsService.createPropertyCampaign (AAOS EPIC S, Phase S3/S4)", (
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it("skips (never fabricates) a city with zero matches while still creating the campaign from the cities that DID match", async () => {
+  it("rejects a plan when one approved city cannot be resolved instead of silently dropping it", async () => {
     registerSearchAdLocationsMswHandler({
       Bandung: [{ key: "1111111", name: "Bandung, Jawa Barat" }],
       // "Cimahi" has no entry — resolves to a real, empty `{data: []}`.
@@ -499,16 +499,13 @@ describe("CampaignsService.createPropertyCampaign (AAOS EPIC S, Phase S3/S4)", (
         reasoning: "test fixture",
       }),
     });
-    const dto = await service.createPropertyCampaign(
-      "dss-motor",
-      { listingId: "listing-1" },
-      "corr-property-partial",
-    );
-    expect(dto.simulated).toBe(false);
-    expect(dto.matchedCities).toEqual([
-      { query: "Bandung", key: "1111111", name: "Bandung, Jawa Barat" },
-    ]);
-    expect(dto.unresolvedCities).toEqual(["Cimahi"]);
+    await expect(
+      service.createPropertyCampaign(
+        "dss-motor",
+        { listingId: "listing-1" },
+        "corr-property-partial",
+      ),
+    ).rejects.toThrow("PRECHECK_FAILED");
   });
 
   it("throws a real NotFoundError (tenant-isolation) for a listing belonging to another tenant", async () => {

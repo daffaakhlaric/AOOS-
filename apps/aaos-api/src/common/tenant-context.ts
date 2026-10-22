@@ -38,3 +38,16 @@ export function tenantIdFactory(_data: unknown, ctx: ExecutionContext): string {
 
 /** Controller param decorator: `getSettings(@TenantId() tenantId: string)`. */
 export const TenantId = createParamDecorator(tenantIdFactory);
+
+/** Actor identity is assigned by ApiKeyGuard after trusted membership resolution. */
+export function authenticatedUserIdFactory(_data: unknown, ctx: ExecutionContext): string {
+  const request = ctx.switchToHttp().getRequest<
+    FastifyRequest & {
+      tenantContext?: { userId?: string };
+    }
+  >();
+  const userId = request.tenantContext?.userId;
+  if (!userId) throw new ForbiddenException("Trusted actor context required");
+  return userId;
+}
+export const AuthenticatedUserId = createParamDecorator(authenticatedUserIdFactory);

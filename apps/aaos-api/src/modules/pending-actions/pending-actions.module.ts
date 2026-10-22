@@ -2,6 +2,7 @@ import type { SupabaseClientLike } from "@aos/lead-store";
 import { Module } from "@nestjs/common";
 
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
+import { ActionsModule } from "../actions/actions.module.js";
 import { AuditLogModule } from "../audit-log/audit-log.module.js";
 import { GrowthPolicyModule } from "../automation-policy/growth-policy.module.js";
 import { CampaignsModule } from "../campaigns/campaigns.module.js";
@@ -30,6 +31,7 @@ import { PendingActionsService } from "./pending-actions.service.js";
  */
 @Module({
   imports: [
+    ActionsModule,
     GrowthPolicyModule,
     CampaignsModule,
     AuditLogModule,

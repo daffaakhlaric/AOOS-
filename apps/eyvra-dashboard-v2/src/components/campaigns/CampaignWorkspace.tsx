@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/common/Card";
+import { ActionLedgerPanel } from "./ActionLedgerPanel";
 import { CampaignDetailV2 as Detail } from "./CampaignDetailV2";
 import { LoadingState } from "@/components/common/LoadingState";
 import { useAccountSummary } from "@/components/command-center/useAccountSummary";
@@ -179,6 +180,7 @@ export function CampaignWorkspace({ campaignId }: { campaignId?: string }) {
           </Link>
         </header>
       )}
+      {!campaignId && <ActionLedgerPanel />}
       {error && (
         <Card>
           <p role="alert">{error}</p>

@@ -16,39 +16,9 @@ export interface PropertyTargetingResult {
   readonly unresolvedCities: readonly string[];
 }
 
-/**
- * AAOS EPIC S, Phase S3/S4 — real Meta geo-search translation for a PROPERTY campaign's HOUSING
- * targeting. Only ever called from `CampaignsService.createPropertyCampaign`'s LIVE-mode
- * `executeFn` (never DEV's `simulateFn`) — this function itself performs real Meta calls
- * (`SearchAdLocations.execute`), so keeping it out of the DEV path is what makes "DEV never calls
- * real Meta" true for the ENTIRE PROPERTY campaign-creation pipeline, not just the final
- * `createCampaign`/`createAdSet` calls.
- *
- * For each of `resolvedLocation.cities` (free-text names from `LocationResolverService`):
- * - **Zero real matches** (`SearchAdLocations` returns `ok([])`, or itself fails/`err`s — both are
- *   treated the same way here: a real inability to resolve this one city, never a hard abort of
- *   the whole campaign): the city is skipped and recorded in `unresolvedCities`, never fabricated.
- * - **Ambiguous matches** (`SearchAdLocations` returns 2+ real rows — same-named cities in
- *   different regions, etc.): this function's own, explicit, documented tie-break rule is to take
- *   `[0]` — the FIRST result, i.e. Meta's own most-relevant match, per `SearchAdLocations`'s own
- *   docstring ("maps and returns every real row Meta reported, in Meta's own relevance order").
- *   Every other real row is discarded, never silently included.
- *
- * **Every city fails to resolve** (`matchedCities` ends up empty): throws a real `ValidationError`
- * rather than building a campaign with an empty/absent `geo_locations` — a real, deliberate
- * decision (not a silent fallback): a HOUSING-category ad set with NO geo targeting at all would
- * be a real, broad, non-obviously-broken-looking spend commitment nobody asked for, and Meta's own
- * `specialAdCategories: ['HOUSING']` restriction already strips age/gender as compensating signal,
- * so geo is the only real targeting lever a PROPERTY campaign has left — losing it entirely must
- * be a loud failure, not a quiet no-op.
- *
- * `radiusKm` is clamped into Meta's real accepted kilometer range (17-80 — see `MetaTargetingCity`
- * 's own doc) since `ResolvedLocation.radiusKm` can be smaller (e.g. `0` for
- * `PROPERTY_BRANCH_AUDIENCE_DEFAULTS.UMUM`'s "nationwide" fallback default) or larger than what
- * Meta's API accepts.
- */
+/** Preserve every resolved city and the approved radius; unsupported plans fail preflight. */
 export async function resolvePropertyTargeting(
-  searchAdLocations: SearchAdLocations,
+  searchAdLocations: Pick<SearchAdLocations, "execute">,
   resolvedLocation: ResolvedLocation,
   accessToken: string,
 ): Promise<PropertyTargetingResult> {
@@ -78,11 +48,22 @@ export async function resolvePropertyTargeting(
     );
   }
 
-  const radius = Math.min(Math.max(resolvedLocation.radiusKm, MIN_RADIUS_KM), MAX_RADIUS_KM);
+  // An approved plan must not silently lose locations or widen its radius.
+  if (unresolvedCities.length > 0) {
+    throw new ValidationError(
+      "PRECHECK_FAILED: not every approved city could be resolved; revise the targeting plan.",
+    );
+  }
+  const radius = resolvedLocation.radiusKm;
+  if (!Number.isFinite(radius) || radius < MIN_RADIUS_KM || radius > MAX_RADIUS_KM) {
+    throw new ValidationError(
+      "PRECHECK_FAILED: approved radius is unsupported by this targeting adapter; revise the plan instead of silently clamping it.",
+    );
+  }
   return {
     targeting: {
       geoLocations: {
-        cities: matchedCities.slice(0, 1).map((matched) => ({
+        cities: matchedCities.map((matched) => ({
           key: matched.key,
           radius,
           distanceUnit: "kilometer" as const,

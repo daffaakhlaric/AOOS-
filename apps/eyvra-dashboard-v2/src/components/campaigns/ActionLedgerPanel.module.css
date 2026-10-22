@@ -1,0 +1,50 @@
+.panel {
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  margin-bottom: var(--sp-4);
+}
+.panel header,
+.panel li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.panel header > div,
+.panel li > div {
+  flex: 1;
+  min-width: 180px;
+}
+.panel h2 {
+  font-size: 16px;
+}
+.panel p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: var(--sp-2) 0;
+  overflow-wrap: anywhere;
+}
+.panel ul {
+  list-style: none;
+  padding: 0;
+}
+.panel li,
+.detail {
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+.panel button {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.panel button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}

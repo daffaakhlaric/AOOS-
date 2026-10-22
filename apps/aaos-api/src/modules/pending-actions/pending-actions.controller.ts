@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
 
-import { TenantId } from "../../common/tenant-context.js";
+import { AuthenticatedUserId, TenantId } from "../../common/tenant-context.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
 
@@ -46,8 +46,9 @@ export class PendingActionsController {
     @TenantId() tenantId: string,
     @Param("id") id: string,
     @Body(new ZodValidationPipe(DecidePendingActionBodySchema)) body: DecidePendingActionBodyDto,
+    @AuthenticatedUserId() actorId: string,
   ): Promise<PendingActionResponseDto> {
-    const row = await this.service.approve(id, tenantId, body.decidedBy, body.decisionNotes);
+    const row = await this.service.approve(id, tenantId, actorId, body.decisionNotes);
     return toPendingActionResponseDto(row);
   }
 
@@ -57,8 +58,9 @@ export class PendingActionsController {
     @TenantId() tenantId: string,
     @Param("id") id: string,
     @Body(new ZodValidationPipe(DecidePendingActionBodySchema)) body: DecidePendingActionBodyDto,
+    @AuthenticatedUserId() actorId: string,
   ): Promise<PendingActionResponseDto> {
-    const row = await this.service.reject(id, tenantId, body.decidedBy, body.decisionNotes);
+    const row = await this.service.reject(id, tenantId, actorId, body.decisionNotes);
     return toPendingActionResponseDto(row);
   }
 }
