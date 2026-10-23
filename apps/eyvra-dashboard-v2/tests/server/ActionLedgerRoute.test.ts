@@ -10,6 +10,18 @@ vi.mock("@/lib/api", async (load) => ({
 }));
 import { GET, POST } from "@/app/api/actions/[[...path]]/route";
 const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+it("forwards reconciliation with trusted tenant and rejects extra mutation fields", async () => {
+  expect((await POST(request(), { params: { path: [id, "reconcile"] } })).status).toBe(200);
+  expect(mocks.api).toHaveBeenCalledWith(
+    `/api/v1/actions/${id}/reconcile`,
+    expect.objectContaining({ method: "POST", body: {}, headers: { "x-tenant-id": "trusted" } }),
+  );
+  mocks.api.mockClear();
+  expect(
+    (await POST(request({ retry: true }), { params: { path: [id, "reconcile"] } })).status,
+  ).toBe(400);
+  expect(mocks.api).not.toHaveBeenCalled();
+});
 it("permits only the named read-only preflight subroute", async () => {
   const request = new NextRequest(`http://localhost/api/actions/${id}/preflight`);
   expect((await GET(request, { params: { path: [id, "preflight"] } })).status).toBe(200);

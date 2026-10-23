@@ -169,3 +169,46 @@ Phase 5 strategy redesign and Phase 6 Kai rebuild have not started.
   and execute still revalidates. Unexpected exception details are redacted.
 - Existing CAPI intelligence is global/config-scoped and is not accepted as campaign-specific
   tracking evidence. TRACKING_UNVERIFIED therefore remains a real unresolved integration gap.
+
+## 23 October 2026 — approved pause policy and refreshed recommendations
+
+- Replaced the unconditional Samantha tracking block for the narrow, explicitly human-approved
+  PAUSE_CAMPAIGN path with `evaluateApprovedPausePolicy`. It requires an explicitly configured
+  META_LEAD/LEAD basis, SPEND_WITHOUT_RESULT diagnosis, sufficient data, observation window,
+  policy confidence, positive spend and zero reported leads. Latest assessment, learning,
+  credential, capability, account and approval/claim checks remain mandatory.
+- This permits spend containment without claiming tracking health or requiring CRM. Business-outcome
+  policies still block; no tenant policy, execution tier or write switch was changed. Scaling and
+  resume are not enabled by this rule. Live success has not been established.
+- Recommendation IDs now include the durable assessment ID instead of the calendar day. A newer
+  same-day assessment can produce a fresh review plan; the superseded-assessment check continues
+  blocking older plans. Repeated preparation of the same assessment retains the same queue identity.
+- Pause policy/context validation: 24 tests passed. No additional migration required.
+- Recommendation regression validation: 29 tests passed, including same-assessment identity reuse,
+  new same-day assessment identity, and rejection of missing assessment IDs. API build passed.
+
+## Activity projection
+
+- Approval and execution now use the existing ActivityLogger/agent_activities path, with trusted
+  tenant/user, action ID, revision and correlation ID. No raw command, token or provider response
+  is copied. Approval success explicitly means approval stored, not a Meta mutation.
+- Only VERIFIED execution is projected as SUCCESS. Uncertain/intermediate/failed states and
+  rejected execution attempts become NEEDS_HUMAN. A rejected replay of an already verified action
+  is not logged as a new successful execution.
+- Projection is best-effort: Activity failures cannot change an executor outcome into a retryable
+  error. Durable execution state remains in the ledger. Crash recovery/outbox delivery remains open.
+- 18 activity/approval/runtime tests passed. No migration or live Meta write was required.
+
+## Status-action reconciliation binding
+
+- Added explicit `POST /api/v1/actions/:id/reconcile` and dashboard recovery button for UNCERTAIN/
+  PARTIAL. Validates approved command hash, frozen plan, membership, tenant and unchanged integration/
+  credential/account identity, then binds the existing CAS reconciler to Meta read-back only.
+- Status actions use their immutable target object ID when a response was lost. No name matching,
+  provider POST, replay, campaign creation recovery, or lease stealing is enabled. Writes-disabled
+  mode does not block these verification reads. Unknown/mismatched results stay uncertain.
+- Reconciliation projects its persisted outcome into Activity. Scheduler recovery for crashed
+  EXECUTING/RECONCILING leases is still not implemented; this endpoint is explicit manual recovery.
+- Validation: 19 backend runtime/context tests and 8 dashboard route tests passed; API build and
+  dashboard TypeScript passed. Lost-response recovery was tested with fixture Meta transport,
+  proving no second provider POST; no live campaign was mutated.

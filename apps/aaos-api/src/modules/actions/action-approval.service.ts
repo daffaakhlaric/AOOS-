@@ -13,6 +13,7 @@ import type { GROWTH_ACTIONS } from "../automation-policy/domain/growth-policy.j
 import { GrowthPolicyService } from "../automation-policy/growth-policy.service.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 
+import { ActionActivityService } from "./action-activity.service.js";
 import { ActionEvidenceService } from "./action-evidence.service.js";
 import { actionSummary } from "./action-query.service.js";
 import { ActionRepository, commandHash } from "./action.repository.js";
@@ -37,6 +38,7 @@ export class ActionApprovalService {
     private readonly policy: GrowthPolicyService,
     @Inject(META_ADS_CONNECTOR_REGISTRY) private readonly registry: MetaAdsConnectorRegistry,
     private readonly evidence: ActionEvidenceService,
+    private readonly activity: ActionActivityService,
   ) {}
 
   /** Records approval only. It does not claim execution or elevate any Phase 3 capability. */
@@ -103,6 +105,7 @@ export class ActionApprovalService {
       throw new ConflictException("ACTION_ALREADY_DECIDED");
     const updated = await this.repository.find(identity.tenantId, id);
     if (!updated) throw new ConflictException("ACTION_READ_FAILED");
+    await this.activity.record(updated, identity.userId, "APPROVAL");
     return {
       ...actionSummary(updated),
       executionReady: false,

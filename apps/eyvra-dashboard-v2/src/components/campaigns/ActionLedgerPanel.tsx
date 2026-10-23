@@ -102,6 +102,25 @@ export function ActionLedgerPanel() {
       setBusy(undefined);
     }
   };
+  const reconcile = async (action: Action) => {
+    setBusy(action.id);
+    setError(undefined);
+    try {
+      const response = await fetch(`/api/actions/${action.id}/reconcile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error?.message ?? "Hasil belum dapat diperiksa.");
+      setDetail(result as Action);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Hasil belum dapat dipastikan.");
+    } finally {
+      await load().catch(() => undefined);
+      setBusy(undefined);
+    }
+  };
   const run = async (action: Action) => {
     if (
       !preflight?.ready ||
@@ -201,6 +220,17 @@ export function ActionLedgerPanel() {
               mengubah iklan.
             </p>
             {error && <p role="alert">{error}</p>}
+            {canManage && ["UNCERTAIN", "PARTIAL"].includes(detail.state) && (
+              <div>
+                <p>
+                  Periksa hasil yang sudah ada di Meta. Pemeriksaan ini tidak mengirim ulang
+                  perubahan iklan.
+                </p>
+                <button disabled={!!busy} onClick={() => void reconcile(detail)}>
+                  Periksa hasil di Meta
+                </button>
+              </div>
+            )}
             {canManage && ["AWAITING_APPROVAL", "APPROVED"].includes(detail.state) && (
               <>
                 <button disabled={!!busy} onClick={() => void checkReadiness(detail)}>

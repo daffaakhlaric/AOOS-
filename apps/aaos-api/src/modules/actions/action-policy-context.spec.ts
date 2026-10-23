@@ -92,6 +92,15 @@ it("accepts only fresh verified capability and current membership", async () => 
     "ACTION_EXECUTION_FORBIDDEN",
   );
 });
+it("permits reconciliation with writes disabled but rejects changed account identity", async () => {
+  const f = setup();
+  vi.stubEnv("META_REAL_WRITES_ENABLED", "false");
+  expect(await f.context.resolveReconciliation(f.identity, f.command)).toBe(f.connection);
+  f.connection.adAccountIds = ["act_2"];
+  await expect(f.context.resolveReconciliation(f.identity, f.command)).rejects.toThrow(
+    "INTEGRATION_CHANGED",
+  );
+});
 it("does not substitute Meta leads for the configured business outcome", async () => {
   const f = setup();
   await expect(

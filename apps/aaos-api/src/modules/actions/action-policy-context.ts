@@ -26,6 +26,38 @@ export class ActionPolicyContext {
     private readonly learning: ActionLearningService,
   ) {}
 
+  /** Reconciliation reads provider state; it must remain available when writes are disabled. */
+  async resolveReconciliation(identity: TrustedTenantContext, command: ActionCommand) {
+    statusTarget(command);
+    if (identity.tenantId !== command.tenantId || identity.workspaceId !== command.workspaceId)
+      throw new ForbiddenException("ACTION_TENANT_MISMATCH");
+    const member = await this.db
+      .from<{ role: string }>("tenant_memberships")
+      .select("role")
+      .eq("tenant_id", identity.tenantId)
+      .eq("user_id", identity.userId)
+      .eq("status", "ACTIVE")
+      .maybeSingle();
+    if (
+      member.error ||
+      !member.data ||
+      !["OWNER", "ADMIN", "MEDIA_BUYER"].includes(member.data.role)
+    )
+      throw new ForbiddenException("ACTION_EXECUTION_FORBIDDEN");
+    const result = await this.registry.resolve(identity.tenantId);
+    if (!result.ok) throw new ConflictException("INTEGRATION_UNAVAILABLE");
+    const ctx = result.value;
+    if (
+      ctx.tenantId !== command.tenantId ||
+      ctx.integrationId !== command.integrationId ||
+      ctx.credentialVersion !== command.credentialVersion ||
+      ctx.adAccountIds.length !== 1 ||
+      ctx.adAccountIds[0] !== command.adAccountId
+    )
+      throw new ConflictException("INTEGRATION_CHANGED");
+    return ctx;
+  }
+
   async resolve(identity: TrustedTenantContext, command: ActionCommand) {
     statusTarget(command);
     if (identity.tenantId !== command.tenantId || identity.workspaceId !== command.workspaceId)

@@ -13,7 +13,9 @@ async function proxy(request: NextRequest, { params }: Context, method: "GET" | 
       ? path.length > 2 ||
         (path.length > 0 && !validId.test(path[0]!)) ||
         (path.length === 2 && path[1] !== "preflight")
-      : path.length !== 2 || !validId.test(path[0]!) || !["approve", "execute"].includes(path[1]!)
+      : path.length !== 2 ||
+        !validId.test(path[0]!) ||
+        !["approve", "execute", "reconcile"].includes(path[1]!)
   )
     return NextResponse.json({ error: { message: "Aksi tidak valid." } }, { status: 400 });
   if (method === "POST" && request.headers.get("origin") !== request.nextUrl.origin)

@@ -16,10 +16,13 @@ import { z } from "zod";
 import { TenantId } from "../../common/tenant-context.js";
 import { SUPABASE_CLIENT } from "../../di-tokens.js";
 import { ZodValidationPipe } from "../../pipes/zod-validation.pipe.js";
+import { ActivityLogModule } from "../activity-log/activity-log.module.js";
 import type { TrustedTenantContext } from "../auth/tenant-authorization.service.js";
 import { GrowthPolicyModule } from "../automation-policy/growth-policy.module.js";
 import { ApiKeyGuard } from "../meta-ads/guards/api-key.guard.js";
+import { ModeGuardModule } from "../mode-guard/mode-guard.module.js";
 
+import { ActionActivityService } from "./action-activity.service.js";
 import { ActionApprovalService } from "./action-approval.service.js";
 import { ActionEvidenceService } from "./action-evidence.service.js";
 import { ActionLearningService } from "./action-learning.service.js";
@@ -64,11 +67,17 @@ export class ActionsController {
   ) {
     return this.runtime.execute(request.tenantContext, id);
   }
+  @Post(":id/reconcile") reconcile(
+    @Req() request: FastifyRequest & { tenantContext: TrustedTenantContext },
+    @Param("id", new ParseUUIDPipe()) id: string,
+  ) {
+    return this.runtime.reconcile(request.tenantContext, id);
+  }
 }
 
 /** Runtime writes still require current Phase 3 capabilities, policy and explicit approval. */
 @Module({
-  imports: [GrowthPolicyModule],
+  imports: [GrowthPolicyModule, ActivityLogModule, ModeGuardModule],
   controllers: [ActionsController],
   providers: [
     ApiKeyGuard,
@@ -79,6 +88,7 @@ export class ActionsController {
     ActionProposalService,
     ActionEvidenceService,
     ActionLearningService,
+    ActionActivityService,
     {
       provide: ActionRepository,
       useFactory: (db: SupabaseClientLike) => new ActionRepository(db),

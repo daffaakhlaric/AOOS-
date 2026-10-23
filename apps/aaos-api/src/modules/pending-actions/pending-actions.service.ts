@@ -205,15 +205,12 @@ export class PendingActionsService {
     policyVersion: number,
     payload: Record<string, unknown>,
   ): Promise<string> {
+    const assessmentId = payload["assessmentId"];
+    if (typeof assessmentId !== "string" || assessmentId.trim().length === 0)
+      throw new ConflictError("RECOMMENDATION_ASSESSMENT_REQUIRED");
     const digest = createHash("sha256")
       .update(
-        JSON.stringify([
-          tenantId,
-          campaignId,
-          payload["decision"],
-          policyVersion,
-          this.now().toISOString().slice(0, 10),
-        ]),
+        JSON.stringify([tenantId, campaignId, payload["decision"], policyVersion, assessmentId]),
       )
       .digest("hex");
     const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;

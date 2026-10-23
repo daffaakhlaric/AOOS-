@@ -3,9 +3,11 @@ import { ConflictException, HttpException, Injectable, NotFoundException } from 
 
 import type { TrustedTenantContext } from "../auth/tenant-authorization.service.js";
 
+import { ActionActivityService } from "./action-activity.service.js";
 import { ActionExecutor } from "./action-executor.service.js";
 import { ActionPolicyContext } from "./action-policy-context.js";
 import { ActionQueryService } from "./action-query.service.js";
+import { ActionReconciliationService } from "./action-reconciliation.service.js";
 import { statusTarget } from "./action-status.contract.js";
 import { ActionRepository, assertStepPlan, commandHash } from "./action.repository.js";
 import type { ActionCommand } from "./action.types.js";
@@ -16,7 +18,55 @@ export class ActionRuntimeService {
     private readonly repository: ActionRepository,
     private readonly context: ActionPolicyContext,
     private readonly queries: ActionQueryService,
+    private readonly activity: ActionActivityService,
   ) {}
+
+  async reconcile(identity: TrustedTenantContext, id: string) {
+    const row = await this.repository.find(identity.tenantId, id);
+    if (
+      !row ||
+      row.tenant_id !== identity.tenantId ||
+      row.command.workspaceId !== identity.workspaceId
+    )
+      throw new NotFoundException("Action not found");
+    if (!row.claim_token || !["UNCERTAIN", "PARTIAL"].includes(row.state))
+      throw new ConflictException("ACTION_NOT_RECONCILABLE");
+    if (commandHash(row.command) !== row.command_hash || row.approval_hash !== row.command_hash)
+      throw new ConflictException("ACTION_REVISION_MISMATCH");
+    assertStepPlan(row.command, await this.repository.steps(identity.tenantId, id));
+    await this.context.resolveReconciliation(identity, row.command);
+    const reader = new MetaApiClient({ timeoutMs: 15000 });
+    const verify = async (command: ActionCommand, providerId: string) => {
+      if (providerId !== command.entityId)
+        return { matches: false, evidence: { code: "PROVIDER_ID_MISMATCH" } };
+      const ctx = await this.context.resolveReconciliation(identity, command);
+      const result = await reader.verifyObjectState(
+        providerId,
+        command.adAccountId,
+        { status: statusTarget(command) },
+        ctx.accessToken,
+      );
+      return {
+        matches: result.status === "VERIFIED",
+        evidence: { status: result.status, observed: result.observed ?? {} },
+      };
+    };
+    const reconciler = new ActionReconciliationService(
+      this.repository,
+      {
+        verify: (command, _step, providerId) => verify(command, providerId),
+        verifyHierarchy: async (command) => (await verify(command, command.entityId)).matches,
+      },
+      {
+        // Status commands target a known immutable object ID; this does not infer a created object by name.
+        findCandidates: async (command) => [command.entityId],
+      },
+    );
+    await reconciler.reconcile(identity.tenantId, id);
+    const updated = await this.repository.find(identity.tenantId, id);
+    if (updated) await this.activity.record(updated, identity.userId, "RECONCILIATION");
+    return this.queries.detail(identity.tenantId, id);
+  }
 
   /** Read-only preview. A successful preview is not approval and never bypasses execute rechecks. */
   async preflight(identity: TrustedTenantContext, id: string) {
@@ -127,7 +177,27 @@ export class ActionRuntimeService {
       verify: async (command) => verify(command),
       verifyHierarchy: async (command) => (await verify(command)).matches,
     });
-    await executor.execute(identity.tenantId, id);
+    let executionReturned = false;
+    try {
+      await executor.execute(identity.tenantId, id);
+      executionReturned = true;
+    } finally {
+      // The ledger stays authoritative if the Activity projection or read is unavailable.
+      try {
+        const row = await this.repository.find(identity.tenantId, id);
+        if (
+          row?.tenant_id === identity.tenantId &&
+          row.command.workspaceId === identity.workspaceId
+        )
+          await this.activity.record(
+            row,
+            identity.userId,
+            executionReturned ? "EXECUTION" : "EXECUTION_REJECTED",
+          );
+      } catch {
+        /* Never mask the executor's outcome. */
+      }
+    }
     return this.queries.detail(identity.tenantId, id);
   }
 }

@@ -7,6 +7,7 @@ import { defaultGrowthPolicy } from "../automation-policy/domain/growth-policy.j
 import type { GrowthPolicyService } from "../automation-policy/growth-policy.service.js";
 import type { MetaAdsConnectorRegistry } from "../meta-ads/infrastructure/meta-ads-connector-registry.js";
 
+import type { ActionActivityService } from "./action-activity.service.js";
 import { ActionApprovalService } from "./action-approval.service.js";
 import type { ActionEvidenceService } from "./action-evidence.service.js";
 import { ActionRepository, commandHash, type ExecutionRow } from "./action.repository.js";
@@ -72,6 +73,7 @@ function setup() {
     { current } as unknown as GrowthPolicyService,
     registry as unknown as MetaAdsConnectorRegistry,
     { verify: vi.fn(async () => undefined) } as unknown as ActionEvidenceService,
+    { record: vi.fn(async () => undefined) } as unknown as ActionActivityService,
   );
   return { identity, command, row, repo, policy, current, registry, read, service };
 }

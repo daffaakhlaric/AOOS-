@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import type { TrustedTenantContext } from "../auth/tenant-authorization.service.js";
 
+import type { ActionActivityService } from "./action-activity.service.js";
 import type { ActionPolicyContext } from "./action-policy-context.js";
 import type { ActionQueryService } from "./action-query.service.js";
 import { ActionRuntimeService } from "./action-runtime.service.js";
@@ -80,6 +81,7 @@ function setup(initial = "ACTIVE", loseResponse = false) {
         state,
         command_hash: commandHash(command),
         approval_hash: commandHash(command),
+        claim_token: state === "APPROVED" ? null : "claim",
       }) as ExecutionRow,
   );
   repo.claim = vi.fn(async () => {
@@ -102,12 +104,16 @@ function setup(initial = "ACTIVE", loseResponse = false) {
   repo.finishStep = vi.fn(async (_s, _from, to, values) => {
     step = { ...step, ...values, state: to };
   });
-  const context = { resolve: vi.fn(async () => ({ accessToken: "fixture" })) };
+  const context = {
+    resolve: vi.fn(async () => ({ accessToken: "fixture" })),
+    resolveReconciliation: vi.fn(async () => ({ accessToken: "fixture" })),
+  };
   const queries = { detail: vi.fn(async () => ({ state })) };
   const runtime = new ActionRuntimeService(
     repo,
     context as unknown as ActionPolicyContext,
     queries as unknown as ActionQueryService,
+    { record: vi.fn(async () => undefined) } as unknown as ActionActivityService,
   );
   const identity = { tenantId: "a", workspaceId: "a" } as TrustedTenantContext;
   return { runtime, identity, repo, context, getWrites: () => writes, getStep: () => step };
@@ -130,6 +136,15 @@ it("lost write response stays uncertain and is not retried", async () => {
   expect((await f.runtime.execute(f.identity, "one")).state).toBe("UNCERTAIN");
   await expect(f.runtime.execute(f.identity, "one")).rejects.toThrow("ACTION_ALREADY_CLAIMED");
   expect(f.getWrites()).toBe(1);
+});
+it("reconciles a lost response through reads only, even with writes disabled", async () => {
+  const f = setup("ACTIVE", true);
+  expect((await f.runtime.execute(f.identity, "one")).state).toBe("UNCERTAIN");
+  vi.stubEnv("META_REAL_WRITES_ENABLED", "false");
+  f.context.resolve.mockRejectedValue(new Error("META_WRITE_DISABLED"));
+  expect((await f.runtime.reconcile(f.identity, "one")).state).toBe("VERIFIED");
+  expect(f.getWrites()).toBe(1);
+  expect(f.getStep().provider_object_id).toBe("100");
 });
 it("a current capability block stops execution before claim or write", async () => {
   const f = setup();

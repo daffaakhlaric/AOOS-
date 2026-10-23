@@ -175,6 +175,33 @@ function buildService(
 }
 
 describe("PendingActionsService", () => {
+  it("uses the assessment identity so a newer same-day recommendation gets a new plan", async () => {
+    const client = createFakeSupabaseClient();
+    const { service, campaignsService } = buildService(client);
+    const first = await service.enqueueRecommendation("dss-motor", "100", 1, {
+      decision: "PAUSE",
+      assessmentId: "assessment-1",
+    });
+    const repeated = await service.enqueueRecommendation("dss-motor", "100", 1, {
+      decision: "PAUSE",
+      assessmentId: "assessment-1",
+    });
+    const newer = await service.enqueueRecommendation("dss-motor", "100", 1, {
+      decision: "PAUSE",
+      assessmentId: "assessment-2",
+    });
+    expect(first).toBe(repeated);
+    expect(newer).not.toBe(first);
+    expect(campaignsService.createPropertyCampaign).not.toHaveBeenCalled();
+  });
+  it("does not enqueue a recommendation without durable assessment identity", async () => {
+    const client = createFakeSupabaseClient();
+    const { service } = buildService(client);
+    await expect(
+      service.enqueueRecommendation("dss-motor", "100", 1, { decision: "PAUSE" }),
+    ).rejects.toThrow("RECOMMENDATION_ASSESSMENT_REQUIRED");
+    expect(client.rows("pending_agent_actions")).toHaveLength(0);
+  });
   it("executes only once for simultaneous approvals and rejects replay after timeout", async () => {
     const client = createFakeSupabaseClient();
     seedPendingAction(client);
