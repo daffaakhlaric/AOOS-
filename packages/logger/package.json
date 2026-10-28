@@ -27,7 +27,7 @@
   "dependencies": {
     "@aos/common": "workspace:*",
     "@aos/types": "workspace:*",
-    "pino": "^9.4.0"
+    "pino": "^10.4.0"
   },
   "devDependencies": {
     "@aos/eslint-config": "workspace:*",
@@ -36,7 +36,7 @@
     "@vitest/coverage-v8": "^2.0.5",
     "pino-pretty": "^11.2.2",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5",
+    "vitest": "^5.0.5",
     "@types/node": "^20.14.0"
   }
 }

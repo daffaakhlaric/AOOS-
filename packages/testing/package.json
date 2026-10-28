@@ -28,7 +28,7 @@
     "@aos/common": "workspace:*",
     "@aos/logger": "workspace:*",
     "@aos/types": "workspace:*",
-    "vitest": "^2.0.5"
+    "vitest": "^5.0.5"
   },
   "devDependencies": {
     "@aos/eslint-config": "workspace:*",
